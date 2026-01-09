@@ -29,10 +29,14 @@ cd Backend
 # Install dependencies
 npm install
 
-# Create .env file (copy from .env.example)
-copy .env.example .env
-
-# Edit .env with your Supabase credentials
+# Create .env file (copy from `.env.example`)
+# Windows (PowerShell):
+#   copy .env.example .env
+# macOS / Linux:
+#   cp .env.example .env
+# Safety: Do NOT commit your `.env` file (it may contain secrets). Keep `.env.example` committed with placeholder values only.
+# For CI / GitHub Actions, add secrets in repository Settings → Secrets and reference them as `${{ secrets.NAME }}` in workflows. See SUPABASE_SETUP_GUIDE.md for details.
+# Edit `.env` with your Supabase credentials
 # (Instructions in SUPABASE_SETUP_GUIDE.md)
 
 # Start the server
