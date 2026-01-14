@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { supabase } from "../../config.js";
-import { sendEmail } from "./email.service.js";
+import { sendEmail } from "../../utils/email.js"
 
 export const createEmailVerificationToken = async (customer) => {
   const token = crypto.randomBytes(32).toString("hex");
@@ -48,4 +48,20 @@ export const verifyEmailToken = async (token) => {
     .from("email_verification_tokens")
     .delete()
     .eq("id", record.id);
+};
+
+
+export const sendResetPasswordEmail = async (email, token) => {
+  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+  await sendEmail({
+    to: email,
+    subject: "Reset your password",
+    html: `
+      <p>You requested a password reset.</p>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetLink}">Reset Password</a>
+      <p>This link will expire in 1 hour.</p>
+    `,
+  });
 };

@@ -1,49 +1,39 @@
 import {
-  forgotPasswordService,
+  createResetToken,
   resetPasswordService,
 } from "../../services/customer/password.service.js";
+import { sendResetPasswordEmail } from "../../services/customer/email.service.js";
 
-/**
- * FORGOT PASSWORD
- * POST /api/customer/forgot-password
- */
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("email", email)
+      .single();
+
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
     }
 
-    await forgotPasswordService(email);
+    const token = await createResetToken(customer.id);
+    await sendResetPasswordEmail(customer.email, token);
 
-    res.json({
-      message: "Password reset link sent to email",
-    });
+    res.json({ message: "Password reset email sent" });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
-/**
- * RESET PASSWORD
- * POST /api/customer/reset-password
- */
 export const resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
+    const { token, password } = req.body;
 
-    if (!token || !newPassword) {
-      return res.status(400).json({
-        message: "Token and new password are required",
-      });
-    }
+    await resetPasswordService(token, password);
 
-    await resetPasswordService(token, newPassword);
-
-    res.json({
-      message: "Password reset successful",
-    });
+    res.json({ message: "Password reset successful" });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

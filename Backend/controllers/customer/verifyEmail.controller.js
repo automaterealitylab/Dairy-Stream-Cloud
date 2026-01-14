@@ -1,31 +1,23 @@
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
-import { supabase } from "../../config.js";
+import { verifyEmailToken } from "../../services/customer/email.service.js";
 
-export const createResetToken = async (customerId) => {
-  const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
 
-  await supabase.from("password_reset_tokens").insert([
-    { customer_id: customerId, token, expires_at: expiresAt },
-  ]);
+    if (!token) {
+      return res.status(400).json({
+        message: "Verification token is required",
+      });
+    }
 
-  return token;
-};
+    await verifyEmailToken(token);
 
-export const resetPasswordService = async (token, newPassword) => {
-  const { data: record } = await supabase
-    .from("password_reset_tokens")
-    .select("*")
-    .eq("token", token)
-    .single();
-
-  if (!record) throw new Error("Invalid or expired token");
-
-  const hashed = await bcrypt.hash(newPassword, 10);
-
-  await supabase
-    .from("customers")
-    .update({ password: hashed })
-    .eq("id", record.customer_id);
+    res.json({
+      message: "Email verified successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      message: err.message,
+    });
+  }
 };

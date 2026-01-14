@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-
+import { supabase } from "./config.js";
 import customerRoutes from "./routes/customer.routes.js";
 
 // Load environment variables
@@ -50,4 +50,19 @@ const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
+});
+
+
+
+app.get("/test-supabase", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .limit(1);
+
+    res.json({ data, error });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
