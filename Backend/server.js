@@ -71,6 +71,6 @@ app.get("/supabase-health", async (req, res) => {
   }
 });
 
-setInterval(() => {
-  console.log("🟢 Server still alive");
-}, 5000);
+// setInterval(() => {
+//   console.log("🟢 Server still alive");
+// }, 5000);

@@ -36,7 +36,12 @@ export const registerCustomerService = async (payload) => {
 
   if (error) throw new Error(error.message);
 
-  await createEmailVerificationToken(customer);
+ console.log("🧪 ABOUT TO CREATE EMAIL TOKEN FOR:", customer.id);
+
+await createEmailVerificationToken(customer);
+
+console.log("🧪 EMAIL TOKEN FUNCTION COMPLETED");
+
 
   return customer;
 };
