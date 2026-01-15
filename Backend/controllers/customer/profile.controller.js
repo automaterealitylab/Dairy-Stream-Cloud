@@ -9,15 +9,15 @@ import {
  */
 export const getProfile = async (req, res) => {
   try {
-    const customerId = req.customer.id;
+    if (!req.customer || !req.customer.id) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { data, error } = await findCustomerById(customerId);
+if (!data) {
+  return res.status(404).json({ message: "Customer not found" });
+}
 
-    if (error || !data) {
-      return res.status(404).json({
-        message: "Customer not found",
-      });
-    }
 
     // Never send password back
     delete data.password;
