@@ -12,7 +12,8 @@ import LoginPage from './pages/LoginPage';
 function App() {
   return (
     <Routes>
-        <Route path='/login' element={<LoginPage></LoginPage>}></Route>
+      {/* need to change the route later */}
+        <Route path='/' element={<LoginPage></LoginPage>}></Route> 
       <Route path='/register' element={<CustomerRegister></CustomerRegister>}></Route>
     
       <Route path='/customer-dashboard' element={<CustomerDashboard></CustomerDashboard>}></Route>
