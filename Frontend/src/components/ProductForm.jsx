@@ -43,7 +43,6 @@ export default function ProductForm() {
     </div>
   );
 }
-import React, { useState } from 'react';
 
 // Initial structure for a single delivery record
 const initialEntryState = {
@@ -261,5 +260,3 @@ function MilkDeliveryVerticalForm() {
     </div>
   );
 }
-
-export default MilkDeliveryVerticalForm;

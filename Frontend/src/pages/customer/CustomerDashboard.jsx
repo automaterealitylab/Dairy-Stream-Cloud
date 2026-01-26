@@ -122,7 +122,8 @@ const CustomerDashboard = () => {
 };
 
 // --- SUB-COMPONENT: ACTION CARD ---
-const QuickActionCard = ({ icon: Icon, label, color }) => {
+const QuickActionCard = ({ icon, label, color }) => {
+   const IconComponent = icon; // local alias to ensure linter recognizes usage
    const colors = {
       blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
       orange: 'bg-orange-50 text-orange-600 hover:bg-orange-100',
@@ -132,7 +133,7 @@ const QuickActionCard = ({ icon: Icon, label, color }) => {
 
    return (
       <button className={`flex flex-col items-center justify-center p-4 rounded-xl transition ${colors[color]}`}>
-         <Icon size={24} className="mb-2"/>
+         <IconComponent size={24} className="mb-2"/>
          <span className="text-xs font-bold">{label}</span>
       </button>
    );

@@ -132,7 +132,7 @@ const LoginPage = () => {
       } else {
         setError("Account not found. Please register first.");
       }
-    } catch (err) {
+    } catch {
       setError("Connection error. Please try again.");
     } finally {
       setLoading(false);

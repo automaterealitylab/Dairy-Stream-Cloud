@@ -90,7 +90,7 @@ const MOCK_DAIRIES = [
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [dairies, setDairies] = useState(MOCK_DAIRIES);
+  const [dairies, _setDairies] = useState(MOCK_DAIRIES);
 
   // Simple Filter Logic (Name or Address)
   const filteredDairies = dairies.filter(dairy => 
