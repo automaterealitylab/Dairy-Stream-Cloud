@@ -10,8 +10,8 @@ import {
   Lock,
   User,
   ChevronRight,
-  CheckCircle2,
   AlertCircle,
+  Briefcase
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.png";
 
@@ -27,7 +27,7 @@ const mockDetectAPI = async (identifier) => {
           userType: "STAFF",
           name: "Staff Member",
           dairy: { id: "D01", name: "Nandanvan Dairy", isVerified: true },
-          nextStep: "CONFIRMATION", // Goes to Screen B first [cite: 144]
+          nextStep: "CONFIRMATION", 
         });
       }
       // SCENARIO 2: ADMIN
@@ -36,10 +36,10 @@ const mockDetectAPI = async (identifier) => {
           userType: "ADMIN",
           name: "Dairy Owner",
           dairy: { id: "D02", name: "Shree Dairy", isVerified: true },
-          nextStep: "PASSWORD", // Admins skip confirmation usually, or can show it
+          nextStep: "PASSWORD", 
         });
       }
-      // SCENARIO 3: CUSTOMER (Multi-Dairy) -> Try entering '8888888888'
+      // SCENARIO 3: CUSTOMER (Multi-Dairy)
       else if (id === "8888888888") {
         resolve({
           userType: "CUSTOMER",
@@ -48,24 +48,24 @@ const mockDetectAPI = async (identifier) => {
             { id: "D01", name: "Nandanvan Dairy", location: "Pune" },
             { id: "D02", name: "Pune Fresh Dairy", location: "Mumbai" },
           ],
-          nextStep: "SELECT_DAIRY", // Triggers Modal [cite: 122]
+          nextStep: "SELECT_DAIRY", 
         });
       }
-      // SCENARIO 4: NEW USER -> Try entering '9999999999'
+      // SCENARIO 4: NEW USER
       else if (id === "9999999999") {
         resolve({
           userType: "CUSTOMER",
           membership: "NONE",
-          nextStep: "EXPLORE", // Redirects to profile creation [cite: 128]
+          nextStep: "EXPLORE", 
         });
       }
-      // SCENARIO 5: CUSTOMER (Single Dairy) -> Any other 10 digit number
+      // SCENARIO 5: CUSTOMER (Single Dairy)
       else if (id.length === 10) {
         resolve({
           userType: "CUSTOMER",
           membership: "SINGLE",
           dairy: { id: "D01", name: "Nandanvan Dairy", isVerified: true },
-          nextStep: "OTP", // Standard Customer Flow [cite: 111]
+          nextStep: "OTP", 
         });
       } else {
         resolve(null);
@@ -97,7 +97,7 @@ const LoginPage = () => {
     e.preventDefault();
     setError("");
 
-    // 1. Strict Validation [cite: 140-142]
+    // 1. Strict Validation
     const isEmail = identifier.includes("@");
     const isStaffId = identifier.toUpperCase().startsWith("STF");
     const isMobile = /^\d{10}$/.test(identifier);
@@ -117,9 +117,9 @@ const LoginPage = () => {
       if (response) {
         setDetectedUser(response);
 
-        // Handle New User immediately [cite: 128, 179]
+        // Handle New User immediately
         if (response.nextStep === "EXPLORE") {
-          navigate("/register", { state: { mobile: identifier } }); // Or /customer/setup-profile
+          navigate("/register", { state: { mobile: identifier } }); 
           return;
         }
 
@@ -139,10 +139,10 @@ const LoginPage = () => {
     }
   };
 
-  // --- HANDLER: DAIRY SELECTION (For Multi-Dairy Users) ---
+  // --- HANDLER: DAIRY SELECTION ---
   const handleDairySelect = (dairy) => {
     setSelectedDairy(dairy);
-    setStep("OTP"); // After selecting, go to OTP [cite: 227]
+    setStep("OTP"); 
   };
 
   // --- HANDLER: FINAL LOGIN ---
@@ -152,7 +152,7 @@ const LoginPage = () => {
 
     setTimeout(() => {
       setLoading(false);
-      // Routing Logic [cite: 236-238]
+      // Routing Logic
       const role = detectedUser.userType;
       localStorage.setItem("userRole", role);
       localStorage.setItem("dairyId", selectedDairy?.id);
@@ -220,12 +220,32 @@ const LoginPage = () => {
             <h2 className="text-2xl font-bold text-gray-900">
               {step === "IDENTIFIER" ? "Welcome Back" : "Sign In"}
             </h2>
-            <p className="text-gray-500 text-sm mt-1">
+            <p className="text-gray-500 text-sm mt-1 mb-2">
               {step === "IDENTIFIER" && "Enter your Email, Mobile, or Staff ID"}
               {step === "CONFIRMATION" && "Verify your account details"}
               {step === "SELECT_DAIRY" && "Select a dairy to continue"}
               {step === "OTP" && `Verifying ${identifier}`}
             </p>
+
+            {/* --- NEW: VISUAL ROLE INDICATOR (Badge) --- */}
+            {detectedUser && (
+              <div className="flex justify-center animate-in fade-in zoom-in duration-300">
+                <span 
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border tracking-wide uppercase ${
+                    detectedUser.userType === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                    detectedUser.userType === 'STAFF' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                    'bg-blue-50 text-blue-700 border-blue-200'
+                  }`}
+                >
+                   {detectedUser.userType === 'ADMIN' && <ShieldCheck size={14} />}
+                   {detectedUser.userType === 'STAFF' && <Briefcase size={14} />}
+                   {detectedUser.userType === 'CUSTOMER' && <User size={14} />}
+                   
+                   {detectedUser.userType === 'ADMIN' ? 'Dairy Admin' : 
+                    detectedUser.userType === 'STAFF' ? 'Staff Member' : 'Customer'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* ERROR ALERT */}
@@ -265,7 +285,7 @@ const LoginPage = () => {
             </form>
           )}
 
-          {/* --- STEP 1.5: CONFIRMATION (Screen B) [cite: 144] --- */}
+          {/* --- STEP 1.5: CONFIRMATION (Screen B) --- */}
           {step === "CONFIRMATION" && selectedDairy && (
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-100 p-6 rounded-xl text-center">
@@ -309,7 +329,7 @@ const LoginPage = () => {
             </div>
           )}
 
-          {/* --- STEP 2: MULTI-DAIRY SELECTION [cite: 220] --- */}
+          {/* --- STEP 2: MULTI-DAIRY SELECTION --- */}
           {step === "SELECT_DAIRY" && (
             <div className="space-y-4">
               <div className="max-h-60 overflow-y-auto space-y-3 pr-1">
