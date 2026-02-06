@@ -1,17 +1,20 @@
 import React from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import ProtectedRoute from "./components/ProtectedRoute"
-import AddNewCustomerForm from "./components/AddNewCustomerForm";
+
 import { Route, Routes } from "react-router-dom";
-import AddNewAgentForm from "./components/AddNewAgentForm";
-import DairyCustomerDashboard from "./components/DairyCustomerDashboard";
-import AdminDashboard from "./components/AdminDashboard";
-import AgentDashboard from "./components/agentDashboard";
+
 import LoginPage from "./pages/LoginPage";
 import RegisterNewuserPage from "./pages/RegisterNewuserPage";
 import RegisterDairyPage from "./pages/RegisterDairyPage";
 import ExploreDairiesPage from "./pages/public/ExploreDairiesPage";
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
+import ProtectedRoute from "./pages/ProtectedRoute";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
+import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
+import AgentDashboard from "./pages/agent/agentDashboard";
+import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard";
+
 function App() {
   return (
     <Routes>
@@ -80,10 +83,10 @@ export default App;
 // import { Route, Routes } from 'react-router-dom';
 
 // // Import Components
-// import ProtectedRoute from './components/ProtectedRoute'; // <--- Imported
-// import PublicRoute from './components/PublicRoute';       // <--- Imported
+// import ProtectedRoute from './pages/ProtectedRoute'; // <--- Imported
+// import PublicRoute from './pages/PublicRoute';       // <--- Imported
 // import LoginPage from './pages/LoginPage';
-// import CustomerDashboard from './components/CustomerDashboard';
+// import CustomerDashboard from './pages/customer/CustomerDashboard';
 // // ... other imports ...
 
 // function App() {
