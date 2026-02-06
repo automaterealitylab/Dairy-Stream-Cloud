@@ -1,19 +1,21 @@
 import React from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-
 import { Route, Routes } from "react-router-dom";
-
+import ProtectedRoute from "./pages/ProtectedRoute";
+import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
+import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
+import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AgentDashboard from "./pages/agent/agentDashboard";
 import LoginPage from "./pages/LoginPage";
 import RegisterNewuserPage from "./pages/RegisterNewuserPage";
 import RegisterDairyPage from "./pages/RegisterDairyPage";
 import ExploreDairiesPage from "./pages/public/ExploreDairiesPage";
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
-import ProtectedRoute from "./pages/ProtectedRoute";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
-import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
-import AgentDashboard from "./pages/agent/agentDashboard";
-import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard";
+import Deliveries from "./pages/customer/Deliveries";
+import Subscription from "./pages/customer/Subscription";
+import Payments from "./pages/customer/Payments";
+import Profile from "./pages/customer/Profile";
 
 function App() {
   return (
@@ -32,6 +34,42 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/customer/deliveries"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Deliveries/>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/customer/subscriptions"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Subscription />
+          </ProtectedRoute>
+        }
+      />
+
+       <Route
+        path="/customer/payments"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Payments/>
+          </ProtectedRoute>
+        }
+      />
+
+         <Route
+        path="/customer/profile"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Profile/>
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/register"
         element={<RegisterNewuserPage></RegisterNewuserPage>}

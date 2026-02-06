@@ -1,5 +1,6 @@
 import React from 'react';
 import CustomerLayout from '../../layouts/CustomerLayout';
+import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle, AlertCircle, Calendar, Plus, 
   PauseCircle, Banknote, ChevronRight, Droplets 
@@ -74,7 +75,7 @@ const CustomerDashboard = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
            <QuickActionCard icon={Plus} label="Add Extra" color="blue" />
            <QuickActionCard icon={PauseCircle} label="Pause" color="orange" />
-           <QuickActionCard icon={Calendar} label="Calendar" color="purple" />
+           <QuickActionCard icon={Calendar} label="Deliveries" color="purple" to="/customer/deliveries" />
            <QuickActionCard icon={Banknote} label="Pay Bill" color="green" />
         </div>
 
@@ -122,7 +123,8 @@ const CustomerDashboard = () => {
 };
 
 // --- SUB-COMPONENT: ACTION CARD ---
-const QuickActionCard = ({ icon, label, color }) => {
+const QuickActionCard = ({ icon, label, color, to }) => {
+   const navigate = useNavigate();
    const IconComponent = icon; // local alias to ensure linter recognizes usage
    const colors = {
       blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
@@ -131,8 +133,12 @@ const QuickActionCard = ({ icon, label, color }) => {
       green: 'bg-green-50 text-green-600 hover:bg-green-100',
    };
 
+   const handleClick = () => {
+      if (to) navigate(to);
+   };
+
    return (
-      <button className={`flex flex-col items-center justify-center p-4 rounded-xl transition ${colors[color]}`}>
+      <button onClick={handleClick} className={`flex flex-col items-center justify-center p-4 rounded-xl transition ${colors[color]}`}>
          <IconComponent size={24} className="mb-2"/>
          <span className="text-xs font-bold">{label}</span>
       </button>
