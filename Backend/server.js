@@ -1,6 +1,10 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+
+// Load environment variables FIRST
+dotenv.config();
+
 import { supabase } from "./config.js";
 import customerRoutes from "./routes/customer.routes.js";
 import routes from "./routes/index.js";

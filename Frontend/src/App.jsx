@@ -1,17 +1,22 @@
 import React from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import ProtectedRoute from "./components/ProtectedRoute"
-import AddNewCustomerForm from "./components/AddNewCustomerForm";
 import { Route, Routes } from "react-router-dom";
-import AddNewAgentForm from "./components/AddNewAgentForm";
-import DairyCustomerDashboard from "./components/DairyCustomerDashboard";
-import AdminDashboard from "./components/AdminDashboard";
-import AgentDashboard from "./components/agentDashboard";
+import ProtectedRoute from "./pages/ProtectedRoute";
+import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
+import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
+import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AgentDashboard from "./pages/agent/agentDashboard";
 import LoginPage from "./pages/LoginPage";
 import RegisterNewuserPage from "./pages/RegisterNewuserPage";
 import RegisterDairyPage from "./pages/RegisterDairyPage";
 import ExploreDairiesPage from "./pages/public/ExploreDairiesPage";
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
+import Deliveries from "./pages/customer/Deliveries";
+import Subscription from "./pages/customer/Subscription";
+import Payments from "./pages/customer/Payments";
+import Profile from "./pages/customer/Profile";
+
 function App() {
   return (
     <Routes>
@@ -30,14 +35,55 @@ function App() {
         }
       />
       <Route
+        path="/customer/deliveries"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Deliveries />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/customer/subscriptions"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Subscription />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/customer/payments"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Payments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/customer/profile"
+        element={
+          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agent-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["STAFF"]}>
+            <AgentDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/register"
         element={<RegisterNewuserPage></RegisterNewuserPage>}
       ></Route>
 
-      <Route
-        path="/customer-dashboard"
-        element={<CustomerDashboard></CustomerDashboard>}
-      ></Route>
+
       <Route
         path="admin/AdminDashboard"
         element={<AdminDashboard></AdminDashboard>}
@@ -55,10 +101,7 @@ function App() {
         path="/customerDashbord"
         element={<DairyCustomerDashboard></DairyCustomerDashboard>}
       ></Route>
-      <Route
-        path="agent/AgentDashboard"
-        element={<AgentDashboard></AgentDashboard>}
-      ></Route>
+
 
       <Route
         path="/register-dairy"
@@ -80,10 +123,10 @@ export default App;
 // import { Route, Routes } from 'react-router-dom';
 
 // // Import Components
-// import ProtectedRoute from './components/ProtectedRoute'; // <--- Imported
-// import PublicRoute from './components/PublicRoute';       // <--- Imported
+// import ProtectedRoute from './pages/ProtectedRoute'; // <--- Imported
+// import PublicRoute from './pages/PublicRoute';       // <--- Imported
 // import LoginPage from './pages/LoginPage';
-// import CustomerDashboard from './components/CustomerDashboard';
+// import CustomerDashboard from './pages/customer/CustomerDashboard';
 // // ... other imports ...
 
 // function App() {

@@ -1,0 +1,39 @@
+{
+  "name": "DairyStream",
+  "short_name": "DairyStream",
+  "description": "Milk delivery management system for dairies, agents and customers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+  {
+    "src": "/screenshots/dashboard-mobile.png",
+    "sizes": "450x984",
+    "type": "image/png"
+  },
+  {
+    "src": "/screenshots/dashboard-desktop.png",
+    "sizes": "1891x1099",
+    "type": "image/png",
+    "form_factor": "wide"
+  }
+],
+"id": "/"
+
+
+  
+}

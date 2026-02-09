@@ -1,141 +1,232 @@
-import React from 'react';
-import CustomerLayout from '../../layouts/CustomerLayout';
-import { 
-  CheckCircle, AlertCircle, Calendar, Plus, 
-  PauseCircle, Banknote, ChevronRight, Droplets 
-} from 'lucide-react';
+import CustomerLayout from "../../layouts/CustomerLayout";
+import { useCustomerDashboard } from "../hooks/useCustomerDashboard";
 
-// --- MOCK DASHBOARD DATA ---
-const DASHBOARD_DATA = {
-  todayStatus: 'DELIVERED', // 'PENDING' | 'DELIVERED' | 'NOT_DELIVERED'
-  deliveryTime: '07:15 AM',
-  products: [{ name: 'Buffalo Milk', qty: '1.5 L' }],
-  nextDelivery: 'Tomorrow, Morning',
-  walletBalance: 450,
-  monthlyBill: 1200
-};
+import {
+  CheckCircle,
+  AlertCircle,
+  Calendar,
+  Plus,
+  PauseCircle,
+  Banknote,
+  ChevronRight,
+  Droplets,
+} from "lucide-react";
+
+/* ======================================================
+   CUSTOMER DASHBOARD (BACKEND READY)
+====================================================== */
 
 const CustomerDashboard = () => {
-  // --- BACKEND INTEGRATION NOTE ---
-  // useEffect(() => {
-  //   fetch('/api/customer/dashboard', { headers: { Authorization: token } })
-  //     .then(res => res.json())
-  //     .then(data => setDashboardData(data));
-  // }, []);
+  const { data, loading, error } = useCustomerDashboard();
+
+  /* ---------- LOADING STATE ---------- */
+  if (loading) {
+    return (
+      <CustomerLayout>
+        <div className="py-20 text-center text-text-secondary">
+          Loading your dashboard…
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  /* ---------- ERROR STATE ---------- */
+  if (error) {
+    return (
+      <CustomerLayout>
+        <div className="py-20 text-center text-red-500">
+          {error}
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  /* ---------- DATA FROM BACKEND ---------- */
+  const { customer, todayDelivery, tomorrowDelivery, billing } = data;
 
   return (
     <CustomerLayout>
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-        
-        {/* --- WELCOME HEADER --- */}
-        <div className="flex justify-between items-center">
-           <div>
-              <h2 className="text-2xl font-bold text-gray-900">Good Morning, Rahul!</h2>
-              <div className="flex items-center gap-2 mt-1">
-                 <span className="text-sm text-gray-500">Member of</span>
-                 <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
-                    Nandanvan Farms
-                 </span>
-              </div>
-           </div>
-           <button className="text-sm text-blue-600 font-semibold hover:underline">Switch</button>
-        </div>
+      <div className="space-y-6">
 
-        {/* --- WIDGET 1: TODAY'S STATUS --- */}
-        <div className={`p-6 rounded-2xl border ${
-           DASHBOARD_DATA.todayStatus === 'DELIVERED' 
-             ? 'bg-green-50 border-green-200' 
-             : 'bg-yellow-50 border-yellow-200'
-        }`}>
-           <div className="flex items-start justify-between">
-              <div className="flex gap-4">
-                 <div className={`p-3 rounded-full ${
-                    DASHBOARD_DATA.todayStatus === 'DELIVERED' ? 'bg-green-200 text-green-700' : 'bg-yellow-200 text-yellow-700'
-                 }`}>
-                    {DASHBOARD_DATA.todayStatus === 'DELIVERED' ? <CheckCircle size={24}/> : <AlertCircle size={24}/>}
-                 </div>
-                 <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                       {DASHBOARD_DATA.todayStatus === 'DELIVERED' ? 'Delivered Successfully' : 'Delivery Pending'}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                       {DASHBOARD_DATA.products[0].qty} • {DASHBOARD_DATA.products[0].name}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">
-                       {DASHBOARD_DATA.todayStatus === 'DELIVERED' && `Dropped at Doorstep • ${DASHBOARD_DATA.deliveryTime}`}
-                    </p>
-                 </div>
-              </div>
-              <button className="text-xs font-semibold text-gray-500 underline">Report Issue</button>
-           </div>
-        </div>
+        {/* ================= HEADER ================= */}
+        <header className="flex justify-between items-start">
+          <div>
+            <h2 className="text-2xl font-bold text-text-primary">
+              Good Morning, {customer.name} 👋
+            </h2>
 
-        {/* --- WIDGET 2: QUICK ACTIONS --- */}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-text-secondary">Member of</span>
+              <span className="text-sm font-semibold text-brand bg-brand-soft px-2 py-0.5 rounded-lg border border-border">
+                {customer.dairy}
+              </span>
+            </div>
+          </div>
+
+          <button className="text-sm font-semibold text-brand hover:underline">
+            Switch
+          </button>
+        </header>
+
+        {/* ================= TODAY STATUS ================= */}
+        <TodayStatusCard data={todayDelivery} />
+
+        {/* ================= QUICK ACTIONS ================= */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-           <QuickActionCard icon={Plus} label="Add Extra" color="blue" />
-           <QuickActionCard icon={PauseCircle} label="Pause" color="orange" />
-           <QuickActionCard icon={Calendar} label="Calendar" color="purple" />
-           <QuickActionCard icon={Banknote} label="Pay Bill" color="green" />
+          <QuickAction icon={Plus} label="Add Extra" color="brand" />
+          <QuickAction icon={PauseCircle} label="Pause" color="warning" />
+          <QuickAction
+            icon={Calendar}
+            label="Deliveries"
+            color="brand"
+            to="/customer/deliveries"
+          />
+          <QuickAction icon={Banknote} label="Pay Bill" color="success" />
         </div>
 
-        {/* --- WIDGET 3: NEXT DELIVERY & BILLING --- */}
+        {/* ================= TOMORROW + BILLING ================= */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Tomorrow</h3>
-              <div className="flex items-center gap-4">
-                 <div className="bg-blue-100 p-3 rounded-xl text-blue-600">
-                    <Droplets size={24} />
-                 </div>
-                 <div className="flex-1">
-                    <h4 className="font-bold text-gray-900">1.5 Liters Milk</h4>
-                    <p className="text-sm text-gray-500">Morning Slot (6:00 - 8:00 AM)</p>
-                 </div>
-                 <button className="text-sm font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded-lg">Edit</button>
-              </div>
-           </div>
-
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div>
-                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Billing Summary</h3>
-                 <div className="flex justify-between items-end">
-                    <div>
-                       <p className="text-3xl font-bold text-gray-900">₹{DASHBOARD_DATA.monthlyBill}</p>
-                       <p className="text-xs text-red-500 font-medium mt-1">Due in 5 days</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-xs text-gray-400">Wallet Balance</p>
-                        <p className="font-semibold text-gray-700">₹{DASHBOARD_DATA.walletBalance}</p>
-                    </div>
-                 </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2 transition">
-                 <span className="text-sm font-medium text-blue-600">View Full Invoice</span>
-                 <ChevronRight size={16} className="text-blue-400"/>
-              </div>
-           </div>
-
+          <TomorrowDeliveryCard data={tomorrowDelivery} />
+          <BillingSummaryCard data={billing} />
         </div>
+
       </div>
     </CustomerLayout>
   );
 };
 
-// --- SUB-COMPONENT: ACTION CARD ---
-const QuickActionCard = ({ icon: Icon, label, color }) => {
-   const colors = {
-      blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
-      orange: 'bg-orange-50 text-orange-600 hover:bg-orange-100',
-      purple: 'bg-purple-50 text-purple-600 hover:bg-purple-100',
-      green: 'bg-green-50 text-green-600 hover:bg-green-100',
-   };
+/* ======================================================
+   SUB COMPONENTS
+====================================================== */
 
-   return (
-      <button className={`flex flex-col items-center justify-center p-4 rounded-xl transition ${colors[color]}`}>
-         <Icon size={24} className="mb-2"/>
-         <span className="text-xs font-bold">{label}</span>
+const TodayStatusCard = ({ data }) => {
+  const isDelivered = data.status === "DELIVERED";
+
+  return (
+    <div
+      className={`p-6 rounded-card border ${
+        isDelivered
+          ? "bg-success-soft border-border"
+          : "bg-brand-soft border-border"
+      }`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex gap-4">
+          <div
+            className={`p-3 rounded-full ${
+              isDelivered ? "bg-success text-white" : "bg-brand text-white"
+            }`}
+          >
+            {isDelivered ? (
+              <CheckCircle size={22} />
+            ) : (
+              <AlertCircle size={22} />
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-bold text-text-primary">
+              {isDelivered ? "Delivered Successfully" : "Delivery Pending"}
+            </h3>
+
+            <p className="text-sm text-text-secondary mt-1">
+              {data.quantity} • {data.product}
+            </p>
+
+            {isDelivered && (
+              <p className="text-xs text-text-muted mt-2">
+                Dropped at Doorstep • {data.time}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <button className="text-xs font-semibold text-text-secondary underline">
+          Report Issue
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const TomorrowDeliveryCard = ({ data }) => (
+  <div className="bg-surface border border-border rounded-card shadow-card p-6">
+    <h3 className="text-sm font-semibold text-text-muted uppercase mb-4">
+      Tomorrow
+    </h3>
+
+    <div className="flex items-center gap-4">
+      <div className="bg-brand-soft p-3 rounded-xl text-brand">
+        <Droplets size={22} />
+      </div>
+
+      <div className="flex-1">
+        <h4 className="font-bold text-text-primary">
+          {data.quantity} Milk
+        </h4>
+        <p className="text-sm text-text-secondary">{data.slot}</p>
+      </div>
+
+      <button className="text-sm font-semibold text-brand border border-border px-3 py-1 rounded-lg">
+        Edit
       </button>
-   );
-}
+    </div>
+  </div>
+);
+
+const BillingSummaryCard = ({ data }) => (
+  <div className="bg-surface border border-border rounded-card shadow-card p-6 flex flex-col justify-between">
+    <div>
+      <h3 className="text-sm font-semibold text-text-muted uppercase mb-2">
+        Billing Summary
+      </h3>
+
+      <div className="flex justify-between items-end">
+        <div>
+          <p className="text-3xl font-bold text-text-primary">
+            ₹{data.monthlyDue}
+          </p>
+          <p className="text-xs text-red-500 font-medium mt-1">
+            Due in {data.dueInDays} days
+          </p>
+        </div>
+
+        <div className="text-right">
+          <p className="text-xs text-text-muted">Wallet Balance</p>
+          <p className="font-semibold text-text-secondary">
+            ₹{data.walletBalance}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-4 pt-4 border-t border-border flex justify-between items-center hover:bg-background rounded-lg p-2 -mx-2 transition cursor-pointer">
+      <span className="text-sm font-medium text-brand">
+        View Full Invoice
+      </span>
+      <ChevronRight size={16} className="text-brand" />
+    </div>
+  </div>
+);
+
+const QuickAction = ({ icon, label, color, to }) => {
+  const Icon = icon;
+
+  const colorMap = {
+    brand: "bg-brand-soft text-brand",
+    success: "bg-success-soft text-success",
+    warning: "bg-warning-soft text-orange-600",
+  };
+
+  return (
+    <button
+      onClick={() => to && window.location.assign(to)}
+      className={`flex flex-col items-center justify-center p-4 rounded-xl border border-border transition hover:bg-background ${colorMap[color]}`}
+    >
+      <Icon size={22} className="mb-2" />
+      <span className="text-xs font-bold">{label}</span>
+    </button>
+  );
+};
 
 export default CustomerDashboard;
