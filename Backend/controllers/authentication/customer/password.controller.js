@@ -1,8 +1,8 @@
 import {
   createResetToken,
   resetPasswordService,
-} from "../../services/customer/password.service.js";
-import { sendResetPasswordEmail } from "../../services/customer/email.service.js";
+} from "../../../services/customer/password.service.js";
+import { sendResetPasswordEmail } from "../../../services/customer/email.service.js";
 
 export const forgotPassword = async (req, res) => {
   try {

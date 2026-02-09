@@ -7,6 +7,9 @@ dotenv.config();
 
 import { supabase } from "./config.js";
 import customerRoutes from "./routes/customer.routes.js";
+import routes from "./routes/index.js";
+// Load environment variables
+dotenv.config();
 
 // Create express app
 const app = express();
@@ -31,7 +34,7 @@ app.get("/", (req, res) => {
 // ======================
 // API Routes
 // ======================
-app.use("/api/customer", customerRoutes);
+app.use('/api', routes);
 
 // ======================
 // Global Error Handler
