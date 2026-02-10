@@ -7,6 +7,9 @@ import {
   ShieldCheck,
   Clock,
   Truck,
+  CheckCircle,
+  Droplets,
+  BadgeCheck,
 } from "lucide-react";
 
 /* MOCK DATA */
@@ -26,38 +29,44 @@ const MOCK_DAIRIES = [
     minPrice: 60,
     description:
       "Fresh farm milk delivered daily with strict hygiene, quality checks, and reliable delivery.",
-  },
-  {
-    id: "D002",
-    name: "Pure Desi Milk",
-    rating: 4.2,
-    reviews: 85,
-    distance: "3.5 km",
-    isVerified: true,
-    isTrusted: false,
-    slots: ["Morning Only"],
-    image:
-      "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&q=80&w=1600",
-    address: "Baner, Pune",
-    minPrice: 55,
-    description:
-      "Affordable desi cow milk sourced directly from trusted local farms.",
-  },
-  {
-    id: "D003",
-    name: "Gokul Dairy",
-    rating: 4.5,
-    reviews: 210,
-    distance: "0.8 km",
-    isVerified: true,
-    isTrusted: true,
-    slots: ["Morning", "Evening"],
-    image:
-      "https://images.unsplash.com/photo-1596733430282-743a35525829?auto=format&fit=crop&q=80&w=1600",
-    address: "Deccan, Pune",
-    minPrice: 58,
-    description:
-      "Well-known dairy providing fresh milk with consistent quality for years.",
+
+    milkInfo: {
+      type: "Cow Milk",
+      fat: "3.8%",
+      processing: "Unprocessed",
+      testing: "Adulteration Tested",
+    },
+
+    deliveryInfo: {
+      timing: "5:00 AM – 8:00 AM",
+      holidays: "Delivered on holidays",
+      cutoff: "Modify before 9:00 PM",
+    },
+
+    subscriptionRules: [
+      "Pause or resume anytime",
+      "Change quantity daily",
+      "No minimum commitment",
+      "Monthly billing",
+    ],
+
+    hygiene: [
+      "Cleaned containers daily",
+      "Insulated delivery cans",
+      "Regular lab testing",
+      "Farm-to-home supply",
+    ],
+
+    reviewsData: [
+      {
+        name: "Rohit, Kothrud",
+        text: "Milk is always fresh and delivery is very punctual.",
+      },
+      {
+        name: "Anita, Karve Nagar",
+        text: "Quality is consistent and customer support is helpful.",
+      },
+    ],
   },
 ];
 
@@ -69,16 +78,8 @@ const DairyDetailsPage = () => {
 
   if (!dairy) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <h2 className="text-xl font-bold text-gray-900">
-          Dairy not found
-        </h2>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 text-blue-600 font-semibold"
-        >
-          Go Back
-        </button>
+      <div className="min-h-screen flex items-center justify-center">
+        Dairy not found
       </div>
     );
   }
@@ -87,55 +88,113 @@ const DairyDetailsPage = () => {
     <div className="min-h-screen w-full bg-slate-50">
 
       {/* HEADER */}
-      <div className="bg-white border-b shadow-sm sticky top-0 z-20">
+      <div className="bg-white border-b sticky top-0 z-20">
         <div className="w-full px-6 lg:px-10 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 rounded-full hover:bg-gray-100 active:scale-95 transition"
+            className="p-2 rounded-full hover:bg-gray-100"
           >
             <ArrowLeft />
           </button>
-          <h1 className="text-xl font-bold text-gray-900">
-            {dairy.name}
-          </h1>
+          <h1 className="text-xl font-bold">{dairy.name}</h1>
         </div>
       </div>
 
       {/* CONTENT */}
       <div className="w-full px-6 lg:px-10 py-6 grid lg:grid-cols-3 gap-8">
 
-        {/* LEFT SIDE */}
-        <div className="lg:col-span-2">
+        {/* LEFT SECTION */}
+        <div className="lg:col-span-2 space-y-6">
 
-          {/* HERO IMAGE */}
+          {/* IMAGE */}
           <img
             src={dairy.image}
             alt={dairy.name}
-            loading="lazy"
-            className="w-full h-[420px] lg:h-[500px] object-cover rounded-2xl shadow-sm bg-gray-100"
+            className="w-full h-[420px] object-cover rounded-2xl"
           />
 
           {/* ABOUT */}
-          <div className="bg-white rounded-2xl p-6 mt-6 shadow-sm">
-            <h2 className="text-lg font-bold mb-2">
-              About this Dairy
+          <section className="bg-white rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-2">About this Dairy</h2>
+            <p className="text-gray-600">{dairy.description}</p>
+          </section>
+
+          {/* MILK DETAILS */}
+          <section className="bg-white rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">Milk Details</h2>
+            <div className="grid sm:grid-cols-2 gap-4 text-sm text-gray-700">
+              <div className="flex gap-2">
+                <Droplets size={16} /> Type: {dairy.milkInfo.type}
+              </div>
+              <div>Fat Content: {dairy.milkInfo.fat}</div>
+              <div>Processing: {dairy.milkInfo.processing}</div>
+              <div>{dairy.milkInfo.testing}</div>
+            </div>
+          </section>
+
+          {/* DELIVERY INFO */}
+          <section className="bg-white rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">Delivery Information</h2>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li>⏰ Timing: {dairy.deliveryInfo.timing}</li>
+              <li>📅 Holidays: {dairy.deliveryInfo.holidays}</li>
+              <li>🕘 Cut-off Time: {dairy.deliveryInfo.cutoff}</li>
+            </ul>
+          </section>
+
+          {/* SUBSCRIPTION FLEXIBILITY */}
+          <section className="bg-white rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">
+              Subscription Flexibility
             </h2>
-            <p className="text-gray-600 leading-relaxed">
-              {dairy.description}
-            </p>
-          </div>
+            <ul className="grid sm:grid-cols-2 gap-3 text-sm">
+              {dairy.subscriptionRules.map((rule, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <CheckCircle size={16} className="text-green-600" />
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* HYGIENE */}
+          <section className="bg-white rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">
+              Hygiene & Safety Standards
+            </h2>
+            <ul className="grid sm:grid-cols-2 gap-3 text-sm">
+              {dairy.hygiene.map((item, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <BadgeCheck size={16} className="text-blue-600" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* REVIEWS */}
+          <section className="bg-white rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">Customer Reviews</h2>
+            <div className="space-y-3">
+              {dairy.reviewsData.map((r, i) => (
+                <div key={i} className="text-sm text-gray-700">
+                  ⭐⭐⭐⭐⭐
+                  <p className="italic">"{r.text}"</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    — {r.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
 
         </div>
 
-        {/* RIGHT SIDE CARD */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 h-fit lg:sticky lg:top-24">
+        {/* RIGHT CARD */}
+        <div className="bg-white rounded-2xl p-6 h-fit lg:sticky lg:top-24">
 
-          {/* RATING */}
           <div className="flex items-center gap-2 mb-3">
-            <div
-              aria-label={`Rating ${dairy.rating} out of 5`}
-              className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded text-sm font-bold text-green-700"
-            >
+            <div className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded text-sm font-bold text-green-700">
               {dairy.rating}
               <Star size={14} fill="currentColor" />
             </div>
@@ -144,71 +203,30 @@ const DairyDetailsPage = () => {
             </span>
           </div>
 
-          {/* ADDRESS */}
-          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+          <div className="text-sm text-gray-600 flex gap-2 mb-2">
             <MapPin size={16} />
             {dairy.address}
           </div>
 
-          {/* DISTANCE */}
-          <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+          <div className="text-sm text-gray-600 flex gap-2 mb-4">
             <Clock size={16} />
             {dairy.distance}
           </div>
 
-          {/* TAGS */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {dairy.isVerified && (
-              <span className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                <ShieldCheck size={12} />
-                Verified
-              </span>
-            )}
-            {dairy.isTrusted && (
-              <span className="text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded">
-                Trusted
-              </span>
-            )}
-            <span className="flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
-              <Truck size={12} />
-              Daily Delivery
-            </span>
-          </div>
-
-          {/* DELIVERY SLOTS */}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-700 mb-1">
-              Delivery Slots
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              {dairy.slots.map((slot, index) => (
-                <span
-                  key={`${dairy.id}-slot-${index}`}
-                  className="text-xs bg-gray-100 px-3 py-1 rounded-full"
-                >
-                  {slot}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* PRICE */}
           <div className="border-t pt-4 mb-4">
-            <p className="text-sm text-gray-500">
-              Starting at
-            </p>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-sm text-gray-500">Starting at</p>
+            <p className="text-2xl font-bold">
               ₹{dairy.minPrice}
-              <span className="text-sm font-normal text-gray-500">
-                /L
-              </span>
+              <span className="text-sm text-gray-500"> /L</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              ≈ ₹{dairy.minPrice * 30}/month (1L daily)
             </p>
           </div>
 
-          {/* CTA */}
           <button
             onClick={() => navigate(`/subscribe/${dairy.id}`)}
-            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-95 transition flex items-center justify-center gap-2"
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 flex items-center justify-center gap-2"
           >
             <Truck size={18} />
             Subscribe Now
