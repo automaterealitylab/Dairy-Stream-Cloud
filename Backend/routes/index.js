@@ -2,7 +2,7 @@ import express from 'express';
 import publicRoutes from './public.routes.js';
 import adminRoutes from './admin.routes.js';
 import authRoutes from './authroutes.js';
-import customerRoutes from './CustomerRoutes.js'; // ✅ ADD THIS
+import customerRoutes from './CustomerRoutes.js';
 
 const router = express.Router();
 

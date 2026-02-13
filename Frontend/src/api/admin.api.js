@@ -113,3 +113,23 @@ export const fetchAdminCustomerById = async (id) => {
 
   return JSON.parse(text);
 };
+
+/* =========================
+   REGISTER DAIRY
+========================= */
+export const registerDairyApi = async (dairyData) => {
+  const res = await fetch(`${BASE_URL}/api/admin/register-dairy`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(dairyData),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(text || "Failed to register dairy");
+  }
+
+  return JSON.parse(text);
+};

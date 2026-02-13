@@ -5,6 +5,7 @@ import {
   ArrowRight, ArrowLeft, Upload, Loader2, ShieldCheck, 
   LayoutDashboard, Users, BarChart3, ChevronRight 
 } from 'lucide-react';
+import { registerDairyApi } from '../api/admin.api';
 
 const RegisterDairyPage = () => {
   const navigate = useNavigate();
@@ -73,13 +74,86 @@ const RegisterDairyPage = () => {
   };
 
   // --- SUBMIT ---
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // Validate all required fields before submitting
+    const requiredFields = {
+      dairyName: formData.dairyName,
+      dairyPhone: formData.dairyPhone,
+      dairyEmail: formData.dairyEmail,
+      address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      pincode: formData.pincode,
+      ownerName: formData.ownerName,
+      adminEmail: formData.adminEmail,
+      adminMobile: formData.adminMobile,
+      password: formData.password,
+    };
+
+    const missingFields = Object.entries(requiredFields)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingFields.length > 0) {
+      alert(`Please fill in all required fields: ${missingFields.join(", ")}`);
+      return;
+    }
+
+    // Validate password confirmation
+    if (formData.password !== formData.confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+
     setLoading(true);
-    // Simulate API Call
-    setTimeout(() => {
+    try {
+      // Log the data being sent
+      const submitData = {
+        dairyName: formData.dairyName,
+        dairyPhone: formData.dairyPhone,
+        dairyEmail: formData.dairyEmail,
+        gstin: formData.gstin,
+        category: formData.category,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+        serviceType: formData.serviceType,
+        servicePincodes: formData.servicePincodes,
+        serviceRadius: formData.serviceRadius,
+        ownerName: formData.ownerName,
+        adminEmail: formData.adminEmail,
+        adminMobile: formData.adminMobile,
+        password: formData.password,
+        selectedPlan: formData.selectedPlan,
+      };
+
+      console.log("📤 Submitting dairy registration with data:", submitData);
+
+      // Call the backend API
+      const response = await registerDairyApi(submitData);
+
+      console.log("✅ Dairy registered successfully:", response);
+
+      // Auto-login: Store admin token and user data
+      if (response.data?.token) {
+        localStorage.setItem("adminToken", response.data.token);
+        localStorage.setItem("adminUser", JSON.stringify(response.data.admin));
+        console.log("✅ Admin auto-logged in with token");
+      }
+
       setLoading(false);
       setIsSuccess(true);
-    }, 2000);
+
+      // Auto-redirect to admin dashboard after 2 seconds
+      setTimeout(() => {
+        navigate("/admin/AdminDashboard");
+      }, 2000);
+    } catch (err) {
+      console.error("❌ Dairy registration error:", err);
+      alert(`Registration failed: ${err.message}`);
+      setLoading(false);
+    }
   };
 
   // --- SUCCESS SCREEN (Post-Registration) ---
