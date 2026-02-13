@@ -1,8 +1,10 @@
+import bcrypt from "bcryptjs";
 import {
   generateCustomerOtp,
   verifyCustomerOtp,
   customerOtpLoginService
 } from "../../../services/authentication/customer.auth.service.js";
+import { generateToken } from "../../../utils/jwt.js";
 
 import { supabase } from "../../../config.js";
 
@@ -216,6 +218,30 @@ export const detectUser = async (req, res) => {
       });
     }
 
+    // Check if identifier is an email (potential admin)
+    const isEmail = identifier.includes("@");
+    
+    if (isEmail) {
+      // First check if this email is an admin
+      const { data: adminData } = await supabase
+        .from("admins")
+        .select("id, email, name, dairy_id")
+        .eq("email", identifier)
+        .single();
+
+      if (adminData) {
+        console.log(`✅ Admin detected: ${identifier}`);
+        return res.json({
+          exists: true,
+          userType: "ADMIN",
+          nextStep: "PASSWORD",
+          adminId: adminData.id,
+          email: adminData.email,
+        });
+      }
+    }
+
+    // Check if it's a customer
     const customer = await findCustomerByIdentifier(identifier);
 
     if (!customer) {
@@ -242,8 +268,65 @@ export const detectUser = async (req, res) => {
 };
 
 export const passwordLogin = async (req, res) => {
-  return res.status(501).json({
-    success: false,
-    error: "Password login is not implemented for customer auth",
-  });
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Email and password are required",
+      });
+    }
+
+    // Check if it's an admin login
+    const { data: adminData, error: adminError } = await supabase
+      .from("admins")
+      .select("*")
+      .eq("email", email)
+      .single();
+
+    if (!adminError && adminData) {
+      // Admin found - verify password
+      const isValidPassword = await bcrypt.compare(password, adminData.password);
+
+      if (!isValidPassword) {
+        return res.status(401).json({
+          success: false,
+          error: "Invalid password",
+        });
+      }
+
+      // Generate token for admin
+      const token = generateToken({
+        id: adminData.id,
+        email: adminData.email,
+        role: "ADMIN",
+        dairyId: adminData.dairy_id,
+      });
+
+      return res.json({
+        success: true,
+        token,
+        user: {
+          id: adminData.id,
+          name: adminData.name,
+          email: adminData.email,
+          role: "ADMIN",
+        },
+        redirect: "/admin/AdminDashboard",
+      });
+    }
+
+    // If not admin, return error
+    return res.status(401).json({
+      success: false,
+      error: "Invalid email or password",
+    });
+  } catch (err) {
+    console.error("❌ Password login error:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "Login failed",
+    });
+  }
 };

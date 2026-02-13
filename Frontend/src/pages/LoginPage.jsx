@@ -146,6 +146,7 @@ const LoginPage = () => {
   // ================= FINAL LOGIN =================
   const handleFinalLogin = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
 
     try {
@@ -153,14 +154,21 @@ const LoginPage = () => {
 
       // ADMIN LOGIN
       if (role === "ADMIN") {
+        console.log("📨 Attempting admin login with email:", identifier);
+        
         const result = await adminLoginApi({
           email: identifier,
           password,
         });
 
-        login(result);
+        console.log("✅ Admin login successful:", result);
+
+        // Store token and user data
+        localStorage.setItem("adminToken", result.token);
+        localStorage.setItem("adminUser", JSON.stringify(result.user));
+
         toast.success(`Welcome back, ${result.user?.name || "Admin"}!`);
-        navigate("/admin/dashboard", { replace: true });
+        navigate(result.redirect || "/admin/AdminDashboard", { replace: true });
         return;
       }
 
