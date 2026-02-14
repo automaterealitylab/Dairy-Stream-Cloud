@@ -9,15 +9,20 @@ import {
 import { registerDairy } from "../controllers/admin/dairy.controller.js";
 import { addAgent } from "../controllers/admin/addAgent.controller.js";
 import { getUniqueBuildings } from "../controllers/shared/building.controller.js";
+import { fetchAdminAgents, fetchAdminAgentById } from "../controllers/admin/adminagent.controller.js";
+import { fetchAdminAgentsById } from "../../Frontend/src/api/admin.api.js";
 const router = express.Router();
 
 router.post("/", adminLogin);
 router.post("/register-dairy", registerDairy);
-router.post("/addagent", verifyAdmin, addAgent)
+router.post("/addagent", verifyAdmin, addAgent);
 router.get("/customers", verifyAdmin, fetchAdminCustomers); //need to work on this route, where we just fetch the customer data from the db, if no customer just a banner "you dont have any customer now, add you customer"
 router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById);
 router.get("/dashboard", verifyAdmin, getDashboard);
-router.get("/buildings", verifyAdmin, getUniqueBuildings)
+router.get("/buildings", verifyAdmin, getUniqueBuildings);
+router.get("/agents",verifyAdmin, fetchAdminAgents);
+router.get("/agents/:id",verifyAdmin,fetchAdminAgentById);
+
 router.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date() }); //dont get any output
 });

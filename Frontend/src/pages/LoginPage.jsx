@@ -1,23 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { useAuth } from "./hooks/useAuth.jsx";
+import { useAuth } from "./hooks/useAuth.jsx"; // ✅ Import useAuth
 
 import {
-  Loader2,
-  ShieldCheck,
-  MapPin,
-  Eye,
-  EyeOff,
-  Lock,
-  User,
-  ChevronRight,
-  AlertCircle,
-  Briefcase,
-  Mail,
-  Smartphone,
-  Edit2,
-  ArrowRight
+  Loader2, ShieldCheck, MapPin, Eye, EyeOff, Lock, User,
+  ChevronRight, AlertCircle, Briefcase, Mail, Smartphone,
+  Edit2, ArrowRight
 } from "lucide-react";
 
 import dairyImage from "../assets/dairyproduct.png";
@@ -31,7 +20,7 @@ import {
 } from "./services/auth.api";
 
 const LoginPage = () => {
-  const { login } = useAuth();
+  const { login } = useAuth(); // ✅ Get the login function
   const navigate = useNavigate();
   const inputRef = useRef(null);
 
@@ -92,12 +81,12 @@ const LoginPage = () => {
       const response = await detectUserApi(identifier);
 
       if (!response.exists) {
-      toast("User not found. Please register first");
-      navigate("/customer/register", {
-        state: { identifier }
-      });
-      return;
-    }
+        toast("User not found. Please register first");
+        navigate("/customer/register", {
+          state: { identifier }
+        });
+        return;
+      }
 
       setDetectedUser(response);
 
@@ -152,9 +141,9 @@ const LoginPage = () => {
     try {
       const role = detectedUser?.userType;
 
-      // ADMIN LOGIN
+      // 🛑 ADMIN LOGIN FIX
       if (role === "ADMIN") {
-        console.log("📨 Attempting admin login with email:", identifier);
+        console.log("📨 Attempting admin login...");
         
         const result = await adminLoginApi({
           email: identifier,
@@ -163,9 +152,19 @@ const LoginPage = () => {
 
         console.log("✅ Admin login successful:", result);
 
-        // Store token and user data
-        localStorage.setItem("adminToken", result.token);
-        localStorage.setItem("adminUser", JSON.stringify(result.user));
+        // ✅ FIX 1: Set Standard Keys for ProtectedRoute
+        localStorage.setItem("token", result.token); 
+        localStorage.setItem("userRole", "ADMIN"); // Explicitly set role
+        
+        // ✅ FIX 2: Call the Auth Context! 
+        // This updates the App state so ProtectedRoute knows we are logged in immediately.
+        // We ensure the object structure matches what useAuth expects.
+        const authData = {
+            token: result.token,
+            user: { ...result.user, role: "ADMIN" }, // Ensure role is present
+            role: "ADMIN"
+        };
+        login(authData);
 
         toast.success(`Welcome back, ${result.user?.name || "Admin"}!`);
         navigate(result.redirect || "/admin/AdminDashboard", { replace: true });
@@ -179,7 +178,12 @@ const LoginPage = () => {
         dairyId: selectedDairy?.id,
       });
 
+      // ✅ Login is correctly called here for Customers
       login(result);
+      
+      // ✅ Also ensure localStorage fallback is set for Customers
+      localStorage.setItem("userRole", result.user?.role || role); 
+
       toast.success(`Welcome back, ${result.user?.name || "User"}!`);
 
       if (role === "CUSTOMER") {
@@ -188,6 +192,7 @@ const LoginPage = () => {
         navigate("/staff/home", { replace: true });
       }
     } catch (err) {
+      console.error(err);
       toast.error(err.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);

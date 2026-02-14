@@ -46,7 +46,7 @@ export const fetchAdminDashboard = async () => {
     return dashboardCache;
   }
 
-  const token = localStorage.getItem("adminToken");
+  const token = localStorage.getItem("token");
   if (!token) throw new Error("Admin token missing");
 
   const res = await fetch(`${BASE_URL}/api/admin/dashboard`, {
@@ -66,12 +66,13 @@ export const fetchAdminDashboard = async () => {
   return data;
 };
 
+// fetch customer in admin dashboard
 export const fetchAdminCustomers = async ({
   page = 1,
   limit = 10,
   search = "",
 }) => {
-  const token = localStorage.getItem("adminToken");
+  const token = localStorage.getItem("token");
   if (!token) throw new Error("Admin token missing");
 
   const params = new URLSearchParams({
@@ -96,7 +97,7 @@ export const fetchAdminCustomers = async ({
 };
 
 export const fetchAdminCustomerById = async (id) => {
-  const token = localStorage.getItem("adminToken");
+  const token = localStorage.getItem("token");
   if (!token) throw new Error("Admin token missing");
 
   const res = await fetch(
@@ -141,4 +142,56 @@ export const registerDairyApi = async (dairyData) => {
   }
 
   return payload ?? {};
+};
+
+
+/* =========================
+   FETCH AGENTS (DELIVERY STAFF)
+========================= */
+export const fetchAdminAgents = async ({
+  page = 1,
+  limit = 10,
+  search = "",
+}) => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Admin token missing");
+
+  const params = new URLSearchParams({
+    page,
+    limit,
+    search,
+  });
+
+  const res = await fetch(
+    `${BASE_URL}/api/admin/agents?${params.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(text);
+
+  return JSON.parse(text);
+};
+
+export const fetchAdminAgentsById = async (id) => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Admin token missing");
+
+  const res = await fetch(
+    `${BASE_URL}/api/admin/agents/${id}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(text);
+
+  return JSON.parse(text);
 };

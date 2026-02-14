@@ -20,7 +20,7 @@ function AddNewCustomerForm() {
     billingCycle: 'Monthly',
   });
 
-  const apiurl = "http://localhost:4000/api/customer/addCustomer";
+  const apiurl = "http://localhost:4000/api/customer/addCustomer"; ////need to change the api later
   const navigate = useNavigate();
 
   // Handle input changes

@@ -2,82 +2,92 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
-// Load environment variables FIRST
+// 1. Load Environment Variables
 dotenv.config();
 
-import { supabase } from "./config/supabase.js";
-import customerRoutes from "./routes/customer.routes.js";
-import routes from "./routes/index.route.js";
-// Load environment variables
-dotenv.config();
+// 2. Import Configuration & Routes
+// ✅ Points to your root config.js
+import { supabase } from "./config/supabase.js"; 
+// ✅ Points to your central Route Hub
+import routes from "./routes/index.route.js"; 
 
-// Create express app
+// 3. Create App
 const app = express();
 
 // ======================
-// Middlewares
+// 🛡️ Middlewares
 // ======================
-app.use(cors());
-app.use(express.json());
+app.use(cors()); // Allow Frontend access
+app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true }));
 
 // ======================
-// Health Check Route
+// 🏥 Health Check Routes
 // ======================
+// Simple server check
 app.get("/", (req, res) => {
   res.json({
     success: true,
     message: "🚀 Dairy Automation Backend is running",
+    timestamp: new Date()
   });
 });
 
-// ======================
-// API Routes
-// ======================
-app.use('/api', routes);
-
-// ======================
-// Global Error Handler
-// ======================
-app.use((err, req, res, next) => {
-  console.error("❌ Error:", err.message);
-  res.status(500).json({
-    success: false,
-    message: "Internal Server Error",
-  });
-});
-
-// ======================
-// Start Server
-// ======================
-const PORT = process.env.PORT || 4000;
-
-app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
-
-
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
-});
-
+// Database connection check
 app.get("/supabase-health", async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id")
-      .limit(1);
-
-    console.log("Supabase data:", data);
-    console.log("Supabase error:", error);
-
-    res.json({ data, error });
+    // We query the 'users' table (or any active table) just to test connection
+    const { data, error } = await supabase.from("users").select("id").limit(1);
+    
+    if (error) throw error;
+    
+    res.json({ 
+        status: "connected", 
+        message: "✅ Supabase connection successful" 
+    });
   } catch (err) {
-    console.error("Supabase exception:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Supabase exception:", err.message);
+    res.status(500).json({ 
+        status: "error", 
+        message: "❌ Database connection failed", 
+        error: err.message 
+    });
   }
 });
 
-// setInterval(() => {
-//   console.log("🟢 Server still alive");
-// }, 4000);
+// ======================
+// 🚦 API Routes (The Hub)
+// ======================
+// This mounts all your routes at /api
+// e.g., /api/admin/addagent, /api/auth/login
+app.use('/api', routes);
+
+// ======================
+// ⚠️ Global Error Handler
+// ======================
+app.use((err, req, res, next) => {
+  console.error("❌ Global Server Error:", err.stack);
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error",
+    error: err.message,
+  });
+});
+
+// ======================
+// 🚀 Start Server
+// ======================
+const PORT = process.env.PORT || 4000;
+
+const server = app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+});
+
+// Handle "Port in use" errors gracefully (from your old app.js)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use.`);
+    console.error(`👉 Stop the other terminal or change PORT in .env`);
+    process.exit(1);
+  }
+});

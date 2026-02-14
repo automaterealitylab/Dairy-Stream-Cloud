@@ -1,33 +1,52 @@
 import React from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router-dom";
+
+// --- Components ---
 import ProtectedRoute from "./pages/ProtectedRoute";
-import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
-import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
-import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AgentDashboard from "./pages/agent/agentDashboard";
 import LoginPage from "./pages/LoginPage";
 import RegisterNewuserPage from "./pages/RegisterNewuserPage";
 import RegisterDairyPage from "./pages/RegisterDairyPage";
 import ExploreDairiesPage from "./pages/public/ExploreDairiesPage";
 import DairyDetailsPage from "./pages/public/DairyDetailsPage";
+
+// --- Customer Pages ---
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
 import Deliveries from "./pages/customer/Deliveries";
 import Subscription from "./pages/customer/Subscription";
 import Payments from "./pages/customer/Payments";
 import Profile from "./pages/customer/Profile";
+
+// --- Admin Pages ---
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCustomers from "./pages/admin/AdminCustomers";
+import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
+import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
+// ⚠️ Ensure these files exist, even if empty placeholders for now:
+import AdminAgents from "./pages/admin/AdminAgents.jsx"; 
+import AdminDeliveries from "./pages/admin/AdminDeliveries"; 
+import AdminPayments from "./pages/admin/AdminPayments"; 
+
+// --- Agent Pages ---
+import AgentDashboard from "./pages/agent/agentDashboard";
+
 
 function App() {
   return (
     <Routes>
-      {/* need to change the route later */}
-      <Route path="/" element={<LoginPage></LoginPage>}></Route>
-
-      {/* Public Route */}
+      {/* ==============================
+          🔓 PUBLIC ROUTES
+      ============================== */}
+      <Route path="/" element={<LoginPage />} />
       <Route path="/explore" element={<ExploreDairiesPage />} />
-      {/* Protected Dashboard Route */}
+      <Route path="/join/:id" element={<DairyDetailsPage />} />
+      <Route path="/customer/register" element={<RegisterNewuserPage />} />
+      <Route path="/register-dairy" element={<RegisterDairyPage />} />
+
+
+      {/* ==============================
+          👤 CUSTOMER ROUTES (Protected)
+      ============================== */}
       <Route
         path="/customer-dashboard"
         element={
@@ -44,7 +63,6 @@ function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/customer/subscriptions"
         element={
@@ -53,7 +71,6 @@ function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/customer/payments"
         element={
@@ -62,7 +79,6 @@ function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/customer/profile"
         element={
@@ -72,9 +88,80 @@ function App() {
         }
       />
 
-      <Route path="/" element={<ExploreDairiesPage />} />
-      <Route path="/join/:id" element={<DairyDetailsPage />} />
 
+      {/* ==============================
+          🛡️ ADMIN ROUTES (Protected)
+      ============================== */}
+      {/* Dashboard */}
+      <Route
+        path="/admin/AdminDashboard"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Customers Section */}
+      <Route
+        path="/admin/customers"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminCustomers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/addCustomer"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AddNewCustomerForm />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Agents Section (This was missing!) */}
+      <Route
+        path="/admin/agents"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminAgents /> 
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/addagent"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AddNewAgentForm />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Deliveries Section (This was missing!) */}
+      <Route
+        path="/admin/deliveries"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminDeliveries />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Payments Section (This was missing!) */}
+      <Route
+        path="/admin/payments"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminPayments />
+          </ProtectedRoute>
+        }
+      />
+
+
+      {/* ==============================
+          🚚 AGENT ROUTES (Protected)
+      ============================== */}
       <Route
         path="/agent-dashboard"
         element={
@@ -84,88 +171,13 @@ function App() {
         }
       />
 
-      <Route
-        path="/admin/customers"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminCustomers />
-          </ProtectedRoute>
-        }
-      />
 
-      <Route
-        path="customer/register"
-        element={<RegisterNewuserPage></RegisterNewuserPage>}
-      ></Route>
-
-
-      <Route
-        path="admin/AdminDashboard"
-        element={<AdminDashboard></AdminDashboard>}
-      ></Route>
-      <Route
-        path="admin/addCustomer"
-        element={<AddNewCustomerForm></AddNewCustomerForm>}
-      ></Route>
-
-      <Route
-        path="admin/addAgent"
-        element={<AddNewAgentForm></AddNewAgentForm>}
-      ></Route>
-      <Route
-        path="/customerDashbord"
-        element={<DairyCustomerDashboard></DairyCustomerDashboard>}
-      ></Route>
-
-
-      <Route
-        path="/register-dairy"
-        element={<RegisterDairyPage></RegisterDairyPage>}
-      ></Route>
-
-      <Route
-        path="*"
-        element={<h2 className="text-center mt-5">404 - Page Not Found</h2>}
-      ></Route>
+      {/* ==============================
+          ⛔ 404 CATCH-ALL
+      ============================== */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
+
 export default App;
-
-///this is uncommnet after we complete the whole app, so that we can use the protected route and give a smooth exp for the user also prevent clicking the wrong url
-
-// import React from 'react';
-// import { Route, Routes } from 'react-router-dom';
-
-// // Import Components
-// import ProtectedRoute from './pages/ProtectedRoute'; // <--- Imported
-// import PublicRoute from './pages/PublicRoute';       // <--- Imported
-// import LoginPage from './pages/LoginPage';
-// import CustomerDashboard from './pages/customer/CustomerDashboard';
-// // ... other imports ...
-
-// function App() {
-//   return (
-//     <Routes>
-
-//       {/* Public: Login Page */}
-//       <Route path="/" element={
-//         <PublicRoute>
-//           <LoginPage />
-//         </PublicRoute>
-//       } />
-
-//       {/* Protected: Customer Dashboard */}
-//       <Route path="/customer-dashboard" element={
-//         <ProtectedRoute allowedRoles={['CUSTOMER']}>
-//           <CustomerDashboard />
-//         </ProtectedRoute>
-//       } />
-
-//       {/* ... other routes ... */}
-
-//     </Routes>
-//   );
-// }
-
-// export default App;
