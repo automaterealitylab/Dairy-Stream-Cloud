@@ -1,48 +1,25 @@
-const { supabase } = require('../../config');
-const verifyEmail = require('../../utils/verifyEmail');
-const bcrypt = require('bcryptjs');
+import { createAgentService } from "../../services/admin/addAgent.service.js"
 
-exports.addAgent = async (req, res) => {
+export const addAgent = async (req, res) => {
   try {
-    const data = req.body;
-    const { email, password, agentName, phoneNumber, building } = data;
-
-    const isEmailValid = await verifyEmail(email);
-    if (!isEmailValid) {
-      return res.status(400).json({
-        error: 'The provided email is invalid'
-      });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Map field names to snake_case for Supabase
-    const agentRecord = {
-      email,
-      password: hashedPassword,
-      agent_name: agentName,
-      phone_number: phoneNumber,
-      building
-    };
-
-    const { data: result, error } = await supabase.from('agents').insert([agentRecord]).select();
-
-    if (error) {
-      console.error('Supabase insert error:', error);
-      return res.status(400).json({
-        error: error.message || 'Failed to add agent'
-      });
-    }
+    // Call the Service
+    const newAgent = await createAgentService(req.body);
 
     res.status(201).json({
+      success: true,
       message: 'Agent added successfully',
-      data: result[0]
+      data: newAgent
     });
+
   } catch (err) {
-    console.error('Agent creation error:', err);
-    const statusCode = 500;
-    const errorMessage = 'An unexpected server error occurred.';
-    res.status(statusCode).json({ error: errorMessage });
+    console.error('Agent creation error:', err.message);
+    
+    // Determine status code based on error message
+    const statusCode = err.message.includes("Invalid") || err.message.includes("Failed") ? 400 : 500;
+    
+    res.status(statusCode).json({ 
+      success: false,
+      error: err.message 
+    });
   }
 };

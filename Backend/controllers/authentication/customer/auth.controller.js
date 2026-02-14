@@ -6,7 +6,7 @@ import {
 } from "../../../services/authentication/customer.auth.service.js";
 import { generateToken } from "../../../utils/jwt.js";
 
-import { supabase } from "../../../config.js";
+import { supabase } from "../../../config/supabase.js";
 
 const normalizeIdentifier = (value) => String(value ?? "").trim();
 const normalizeDigits = (value) => String(value ?? "").replace(/\D/g, "");

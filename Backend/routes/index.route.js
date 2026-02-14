@@ -13,7 +13,7 @@ router.use('/', publicRoutes);
 router.use('/customer', customerRoutes);
  
 // 3. Admin Routes (Base: /api/admin)
-router.use('/admin', adminRoutes);
+router.use('/admin', adminRoutes);  // add addagent route in admin routes cause admin create the agent
 
 // 4. Auth Routes (Base: /api/auth)
 router.use('/auth', authRoutes);

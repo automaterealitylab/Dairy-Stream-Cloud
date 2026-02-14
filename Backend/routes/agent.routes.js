@@ -1,27 +1,22 @@
-const express = require('express');
+import express from 'express';
+// We import from 'shared' because both Admins and Agents need this list
+import { getUniqueBuildings } from '../controllers/shared/building.controller.js';
+
 const router = express.Router();
-const { supabase } = require('../config');
-const AgentController = require('../controllers/admin/addAgent.controller');       
 
-// Endpoint: http://localhost:4000/api/buildings
-router.get('/buildings', async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('customers').select('building_name');
-    if (error) {
-      console.error('Supabase select error:', error);
-      return res.status(500).json({ error: 'Server failed to fetch customer buildings.' });
-    }
-    const buildingNameArray = data.map(c => c.building_name);
-    const uniqueBuildingNames = [...new Set(buildingNameArray)].filter(Boolean);
-    res.json(uniqueBuildingNames);
-  } catch (error) {
-    console.error('Error fetching unique building names:', error);
-    res.status(500).json({ error: 'Server failed to fetch customer buildings.' });
-  }
-});
-// Endpoint: http://localhost:4000/api/addAgent
-router.post('/addAgent', async (req, res) => {
-  return AgentController.addAgent(req, res);
-});
+// ==========================================
+// 🏢 BUILDING ROUTES
+// ==========================================
 
-module.exports = router;
+// Endpoint: GET http://localhost:4000/api/agent/buildings
+router.get('/buildings', getUniqueBuildings);
+
+
+// ==========================================
+// ❌ REMOVED ROUTES
+// ==========================================
+// The '/addAgent' route has been removed from here.
+// It is correctly located in 'admin.routes.js' now.
+
+
+export default router;

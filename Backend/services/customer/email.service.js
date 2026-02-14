@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { supabase } from "../../config.js";
+import { supabase } from "../../config/supabase.js";
 import { sendEmail } from "../../utils/email.js"
 
 export const createEmailVerificationToken = async (customer) => {

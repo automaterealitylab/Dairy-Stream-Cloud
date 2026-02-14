@@ -1,4 +1,4 @@
-import { supabase } from "../config.js";
+import { supabase } from "../config/supabase.js";
 
 export const findCustomerByEmail = async (email) => {
   return supabase

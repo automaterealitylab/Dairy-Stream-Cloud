@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { supabase } from "../../config.js";
+import { supabase } from "../../config/supabase.js";
 
 export const createResetToken = async (customerId) => {
   const token = crypto.randomBytes(32).toString("hex");
