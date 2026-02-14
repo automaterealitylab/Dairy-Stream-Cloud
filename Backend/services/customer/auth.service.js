@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createCustomer, findCustomerByEmail } from "../../models/customer.db.js";
 import { generateToken } from "../../utils/jwt.js";
+import { ensureIdentityIsUnique } from "../authentication/identityUniqueness.service.js";
 
 import { createEmailVerificationToken } from "./email.service.js";
 
@@ -20,6 +21,11 @@ export const registerCustomerService = async (payload) => {
   if (existing) {
     throw new Error("Customer already exists");
   }
+
+  await ensureIdentityIsUnique({
+    email,
+    phone: phone_number,
+  });
 
   const hashedPassword = await bcrypt.hash(password, 10);
 

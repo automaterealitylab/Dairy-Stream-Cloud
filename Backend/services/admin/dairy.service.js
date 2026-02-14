@@ -1,6 +1,26 @@
 import bcrypt from "bcryptjs";
 import { supabase } from "../../config/supabase.js";
 import { generateToken } from "../../utils/jwt.js";
+import { ensureIdentityIsUnique } from "../authentication/identityUniqueness.service.js";
+
+const normalizeEmail = (value) => (value || "").trim().toLowerCase();
+const formatAdminIdentityConflictMessage = (conflict = {}) => {
+  const issues = [];
+
+  if (conflict.emailTakenBy) {
+    issues.push("Admin email is already used");
+  }
+
+  if (conflict.phoneTakenBy) {
+    issues.push("Admin mobile number is already used");
+  }
+
+  if (issues.length === 0) {
+    return "Admin identity details are already in use";
+  }
+
+  return `${issues.join(" and ")}. Please use different admin credentials.`;
+};
 
 // ===============================
 // REGISTER DAIRY SERVICE
@@ -25,6 +45,41 @@ export const registerDairyService = async ({
   selectedPlan,
 }) => {
   try {
+    const normalizedDairyEmail = normalizeEmail(dairyEmail);
+
+    const { data: existingDairyByEmail, error: existingDairyError } = await supabase
+      .from("dairies")
+      .select("id")
+      .ilike("dairy_email", normalizedDairyEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingDairyError) {
+      throw new Error(`Failed to validate dairy email: ${existingDairyError.message}`);
+    }
+
+    if (existingDairyByEmail) {
+      const conflictError = new Error("Dairy email is already registered");
+      conflictError.statusCode = 409;
+      throw conflictError;
+    }
+
+    try {
+      await ensureIdentityIsUnique({
+        email: adminEmail,
+        phone: adminMobile,
+      });
+    } catch (identityError) {
+      if (identityError?.statusCode === 409 && identityError?.conflict) {
+        const conflictError = new Error(
+          formatAdminIdentityConflictMessage(identityError.conflict)
+        );
+        conflictError.statusCode = 409;
+        throw conflictError;
+      }
+      throw identityError;
+    }
+
     // Step 1: Create the dairy
     const { data: dairyData, error: dairyError } = await supabase
       .from("dairies")
@@ -49,6 +104,11 @@ export const registerDairyService = async ({
       .single();
 
     if (dairyError) {
+      if (dairyError.code === "23505" && dairyError.constraint === "dairies_dairy_email_key") {
+        const conflictError = new Error("Dairy email is already registered");
+        conflictError.statusCode = 409;
+        throw conflictError;
+      }
       throw new Error(`Failed to create dairy: ${dairyError.message}`);
     }
 
@@ -75,6 +135,11 @@ export const registerDairyService = async ({
     if (adminError) {
       // Rollback dairy if admin creation fails
       await supabase.from("dairies").delete().eq("id", dairyData.id);
+      if (adminError.code === "23505" && adminError.constraint === "admins_email_key") {
+        const conflictError = new Error("Admin email is already registered");
+        conflictError.statusCode = 409;
+        throw conflictError;
+      }
       throw new Error(`Failed to create admin: ${adminError.message}`);
     }
 

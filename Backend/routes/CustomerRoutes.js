@@ -2,8 +2,10 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { supabase } from "../config/supabase.js";
+import { ensureIdentityIsUnique } from "../services/authentication/identityUniqueness.service.js";
 
 const router = express.Router();
+const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 
 // ==================================================
 // REGISTER NEW CUSTOMER
@@ -30,6 +32,17 @@ router.post("/addCustomer", async (req, res) => {
       });
     }
 
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "email and password are required",
+      });
+    }
+
+    await ensureIdentityIsUnique({
+      email,
+      phone: phoneNumber,
+    });
+
     // 🔐 Hash password if provided
     let hashedPassword = null;
     if (password) {
@@ -42,7 +55,7 @@ router.post("/addCustomer", async (req, res) => {
       .insert([
         {
           customer_name: customerName,
-          email: email,  
+          email: normalizeEmail(email),
           phone_number: phoneNumber,
           building_name: buildingName || null,
           wing: wing || null,
@@ -56,6 +69,9 @@ router.post("/addCustomer", async (req, res) => {
 
     if (error) {
       console.error("❌ Supabase insert error:", error);
+      if (error.code === "23505" && error.constraint === "customers_email_key") {
+        return res.status(409).json({ message: "Email is already used by an existing customer account" });
+      }
       return res.status(400).json({ message: error.message });
     }
 
@@ -65,8 +81,10 @@ router.post("/addCustomer", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Register Error:", err);
-    res.status(500).json({
-      message: "Internal Server Error",
+    const statusCode = err.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      message: statusCode === 409 ? err.message : "Internal Server Error",
       error: err.message,
     });
   }

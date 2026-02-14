@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from "react-hot-toast";
 import { 
   Building2, MapPin, User, CreditCard, CheckCircle, 
   ArrowRight, ArrowLeft, Upload, Loader2, ShieldCheck, 
@@ -151,7 +152,7 @@ const RegisterDairyPage = () => {
       }, 2000);
     } catch (err) {
       console.error("❌ Dairy registration error:", err);
-      alert(`Registration failed: ${err.message}`);
+      toast.error(err.message || "Registration failed");
       setLoading(false);
     }
   };

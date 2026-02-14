@@ -127,9 +127,18 @@ export const registerDairyApi = async (dairyData) => {
   });
 
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(text || "Failed to register dairy");
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
   }
 
-  return JSON.parse(text);
+  if (!res.ok) {
+    throw new Error(
+      payload?.error || payload?.message || text || "Failed to register dairy"
+    );
+  }
+
+  return payload ?? {};
 };

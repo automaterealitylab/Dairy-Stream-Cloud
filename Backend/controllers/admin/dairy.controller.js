@@ -78,7 +78,7 @@ export const registerDairy = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Dairy registration error:", err.message);
-    res.status(400).json({
+    res.status(err.statusCode || 400).json({
       success: false,
       error: err.message,
     });

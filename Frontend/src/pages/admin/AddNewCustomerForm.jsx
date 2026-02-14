@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import toast from "react-hot-toast";
 
 function AddNewCustomerForm() {
   const [customer, setCustomer] = useState({
@@ -19,7 +20,7 @@ function AddNewCustomerForm() {
     billingCycle: 'Monthly',
   });
 
-  const apiurl = "http://localhost:4000/api/addCustomer";
+  const apiurl = "http://localhost:4000/api/customer/addCustomer";
   const navigate = useNavigate();
 
   // Handle input changes
@@ -34,36 +35,34 @@ function AddNewCustomerForm() {
 
     // 1. Frontend Validation (Updated to include email and password)
     if (!customer.customerName || !customer.roomNo || !customer.buildingName || !customer.phoneNumber || !customer.email || !customer.password) {
-      alert("All required fields (Name, Phone, Address, Email, and Password) must be filled.");
+      toast.error("All required fields (Name, Phone, Address, Email, and Password) must be filled.");
       return;
     }
 
     if (customer.defaultMilkQuantityLiters <= 0) {
-        alert("Daily Milk Quantity must be greater than 0.");
+        toast.error("Daily Milk Quantity must be greater than 0.");
         return;
     }
 
     if (customer.defaultExtraProduct !== 'None' && customer.defaultExtraProductQuantity <= 0) {
-      alert("Please set a quantity greater than 0 for the selected extra product.");
+      toast.error("Please set a quantity greater than 0 for the selected extra product.");
       return;
     }
 
     try {
       await axios.post(apiurl, customer);
-      alert("Customer added successfully!");
+      toast.success("Customer added successfully!");
       navigate("/");
     } catch (error) {
       console.error("Error adding customer:", error);
       
       
-      const serverErrorMessage = error.response?.data?.error;
+      const serverErrorMessage = error.response?.data?.message || error.response?.data?.error;
 
       if (serverErrorMessage) {
-          // Display the specific error message from the backend
-          alert(`Failed to add customer: ${serverErrorMessage}`);
+          toast.error(serverErrorMessage);
       } else {
-          // Fallback for network or unexpected errors
-          alert("Failed to add customer. Check the console for network error details.");
+          toast.error("Failed to add customer. Check the console for network error details.");
       }
     }
   };

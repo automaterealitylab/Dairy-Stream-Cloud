@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
 import { 
   User, Phone, Building2, MapPin, Droplets, Calendar, 
   ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, ShieldCheck 
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.png";
-import { registerCustomer } from "../api/customer.auth";
 
 
 
@@ -71,6 +71,8 @@ const CustomerRegister = () => {
 
   const handleSubmit = async (e) => {
   e.preventDefault();
+  setLoading(true);
+  setError("");
 
   try {
     const payload = {
@@ -96,16 +98,30 @@ const CustomerRegister = () => {
     });
 
     const data = await res.json();
-   
+
+    if (!res.ok) {
+      const errorMessage = data?.message || data?.error || "Registration failed";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setLoading(false);
+      return;
+    }
+
+    toast.success("Account created successfully. Please login.");
+
+    navigate("/", {
+      state: {
+        message: "Account created successfully. Please login.",
+      },
+    });
   } catch (err) {
     console.error("Register error:", err);
-    alert("Something went wrong");
+    const errorMessage = "Something went wrong. Please try again.";
+    setError(errorMessage);
+    toast.error(errorMessage);
+  } finally {
+    setLoading(false);
   }
-  navigate("/", {
-  state: {
-    message: "Account created successfully. Please login.",
-  },
-});
 };
 
 
