@@ -126,7 +126,7 @@ export default function AdminSidebar({ open, onClose }) {
             onClick={() => {
               localStorage.removeItem("adminToken");
               localStorage.removeItem("adminUser");
-              navigate("/admin/login", { replace: true });
+              navigate("/", { replace: true });
             }}
             className="
               w-full flex items-center justify-center gap-2
