@@ -1,7 +1,7 @@
 import express from 'express';
 import publicRoutes from './public.routes.js';
 import adminRoutes from './admin.routes.js';
-import authRoutes from './authroutes.js';
+import authRoutes from './auth.routes.js';
 import customerRoutes from './CustomerRoutes.js';
 
 const router = express.Router();
