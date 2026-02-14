@@ -1,51 +1,58 @@
-import { supabase } from "../../config/supabase.js";
+import { supabase } from "../../config.js"; // Adjust path to match your customer service import
 
-export const getAdminAgents = async ({ page, limit, search }) => {
+export const getAdminAgents = async ({
+  page = 1,
+  limit = 10,
+  search = "",
+}) => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  console.log(`🔎 Service: Fetching Agents (Page ${page})`);
-
-  // 1. Start Query on 'users' table
+  // 1. Start Query on 'users' table (since agents are users with a role)
   let query = supabase
     .from("users")
-    .select("id, full_name, email, mobile, role, building, created_at", { count: "exact" })
-    // Filter for STAFF / AGENTS
+    .select("*", { count: "exact" })
+    // Filter to only get Agents/Staff
     .in("role", ["STAFF", "AGENT", "agent", "staff"]) 
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
-  // 2. Apply Search if exists
+  // 2. Apply Search
   if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,mobile.ilike.%${search}%`);
+    query = query.or(
+      `full_name.ilike.%${search}%,email.ilike.%${search}%,mobile.ilike.%${search}%`
+    );
   }
 
-  // 3. Apply Pagination
-  query = query.range(from, to);
+  const { data, error, count } = await query;
 
-  const { data, count, error } = await query;
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw error;
 
   return {
-    data,
+    agents: data, // ✅ Matches pattern: 'customers' -> 'agents'
     total: count,
     page,
-    totalPages: Math.ceil(count / limit),
+    limit,
   };
 };
 
-export const getAgentDetails = async (id) => {
-  const { data, error } = await supabase
+export const getAgentDetails = async (agentId) => {
+  // 1. Fetch Basic Agent Info from Users
+  const { data: agent, error: agentError } = await supabase
     .from("users")
     .select("*")
-    .eq("id", id)
+    .eq("id", agentId)
     .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (agentError) throw agentError;
 
-  return data;
+  // 2. (Optional) Fetch related delivery stats or assignments if you have them
+  // For now, we return the agent profile to match the structure
+  
+  return {
+    agent,
+    // You can add more related data here later, like:
+    // deliveries: [], 
+    // assignments: null
+  };
 };

@@ -1,6 +1,5 @@
 import { getAdminAgents, getAgentDetails } from "../../services/admin/adminAgents.service.js";
 
-// 1. Fetch All Agents (with Pagination & Search)
 export const fetchAdminAgents = async (req, res) => {
   try {
     const page = Number(req.query.page || 1);
@@ -18,7 +17,6 @@ export const fetchAdminAgents = async (req, res) => {
   }
 };
 
-// 2. Fetch Single Agent by ID
 export const fetchAdminAgentById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -26,7 +24,7 @@ export const fetchAdminAgentById = async (req, res) => {
     const data = await getAgentDetails(id);
 
     if (!data) {
-      return res.status(404).json({ message: "Agent not found" });
+        return res.status(404).json({ message: "Agent not found" });
     }
 
     res.json(data);
