@@ -152,9 +152,12 @@ const LoginPage = () => {
 
         console.log("✅ Admin login successful:", result);
 
-        // ✅ FIX 1: Set Standard Keys for ProtectedRoute
-        localStorage.setItem("token", result.token); 
+        // ✅ Store admin token for admin APIs
+        localStorage.setItem("adminToken", result.token);
         localStorage.setItem("userRole", "ADMIN"); // Explicitly set role
+        if (result.user) {
+          localStorage.setItem("adminUser", JSON.stringify(result.user));
+        }
         
         // ✅ FIX 2: Call the Auth Context! 
         // This updates the App state so ProtectedRoute knows we are logged in immediately.
