@@ -48,7 +48,7 @@ function App() {
           👤 CUSTOMER ROUTES (Protected)
       ============================== */}
       <Route
-        path="/customer-dashboard"
+        path="/customer/dashboard"
         element={
           <ProtectedRoute allowedRoles={["CUSTOMER"]}>
             <CustomerDashboard />
