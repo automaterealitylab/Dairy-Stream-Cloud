@@ -43,6 +43,7 @@ export const registerDairyService = async ({
   adminMobile,
   password,
   selectedPlan,
+  imageUrl,
 }) => {
   try {
     const normalizedDairyEmail = normalizeEmail(dairyEmail);
@@ -87,6 +88,7 @@ export const registerDairyService = async ({
         dairy_name: dairyName,
         dairy_phone: dairyPhone,
         dairy_email: dairyEmail,
+        image_url: imageUrl || null,
         gstin,
         category,
         address,

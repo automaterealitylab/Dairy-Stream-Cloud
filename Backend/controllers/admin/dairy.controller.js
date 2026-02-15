@@ -1,4 +1,5 @@
 import { registerDairyService } from "../../services/admin/dairy.service.js";
+import cloudinary from "../../config/cloudinary.js";
 
 // ===============================
 // REGISTER DAIRY
@@ -24,6 +25,16 @@ export const registerDairy = async (req, res) => {
       password,
       selectedPlan,
     } = req.body;
+
+    let imageUrl = null;
+    if (req.file) {
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const upload = await cloudinary.uploader.upload(dataUri, {
+        folder: "dairies",
+        resource_type: "image",
+      });
+      imageUrl = upload.secure_url;
+    }
 
     // Validation
     const requiredFields = {
@@ -69,6 +80,7 @@ export const registerDairy = async (req, res) => {
       adminMobile,
       password,
       selectedPlan,
+      imageUrl,
     });
 
     res.json({

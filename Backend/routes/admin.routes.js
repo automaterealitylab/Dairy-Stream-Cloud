@@ -9,6 +9,7 @@ import {
   deleteAdminCustomerById,
 } from "../controllers/admin/adminCustomers.controller.js";
 import { registerDairy } from "../controllers/admin/dairy.controller.js";
+import { uploadSingleImage } from "../middleware/upload.middleware.js";
 import { addAgent } from "../controllers/admin/addAgent.controller.js";
 import { getUniqueBuildings } from "../controllers/shared/building.controller.js";
 import {
@@ -20,7 +21,7 @@ import {
 const router = express.Router();
 
 router.post("/", adminLogin);
-router.post("/register-dairy", registerDairy);
+router.post("/register-dairy", uploadSingleImage, registerDairy);
 router.post("/addagent", verifyAdmin, addAgent);
 router.get("/customers", verifyAdmin, fetchAdminCustomers); //need to work on this route, where we just fetch the customer data from the db, if no customer just a banner "you dont have any customer now, add you customer"
 router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById);
