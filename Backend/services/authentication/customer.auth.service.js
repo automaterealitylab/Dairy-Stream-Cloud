@@ -36,9 +36,23 @@ const buildLoosePhonePattern = (identifier) => {
   return `%${last10.slice(0, 5)}%${last10.slice(5)}%`;
 };
 
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const sendOtp = async ({ identifier, otp }) => {
-  // SMS provider removed; OTP is stored in DB for verification flow.
   console.log(`[OTP] Identifier: ${identifier}, OTP: ${otp}`);
+  
+  // Log to file for easy access
+  try {
+    const logPath = path.join(__dirname, "../../otp.log");
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] Identifier: ${identifier}, OTP: ${otp}\n`);
+  } catch (err) {
+    console.error("Failed to write to OTP log file:", err);
+  }
 };
 
 // ===============================
