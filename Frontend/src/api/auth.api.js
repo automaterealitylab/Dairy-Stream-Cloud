@@ -50,3 +50,10 @@ export const verifyOtpApi = async ({ identifier, otp, dairyId }) => {
   });
   return data;
 };
+
+
+
+export const agentLoginApi = async(data)=>{
+  const res = await axios.post("/auth/agent/login", data);
+  return res.data;
+};

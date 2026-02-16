@@ -6,11 +6,11 @@ import {
   passwordLogin,
   requestOtp,
   verifyOtpLogin,
-} from "../controllers/authentication/customer/auth.controller.js";
+} from "../controllers/authentication/customer/customerAuth.controller.js";
 
 // ✅ ADMIN AUTH
 import { adminLogin }
-from "../controllers/authentication/admin/auth.controller.js";
+from "../controllers/authentication/adminAuth.controller.js";
 
 const router = express.Router();
 
