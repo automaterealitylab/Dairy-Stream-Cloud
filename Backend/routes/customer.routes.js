@@ -3,7 +3,7 @@ import express from "express";
 import {
   requestOtp,
   verifyOtpLogin
-} from "../controllers/authentication/customer/auth.controller.js";
+} from "../controllers/authentication/customer/customerAuth.controller.js";
 
 import {
   getProfile,

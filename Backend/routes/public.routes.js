@@ -1,5 +1,5 @@
 import express from "express";
-import { detectUser } from "../controllers/authentication/customer/auth.controller.js";
+import { detectUser } from "../controllers/authentication/customer/customerAuth.controller.js";
 import { getPublicDairies, getPublicDairy } from "../controllers/public/dairies.controller.js";
 
 const router = express.Router();
