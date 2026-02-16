@@ -43,6 +43,7 @@ const RegisterDairyPage = () => {
     // Step 4: Plan
     selectedPlan: 'GROWTH' // 'STARTER' | 'GROWTH' | 'ENTERPRISE'
   });
+  const [logoFile, setLogoFile] = useState(null);
 
   // --- HANDLERS ---
   const handleChange = (e) => {
@@ -52,6 +53,11 @@ const RegisterDairyPage = () => {
 
   const handlePlanSelect = (plan) => {
     setFormData(prev => ({ ...prev, selectedPlan: plan }));
+  };
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    setLogoFile(file || null);
   };
 
   // --- VALIDATION (Simple Check) ---
@@ -109,25 +115,25 @@ const RegisterDairyPage = () => {
     setLoading(true);
     try {
       // Log the data being sent
-      const submitData = {
-        dairyName: formData.dairyName,
-        dairyPhone: formData.dairyPhone,
-        dairyEmail: formData.dairyEmail,
-        gstin: formData.gstin,
-        category: formData.category,
-        address: formData.address,
-        city: formData.city,
-        state: formData.state,
-        pincode: formData.pincode,
-        serviceType: formData.serviceType,
-        servicePincodes: formData.servicePincodes,
-        serviceRadius: formData.serviceRadius,
-        ownerName: formData.ownerName,
-        adminEmail: formData.adminEmail,
-        adminMobile: formData.adminMobile,
-        password: formData.password,
-        selectedPlan: formData.selectedPlan,
-      };
+      const submitData = new FormData();
+      submitData.append("dairyName", formData.dairyName);
+      submitData.append("dairyPhone", formData.dairyPhone);
+      submitData.append("dairyEmail", formData.dairyEmail);
+      submitData.append("gstin", formData.gstin);
+      submitData.append("category", formData.category);
+      submitData.append("address", formData.address);
+      submitData.append("city", formData.city);
+      submitData.append("state", formData.state);
+      submitData.append("pincode", formData.pincode);
+      submitData.append("serviceType", formData.serviceType);
+      submitData.append("servicePincodes", formData.servicePincodes);
+      submitData.append("serviceRadius", formData.serviceRadius);
+      submitData.append("ownerName", formData.ownerName);
+      submitData.append("adminEmail", formData.adminEmail);
+      submitData.append("adminMobile", formData.adminMobile);
+      submitData.append("password", formData.password);
+      submitData.append("selectedPlan", formData.selectedPlan);
+      if (logoFile) submitData.append("image", logoFile);
 
       console.log("📤 Submitting dairy registration with data:", submitData);
 
@@ -270,10 +276,11 @@ const RegisterDairyPage = () => {
 
               <div className="col-span-2">
                  <label className="block text-sm font-semibold text-gray-700 mb-1">Logo Upload (Optional)</label>
-                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition cursor-pointer">
+                 <label className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition cursor-pointer">
                     <Upload size={32} className="mb-2"/>
-                    <span className="text-sm">Click to upload brand logo</span>
-                 </div>
+                    <span className="text-sm">{logoFile ? logoFile.name : "Click to upload brand logo"}</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                 </label>
               </div>
             </div>
           </div>

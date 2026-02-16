@@ -152,9 +152,12 @@ const LoginPage = () => {
 
         console.log("✅ Admin login successful:", result);
 
-        // ✅ FIX 1: Set Standard Keys for ProtectedRoute
-        localStorage.setItem("adminToken", result.token); 
+        // ✅ Store admin token for admin APIs
+        localStorage.setItem("adminToken", result.token);
         localStorage.setItem("userRole", "ADMIN"); // Explicitly set role
+        if (result.user) {
+          localStorage.setItem("adminUser", JSON.stringify(result.user));
+        }
         
         // ✅ FIX 2: Call the Auth Context! 
         // This updates the App state so ProtectedRoute knows we are logged in immediately.
@@ -182,12 +185,16 @@ const LoginPage = () => {
       login(result);
       
       // ✅ Also ensure localStorage fallback is set for Customers
-      localStorage.setItem("userRole", result.user?.role || role); 
+      localStorage.setItem("userRole", result.user?.role || role);
+      localStorage.setItem("user", JSON.stringify(result));
+      if (result.token) {
+        localStorage.setItem("token", result.token);
+      }
 
       toast.success(`Welcome back, ${result.user?.name || "User"}!`);
 
       if (role === "CUSTOMER") {
-        navigate(result.redirect || "/customer-dashboard", { replace: true });
+        navigate(result.redirect || "/customer/dashboard", { replace: true });
       } else if (role === "STAFF") {
         navigate("/staff/home", { replace: true });
       }

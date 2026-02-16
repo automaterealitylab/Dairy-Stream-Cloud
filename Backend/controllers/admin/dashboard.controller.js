@@ -3,8 +3,10 @@ import { getAdminDashboardStats } from "../../services/admin/dashboard.service.j
 export const getDashboard = async (req, res) => {
   try {
     console.log("📊 Fetching admin dashboard stats...");
-    
-    const stats = await getAdminDashboardStats();
+
+    const stats = await getAdminDashboardStats({
+      dairyId: req.admin?.dairyId,
+    });
     
     res.json(stats);
   } catch (err) {

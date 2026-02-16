@@ -13,7 +13,8 @@ export const authenticate = (req, res, next) => {
 
     req.customer = {
       id: decoded.id,
-      email: decoded.email
+      email: decoded.email,
+      dairyId: decoded.dairyId ?? null,
     };
 
     next();

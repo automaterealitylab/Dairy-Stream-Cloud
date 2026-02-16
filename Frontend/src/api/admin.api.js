@@ -121,10 +121,7 @@ export const fetchAdminCustomerById = async (id) => {
 export const registerDairyApi = async (dairyData) => {
   const res = await fetch(`${BASE_URL}/api/admin/register-dairy`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(dairyData),
+    body: dairyData,
   });
 
   const text = await res.text();

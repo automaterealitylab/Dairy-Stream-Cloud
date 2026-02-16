@@ -13,10 +13,10 @@ import {
 /* ================= NAV CONFIG (SINGLE SOURCE) ================= */
 const NAV_ITEMS = [
   { icon: Home, label: "Home", path: "/customer/dashboard" },
-  { icon: Calendar, label: "Deliveries", path: "/customer/dashboard/deliveries" },
-  { icon: ShoppingBag, label: "Subscribe", path: "/customer/dashboard/subscriptions" },
-  { icon: CreditCard, label: "Payments", path: "/customer/dashboard/payments" },
-  { icon: User, label: "Profile", path: "/customer/dashboard/profile" },
+  { icon: Calendar, label: "Deliveries", path: "/customer/deliveries" },
+  { icon: ShoppingBag, label: "Subscribe", path: "/customer/subscriptions" },
+  { icon: CreditCard, label: "Payments", path: "/customer/payments" },
+  { icon: User, label: "Profile", path: "/customer/profile" },
 ];
 
 const CustomerLayout = ({ children }) => {

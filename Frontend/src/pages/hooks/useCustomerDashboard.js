@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./useAuth.jsx";
+import {
+  fetchCustomerDashboard,
+  fetchCustomerProfile,
+} from "../../api/customer.api.js";
 
 export const useCustomerDashboard = () => {
   const { user } = useAuth();
@@ -10,40 +14,57 @@ export const useCustomerDashboard = () => {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        // 🔧 TEMP DATA (until backend API exists)
-        const mockResponse = {
-          customer: {
-            id: user?.user?.id ?? null,
-            name:
-              user?.user?.customer_name ||
-              user?.user?.name ||
-              "Customer",
-            email: user?.user?.email || "-",
-            phone: user?.user?.phone_number || user?.user?.phone || "-",
-            dairy: user?.user?.dairy || "Not assigned",
-          },
-          todayDelivery: {
-            status: "DELIVERED",
-            time: "07:15 AM",
-            product: "Buffalo Milk",
-            quantity: "1.5 L",
-          },
-          tomorrowDelivery: {
-            quantity: "1.5 Liters",
-            slot: "Morning (6:00 - 8:00 AM)",
-          },
-          billing: {
-            monthlyDue: 1200,
-            walletBalance: 450,
-            dueInDays: 5,
-          },
-        };
-
-        // simulate API delay
-        setTimeout(() => {
-          setData(mockResponse);
+        const storedUser = localStorage.getItem("user");
+        const storedToken = storedUser ? JSON.parse(storedUser)?.token : null;
+        const token = user?.token || storedToken || localStorage.getItem("token");
+        if (!token) {
+          setError("Customer token missing");
           setLoading(false);
-        }, 500);
+          return;
+        }
+        const res = await fetchCustomerDashboard(token);
+
+        const needsDairyFallback =
+          !res?.customer?.memberOfDairy ||
+          String(res.customer.memberOfDairy).trim().toLowerCase() === "not assigned";
+
+        if (needsDairyFallback) {
+          try {
+            const profile = await fetchCustomerProfile(token);
+            const profileDairyName =
+              profile?.member_of_dairy || profile?.dairy_name || null;
+
+            if (profileDairyName) {
+              const normalized = {
+                ...res,
+                customer: {
+                  ...res.customer,
+                  dairy: profileDairyName,
+                  dairyName: profileDairyName,
+                  memberOfDairy: profileDairyName,
+                },
+                subscription: res.subscription
+                  ? {
+                      ...res.subscription,
+                      dairyName:
+                        !res.subscription.dairyName ||
+                        res.subscription.dairyName === "Dairy"
+                          ? profileDairyName
+                          : res.subscription.dairyName,
+                    }
+                  : res.subscription,
+              };
+              setData(normalized);
+              setLoading(false);
+              return;
+            }
+          } catch (profileErr) {
+            // Ignore fallback failures and continue with dashboard payload.
+          }
+        }
+
+        setData(res);
+        setLoading(false);
       } catch (err) {
         setError("Failed to load dashboard");
         setLoading(false);

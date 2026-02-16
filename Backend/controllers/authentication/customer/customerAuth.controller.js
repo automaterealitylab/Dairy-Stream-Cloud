@@ -35,7 +35,7 @@ const buildLoosePhonePattern = (identifier) => {
 const resolveMembershipLinkColumn = async () => {
   if (!membershipLinkColumnPromise) {
     membershipLinkColumnPromise = (async () => {
-      const compatibleColumns = ["customer_id", "customerid", "customerId"];
+      const compatibleColumns = ["customer_id", "customerid", "customerId", "user_id"];
 
       for (const column of compatibleColumns) {
         const { error } = await supabase
@@ -71,6 +71,42 @@ const getCustomerMembership = async (customerId) => {
 
   if (error) throw new Error(error.message);
   return data ?? null;
+};
+
+const getCustomerMembershipForDairy = async (customerId, dairyId) => {
+  if (!customerId || !dairyId) return null;
+  const linkColumn = await resolveMembershipLinkColumn();
+  if (!linkColumn) return null;
+
+  const { data, error } = await supabase
+    .from("memberships")
+    .select("id, dairy_id")
+    .eq(linkColumn, customerId)
+    .eq("dairy_id", dairyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ?? null;
+};
+
+const getCustomerSubscriptions = async (customerId) => {
+  if (!customerId) return [];
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("id, dairy_id, status")
+    .eq("customer_id", customerId)
+    .limit(50);
+
+  if (error) {
+    const message = String(error.message || "").toLowerCase();
+    const missingTable = message.includes("relation") && message.includes("does not exist");
+    if (missingTable) return [];
+    throw new Error(error.message);
+  }
+
+  return data || [];
 };
 
 const findCustomerByIdentifier = async (identifier) => {
@@ -190,12 +226,42 @@ export const verifyOtpLogin = async (req, res) => {
 
     const loginDairyId = verifiedOtp?.dairy_id ?? null;
     const result = await customerOtpLoginService({ identifier, dairyId: loginDairyId });
-    const redirect = loginDairyId ? "/customer-dashboard" : "/explore";
+
+    // If dairyId is provided, verify membership for that specific dairy.
+    // Otherwise, fallback to checking whether customer has any dairy membership.
+    const requestedDairyId = hasDairyId ? dairyId : null;
+    const specificMembership = requestedDairyId
+      ? await getCustomerMembershipForDairy(result?.user?.id, requestedDairyId)
+      : null;
+    const anyMembership = requestedDairyId
+      ? specificMembership
+      : await getCustomerMembership(result?.user?.id);
+    const subscriptions = await getCustomerSubscriptions(result?.user?.id);
+    const specificSubscription = requestedDairyId
+      ? subscriptions.find(
+          (row) =>
+            String(row?.dairy_id ?? "") === String(requestedDairyId) &&
+            String(row?.status ?? "ACTIVE").toUpperCase() !== "CLOSED"
+        ) ?? null
+      : null;
+    const anyActiveSubscription = subscriptions.find(
+      (row) => String(row?.status ?? "ACTIVE").toUpperCase() !== "CLOSED"
+    );
+
+    const hasRegistration = requestedDairyId
+      ? Boolean(specificMembership || specificSubscription)
+      : Boolean(anyMembership?.dairy_id || anyActiveSubscription);
+
+    const isRegisteredToRequestedDairy = requestedDairyId
+      ? Boolean(specificMembership || specificSubscription)
+      : hasRegistration;
+    const redirect = hasRegistration ? "/customer/dashboard" : "/explore";
 
     res.json({
       success: true,
       token: result.token,
       user: result.user,
+      isRegisteredToRequestedDairy,
       redirect,
     });
   } catch (err) {
