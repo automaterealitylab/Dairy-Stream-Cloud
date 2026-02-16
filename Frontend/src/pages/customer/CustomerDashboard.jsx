@@ -1,4 +1,4 @@
-import CustomerLayout from "../../layouts/CustomerLayout";
+import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../hooks/useCustomerDashboard";
 
 import {
@@ -85,10 +85,10 @@ const CustomerDashboard = () => {
 
         {/* QUICK ACTIONS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
-          <QuickAction icon={Plus} label="Add Extra" color="brand" />
-          <QuickAction icon={PauseCircle} label="Pause" color="warning" />
-          <QuickAction icon={Calendar} label="Deliveries" color="brand" to="/customer/deliveries" />
-          <QuickAction icon={Banknote} label="Pay Bill" color="success" />
+          <QuickAction icon={Plus} label="Add Extra" color="brand"  to="/customer/dashboard/subscriptions" />
+          <QuickAction icon={PauseCircle} label="Pause" color="warning"  to="/customer/dashboard/subscriptions" />
+          <QuickAction icon={Calendar} label="Deliveries" color="brand" to="/customer/dashboard/deliveries" />
+          <QuickAction icon={Banknote} label="Pay Bill" color="success"  to="/customer/dashboard/payments" />
         </div>
 
         {/* TOMORROW + BILLING */}

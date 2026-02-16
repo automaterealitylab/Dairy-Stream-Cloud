@@ -12,10 +12,10 @@ import DairyDetailsPage from "./pages/public/DairyDetailsPage";
 
 // --- Customer Pages ---
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
-import Deliveries from "./pages/customer/deliveries";
-import Subscription from "./pages/customer/Subscription";
-import Payments from "./pages/customer/Payments";
-import Profile from "./pages/customer/Profile";
+import Deliveries from "./pages/customer/CustomerDeliveries.jsx";
+import Subscription from "./pages/customer/CustomerSubscription.jsx";
+import Payments from "./pages/customer/CustomerPayments.jsx";
+import Profile from "./pages/customer/CustomerProfile.jsx";
 
 // --- Admin Pages ---
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -55,8 +55,9 @@ function App() {
           </ProtectedRoute>
         }
       />
+       
       <Route
-        path="/customer/deliveries"
+        path="/customer/dashboard/deliveries"
         element={
           <ProtectedRoute allowedRoles={["CUSTOMER"]}>
             <Deliveries />
@@ -64,7 +65,7 @@ function App() {
         }
       />
       <Route
-        path="/customer/subscriptions"
+        path="/customer/dashboard/subscriptions"
         element={
           <ProtectedRoute allowedRoles={["CUSTOMER"]}>
             <Subscription />
@@ -72,7 +73,7 @@ function App() {
         }
       />
       <Route
-        path="/customer/payments"
+        path="/customer/dashboard/payments"
         element={
           <ProtectedRoute allowedRoles={["CUSTOMER"]}>
             <Payments />
@@ -80,7 +81,7 @@ function App() {
         }
       />
       <Route
-        path="/customer/profile"
+        path="/customer/dashboard/profile"
         element={
           <ProtectedRoute allowedRoles={["CUSTOMER"]}>
             <Profile />
@@ -163,7 +164,7 @@ function App() {
           🚚 AGENT ROUTES (Protected)
       ============================== */}
       <Route
-        path="/agent-dashboard"
+        path="/agent/dashboard"
         element={
           <ProtectedRoute allowedRoles={["STAFF"]}>
             <AgentDashboard />

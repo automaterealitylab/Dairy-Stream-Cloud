@@ -1,45 +1,43 @@
 import { useEffect, useState } from "react";
 import {
-  fetchAdminCustomerById,
-  updateAdminCustomer,
-  deleteAdminCustomer,
-} from "../../../api/admin.api";
+  fetchAdminAgentsById,
+  updateAdminAgent,
+  deleteAdminAgent,
+} from "../../api/admin.api";
 
-export default function CustomerDrawer({ customerId, onClose, onChanged }) {
+export default function AgentDrawer({ agentId, onClose, onChanged }) {
   const [data, setData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [form, setForm] = useState({
-    customer_name: "",
+    agent_name: "",
     phone_number: "",
     email: "",
-    building_name: "",
-    wing: "",
-    room_no: "",
+    building: "",
   });
 
   useEffect(() => {
-    if (!customerId) return;
+    if (!agentId) return;
 
-    fetchAdminCustomerById(customerId).then((res) => {
-      setData(res);
-      const c = res?.customer || {};
-      setForm({
-        customer_name: c.customer_name || "",
-        phone_number: c.phone_number || "",
-        email: c.email || "",
-        building_name: c.building_name || "",
-        wing: c.wing || "",
-        room_no: c.room_no || "",
-      });
-      setIsEditing(false);
-    });
-  }, [customerId]);
+    fetchAdminAgentsById(agentId)
+      .then((res) => {
+        setData(res);
+        const a = res?.agent || {};
+        setForm({
+          agent_name: a.agent_name || a.full_name || "",
+          phone_number: a.phone_number || a.mobile || "",
+          email: a.email || "",
+          building: a.building || "",
+        });
+        setIsEditing(false);
+      })
+      .catch(() => setData(null));
+  }, [agentId]);
 
-  if (!customerId) return null;
+  if (!agentId) return null;
 
-  const customer = data?.customer;
+  const agent = data?.agent;
 
   const onInput = (e) => {
     const { name, value } = e.target;
@@ -49,28 +47,28 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const res = await updateAdminCustomer(customerId, form);
-      setData((prev) => ({ ...prev, customer: res.customer }));
+      const res = await updateAdminAgent(agentId, form);
+      setData({ agent: res.agent });
       setIsEditing(false);
       if (onChanged) onChanged();
     } catch (err) {
-      alert("Failed to update customer");
+      alert("Failed to update agent");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    const ok = window.confirm("Delete this customer? This cannot be undone.");
+    const ok = window.confirm("Delete this agent? This cannot be undone.");
     if (!ok) return;
 
     try {
       setIsDeleting(true);
-      await deleteAdminCustomer(customerId);
+      await deleteAdminAgent(agentId);
       if (onChanged) onChanged();
       onClose();
     } catch (err) {
-      alert("Failed to delete customer");
+      alert("Failed to delete agent");
     } finally {
       setIsDeleting(false);
     }
@@ -84,8 +82,8 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
         <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 overflow-hidden">
           <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold">Customer Details</h2>
-              <p className="text-sm text-gray-500">Profile and membership overview</p>
+              <h2 className="text-lg font-semibold">Agent Details</h2>
+              <p className="text-sm text-gray-500">Profile and routing overview</p>
             </div>
             <button
               onClick={onClose}
@@ -102,14 +100,14 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
             <div className="p-6 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Customer</h3>
+                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Agent</h3>
                   {isEditing ? (
                     <div className="mt-3 space-y-4">
                       <div>
                         <label className="text-xs text-gray-500">Full Name</label>
                         <input
-                          name="customer_name"
-                          value={form.customer_name}
+                          name="agent_name"
+                          value={form.agent_name}
                           onChange={onInput}
                           placeholder="Full name"
                           className="w-full border-b border-gray-200 p-2 focus:outline-none"
@@ -140,68 +138,40 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
                     <div className="mt-3 space-y-2">
                       <div>
                         <p className="text-xs text-gray-500">Full Name</p>
-                        <p className="font-medium">{customer?.customer_name || "Unnamed"}</p>
+                        <p className="font-medium">{agent?.full_name || agent?.agent_name || "Unnamed"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Phone</p>
-                        <p className="text-sm text-gray-700">{customer?.phone_number || "-"}</p>
+                        <p className="text-sm text-gray-700">{agent?.mobile || agent?.phone_number || "-"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Email</p>
-                        <p className="text-sm text-gray-700">{customer?.email || "-"}</p>
+                        <p className="text-sm text-gray-700">{agent?.email || "-"}</p>
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Address</h3>
+                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Route</h3>
                   {isEditing ? (
                     <div className="mt-3 space-y-4">
                       <div>
                         <label className="text-xs text-gray-500">Building</label>
                         <input
-                          name="building_name"
-                          value={form.building_name}
+                          name="building"
+                          value={form.building}
                           onChange={onInput}
                           placeholder="Building"
                           className="w-full border-b border-gray-200 p-2 focus:outline-none"
                         />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-gray-500">Wing</label>
-                          <input
-                            name="wing"
-                            value={form.wing}
-                            onChange={onInput}
-                            placeholder="Wing"
-                            className="w-full border-b border-gray-200 p-2 focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Room</label>
-                          <input
-                            name="room_no"
-                            value={form.room_no}
-                            onChange={onInput}
-                            placeholder="Room"
-                            className="w-full border-b border-gray-200 p-2 focus:outline-none"
-                          />
-                        </div>
                       </div>
                     </div>
                   ) : (
                     <div className="mt-3 space-y-2">
                       <div>
                         <p className="text-xs text-gray-500">Building</p>
-                        <p className="font-medium">{customer?.building_name || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Wing / Room</p>
-                        <p className="text-sm text-gray-700">
-                          {customer?.wing || "-"} {customer?.room_no || ""}
-                        </p>
+                        <p className="font-medium">{agent?.building || "-"}</p>
                       </div>
                     </div>
                   )}
@@ -210,36 +180,20 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Membership</h3>
-                  {data.membership ? (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-500">Active Since</p>
-                      <p className="text-sm">
-                        {new Date(data.membership.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-gray-400">No membership</p>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Dairy</h3>
-                  {data.dairy ? (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-500">Name</p>
-                      <p className="font-medium">{data.dairy.name}</p>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-gray-400">Not linked</p>
-                  )}
+                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Joined</h3>
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500">Date</p>
+                    <p className="text-sm">
+                      {agent?.created_at ? new Date(agent.created_at).toLocaleDateString() : "-"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           <div className="p-4 border-t bg-gray-50/60 flex items-center justify-between">
-            <div className="text-xs text-gray-500">ID: {customer?.id}</div>
+            <div className="text-xs text-gray-500">ID: {agent?.id}</div>
             <div className="flex items-center gap-2">
               {isEditing ? (
                 <>

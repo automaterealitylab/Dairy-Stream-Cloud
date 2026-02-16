@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import CustomerLayout from '../../layouts/CustomerLayout';
+import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { Droplet, Clock, Edit, PauseCircle, PlayCircle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {

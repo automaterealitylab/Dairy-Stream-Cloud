@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle, Clock, CreditCard, Wallet, XCircle } from "lucide-react";
-import CustomerLayout from "../../layouts/CustomerLayout";
+import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { fetchCustomerPayments } from "../../api/customer.api.js";
 
 const getAuthToken = () => {

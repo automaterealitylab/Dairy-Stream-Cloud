@@ -1,5 +1,5 @@
 import { adminStaffLoginService } 
-from "../../../services/authentication/admin.auth.service.js";
+from "../../services/authentication/admin.auth.service.js";
 
 export const adminLogin = async (req, res) => {
   try {
