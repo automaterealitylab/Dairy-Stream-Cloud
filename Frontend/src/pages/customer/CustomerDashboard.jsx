@@ -12,14 +12,9 @@ import {
   Droplets,
 } from "lucide-react";
 
-/* ======================================================
-   CUSTOMER DASHBOARD (BACKEND READY)
-====================================================== */
-
 const CustomerDashboard = () => {
   const { data, loading, error } = useCustomerDashboard();
 
-  /* ---------- LOADING STATE ---------- */
   if (loading) {
     return (
       <CustomerLayout>
@@ -30,45 +25,37 @@ const CustomerDashboard = () => {
     );
   }
 
-  /* ---------- ERROR STATE ---------- */
   if (error) {
     return (
       <CustomerLayout>
-        <div className="py-20 text-center text-red-500">
-          {error}
-        </div>
+        <div className="py-20 text-center text-red-500">{error}</div>
       </CustomerLayout>
     );
   }
 
   /* ---------- DATA FROM BACKEND ---------- */
-  const { customer, subscription, todayDelivery, tomorrowDelivery, billing } = data;
-  const memberOfDairy =
-    customer?.memberOfDairy ||
-    customer?.dairyName ||
-    customer?.dairy ||
-    "Not assigned";
+  const { customer, todayDelivery, tomorrowDelivery, billing } = data;
 
   return (
     <CustomerLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6 px-2 sm:px-4">
 
-        {/* ================= HEADER ================= */}
-        <header className="flex justify-between items-start">
+        {/* HEADER */}
+        <header className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
           <div>
-            <h2 className="text-2xl font-bold text-text-primary">
-              Good Morning, {customer.name} 👋
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary">
+              Good Morning, {customer.name || "Customer"} 👋
             </h2>
 
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-text-secondary">Member of</span>
               <span className="text-sm font-semibold text-brand bg-brand-soft px-2 py-0.5 rounded-lg border border-border">
-                {memberOfDairy}
+                {customer.dairy}
               </span>
             </div>
           </div>
 
-          <button className="text-sm font-semibold text-brand hover:underline">
+          <button className="self-start sm:self-auto text-sm font-semibold text-brand hover:underline">
             Switch
           </button>
         </header>
@@ -93,57 +80,19 @@ const CustomerDashboard = () => {
           </div>
         </section>
 
-        {/* ================= SUBSCRIPTION ================= */}
-        <section className="bg-surface border border-border rounded-card shadow-card p-4">
-          <h3 className="text-sm font-semibold text-text-muted uppercase mb-3">
-            Your Subscription
-          </h3>
-          {!subscription ? (
-            <div className="text-sm text-text-secondary">
-              You are not subscribed yet. Explore dairies to start a subscription.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
-              <div>
-                <p className="text-text-muted">Dairy</p>
-                <p className="font-semibold text-text-primary">{subscription.dairyName}</p>
-              </div>
-              <div>
-                <p className="text-text-muted">Milk Type</p>
-                <p className="font-semibold text-text-primary">{subscription.milkType}</p>
-              </div>
-              <div>
-                <p className="text-text-muted">Quantity</p>
-                <p className="font-semibold text-text-primary">
-                  {subscription.quantity ? `${subscription.quantity} L` : "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Delivery Slot</p>
-                <p className="font-semibold text-text-primary">{subscription.slot}</p>
-              </div>
-            </div>
-          )}
-        </section>
-
         {/* ================= TODAY STATUS ================= */}
         <TodayStatusCard data={todayDelivery} />
 
-        {/* ================= QUICK ACTIONS ================= */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* QUICK ACTIONS */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
           <QuickAction icon={Plus} label="Add Extra" color="brand" />
           <QuickAction icon={PauseCircle} label="Pause" color="warning" />
-          <QuickAction
-            icon={Calendar}
-            label="Deliveries"
-            color="brand"
-            to="/customer/deliveries"
-          />
+          <QuickAction icon={Calendar} label="Deliveries" color="brand" to="/customer/deliveries" />
           <QuickAction icon={Banknote} label="Pay Bill" color="success" />
         </div>
 
-        {/* ================= TOMORROW + BILLING ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* TOMORROW + BILLING */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <TomorrowDeliveryCard data={tomorrowDelivery} />
           <BillingSummaryCard data={billing} />
         </div>
@@ -153,106 +102,110 @@ const CustomerDashboard = () => {
   );
 };
 
-/* ======================================================
-   SUB COMPONENTS
-====================================================== */
+/* SMALL DETAIL ITEM */
+const Detail = ({ label, value, breakAll }) => (
+  <div>
+    <p className="text-text-muted">{label}</p>
+    <p className={`font-semibold text-text-primary ${breakAll ? "break-all" : ""}`}>
+      {value || "-"}
+    </p>
+  </div>
+);
 
-const TodayStatusCard = ({ data }) => {
+/* TODAY CARD */
+const TodayStatusCard = ({ data = {} }) => {
   const isDelivered = data.status === "DELIVERED";
 
   return (
-    <div
-      className={`p-6 rounded-card border ${
-        isDelivered
-          ? "bg-success-soft border-border"
-          : "bg-brand-soft border-border"
-      }`}
-    >
-      <div className="flex items-start justify-between">
+    <div className={`p-4 md:p-6 rounded-card border ${
+      isDelivered ? "bg-success-soft border-border" : "bg-brand-soft border-border"
+    }`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+
         <div className="flex gap-4">
-          <div
-            className={`p-3 rounded-full ${
-              isDelivered ? "bg-success text-white" : "bg-brand text-white"
-            }`}
-          >
-            {isDelivered ? (
-              <CheckCircle size={22} />
-            ) : (
-              <AlertCircle size={22} />
-            )}
+          <div className={`p-3 rounded-full ${
+            isDelivered ? "bg-success text-white" : "bg-brand text-white"
+          }`}>
+            {isDelivered ? <CheckCircle size={22}/> : <AlertCircle size={22}/>}
           </div>
 
           <div>
-            <h3 className="text-lg font-bold text-text-primary">
+            <h3 className="text-base md:text-lg font-bold text-text-primary">
               {isDelivered ? "Delivered Successfully" : "Delivery Pending"}
             </h3>
 
             <p className="text-sm text-text-secondary mt-1">
-              {data.quantity} • {data.product}
+              {data.quantity || "-"} • {data.product || "-"}
             </p>
 
             {isDelivered && (
               <p className="text-xs text-text-muted mt-2">
-                Dropped at Doorstep • {data.time}
+                Dropped at Doorstep • {data.time || "-"}
               </p>
             )}
           </div>
         </div>
 
-        <button className="text-xs font-semibold text-text-secondary underline">
+        <button className="text-xs font-semibold text-text-secondary underline self-start">
           Report Issue
         </button>
+
       </div>
     </div>
   );
 };
 
-const TomorrowDeliveryCard = ({ data }) => (
-  <div className="bg-surface border border-border rounded-card shadow-card p-6">
-    <h3 className="text-sm font-semibold text-text-muted uppercase mb-4">
+/* TOMORROW */
+const TomorrowDeliveryCard = ({ data = {} }) => (
+  <div className="bg-surface border border-border rounded-card shadow-card p-4 md:p-6">
+    <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-4">
       Tomorrow
     </h3>
 
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
+
       <div className="bg-brand-soft p-3 rounded-xl text-brand">
-        <Droplets size={22} />
+        <Droplets size={22}/>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 min-w-[120px]">
         <h4 className="font-bold text-text-primary">
-          {data.quantity} Milk
+          {data.quantity || "-"} Milk
         </h4>
-        <p className="text-sm text-text-secondary">{data.slot}</p>
+        <p className="text-sm text-text-secondary">{data.slot || "-"}</p>
       </div>
 
       <button className="text-sm font-semibold text-brand border border-border px-3 py-1 rounded-lg">
         Edit
       </button>
+
     </div>
   </div>
 );
 
-const BillingSummaryCard = ({ data }) => (
-  <div className="bg-surface border border-border rounded-card shadow-card p-6 flex flex-col justify-between">
+/* BILLING */
+const BillingSummaryCard = ({ data = {} }) => (
+  <div className="bg-surface border border-border rounded-card shadow-card p-4 md:p-6 flex flex-col justify-between">
+
     <div>
-      <h3 className="text-sm font-semibold text-text-muted uppercase mb-2">
+      <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-2">
         Billing Summary
       </h3>
 
       <div className="flex justify-between items-end">
         <div>
-          <p className="text-3xl font-bold text-text-primary">
-            ₹{data.monthlyDue}
+          <p className="text-2xl md:text-3xl font-bold text-text-primary">
+            ₹{data.monthlyDue || 0}
           </p>
           <p className="text-xs text-red-500 font-medium mt-1">
-            Due in {data.dueInDays} days
+            Due in {data.dueInDays || 0} days
           </p>
         </div>
 
         <div className="text-right">
           <p className="text-xs text-text-muted">Wallet Balance</p>
           <p className="font-semibold text-text-secondary">
-            ₹{data.walletBalance}
+            ₹{data.walletBalance || 0}
           </p>
         </div>
       </div>
@@ -262,11 +215,13 @@ const BillingSummaryCard = ({ data }) => (
       <span className="text-sm font-medium text-brand">
         View Full Invoice
       </span>
-      <ChevronRight size={16} className="text-brand" />
+      <ChevronRight size={16} className="text-brand"/>
     </div>
+
   </div>
 );
 
+/* QUICK ACTION */
 const QuickAction = ({ icon, label, color, to }) => {
   const Icon = icon;
 
@@ -279,10 +234,10 @@ const QuickAction = ({ icon, label, color, to }) => {
   return (
     <button
       onClick={() => to && window.location.assign(to)}
-      className={`flex flex-col items-center justify-center p-4 rounded-xl border border-border transition hover:bg-background ${colorMap[color]}`}
+      className={`flex flex-col items-center justify-center p-3 md:p-4 rounded-xl border border-border transition hover:bg-background ${colorMap[color]}`}
     >
-      <Icon size={22} className="mb-2" />
-      <span className="text-xs font-bold">{label}</span>
+      <Icon size={20} className="mb-1 md:mb-2"/>
+      <span className="text-xs md:text-sm font-bold">{label}</span>
     </button>
   );
 };
