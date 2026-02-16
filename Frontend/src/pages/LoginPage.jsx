@@ -185,12 +185,16 @@ const LoginPage = () => {
       login(result);
       
       // ✅ Also ensure localStorage fallback is set for Customers
-      localStorage.setItem("userRole", result.user?.role || role); 
+      localStorage.setItem("userRole", result.user?.role || role);
+      localStorage.setItem("user", JSON.stringify(result));
+      if (result.token) {
+        localStorage.setItem("token", result.token);
+      }
 
       toast.success(`Welcome back, ${result.user?.name || "User"}!`);
 
       if (role === "CUSTOMER") {
-        navigate(result.redirect || "/customer-dashboard", { replace: true });
+        navigate(result.redirect || "/customer/dashboard", { replace: true });
       } else if (role === "STAFF") {
         navigate("/staff/home", { replace: true });
       }

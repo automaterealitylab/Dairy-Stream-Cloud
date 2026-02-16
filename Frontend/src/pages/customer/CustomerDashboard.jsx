@@ -42,7 +42,12 @@ const CustomerDashboard = () => {
   }
 
   /* ---------- DATA FROM BACKEND ---------- */
-  const { customer, todayDelivery, tomorrowDelivery, billing } = data;
+  const { customer, subscription, todayDelivery, tomorrowDelivery, billing } = data;
+  const memberOfDairy =
+    customer?.memberOfDairy ||
+    customer?.dairyName ||
+    customer?.dairy ||
+    "Not assigned";
 
   return (
     <CustomerLayout>
@@ -58,7 +63,7 @@ const CustomerDashboard = () => {
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-text-secondary">Member of</span>
               <span className="text-sm font-semibold text-brand bg-brand-soft px-2 py-0.5 rounded-lg border border-border">
-                {customer.dairy}
+                {memberOfDairy}
               </span>
             </div>
           </div>
@@ -86,6 +91,39 @@ const CustomerDashboard = () => {
               <p className="font-semibold text-text-primary">{customer.phone || "-"}</p>
             </div>
           </div>
+        </section>
+
+        {/* ================= SUBSCRIPTION ================= */}
+        <section className="bg-surface border border-border rounded-card shadow-card p-4">
+          <h3 className="text-sm font-semibold text-text-muted uppercase mb-3">
+            Your Subscription
+          </h3>
+          {!subscription ? (
+            <div className="text-sm text-text-secondary">
+              You are not subscribed yet. Explore dairies to start a subscription.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+              <div>
+                <p className="text-text-muted">Dairy</p>
+                <p className="font-semibold text-text-primary">{subscription.dairyName}</p>
+              </div>
+              <div>
+                <p className="text-text-muted">Milk Type</p>
+                <p className="font-semibold text-text-primary">{subscription.milkType}</p>
+              </div>
+              <div>
+                <p className="text-text-muted">Quantity</p>
+                <p className="font-semibold text-text-primary">
+                  {subscription.quantity ? `${subscription.quantity} L` : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Delivery Slot</p>
+                <p className="font-semibold text-text-primary">{subscription.slot}</p>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ================= TODAY STATUS ================= */}

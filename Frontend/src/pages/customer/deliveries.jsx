@@ -1,15 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
-
-const MOCK_DELIVERIES = [
-  { id: 'd1', date: 'Today', product: 'Buffalo Milk', qty: '1.5 L', status: 'DELIVERED', time: '07:15 AM' },
-  { id: 'd2', date: 'Yesterday', product: 'Buffalo Milk', qty: '1.5 L', status: 'DELIVERED', time: '07:10 AM' },
-  { id: 'd3', date: '20 Jan', product: '-', qty: '-', status: 'SKIPPED', time: null },
-];
+import { fetchCustomerDeliveries } from '../../api/customer.api.js';
 
 const Deliveries = () => {
-  const [deliveries, setDeliveries] = useState(MOCK_DELIVERIES);
+  const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,12 +12,19 @@ const Deliveries = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/customer/deliveries', { credentials: 'include' });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      if (Array.isArray(data) && data.length) setDeliveries(data);
-    } catch {
-      setError('Could not load delivery history. Showing last known data.');
+      const storedUser = localStorage.getItem("user");
+      const storedToken = storedUser ? JSON.parse(storedUser)?.token : null;
+      const token = storedToken || localStorage.getItem("token");
+
+      if (!token) {
+        throw new Error("Customer token missing");
+      }
+
+      const data = await fetchCustomerDeliveries(token);
+      setDeliveries(Array.isArray(data?.deliveries) ? data.deliveries : []);
+    } catch (err) {
+      setError(err?.message || 'Could not load delivery history.');
+      setDeliveries([]);
     } finally {
       setLoading(false);
     }
@@ -64,6 +66,12 @@ const Deliveries = () => {
         ) : (
 
           <div className="grid gap-5">
+
+            {deliveries.length === 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-gray-600">
+                No deliveries found yet.
+              </div>
+            )}
 
             {deliveries.map((item) => (
 

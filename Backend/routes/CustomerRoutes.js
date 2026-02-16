@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { supabase } from "../config/supabase.js";
 import { ensureIdentityIsUnique } from "../services/authentication/identityUniqueness.service.js";
+import { uploadSingleImage } from "../middleware/upload.middleware.js";
+import cloudinary from "../config/cloudinary.js";
 
 const router = express.Router();
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
@@ -11,7 +13,7 @@ const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 // REGISTER NEW CUSTOMER
 // POST /api/customer/addCustomer
 // ==================================================
-router.post("/addCustomer", async (req, res) => {
+router.post("/addCustomer", uploadSingleImage, async (req, res) => {
   try {
     const {
       customerName,
@@ -49,6 +51,16 @@ router.post("/addCustomer", async (req, res) => {
       hashedPassword = await bcrypt.hash(password, 10);
     }
 
+    let profilePhotoUrl = null;
+    if (req.file) {
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const uploaded = await cloudinary.uploader.upload(dataUri, {
+        folder: "customers/profile",
+        resource_type: "image",
+      });
+      profilePhotoUrl = uploaded.secure_url;
+    }
+
     // 📦 Insert into Supabase
     const { data, error } = await supabase
       .from("customers")
@@ -63,6 +75,7 @@ router.post("/addCustomer", async (req, res) => {
           password: hashedPassword,
           default_milk_quantity_liters: defaultMilkQuantityLiters || 1,
           billing_cycle: billingCycle || "Monthly",
+          profile_photo_url: profilePhotoUrl,
         },
       ])
       .select();

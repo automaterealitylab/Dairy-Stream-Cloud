@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth.jsx";
 
 const ROLE_REDIRECT_MAP = {
-  CUSTOMER: "/customer-dashboard",
+  CUSTOMER: "/customer/dashboard",
   ADMIN: "/admin/AdminDashboard",
   STAFF: "/staff-dashboard",
 };

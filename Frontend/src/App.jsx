@@ -12,7 +12,7 @@ import DairyDetailsPage from "./pages/public/DairyDetailsPage";
 
 // --- Customer Pages ---
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
-import Deliveries from "./pages/customer/Deliveries";
+import Deliveries from "./pages/customer/deliveries";
 import Subscription from "./pages/customer/Subscription";
 import Payments from "./pages/customer/Payments";
 import Profile from "./pages/customer/Profile";
