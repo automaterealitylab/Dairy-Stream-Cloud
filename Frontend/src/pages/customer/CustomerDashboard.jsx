@@ -1,4 +1,4 @@
-import CustomerLayout from "../../layouts/CustomerLayout";
+import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../hooks/useCustomerDashboard";
 
 import {
@@ -99,9 +99,9 @@ const CustomerDashboard = () => {
             icon={Calendar}
             label="Deliveries"
             color="brand"
-            to="/customer/deliveries"
+            to="/customer/dashboard/deliveries"
           />
-          <QuickAction icon={Banknote} label="Pay Bill" color="success" />
+          <QuickAction icon={Banknote} label="Pay Bill" color="success"  to="/customer/dashboard/payments" />
         </div>
 
         {/* ================= TOMORROW + BILLING ================= */}

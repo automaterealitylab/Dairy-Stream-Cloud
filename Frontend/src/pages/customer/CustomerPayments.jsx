@@ -1,5 +1,5 @@
 import React from 'react';
-import CustomerLayout from '../../layouts/CustomerLayout';
+import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { CreditCard, Wallet, ArrowRight, CheckCircle } from 'lucide-react';
 
 const Payments = () => {

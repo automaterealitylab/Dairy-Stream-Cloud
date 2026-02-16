@@ -3,7 +3,7 @@ import { fetchAdminCustomers } from "../../api/admin.api";
 
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
-import CustomerDrawer from "../../components/admin/customers/CustomerDrawer";
+import CustomerDrawer from "../../components/customer/CustomerDrawer";
 
 export default function AdminCustomers() {
   const [sidebarOpen, setSidebarOpen] = useState(false);

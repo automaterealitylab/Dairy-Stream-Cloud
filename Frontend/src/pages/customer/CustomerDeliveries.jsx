@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import CustomerLayout from '../../layouts/CustomerLayout';
+import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 
 const MOCK_DELIVERIES = [

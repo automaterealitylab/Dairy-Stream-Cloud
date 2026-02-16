@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import CustomerLayout from '../../layouts/CustomerLayout';
+import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { Mail, Phone, MapPin, Edit, Camera } from 'lucide-react';
 
 const MOCK_PROFILE = {
