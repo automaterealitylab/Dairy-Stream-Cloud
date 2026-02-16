@@ -93,8 +93,8 @@ const CustomerDashboard = () => {
 
         {/* ================= QUICK ACTIONS ================= */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <QuickAction icon={Plus} label="Add Extra" color="brand" />
-          <QuickAction icon={PauseCircle} label="Pause" color="warning" />
+          <QuickAction icon={Plus} label="Add Extra" color="brand"  to="/customer/dashboard/subscriptions" />
+          <QuickAction icon={PauseCircle} label="Pause" color="warning"  to="/customer/dashboard/subscriptions" />
           <QuickAction
             icon={Calendar}
             label="Deliveries"
