@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
-import { Droplet, Clock, Edit, PauseCircle, PlayCircle, X } from 'lucide-react';
+import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchCustomerSubscription,
@@ -224,7 +224,7 @@ const Subscribe = () => {
                   <p className="text-sm text-gray-600 mt-1">
                     {subscription
                       ? `${subscription.slot} Slot - ${subscription.timeRange}`
-                      : 'Choose a dairy and create your plan from Explore page'}
+                      : 'Choose a dairy and create your plan from See Other Dairies'}
                   </p>
                 </div>
 
@@ -269,7 +269,7 @@ const Subscribe = () => {
                     onClick={() => navigate('/explore')}
                     className="px-5 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
                   >
-                    Explore Dairies
+                    See Other Dairies
                   </button>
                 )}
               </div>
@@ -286,6 +286,8 @@ const Subscribe = () => {
                 />
               </div>
             )}
+
+            <ExploreOtherDairiesSection onExplore={() => navigate('/explore')} />
           </>
         )}
       </div>
@@ -408,6 +410,43 @@ const StatCard = ({ icon, label, value }) => (
       <p className="text-lg font-semibold text-gray-900">{value}</p>
     </div>
   </div>
+);
+
+const ExploreOtherDairiesSection = ({ onExplore }) => (
+  <section className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 md:p-7">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+      <div className="flex items-start gap-4">
+        <div className="p-3 rounded-xl bg-white text-blue-600 border border-blue-100">
+          <Store size={22} />
+        </div>
+
+        <div>
+          <h3 className="text-xl font-semibold text-gray-900">Explore Other Dairies</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Compare dairies, check plans, and switch to a better option anytime.
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <span className="text-xs font-medium text-blue-700 bg-white px-3 py-1 rounded-full border border-blue-100">
+              Compare Plans
+            </span>
+            <span className="text-xs font-medium text-blue-700 bg-white px-3 py-1 rounded-full border border-blue-100">
+              Check Ratings
+            </span>
+            <span className="text-xs font-medium text-blue-700 bg-white px-3 py-1 rounded-full border border-blue-100">
+              Join Instantly
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={onExplore}
+        className="px-5 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium whitespace-nowrap"
+      >
+        Browse Dairies
+      </button>
+    </div>
+  </section>
 );
 
 const ModalWrapper = ({ children, small }) => (
