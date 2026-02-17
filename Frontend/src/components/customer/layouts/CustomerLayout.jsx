@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { icon: CreditCard, label: "Payments", path: "/customer/dashboard/payments" },
   { icon: User, label: "Profile", path: "/customer/dashboard/profile" },
   { icon: User, label: "Explore", path: "/explore" },
-  { icon: User, label: "Track Agent", path: "" },
 ];
 
 const CustomerLayout = ({ children }) => {

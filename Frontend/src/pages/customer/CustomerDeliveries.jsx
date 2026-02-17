@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
-import { fetchCustomerDeliveries } from '../../api/customer.api.js';
+import { fetchCustomerDeliveries, fetchCustomerDashboard } from '../../api/customer.api.js';
 
 const Deliveries = () => {
   const [deliveries, setDeliveries] = useState([]);
+  const [todayDelivery, setTodayDelivery] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -20,11 +21,17 @@ const Deliveries = () => {
         throw new Error("Customer token missing");
       }
 
-      const data = await fetchCustomerDeliveries(token);
-      setDeliveries(Array.isArray(data?.deliveries) ? data.deliveries : []);
+      const [deliveryData, dashboardData] = await Promise.all([
+        fetchCustomerDeliveries(token),
+        fetchCustomerDashboard(token),
+      ]);
+
+      setDeliveries(Array.isArray(deliveryData?.deliveries) ? deliveryData.deliveries : []);
+      setTodayDelivery(dashboardData?.todayDelivery || null);
     } catch (err) {
       setError(err?.message || 'Could not load delivery history.');
       setDeliveries([]);
+      setTodayDelivery(null);
     } finally {
       setLoading(false);
     }
@@ -56,6 +63,44 @@ const Deliveries = () => {
         {error && (
           <div className="bg-yellow-50 text-yellow-700 p-4 rounded-xl border border-yellow-100">
             {error}
+          </div>
+        )}
+
+        {todayDelivery && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <p className="text-xs uppercase tracking-wide text-gray-400">Today's Delivery</p>
+            <div className="mt-2 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {todayDelivery.quantity || '-'} {todayDelivery.product || 'Milk'}
+                </h3>
+                <p className="text-sm mt-1">
+                  Status:{' '}
+                  <span
+                    className={
+                      (todayDelivery.status || 'PENDING') === 'PENDING'
+                        ? 'text-red-600 font-semibold'
+                        : 'text-gray-600'
+                    }
+                  >
+                    {todayDelivery.status || 'PENDING'}
+                  </span>
+                </p>
+                {todayDelivery?.agent?.name && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Agent: {todayDelivery.agent.name} ({todayDelivery.agent.phone || '-'})
+                  </p>
+                )}
+              </div>
+
+              <button
+                className="text-sm font-semibold text-blue-600 border border-blue-200 px-3 py-2 rounded-lg disabled:text-gray-400 disabled:border-gray-200"
+                disabled={!todayDelivery?.canTrackAgent}
+                title={todayDelivery?.canTrackAgent ? 'Agent assigned' : 'Agent not assigned yet'}
+              >
+                Track Agent
+              </button>
+            </div>
           </div>
         )}
 
@@ -115,7 +160,7 @@ const Deliveries = () => {
                 )}
 
                 {item.status === 'PENDING' && (
-                  <div className="bg-yellow-50 px-6 py-4 rounded-xl flex items-center gap-3 text-yellow-700 font-medium">
+                  <div className="bg-red-50 px-6 py-4 rounded-xl flex items-center gap-3 text-red-600 font-medium">
                     <Clock size={22} />
                     Pending Delivery
                   </div>

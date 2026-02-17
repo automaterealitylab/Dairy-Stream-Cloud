@@ -90,6 +90,9 @@ const TodayStatusCard = ({ data = {} }) => {
     <div className={`p-4 md:p-6 rounded-card border ${
       isDelivered ? "bg-success-soft border-border" : "bg-brand-soft border-border"
     }`}>
+      <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-4">
+        Today's Delivery
+      </h3>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
 
         <div className="flex gap-4">
@@ -108,6 +111,12 @@ const TodayStatusCard = ({ data = {} }) => {
               {data.quantity || "-"} • {data.product || "-"}
             </p>
 
+            {data?.agent?.name && (
+              <p className="text-xs text-text-muted mt-2">
+                Agent: {data.agent.name} ({data.agent.phone || "-"})
+              </p>
+            )}
+
             {isDelivered && (
               <p className="text-xs text-text-muted mt-2">
                 Dropped at Doorstep • {data.time || "-"}
@@ -116,9 +125,17 @@ const TodayStatusCard = ({ data = {} }) => {
           </div>
         </div>
 
-        <button className="text-xs font-semibold text-text-secondary underline self-start">
-          Report Issue
-        </button>
+        <div className="flex items-center gap-3 self-start">
+          <button
+            onClick={() => window.location.assign("/customer/dashboard/deliveries")}
+            className="text-xs font-semibold text-brand border border-border px-3 py-1.5 rounded-lg"
+          >
+            Track Agent
+          </button>
+          <button className="text-xs font-semibold text-text-secondary underline">
+            Report Issue
+          </button>
+        </div>
 
       </div>
     </div>
