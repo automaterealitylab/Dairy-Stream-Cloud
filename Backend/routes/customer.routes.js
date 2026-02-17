@@ -1,9 +1,11 @@
 import express from "express";
 
 import {
-  requestOtp,
-  verifyOtpLogin
-} from "../controllers/authentication/customer/customerAuth.controller.js";
+  addCustomerAuth,
+  loginCustomerAuth,
+  requestOtpAuth,
+  verifyOtpLoginAuth,
+} from "../middleware/customer/auth.handlers.middleware.js";
 
 import {
   getProfile,
@@ -35,8 +37,10 @@ const router = express.Router();
 // ==========================================
 
 // OTP Login
-router.post("/login/otp", requestOtp);
-router.post("/login/otp/verify", verifyOtpLogin);
+router.post("/addCustomer", uploadSingleImage, addCustomerAuth);
+router.post("/login", loginCustomerAuth);
+router.post("/login/otp", requestOtpAuth);
+router.post("/login/otp/verify", verifyOtpLoginAuth);
 
 // Account recovery
 router.post("/forgot-password", forgotPassword);

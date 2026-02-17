@@ -1,12 +1,11 @@
 import express from "express";
 
-// ✅ IMPORT FROM REAL CUSTOMER AUTH CONTROLLER
 import {
-  detectUser,
-  passwordLogin,
-  requestOtp,
-  verifyOtpLogin,
-} from "../controllers/authentication/customer/customerAuth.controller.js";
+  detectUserAuth,
+  passwordLoginAuth,
+  requestOtpAuth,
+  verifyOtpLoginAuth,
+} from "../middleware/customer/auth.handlers.middleware.js";
 
 // ✅ ADMIN AUTH
 import { adminLogin }
@@ -17,11 +16,11 @@ import { agentLogin } from "../controllers/authentication/agentAuth.controller.j
 const router = express.Router();
 
 // ================= AUTH ROUTES =================
-router.post("/detect", detectUser);
+router.post("/detect", detectUserAuth);
 router.post("/admin/login", adminLogin);
-router.post("/login/password", passwordLogin);
-router.post("/login/otp", requestOtp);
-router.post("/login/otp/verify", verifyOtpLogin);
+router.post("/login/password", passwordLoginAuth);
+router.post("/login/otp", requestOtpAuth);
+router.post("/login/otp/verify", verifyOtpLoginAuth);
 
 router.post("/agent/login", agentLogin)
 
