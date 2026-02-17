@@ -149,26 +149,39 @@ export const verifyCustomerOtp = async ({ identifier, otp, dairyId }) => {
 // LOGIN
 // ===============================
 export const customerOtpLoginService = async ({ identifier, dairyId }) => {
-  const phoneVariants = buildPhoneVariants(identifier);
-  const exactQuery = supabase
-    .from("customers")
-    .select("*")
-    .in("phone_number", phoneVariants);
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  const isEmail = normalizedIdentifier.includes("@");
+  let customer = null;
 
-  const { data: exactCustomer } = await exactQuery.limit(1).maybeSingle();
+  if (isEmail) {
+    const { data: emailCustomer } = await supabase
+      .from("customers")
+      .select("*")
+      .ilike("email", normalizedIdentifier)
+      .limit(1)
+      .maybeSingle();
+    customer = emailCustomer;
+  } else {
+    const phoneVariants = buildPhoneVariants(normalizedIdentifier);
+    const exactQuery = supabase
+      .from("customers")
+      .select("*")
+      .in("phone_number", phoneVariants);
 
-  let customer = exactCustomer;
+    const { data: exactCustomer } = await exactQuery.limit(1).maybeSingle();
+    customer = exactCustomer;
 
-  if (!customer) {
-    const loosePattern = buildLoosePhonePattern(identifier);
-    if (loosePattern) {
-      const looseQuery = supabase
-        .from("customers")
-        .select("*")
-        .ilike("phone_number", loosePattern);
+    if (!customer) {
+      const loosePattern = buildLoosePhonePattern(normalizedIdentifier);
+      if (loosePattern) {
+        const looseQuery = supabase
+          .from("customers")
+          .select("*")
+          .ilike("phone_number", loosePattern);
 
-      const { data: looseCustomer } = await looseQuery.limit(1).maybeSingle();
-      customer = looseCustomer;
+        const { data: looseCustomer } = await looseQuery.limit(1).maybeSingle();
+        customer = looseCustomer;
+      }
     }
   }
 
