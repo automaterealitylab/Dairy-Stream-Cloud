@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Phone, MapPin, Mail, Briefcase } from 'lucide-react';
+import { User, Lock, Phone, MapPin, Mail, Briefcase, Loader2 } from 'lucide-react';
 
 function AddNewAgentForm() {
   const [agent, setAgent] = useState({
@@ -270,7 +270,12 @@ function AddNewAgentForm() {
                                     <option key={index} value={bName}>{bName}</option>
                                 ))}
                             </select>
-                            {isLoading && <div className="text-muted small mt-1">Loading available routes...</div>}
+                            {isLoading && (
+                              <div className="text-muted small mt-1 d-inline-flex align-items-center gap-2">
+                                <Loader2 size={14} className="animate-spin" />
+                                Loading available routes...
+                              </div>
+                            )}
                         </div>
                     )}
                   </div>

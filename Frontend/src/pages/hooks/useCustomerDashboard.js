@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./useAuth.jsx";
-import {
-  fetchCustomerDashboard,
-  fetchCustomerProfile,
-} from "../../api/customer.api.js";
+import { fetchCustomerDashboard } from "../../api/customer.api.js";
 
 export const useCustomerDashboard = () => {
   const { user } = useAuth();
@@ -23,45 +20,6 @@ export const useCustomerDashboard = () => {
           return;
         }
         const res = await fetchCustomerDashboard(token);
-
-        const needsDairyFallback =
-          !res?.customer?.memberOfDairy ||
-          String(res.customer.memberOfDairy).trim().toLowerCase() === "not assigned";
-
-        if (needsDairyFallback) {
-          try {
-            const profile = await fetchCustomerProfile(token);
-            const profileDairyName =
-              profile?.member_of_dairy || profile?.dairy_name || null;
-
-            if (profileDairyName) {
-              const normalized = {
-                ...res,
-                customer: {
-                  ...res.customer,
-                  dairy: profileDairyName,
-                  dairyName: profileDairyName,
-                  memberOfDairy: profileDairyName,
-                },
-                subscription: res.subscription
-                  ? {
-                      ...res.subscription,
-                      dairyName:
-                        !res.subscription.dairyName ||
-                        res.subscription.dairyName === "Dairy"
-                          ? profileDairyName
-                          : res.subscription.dairyName,
-                    }
-                  : res.subscription,
-              };
-              setData(normalized);
-              setLoading(false);
-              return;
-            }
-          } catch (profileErr) {
-            // Ignore fallback failures and continue with dashboard payload.
-          }
-        }
 
         setData(res);
         setLoading(false);

@@ -1,6 +1,7 @@
 // src/components/ProtectedRoute.jsx
 import { Navigate } from "react-router-dom";
 import {useAuth} from "./hooks/useAuth.jsx";
+import LoadingIndicator from "../components/common/LoadingIndicator.jsx";
 
 const DEFAULT_REDIRECT = "/";
 
@@ -9,7 +10,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // ⏳ Wait until auth state is restored
   if (loading) {
-    return null; // or a spinner component later
+    return <LoadingIndicator fullScreen message="Checking session..." />;
   }
 
   const userRole = user?.role || localStorage.getItem("userRole");

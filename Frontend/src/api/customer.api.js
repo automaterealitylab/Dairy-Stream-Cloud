@@ -1,6 +1,16 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:4000").trim();
+const CUSTOMER_DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const customerDashboardCache = new Map();
 
-export const fetchCustomerDashboard = async (token) => {
+const getCustomerDashboardCacheKey = (token) => String(token || "");
+
+export const fetchCustomerDashboard = async (token, { force = false } = {}) => {
+  const cacheKey = getCustomerDashboardCacheKey(token);
+  const cached = customerDashboardCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.at < CUSTOMER_DASHBOARD_CACHE_TTL_MS) {
+    return cached.payload;
+  }
+
   const res = await fetch(`${API_BASE}/api/customer/dashboard`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -12,7 +22,17 @@ export const fetchCustomerDashboard = async (token) => {
     throw new Error("Failed to fetch dashboard data");
   }
 
-  return res.json();
+  const payload = await res.json();
+  customerDashboardCache.set(cacheKey, { payload, at: Date.now() });
+  return payload;
+};
+
+export const invalidateCustomerDashboardCache = (token) => {
+  if (!token) {
+    customerDashboardCache.clear();
+    return;
+  }
+  customerDashboardCache.delete(getCustomerDashboardCacheKey(token));
 };
 
 export const fetchCustomerProfile = async (token) => {
@@ -63,6 +83,7 @@ export const updateCustomerProfile = async (token, payload) => {
     throw new Error(data?.message || data?.error || "Failed to update profile");
   }
 
+  invalidateCustomerDashboardCache(token);
   return data;
 };
 
@@ -128,7 +149,9 @@ export const saveCustomerSubscription = async (token, payload) => {
     throw new Error(data?.message || "Failed to save subscription");
   }
 
-  return res.json();
+  const data = await res.json();
+  invalidateCustomerDashboardCache(token);
+  return data;
 };
 
 export const clearCustomerSubscription = async (token) => {
@@ -145,5 +168,6 @@ export const clearCustomerSubscription = async (token) => {
     throw new Error(data?.message || "Failed to clear subscription");
   }
 
+  invalidateCustomerDashboardCache(token);
   return data;
 };

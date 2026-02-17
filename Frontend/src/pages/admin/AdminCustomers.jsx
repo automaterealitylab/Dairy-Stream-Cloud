@@ -4,6 +4,7 @@ import { fetchAdminCustomers } from "../../api/admin.api";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import CustomerDrawer from "../../components/customer/CustomerDrawer";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 export default function AdminCustomers() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -86,9 +87,7 @@ export default function AdminCustomers() {
           {/* List */}
           <div className="divide-y">
             {loading ? (
-              <div className="px-6 py-10 text-gray-500">
-                Loading customers…
-              </div>
+              <LoadingIndicator className="px-6 py-10" message="Loading customers..." />
             ) : customers.length === 0 ? (
               <div className="px-6 py-10 text-gray-500">
                 No customers found

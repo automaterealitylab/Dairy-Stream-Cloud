@@ -3,9 +3,10 @@ import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import { 
   CreditCard, DollarSign, Calendar, TrendingUp, 
-  MoreVertical, CheckCircle, Clock, AlertCircle, Edit2 
+  MoreVertical, CheckCircle, Clock, AlertCircle, Edit2, Loader2
 } from "lucide-react";
 import toast from "react-hot-toast";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 // MOCK API Call (Replace with actual import from admin.api.js)
 // const fetchPaymentData = () => { ... } 
@@ -79,7 +80,14 @@ export default function AdminPayments() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-blue-200 text-sm font-medium uppercase tracking-wider">Your Subscription</p>
-                  <h2 className="text-2xl font-bold mt-1">{farmPlan?.plan || "Loading..."}</h2>
+                  <h2 className="text-2xl font-bold mt-1">
+                    {farmPlan?.plan || (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        Loading...
+                      </span>
+                    )}
+                  </h2>
                 </div>
                 <span className="bg-green-400/20 text-green-100 text-xs px-2 py-1 rounded-full border border-green-400/30">
                   {farmPlan?.status}
@@ -173,7 +181,11 @@ export default function AdminPayments() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
-                  <tr><td colSpan="6" className="text-center py-10">Loading...</td></tr>
+                  <tr>
+                    <td colSpan="6" className="py-10">
+                      <LoadingIndicator message="Loading transactions..." />
+                    </td>
+                  </tr>
                 ) : payments.map((pay) => (
                   <tr key={pay.id} className="hover:bg-gray-50 transition group">
                     <td className="px-6 py-4">

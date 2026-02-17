@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle, Clock, CreditCard, Wallet, XCircle } from "lucide-react";
+import { CheckCircle, Clock, CreditCard, Loader2, Wallet, XCircle } from "lucide-react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { fetchCustomerPayments } from "../../api/customer.api.js";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 const getAuthToken = () => {
   const storedUser = localStorage.getItem("user");
@@ -94,9 +95,10 @@ const Payments = () => {
           <button
             onClick={loadPayments}
             disabled={loading}
-            className="text-blue-600 text-sm font-medium hover:underline disabled:text-gray-400"
+            className="inline-flex items-center gap-2 text-blue-600 text-sm font-medium hover:underline disabled:text-gray-400"
           >
-            {loading ? "Refreshing..." : "Refresh"}
+            {loading && <Loader2 size={14} className="animate-spin" />}
+            {loading ? "Loading..." : "Refresh"}
           </button>
         </div>
 
@@ -145,7 +147,7 @@ const Payments = () => {
           <h4 className="text-lg font-semibold text-gray-900">Recent Payments</h4>
 
           {loading ? (
-            <div className="text-gray-500 py-8">Loading payments...</div>
+            <LoadingIndicator className="py-8" message="Loading payments..." />
           ) : history.length === 0 ? (
             <div className="text-gray-600 py-4">No payment records found.</div>
           ) : (

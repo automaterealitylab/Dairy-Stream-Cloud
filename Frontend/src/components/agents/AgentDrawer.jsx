@@ -4,6 +4,7 @@ import {
   updateAdminAgent,
   deleteAdminAgent,
 } from "../../api/admin.api";
+import LoadingIndicator from "../common/LoadingIndicator.jsx";
 
 export default function AgentDrawer({ agentId, onClose, onChanged }) {
   const [data, setData] = useState(null);
@@ -95,7 +96,7 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
           </div>
 
           {!data ? (
-            <div className="p-6 text-gray-500">Loading...</div>
+            <LoadingIndicator className="p-6" message="Loading agent details..." />
           ) : (
             <div className="p-6 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

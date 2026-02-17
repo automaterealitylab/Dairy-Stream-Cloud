@@ -2,8 +2,8 @@ import { getCustomerDeliveries } from "../../services/customer/deliveries.servic
 
 export const getDeliveries = async (req, res) => {
   try {
-    const deliveries = await getCustomerDeliveries(req.customer.id);
-    res.json({ deliveries });
+    const payload = await getCustomerDeliveries(req.customer.id);
+    res.json(payload);
   } catch (err) {
     console.error("CUSTOMER DELIVERIES ERROR:", err.message);
     res.status(500).json({

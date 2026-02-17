@@ -1,5 +1,6 @@
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../hooks/useCustomerDashboard";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 import {
   CheckCircle,
@@ -18,9 +19,7 @@ const CustomerDashboard = () => {
   if (loading) {
     return (
       <CustomerLayout>
-        <div className="py-20 text-center text-text-secondary">
-          Loading your dashboard…
-        </div>
+        <LoadingIndicator className="py-20" message="Loading your dashboard..." />
       </CustomerLayout>
     );
   }

@@ -7,6 +7,7 @@ import {
   saveCustomerSubscription,
   clearCustomerSubscription,
 } from '../../api/customer.api';
+import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
 
 const EMPTY_FORM = {
   dairyId: null,
@@ -190,12 +191,15 @@ const Subscribe = () => {
         <h2 className="text-2xl font-bold text-gray-900">My Subscription</h2>
 
         {loading ? (
-          <div className="space-y-6 animate-pulse">
-            <div className="h-32 bg-gray-200 rounded-2xl"></div>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="h-24 bg-gray-200 rounded-2xl"></div>
-              <div className="h-24 bg-gray-200 rounded-2xl"></div>
-              <div className="h-24 bg-gray-200 rounded-2xl"></div>
+          <div className="space-y-6">
+            <LoadingIndicator className="py-6" message="Loading subscription..." />
+            <div className="space-y-6 animate-pulse">
+              <div className="h-32 bg-gray-200 rounded-2xl"></div>
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="h-24 bg-gray-200 rounded-2xl"></div>
+                <div className="h-24 bg-gray-200 rounded-2xl"></div>
+                <div className="h-24 bg-gray-200 rounded-2xl"></div>
+              </div>
             </div>
           </div>
         ) : (

@@ -5,6 +5,7 @@ import { fetchAdminAgents } from "../../api/admin.api";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AgentDrawer from "../../components/agents/AgentDrawer"; 
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 export default function AdminAgents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -115,9 +116,7 @@ export default function AdminAgents() {
           {/* List Area */}
           <div className="divide-y">
             {loading ? (
-              <div className="px-6 py-10 text-gray-500 text-center">
-                Loading agents...
-              </div>
+              <LoadingIndicator className="px-6 py-10" message="Loading agents..." />
             ) : agents.length === 0 ? (
               <div className="px-6 py-10 text-gray-500 text-center">
                 No delivery agents found.

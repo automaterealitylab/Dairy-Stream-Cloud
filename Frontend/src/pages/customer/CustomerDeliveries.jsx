@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
-import { fetchCustomerDeliveries, fetchCustomerDashboard } from '../../api/customer.api.js';
+import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { fetchCustomerDeliveries } from '../../api/customer.api.js';
 
 const Deliveries = () => {
   const [deliveries, setDeliveries] = useState([]);
   const [todayDelivery, setTodayDelivery] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchDeliveries = async () => {
@@ -21,13 +21,9 @@ const Deliveries = () => {
         throw new Error("Customer token missing");
       }
 
-      const [deliveryData, dashboardData] = await Promise.all([
-        fetchCustomerDeliveries(token),
-        fetchCustomerDashboard(token),
-      ]);
-
+      const deliveryData = await fetchCustomerDeliveries(token);
       setDeliveries(Array.isArray(deliveryData?.deliveries) ? deliveryData.deliveries : []);
-      setTodayDelivery(dashboardData?.todayDelivery || null);
+      setTodayDelivery(deliveryData?.todayDelivery || null);
     } catch (err) {
       setError(err?.message || 'Could not load delivery history.');
       setDeliveries([]);
@@ -54,9 +50,10 @@ const Deliveries = () => {
           <button
             onClick={fetchDeliveries}
             disabled={loading}
-            className="text-blue-600 text-sm font-medium hover:underline disabled:text-gray-400"
+            className="inline-flex items-center gap-2 text-blue-600 text-sm font-medium hover:underline disabled:text-gray-400"
           >
-            {loading ? 'Refreshing...' : 'Refresh'}
+            {loading && <Loader2 size={14} className="animate-spin" />}
+            {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
 
@@ -105,8 +102,11 @@ const Deliveries = () => {
         )}
 
         {loading ? (
-          <div className="text-center text-gray-500 py-12">
-            Loading deliveries...
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
+            <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
+              <Loader2 size={28} className="animate-spin text-blue-600" />
+              <p className="text-sm font-medium">Loading deliveries...</p>
+            </div>
           </div>
         ) : (
 

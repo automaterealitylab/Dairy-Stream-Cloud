@@ -56,6 +56,40 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty) => {
   };
 };
 
+const isSameCalendarDay = (dateValue, refDate) => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return false;
+  return (
+    date.getFullYear() === refDate.getFullYear() &&
+    date.getMonth() === refDate.getMonth() &&
+    date.getDate() === refDate.getDate()
+  );
+};
+
+const getTodayDeliveryFromRows = (rows) => {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const now = new Date();
+
+  const todayRow = rows.find((row) =>
+    isSameCalendarDay(
+      row.delivery_date || row.date || row.created_at || row.updated_at,
+      now
+    )
+  );
+
+  if (!todayRow) return null;
+
+  const normalized = mapDeliveryRow(todayRow, 0, null, null);
+  return {
+    status: normalized.status || "PENDING",
+    product: normalized.product || "Milk",
+    quantity: normalized.qty || "-",
+    time: normalized.time || null,
+    agent: null,
+    canTrackAgent: false,
+  };
+};
+
 const tryFetchFromTable = async (table, customerId) => {
   const { data, error } = await supabase
     .from(table)
@@ -82,11 +116,9 @@ export const getCustomerDeliveries = async (customerId) => {
     (await tryFetchFromTable("milk_deliveries", customerId)) ??
     [];
 
-  if (rows.length > 0) {
-    return rows.map((row, index) =>
-      mapDeliveryRow(row, index, null, null)
-    );
-  }
-
-  return [];
+  const mappedRows = rows.map((row, index) => mapDeliveryRow(row, index, null, null));
+  return {
+    deliveries: mappedRows,
+    todayDelivery: getTodayDeliveryFromRows(rows),
+  };
 };

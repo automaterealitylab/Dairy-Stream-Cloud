@@ -11,6 +11,7 @@ import {
 import toast from "react-hot-toast";
 import { fetchPublicDairyById } from "../../api/public.api.js";
 import { fetchCustomerSubscription, saveCustomerSubscription } from "../../api/customer.api.js";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 const DairyDetailsPage = () => {
   const { id } = useParams();
@@ -169,11 +170,7 @@ const DairyDetailsPage = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Loading...
-      </div>
-    );
+    return <LoadingIndicator fullScreen message="Loading dairy details..." />;
   }
 
   if (error || !dairy) {

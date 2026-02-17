@@ -6,6 +6,7 @@ import {
   Clock, Truck, ChevronDown, User, LogOut
 } from 'lucide-react';
 import { fetchPublicDairies } from '../../api/public.api.js';
+import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
 
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ const ExploreDairiesPage = () => {
       name: d.dairy_name || d.name || 'Dairy',
       rating: d.rating ?? null,
       reviews: d.reviews ?? null,
-      distance: d.distance || '—',
+      distance: d.distance || 'ï¿½',
       isVerified: Boolean(d.is_verified),
       isTrusted: Boolean(d.is_trusted),
       slots: Array.isArray(d.slots) && d.slots.length ? d.slots : ['Morning'],
@@ -141,7 +142,7 @@ const ExploreDairiesPage = () => {
          <h2 className="text-xl font-bold text-gray-900 mb-6">Nearby Dairies</h2>
 
          {loading ? (
-            <div className="text-center py-20 text-gray-500">Loading dairies...</div>
+            <LoadingIndicator className="py-20" message="Loading dairies..." />
          ) : loadError ? (
             <div className="text-center py-20 text-gray-500">{loadError}</div>
          ) : (
@@ -230,3 +231,6 @@ const ExploreDairiesPage = () => {
 };
 
 export default ExploreDairiesPage;
+
+
+

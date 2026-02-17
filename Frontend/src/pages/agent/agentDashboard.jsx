@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, XCircle, MapPin } from "lucide-react";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 /* ======================================================
    MOCK DATA (Backend-ready structure)
@@ -55,7 +56,7 @@ const AgentDashboard = () => {
   }, []);
 
   if (!data) {
-    return <div className="p-6 text-center">Loading route…</div>;
+    return <LoadingIndicator fullScreen message="Loading route..." />;
   }
 
   return (
