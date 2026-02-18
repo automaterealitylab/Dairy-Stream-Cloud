@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import "./index.css";
 import App from "./App.jsx";
-import { AuthProvider } from "./pages/hooks/useAuth.jsx";
+import { AuthProvider } from "./hooks/useAuth.jsx";
 import debugAdmin from "./utils/adminDebug.js";
 import { applyTheme, getStoredTheme } from "./utils/theme.js";
 

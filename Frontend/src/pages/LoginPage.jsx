@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { useAuth } from "./hooks/useAuth.jsx"; // Adjust path if needed
+import { useAuth } from "../hooks/useAuth.jsx"; // Adjust path if needed
 
 import {
   Loader2, ShieldCheck, MapPin, Eye, EyeOff, Lock, User,

@@ -1,6 +1,6 @@
 // src/components/ProtectedRoute.jsx
 import { Navigate } from "react-router-dom";
-import {useAuth} from "./hooks/useAuth.jsx";
+import {useAuth} from "../hooks/useAuth.jsx";
 import LoadingIndicator from "../components/common/LoadingIndicator.jsx";
 
 const DEFAULT_REDIRECT = "/";

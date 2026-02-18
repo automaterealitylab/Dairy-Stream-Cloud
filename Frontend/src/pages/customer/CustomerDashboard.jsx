@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
-import { useCustomerDashboard } from "../hooks/useCustomerDashboard";
+import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { fetchCustomerDashboard, saveCustomerSubscription } from "../../api/customer.api.js";
 

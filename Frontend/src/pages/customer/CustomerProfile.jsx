@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
-import { useCustomerDashboard } from "../hooks/useCustomerDashboard";
+import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import { Mail, Phone, MapPin, Edit, Camera, Loader2, Home } from "lucide-react";
 import { fetchCustomerProfile, updateCustomerProfile } from "../../api/customer.api";
 

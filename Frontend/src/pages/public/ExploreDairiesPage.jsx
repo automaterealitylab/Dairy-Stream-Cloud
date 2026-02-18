@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth.jsx';
+import { useAuth } from '../../hooks/useAuth.jsx';
 import {
   Search, MapPin, Filter, Star, ShieldCheck,
   Clock, Truck, ChevronDown, User, LogOut
