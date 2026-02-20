@@ -6,7 +6,17 @@ import { ArrowLeft, Phone, User, MapPin, ShieldCheck, MessageSquare } from 'luci
 const TrackAgent = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { delivery } = location.state || {};
+  // 🛠️ MOCK DATA FOR TESTING
+  const mockDelivery = {
+    quantity: "2",
+    product: "Full Cream Milk",
+    startDate: "2026-02-21",
+    agent: {
+      name: "Rajesh Kumar",
+      phone: "9876543210"
+    }
+  };
+  const { delivery } = location.state || {delivery: mockDelivery};
   const agent = delivery?.agent;
 
   if (!delivery || !agent) {
