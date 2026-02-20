@@ -126,7 +126,22 @@ const DairyDetailsPage = () => {
       setSaving(false);
     }
   };
+const handleContinueFromStep2 = () => {
+  // ✅ Check if the address is empty or just whitespace
+  if (!address || address.trim().length === 0) {
+    toast.error("Delivery address is required to continue");
+    return;
+  }
 
+  // ✅ Optional: Check for a minimum length (e.g., 10 characters) to ensure it's a real address
+  if (address.trim().length < 10) {
+    toast.error("Please provide a more detailed delivery address");
+    return;
+  }
+
+  // If valid, move to the next step
+  setStep(3);
+};
   if (loading) return <LoadingIndicator fullScreen message="Fetching farm details..." />;
 
   return (
@@ -258,58 +273,89 @@ const DairyDetailsPage = () => {
               )}
 
               {/* Step 2: Address */}
-              {step === 2 && (
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold flex items-center gap-2"><MapPin size={16}/> Delivery Address</label>
-                    <textarea value={address} onChange={e => setAddress(e.target.value)} rows={4} className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500" placeholder="Flat No, Wing, Society Name..." />
-                  </div>
-                  <div className="flex gap-3">
-                    <button onClick={() => setStep(1)} className="flex-1 py-4 font-bold text-slate-500">Back</button>
-                    <button onClick={() => setStep(3)} className="flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-bold">Next: Payment</button>
-                  </div>
-                </div>
-              )}
+         {step === 2 && (
+  <div className="space-y-6">
+    <div className="space-y-2">
+      <label className="text-sm font-bold flex items-center gap-2">
+        <MapPin size={16} className="text-red-500" /> Delivery Address *
+      </label>
+      <textarea 
+        value={address} 
+        onChange={e => setAddress(e.target.value)} 
+        rows={4} 
+        className={`w-full p-4 bg-slate-50 rounded-2xl border-2 outline-none transition-all ${
+          !address.trim() ? 'border-red-100' : 'border-transparent focus:border-blue-500'
+        }`}
+        placeholder="Enter your full address (Flat No, Building, Street...)" 
+      />
+      {!address.trim() && (
+        <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
+          Address cannot be empty
+        </p>
+      )}
+    </div>
+
+    <div className="flex gap-3">
+      <button onClick={() => setStep(1)} className="flex-1 py-4 font-bold text-slate-500">
+        Back
+      </button>
+      <button 
+        onClick={handleContinueFromStep2} 
+        disabled={!address.trim()} // ⬅️ Disables the button if address is empty
+        className="flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-bold disabled:bg-slate-300 disabled:cursor-not-allowed"
+      >
+        Next: Payment
+      </button>
+    </div>
+  </div>
+)}
 
               {/* Step 3: Payment Method Selection */}
               {step === 3 && (
-                <div className="space-y-6">
-                  <label className="text-sm font-bold">Preferred Payment Method</label>
-                  <div className="space-y-3">
-                    {[
-                      { id: 'UPI', icon: <Wallet size={20}/>, label: 'UPI (GPay, PhonePe)', sub: 'Instant & Secure' },
-                      { id: 'Card', icon: <CreditCard size={20}/>, label: 'Debit / Credit Card', sub: 'Visa, Master, Rupay' },
-                      { id: 'COD', icon: <Banknote size={20}/>, label: 'Cash on Delivery', sub: 'Pay monthly at doorstep' }
-                    ].map(m => (
-                      <button 
-                        key={m.id}
-                        onClick={() => setPaymentMethod(m.id)}
-                        className={`w-full flex items-center gap-4 p-5 border-2 rounded-2xl transition-all ${paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-slate-100 hover:border-slate-200'}`}
-                      >
-                        <div className={paymentMethod === m.id ? 'text-blue-600' : 'text-slate-400'}>{m.icon}</div>
-                        <div className="text-left">
-                          <p className="font-bold text-slate-900">{m.label}</p>
-                          <p className="text-xs text-slate-500">{m.sub}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="bg-blue-50 p-6 rounded-3xl space-y-2">
-                    <div className="flex justify-between text-sm"><span className="text-slate-500">Subtotal (Daily)</span><span className="font-bold">₹{currentPrice * subscription.quantity}</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-slate-500">Delivery Fee</span><span className="text-green-600 font-bold font-xs">FREE</span></div>
-                    <div className="pt-2 border-t border-blue-100 flex justify-between"><span className="font-black">Total Payable</span><span className="text-blue-600 font-black">₹{currentPrice * subscription.quantity}</span></div>
-                  </div>
+  <div className="p-6 space-y-4"> {/* ⬇️ Reduced from p-8 and space-y-6 */}
+    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+      Payment Method
+    </label>
+    
+    <div className="space-y-2"> {/* ⬇️ Reduced from space-y-3 */}
+      {[
+        { id: 'UPI', icon: <Wallet size={18}/>, label: 'UPI' },
+        { id: 'Card', icon: <CreditCard size={18}/>, label: 'Card' },
+        { id: 'COD', icon: <Banknote size={18}/>, label: 'Cash' }
+      ].map(m => (
+        <button 
+          key={m.id}
+          onClick={() => setPaymentMethod(m.id)}
+          className={`w-full flex items-center gap-3 p-3 border-2 rounded-xl transition-all ${
+            paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-slate-100'
+          }`}
+        >
+          {/* ⬆️ Reduced padding (p-3) and rounded corners (rounded-xl) */}
+          <div className={paymentMethod === m.id ? 'text-blue-600' : 'text-slate-400'}>
+            {m.icon}
+          </div>
+          <span className="font-bold text-sm">{m.label}</span>
+        </button>
+      ))}
+    </div>
+    
+    {/* Compact Summary Box */}
+    <div className="bg-slate-50 p-4 rounded-2xl text-sm border border-slate-100">
+      <div className="flex justify-between">
+        <span className="text-slate-500">Total Payable(Daily)</span>
+        <span className="font-black text-blue-600">₹{currentPrice * subscription.quantity}</span>
+      </div>
+    </div>
 
-                  <button 
-                    disabled={saving}
-                    onClick={handleConfirmSubscription} 
-                    className="w-full bg-blue-600 text-white py-5 rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-100 disabled:bg-slate-300"
-                  >
-                    {saving ? "Processing..." : "Confirm & Subscribe"}
-                  </button>
-                </div>
-              )}
+    <button 
+      disabled={saving}
+      onClick={handleConfirmSubscription} 
+      className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold"
+    >
+      {saving ? "Processing..." : "Confirm Subscription"}
+    </button>
+  </div>
+)}
 
               {/* Step 4: Success */}
               {step === 4 && (
@@ -321,7 +367,7 @@ const DairyDetailsPage = () => {
                     <h3 className="text-2xl font-black">Subscription Started!</h3>
                     <p className="text-slate-500 mt-2">Your first delivery from {dairy.name} arrives tomorrow morning.</p>
                   </div>
-                  <button onClick={() => navigate("/customer/subscription")} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Go to Dashboard</button>
+                  <button onClick={() => navigate("/customer/dashboard")} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Go to Dashboard</button>
                 </div>
               )}
             </div>
