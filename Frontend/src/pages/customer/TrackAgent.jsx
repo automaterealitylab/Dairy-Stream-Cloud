@@ -15,7 +15,9 @@ const TrackAgent = () => {
     agent: { name: "Rajesh Kumar", phone: "9876543210" }
   };
 
+  // Safe data extraction
   const { delivery } = location.state || { delivery: mockDelivery };
+  // Added optional chaining to prevent crash if delivery is null
   const agent = delivery?.agent;
 
   // Progress Bar Configuration
@@ -25,8 +27,20 @@ const TrackAgent = () => {
     { label: 'Delivered', status: 'DELIVERED' }
   ];
 
-  // Logic to determine current step index
-  const currentStepIndex = steps.findIndex(s => s.status === delivery.status);
+  // Logic to determine current step index - Added safety check for delivery
+  const currentStepIndex = delivery ? steps.findIndex(s => s.status === delivery.status) : 0;
+
+  // 1. CRITICAL FIX: If data is missing and mock failed, show a simple message instead of crashing
+  if (!delivery || !agent) {
+    return (
+      <CustomerLayout>
+        <div className="p-8 text-center">
+          <p className="text-gray-500 font-bold">No active delivery tracking data available.</p>
+          <button onClick={() => navigate(-1)} className="text-blue-600 mt-4 underline">Go Back</button>
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   return (
     <CustomerLayout>
@@ -84,7 +98,8 @@ const TrackAgent = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-xl font-bold text-gray-900">{agent.name}</h4>
+                {/* 2. FIX: Added optional chaining to agent property */}
+                <h4 className="text-xl font-bold text-gray-900">{agent?.name}</h4>
                 <ShieldCheck size={18} className="text-blue-500" />
               </div>
               <p className="text-gray-500 text-sm">On his way to your address</p>
@@ -93,7 +108,7 @@ const TrackAgent = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <a
-              href={`tel:${agent.phone}`}
+              href={`tel:${agent?.phone}`}
               className="flex items-center justify-center gap-3 bg-green-600 text-white py-4 rounded-2xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100"
             >
               <Phone size={20} /> Call Agent
@@ -110,7 +125,8 @@ const TrackAgent = () => {
           <h5 className="font-bold text-gray-900 uppercase text-xs tracking-widest">Order Details</h5>
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Product</span>
-            <span className="font-bold">{delivery.quantity} {delivery.product}</span>
+            {/* 3. FIX: Added optional chaining to delivery properties */}
+            <span className="font-bold">{delivery?.quantity} {delivery?.product}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Delivery Address</span>
