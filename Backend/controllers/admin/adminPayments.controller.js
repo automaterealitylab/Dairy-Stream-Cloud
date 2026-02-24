@@ -4,12 +4,13 @@ export const fetchPageData = async (req, res) => {
   try {
     const page = Number(req.query.page || 1);
     const status = req.query.status || "ALL";
-    const adminId = req.user.id; // From Auth Middleware
+    const adminId = req.admin.id;
+    const dairyId = req.admin.dairyId || null;
 
     // Parallel Fetching
     const [farmData, paymentsData] = await Promise.all([
-      paymentService.getFarmSubscription(adminId),
-      paymentService.getCustomerPayments({ page, limit: 10, status })
+      paymentService.getFarmSubscription({ adminId, dairyId }),
+      paymentService.getCustomerPayments({ page, limit: 10, status, dairyId }),
     ]);
 
     res.json({
@@ -28,7 +29,7 @@ export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    await paymentService.updateCustomerPaymentStatus(id, status);
+    await paymentService.updateCustomerPaymentStatus(id, status, req.admin.dairyId || null);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -37,7 +38,8 @@ export const updateStatus = async (req, res) => {
 
 export const changeFarmPlan = async (req, res) => {
   try {
-    const { dairyId, plan } = req.body;
+    const { dairyId: bodyDairyId, plan } = req.body;
+    const dairyId = req.admin.dairyId || bodyDairyId;
     const updated = await paymentService.updateFarmPlan(dairyId, plan);
     res.json(updated);
   } catch (err) {

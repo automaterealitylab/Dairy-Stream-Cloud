@@ -7,6 +7,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import {
+  fetchAdminPayments,
+  updateAdminFarmPlan,
+  updateAdminPaymentStatus,
+} from "../../api/admin.api.js";
 
 // MOCK API Call (Replace with actual import from admin.api.js)
 // const fetchPaymentData = () => { ... } 
@@ -24,40 +29,59 @@ export default function AdminPayments() {
   const [filter, setFilter] = useState("ALL"); // ALL, PAID, PENDING
   const [editingPayment, setEditingPayment] = useState(null); // ID of payment being edited
 
-  useEffect(() => {
-    // Simulate API Fetch
-    setTimeout(() => {
+  const loadPayments = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchAdminPayments({ page: 1, status: filter });
+
+      const farm = data?.farm || null;
       setFarmPlan({
-        plan: "Premium Dairy Plan",
-        price: "$49/mo",
-        status: "ACTIVE",
-        nextBilling: "2026-03-15"
+        id: farm?.id || null,
+        plan: farm?.selected_plan || "Standard",
+        status: farm?.status || "ACTIVE",
+        nextBilling: farm?.updated_at || null,
       });
-      setRevenue(12450);
-      setPayments([
-        { id: 1, customer: "Rajesh Kumar", plan: "Gold Plan (2L)", amount: 1500, status: "PAID", date: "2026-02-14" },
-        { id: 2, customer: "Suresh Singh", plan: "Silver Plan (1L)", amount: 750, status: "PENDING", date: "2026-02-13" },
-        { id: 3, customer: "Anita Desai", plan: "Gold Plan (2L)", amount: 1500, status: "OVERDUE", date: "2026-02-10" },
-      ]);
+
+      setRevenue(Number(data?.totalRevenue || 0));
+      setPayments(Array.isArray(data?.payments) ? data.payments : []);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "Failed to load payments");
+      setPayments([]);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
+
+  useEffect(() => {
+    loadPayments();
   }, [filter]);
 
   // Handlers
   const handleStatusChange = async (id, newStatus) => {
-    // Call API here...
-    toast.success(`Payment marked as ${newStatus}`);
-    setPayments(payments.map(p => p.id === id ? { ...p, status: newStatus } : p));
-    setEditingPayment(null);
+    try {
+      await updateAdminPaymentStatus(id, newStatus);
+      setPayments(payments.map(p => p.id === id ? { ...p, status: newStatus } : p));
+      toast.success(`Payment marked as ${newStatus}`);
+      setEditingPayment(null);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "Failed to update payment status");
+    }
   };
 
   const handleChangeFarmPlan = () => {
     const plans = ["Basic", "Pro", "Enterprise"];
-    const newPlan = prompt(`Enter new plan name (${plans.join(", ")}):`, farmPlan.plan);
-    if (newPlan) {
-        setFarmPlan({...farmPlan, plan: newPlan});
+    const currentPlan = farmPlan?.plan || "Standard";
+    const newPlan = prompt(`Enter new plan name (${plans.join(", ")}):`, currentPlan);
+    if (!newPlan) return;
+
+    updateAdminFarmPlan(newPlan)
+      .then(() => {
+        setFarmPlan({ ...(farmPlan || {}), plan: newPlan });
         toast.success("Farm plan updated successfully!");
-    }
+      })
+      .catch((err) => {
+        toast.error(err?.response?.data?.error || "Failed to update farm plan");
+      });
   };
 
   return (
@@ -95,13 +119,12 @@ export default function AdminPayments() {
               </div>
 
               <div className="mt-6 flex items-end gap-2">
-                <span className="text-3xl font-bold">{farmPlan?.price}</span>
-                <span className="text-blue-200 mb-1">/ month</span>
+                <span className="text-3xl font-bold">{farmPlan?.plan || "-"}</span>
               </div>
 
               <div className="mt-6 pt-6 border-t border-blue-500/30 flex justify-between items-center">
                 <div className="text-xs text-blue-200">
-                  Renews on {farmPlan?.nextBilling}
+                  Updated on {farmPlan?.nextBilling ? new Date(farmPlan.nextBilling).toLocaleDateString() : "-"}
                 </div>
                 <button 
                   onClick={handleChangeFarmPlan}
@@ -134,8 +157,12 @@ export default function AdminPayments() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Pending Payments</p>
-                <h3 className="text-2xl font-bold text-gray-900">₹2,250</h3>
-                <p className="text-xs text-gray-500 mt-1">3 customers pending</p>
+                <h3 className="text-2xl font-bold text-gray-900">
+                  ₹{payments.filter((p) => p.status !== "PAID").reduce((sum, p) => sum + Number(p.amount || 0), 0).toLocaleString()}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {payments.filter((p) => p.status !== "PAID").length} customers pending
+                </p>
               </div>
             </div>
           </div>
@@ -237,7 +264,7 @@ export default function AdminPayments() {
                          </button>
                          <button 
                             className="text-xs text-blue-600 hover:underline"
-                            onClick={() => alert(`Change plan for ${pay.customer}`)}
+                            onClick={handleChangeFarmPlan}
                          >
                             Change Plan
                          </button>

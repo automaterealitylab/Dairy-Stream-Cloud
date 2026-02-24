@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle, Clock, CreditCard, Loader2, Wallet, XCircle } from "lucide-react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
-import { fetchCustomerPayments } from "../../api/customer.api.js";
+import {
+  createCustomerPaymentOrder,
+  fetchCustomerPayments,
+  verifyCustomerPayment,
+} from "../../api/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 const getAuthToken = () => {
@@ -47,9 +51,11 @@ const Payments = () => {
     monthlyDue: 0,
     walletBalance: 0,
     dueInDays: null,
+    beneficiary: null,
   });
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState(null);
 
   const loadPayments = async () => {
@@ -60,7 +66,7 @@ const Payments = () => {
       const token = getAuthToken();
       if (!token) throw new Error("Customer token missing");
 
-      const data = await fetchCustomerPayments(token);
+      const data = await fetchCustomerPayments();
       setSummary({
         monthlyDue: Number(data?.summary?.monthlyDue || 0),
         walletBalance: Number(data?.summary?.walletBalance || 0),
@@ -68,6 +74,7 @@ const Payments = () => {
           data?.summary?.dueInDays === null || data?.summary?.dueInDays === undefined
             ? null
             : Number(data.summary.dueInDays),
+        beneficiary: data?.summary?.beneficiary || null,
       });
       setHistory(Array.isArray(data?.history) ? data.history : []);
     } catch (err) {
@@ -76,6 +83,7 @@ const Payments = () => {
         monthlyDue: 0,
         walletBalance: 0,
         dueInDays: null,
+        beneficiary: null,
       });
       setHistory([]);
     } finally {
@@ -86,6 +94,73 @@ const Payments = () => {
   useEffect(() => {
     loadPayments();
   }, []);
+
+  const pendingPayment =
+    history.find((item) => ["PENDING", "OVERDUE"].includes(String(item.status || "").toUpperCase())) ||
+    null;
+
+  const loadRazorpayCheckoutScript = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+  const handlePayNow = async () => {
+    try {
+      if (!pendingPayment?.id) {
+        throw new Error("No pending payment found");
+      }
+
+      setPaying(true);
+      setError(null);
+
+      const scriptLoaded = await loadRazorpayCheckoutScript();
+      if (!scriptLoaded) {
+        throw new Error("Failed to load Razorpay checkout");
+      }
+
+      const orderPayload = await createCustomerPaymentOrder({ paymentId: pendingPayment.id });
+
+      const options = {
+        key: orderPayload.keyId,
+        amount: orderPayload.order.amount,
+        currency: orderPayload.order.currency,
+        name: "Dairy Stream",
+        description: orderPayload.payment?.title || "Milk Bill Payment",
+        order_id: orderPayload.order.id,
+        handler: async function onPaymentSuccess(response) {
+          await verifyCustomerPayment({
+            paymentId: pendingPayment.id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          });
+          await loadPayments();
+        },
+        theme: {
+          color: "#2563eb",
+        },
+      };
+
+      const checkout = new window.Razorpay(options);
+      checkout.on("payment.failed", (failedResponse) => {
+        setError(failedResponse?.error?.description || "Payment failed");
+      });
+      checkout.open();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Unable to start payment");
+    } finally {
+      setPaying(false);
+    }
+  };
 
   return (
     <CustomerLayout>
@@ -115,6 +190,12 @@ const Payments = () => {
               {formatCurrency(summary.monthlyDue)}
             </h3>
             <p className="text-sm text-red-500 mt-1">{dueText(summary.dueInDays)}</p>
+            {summary.beneficiary?.dairyName && (
+              <p className="text-xs text-gray-500 mt-2">
+                Payee: {summary.beneficiary.dairyName}
+                {summary.beneficiary.bankName ? ` (${summary.beneficiary.bankName})` : ""}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2 text-right">
@@ -141,6 +222,17 @@ const Payments = () => {
             </div>
             <Wallet className="text-blue-600" />
           </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={handlePayNow}
+            disabled={paying || loading || !pendingPayment || Number(summary.monthlyDue || 0) <= 0}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-gray-300"
+          >
+            {(paying || loading) && <Loader2 size={14} className="animate-spin" />}
+            {paying ? "Opening checkout..." : "Pay Now"}
+          </button>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">

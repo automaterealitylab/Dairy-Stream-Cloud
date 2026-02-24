@@ -96,3 +96,23 @@ export const registerDairyApi = async (dairyData) => {
   const { data } = await client.post("/admin/register-dairy", dairyData, config);
   return data;
 };
+
+/* =========================
+   PAYMENTS
+========================= */
+export const fetchAdminPayments = async ({ page = 1, status = "ALL" } = {}) => {
+  const { data } = await client.get("/admin/payments", {
+    params: { page, status },
+  });
+  return data;
+};
+
+export const updateAdminPaymentStatus = async (id, status) => {
+  const { data } = await client.patch(`/admin/payments/${id}/status`, { status });
+  return data;
+};
+
+export const updateAdminFarmPlan = async (plan) => {
+  const { data } = await client.patch("/admin/farm-plan", { plan });
+  return data;
+};

@@ -18,6 +18,11 @@ import {
   updateAdminAgentById,
   deleteAdminAgentById,
 } from "../controllers/admin/adminagent.controller.js";
+import {
+  changeFarmPlan,
+  fetchPageData,
+  updateStatus,
+} from "../controllers/admin/adminPayments.controller.js";
 const router = express.Router();
 
 router.post("/", adminLogin);
@@ -33,6 +38,9 @@ router.get("/agents",verifyAdmin, fetchAdminAgents);
 router.get("/agents/:id",verifyAdmin,fetchAdminAgentById);
 router.put("/agents/:id", verifyAdmin, updateAdminAgentById);
 router.delete("/agents/:id", verifyAdmin, deleteAdminAgentById);
+router.get("/payments", verifyAdmin, fetchPageData);
+router.patch("/payments/:id/status", verifyAdmin, updateStatus);
+router.patch("/farm-plan", verifyAdmin, changeFarmPlan);
 
 router.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date() }); //dont get any output

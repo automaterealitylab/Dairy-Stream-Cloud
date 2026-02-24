@@ -24,6 +24,12 @@ export const registerDairy = async (req, res) => {
       adminMobile,
       password,
       selectedPlan,
+      bankAccountHolderName,
+      bankAccountNumber,
+      bankIfscCode,
+      bankName,
+      bankBranch,
+      upiId,
     } = req.body;
 
     let imageUrl = null;
@@ -48,6 +54,9 @@ export const registerDairy = async (req, res) => {
       ownerName,
       adminEmail,
       password,
+      bankAccountHolderName,
+      bankAccountNumber,
+      bankIfscCode,
     };
 
     const missingFields = Object.entries(requiredFields)
@@ -80,6 +89,12 @@ export const registerDairy = async (req, res) => {
       adminMobile,
       password,
       selectedPlan,
+      bankAccountHolderName,
+      bankAccountNumber,
+      bankIfscCode,
+      bankName,
+      bankBranch,
+      upiId,
       imageUrl,
     });
 
