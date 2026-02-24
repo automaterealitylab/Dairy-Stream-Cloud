@@ -7,6 +7,9 @@ import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
 import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AgentDashboard from "./pages/agent/agentDashboard";
+import AgentWorkingPage from "./pages/agent/AgentWorkingPage";
+import AgentProfile from "./pages/agent/AgentProfile";
+import AgentHistory from "./pages/agent/AgentHistory";
 import LoginPage from "./pages/LoginPage";
 import RegisterNewuserPage from "./pages/RegisterNewuserPage";
 import RegisterDairyPage from "./pages/RegisterDairyPage";
@@ -22,106 +25,36 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 function App() {
   return (
     <Routes>
-      {/* need to change the route later */}
-      <Route path="/" element={<LoginPage></LoginPage>}></Route>
+      {/* Root/Login Route */}
+      <Route path="/" element={<LoginPage />} />
 
-      {/* Public Route */}
+      {/* Public Routes */}
       <Route path="/explore" element={<ExploreDairiesPage />} />
-      {/* Protected Dashboard Route */}
-      <Route
-        path="/customer-dashboard"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <CustomerDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/customer/deliveries"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Deliveries />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/customer/subscriptions"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Subscription />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/customer/payments"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Payments />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/customer/profile"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route path="/" element={<ExploreDairiesPage />} />
       <Route path="/join/:id" element={<DairyDetailsPage />} />
 
-      <Route
-        path="/agent-dashboard"
-        element={
-          <ProtectedRoute allowedRoles={["STAFF"]}>
-            <AgentDashboard />
-          </ProtectedRoute>
-        }
-      />
+      {/* Customer Routes - Unprotected for development */}
+      <Route path="/customer-dashboard" element={<CustomerDashboard />} />
+      <Route path="/customer/deliveries" element={<Deliveries />} />
+      <Route path="/customer/subscriptions" element={<Subscription />} />
+      <Route path="/customer/payments" element={<Payments />} />
+      <Route path="/customer/profile" element={<Profile />} />
 
-      <Route
-        path="/admin/customers"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminCustomers />
-          </ProtectedRoute>
-        }
-      />
+      {/* Agent Routes - Unprotected for development */}
+      <Route path="/agent/dashboard" element={<AgentDashboard />} />
+      <Route path="/agent/working" element={<AgentWorkingPage />} />
+      <Route path="/agent/profile" element={<AgentProfile />} />
+      <Route path="/agent/history" element={<AgentHistory />} />
 
-      <Route
-        path="customer/register"
-        element={<RegisterNewuserPage></RegisterNewuserPage>}
-      ></Route>
+      {/* Admin Routes - Unprotected for development */}
+      <Route path="/admin/customers" element={<AdminCustomers />} />
+      <Route path="/admin/AdminDashboard" element={<AdminDashboard />} />
+      <Route path="/admin/addCustomer" element={<AddNewCustomerForm />} />
+      <Route path="/admin/addAgent" element={<AddNewAgentForm />} />
 
-
-      <Route
-        path="admin/AdminDashboard"
-        element={<AdminDashboard></AdminDashboard>}
-      ></Route>
-      <Route
-        path="admin/addCustomer"
-        element={<AddNewCustomerForm></AddNewCustomerForm>}
-      ></Route>
-
-      <Route
-        path="admin/addAgent"
-        element={<AddNewAgentForm></AddNewAgentForm>}
-      ></Route>
-      <Route
-        path="/customerDashbord"
-        element={<DairyCustomerDashboard></DairyCustomerDashboard>}
-      ></Route>
-
-
-      <Route
-        path="/register-dairy"
-        element={<RegisterDairyPage></RegisterDairyPage>}
-      ></Route>
+      {/* Other Routes */}
+      <Route path="/customer/register" element={<RegisterNewuserPage />} />
+      <Route path="/customerDashbord" element={<DairyCustomerDashboard />} />
+      <Route path="/register-dairy" element={<RegisterDairyPage />} />
 
       <Route
         path="*"
