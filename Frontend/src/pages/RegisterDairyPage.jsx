@@ -39,6 +39,12 @@ const RegisterDairyPage = () => {
     adminMobile: '',
     password: '',
     confirmPassword: '',
+    bankAccountHolderName: '',
+    bankAccountNumber: '',
+    bankIfscCode: '',
+    bankName: '',
+    bankBranch: '',
+    upiId: '',
 
     // Step 4: Plan
     selectedPlan: 'GROWTH' // 'STARTER' | 'GROWTH' | 'ENTERPRISE'
@@ -48,7 +54,10 @@ const RegisterDairyPage = () => {
   // --- HANDLERS ---
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    let nextValue = value;
+    if (name === "bankIfscCode") nextValue = String(value || "").toUpperCase();
+    if (name === "bankAccountNumber") nextValue = String(value || "").replace(/\D/g, "");
+    setFormData(prev => ({ ...prev, [name]: nextValue }));
   };
 
   const handlePlanSelect = (plan) => {
@@ -64,7 +73,16 @@ const RegisterDairyPage = () => {
   const validateStep = (step) => {
     if (step === 1) return formData.dairyName && formData.dairyPhone;
     if (step === 2) return formData.address && formData.city && formData.pincode;
-    if (step === 3) return formData.ownerName && formData.adminEmail && formData.password === formData.confirmPassword;
+    if (step === 3) {
+      return (
+        formData.ownerName &&
+        formData.adminEmail &&
+        formData.bankAccountHolderName &&
+        formData.bankAccountNumber &&
+        formData.bankIfscCode &&
+        formData.password === formData.confirmPassword
+      );
+    }
     return true;
   };
 
@@ -95,6 +113,9 @@ const RegisterDairyPage = () => {
       adminEmail: formData.adminEmail,
       adminMobile: formData.adminMobile,
       password: formData.password,
+      bankAccountHolderName: formData.bankAccountHolderName,
+      bankAccountNumber: formData.bankAccountNumber,
+      bankIfscCode: formData.bankIfscCode,
     };
 
     const missingFields = Object.entries(requiredFields)
@@ -109,6 +130,16 @@ const RegisterDairyPage = () => {
     // Validate password confirmation
     if (formData.password !== formData.confirmPassword) {
       alert("Passwords do not match!");
+      return;
+    }
+
+    if (!/^\d{8,20}$/.test(formData.bankAccountNumber || "")) {
+      alert("Bank account number must be between 8 and 20 digits");
+      return;
+    }
+
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(String(formData.bankIfscCode || "").toUpperCase())) {
+      alert("Please enter a valid IFSC code");
       return;
     }
 
@@ -133,6 +164,12 @@ const RegisterDairyPage = () => {
       submitData.append("adminMobile", formData.adminMobile);
       submitData.append("password", formData.password);
       submitData.append("selectedPlan", formData.selectedPlan);
+      submitData.append("bankAccountHolderName", formData.bankAccountHolderName);
+      submitData.append("bankAccountNumber", formData.bankAccountNumber);
+      submitData.append("bankIfscCode", formData.bankIfscCode);
+      submitData.append("bankName", formData.bankName);
+      submitData.append("bankBranch", formData.bankBranch);
+      submitData.append("upiId", formData.upiId);
       if (logoFile) submitData.append("image", logoFile);
 
       console.log("📤 Submitting dairy registration with data:", submitData);
@@ -382,6 +419,74 @@ const RegisterDairyPage = () => {
                        <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                     </div>
                  </div>
+
+                 <div className="pt-4 mt-2 border-t border-gray-200">
+                    <h3 className="text-base font-bold text-gray-900 mb-3">Bank Details (for customer payments)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Account Holder Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          name="bankAccountHolderName"
+                          value={formData.bankAccountHolderName}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Account Number <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          name="bankAccountNumber"
+                          value={formData.bankAccountNumber}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">IFSC Code <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          name="bankIfscCode"
+                          value={formData.bankIfscCode}
+                          onChange={handleChange}
+                          placeholder="e.g. HDFC0001234"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Bank Name</label>
+                        <input
+                          type="text"
+                          name="bankName"
+                          value={formData.bankName}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Branch</label>
+                        <input
+                          type="text"
+                          name="bankBranch"
+                          value={formData.bankBranch}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">UPI ID (Optional)</label>
+                        <input
+                          type="text"
+                          name="upiId"
+                          value={formData.upiId}
+                          onChange={handleChange}
+                          placeholder="name@bank"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                 </div>
               </div>
            </div>
         )}
@@ -461,6 +566,17 @@ const RegisterDairyPage = () => {
                     <div>
                        <p className="text-sm text-gray-500">Selected Plan</p>
                        <p className="font-bold text-blue-600">{formData.selectedPlan}</p>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4">
+                    <div>
+                       <p className="text-sm text-gray-500">Bank Holder</p>
+                       <p className="font-semibold">{formData.bankAccountHolderName}</p>
+                    </div>
+                    <div>
+                       <p className="text-sm text-gray-500">IFSC</p>
+                       <p className="font-semibold uppercase">{formData.bankIfscCode}</p>
                     </div>
                  </div>
               </div>

@@ -95,6 +95,16 @@ export const fetchCustomerPayments = async () => {
   return data;
 };
 
+export const createCustomerPaymentOrder = async (payload = {}) => {
+  const { data } = await client.post("/customer/payments/order", payload);
+  return data;
+};
+
+export const verifyCustomerPayment = async (payload) => {
+  const { data } = await client.post("/customer/payments/verify", payload);
+  return data;
+};
+
 // 4. SUBSCRIPTION MANAGEMENT
 export const fetchCustomerSubscription = async () => {
   const { data } = await client.get("/customer/subscription");

@@ -15,7 +15,11 @@ import {
 } from "../controllers/customer/profile.controller.js";
 import { getDashboard } from "../controllers/customer/dashboard.controller.js";
 import { getDeliveries } from "../controllers/customer/deliveries.controller.js";
-import { getPayments } from "../controllers/customer/payments.controller.js";
+import {
+  createPaymentOrder,
+  getPayments,
+  verifyPayment,
+} from "../controllers/customer/payments.controller.js";
 import {
   getSubscription,
   saveSubscription,
@@ -57,6 +61,8 @@ router.put("/profile", authenticate, uploadSingleImage, updateProfile);
 router.get("/dashboard", authenticate, getDashboard);
 router.get("/deliveries", authenticate, getDeliveries);
 router.get("/payments", authenticate, getPayments);
+router.post("/payments/order", authenticate, createPaymentOrder);
+router.post("/payments/verify", authenticate, verifyPayment);
 
 router.get("/subscription", authenticate, getSubscription);
 router.post("/subscription", authenticate, saveSubscription);

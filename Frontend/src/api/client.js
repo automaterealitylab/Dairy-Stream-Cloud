@@ -10,11 +10,23 @@ const client = axios.create({
   },
 });
 
-// ✅ Interceptor: Automatically attaches adminToken or customer token to every request
+// Attach role-specific tokens so customer/admin APIs don't get mixed tokens.
 client.interceptors.request.use((config) => {
+  const requestPath = String(config.url || "");
   const adminToken = localStorage.getItem("adminToken");
   const customerToken = localStorage.getItem("token");
-  const token = adminToken || customerToken;
+  const agentToken = localStorage.getItem("agentToken");
+
+  let token = null;
+  if (requestPath.startsWith("/customer")) {
+    token = customerToken;
+  } else if (requestPath.startsWith("/admin")) {
+    token = adminToken;
+  } else if (requestPath.startsWith("/agent")) {
+    token = agentToken;
+  } else {
+    token = adminToken || customerToken || agentToken;
+  }
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

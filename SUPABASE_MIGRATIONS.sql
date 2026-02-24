@@ -19,11 +19,30 @@ CREATE TABLE IF NOT EXISTS public.dairies (
   service_pincodes VARCHAR(500),
   service_radius NUMERIC(5, 2) DEFAULT 5.0,
   owner_name VARCHAR(255) NOT NULL,
+  bank_account_holder_name VARCHAR(255),
+  bank_account_number VARCHAR(30),
+  bank_ifsc_code VARCHAR(20),
+  bank_name VARCHAR(255),
+  bank_branch VARCHAR(255),
+  upi_id VARCHAR(255),
   selected_plan VARCHAR(50) DEFAULT 'GROWTH',
   status VARCHAR(50) DEFAULT 'ACTIVE',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_account_holder_name VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(30);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_ifsc_code VARCHAR(20);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_name VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_branch VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS upi_id VARCHAR(255);
 
 CREATE INDEX IF NOT EXISTS idx_dairies_email ON public.dairies(dairy_email);
 CREATE INDEX IF NOT EXISTS idx_dairies_city ON public.dairies(city);

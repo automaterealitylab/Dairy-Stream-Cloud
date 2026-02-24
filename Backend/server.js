@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import Razorpay from "razorpay";
 
 // 1. Load Environment Variables
 dotenv.config();

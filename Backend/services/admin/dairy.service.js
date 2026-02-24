@@ -4,6 +4,8 @@ import { generateToken } from "../../utils/jwt.js";
 import { ensureIdentityIsUnique } from "../authentication/identityUniqueness.service.js";
 
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
+const normalizeIfsc = (value) => String(value || "").trim().toUpperCase();
+const normalizeDigits = (value) => String(value || "").replace(/\D/g, "");
 const formatAdminIdentityConflictMessage = (conflict = {}) => {
   const issues = [];
 
@@ -43,10 +45,29 @@ export const registerDairyService = async ({
   adminMobile,
   password,
   selectedPlan,
+  bankAccountHolderName,
+  bankAccountNumber,
+  bankIfscCode,
+  bankName,
+  bankBranch,
+  upiId,
   imageUrl,
 }) => {
   try {
     const normalizedDairyEmail = normalizeEmail(dairyEmail);
+    const sanitizedAccountNumber = normalizeDigits(bankAccountNumber);
+    const sanitizedIfsc = normalizeIfsc(bankIfscCode);
+    if (sanitizedAccountNumber.length < 8 || sanitizedAccountNumber.length > 20) {
+      const inputError = new Error("Bank account number must be between 8 and 20 digits");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(sanitizedIfsc)) {
+      const inputError = new Error("Invalid IFSC code format");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
 
     const { data: existingDairyByEmail, error: existingDairyError } = await supabase
       .from("dairies")
@@ -101,11 +122,26 @@ export const registerDairyService = async ({
         owner_name: ownerName,
         selected_plan: selectedPlan,
         status: "ACTIVE",
+        bank_account_holder_name: String(bankAccountHolderName || "").trim(),
+        bank_account_number: sanitizedAccountNumber,
+        bank_ifsc_code: sanitizedIfsc,
+        bank_name: String(bankName || "").trim() || null,
+        bank_branch: String(bankBranch || "").trim() || null,
+        upi_id: String(upiId || "").trim().toLowerCase() || null,
       })
       .select()
       .single();
 
     if (dairyError) {
+      if (
+        dairyError.message &&
+        dairyError.message.toLowerCase().includes("column") &&
+        dairyError.message.toLowerCase().includes("bank_")
+      ) {
+        throw new Error(
+          "Bank details columns are missing in Supabase. Run the latest SUPABASE_MIGRATIONS.sql before registering dairies."
+        );
+      }
       if (dairyError.code === "23505" && dairyError.constraint === "dairies_dairy_email_key") {
         const conflictError = new Error("Dairy email is already registered");
         conflictError.statusCode = 409;
