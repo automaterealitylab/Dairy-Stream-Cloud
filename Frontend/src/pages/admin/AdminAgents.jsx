@@ -4,7 +4,7 @@ import { fetchAdminAgents } from "../../api/admin.api";
 // Layout Components
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
-import AgentDrawer from "../../components/agents/AgentDrawer"; 
+import AgentDrawer from "../../components/agent/AgentDrawer.jsx"; 
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 export default function AdminAgents() {

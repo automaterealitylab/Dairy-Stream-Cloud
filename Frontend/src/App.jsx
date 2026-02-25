@@ -28,9 +28,13 @@ import AdminDeliveries from "./pages/admin/AdminDeliveries";
 import AdminPayments from "./pages/admin/AdminPayments"; 
 
 // --- Agent Pages ---
-import AgentDashboard from "./pages/agent/agentDashboard";
+import AgentDashboard from "./pages/agent/agentDashboard.jsx";
+import AgentHistory from "./pages/agent/AgentHistory.jsx";
+import AgentProfile from "./pages/agent/AgentProfile.jsx";
+import AgentWorkingPage from "./pages/agent/AgentWorkingPage.jsx";
 import ThemeToggleButton from "./components/common/ThemeToggleButton.jsx";
 import TrackAgent from "./pages/customer/TrackAgent.jsx";
+
 
 
 function App() {
@@ -175,14 +179,10 @@ function App() {
       {/* ==============================
           🚚 AGENT ROUTES (Protected)
       ============================== */}
-      <Route
-        path="/agent/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={["AGENT", "STAFF"]}>
-            <AgentDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route path="/agent/dashboard" element={<AgentDashboard />} />
+      <Route path="/agent/working" element={<AgentWorkingPage />} />
+      <Route path="/agent/profile" element={<AgentProfile />} />
+      <Route path="/agent/history" element={<AgentHistory />} />
 
 
       {/* ==============================
