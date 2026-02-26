@@ -21,7 +21,7 @@ const isUuidSyntaxError = (error) => {
 };
 
 const getMembershipDairyId = async (customerId) => {
-  const candidateColumns = ["customer_id", "user_id"];
+  const candidateColumns = ["customer_id", "user_id", "customerid", "customerId"];
 
   for (const linkColumn of candidateColumns) {
     const { data, error } = await supabase
@@ -56,6 +56,45 @@ const getDairyByIdLoose = async (dairyId) => {
   if (!error) return data || null;
   if (isUuidSyntaxError(error)) return null;
   throw error;
+};
+
+const getUpcomingScheduledDelivery = async (customerId) => {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, "0");
+  const d = String(today.getDate()).padStart(2, "0");
+  const todayIso = `${y}-${m}-${d}`;
+
+  const { data, error } = await supabase
+    .from("deliveries")
+    .select("id, delivery_date, milk_type, quantity_liters, status")
+    .eq("customer_id", customerId)
+    .gte("delivery_date", todayIso)
+    .order("delivery_date", { ascending: true })
+    .limit(10);
+
+  if (error) {
+    if (isMissingTableError(error) || isMissingColumnError(error) || isUuidSyntaxError(error)) {
+      return null;
+    }
+    throw error;
+  }
+
+  const upcoming = (data || []).find((row) => {
+    const status = String(row?.status || "PENDING").toUpperCase();
+    return status !== "DELIVERED" && status !== "COMPLETED" && status !== "FAILED";
+  });
+
+  if (!upcoming) return null;
+
+  return {
+    id: upcoming.id,
+    date: upcoming.delivery_date,
+    product: upcoming.milk_type || "Milk",
+    quantity:
+      upcoming.quantity_liters == null ? "-" : `${Number(upcoming.quantity_liters)} L`,
+    status: String(upcoming.status || "PENDING").toUpperCase(),
+  };
 };
 
 export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
@@ -93,6 +132,7 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
     ? `${subscription.quantity_liters} L`
     : "-";
   const { todayDelivery } = await getTodayDeliverySnapshot(customerId, { subscription });
+  const upcomingDeliveryAlert = await getUpcomingScheduledDelivery(customerId);
 
   const legacyDairyName =
     customer?.dairy_name ??
@@ -137,6 +177,9 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
       monthlyDue: 0,
       walletBalance: 0,
       dueInDays: 5,
+    },
+    alerts: {
+      upcomingDelivery: upcomingDeliveryAlert,
     },
   };
 

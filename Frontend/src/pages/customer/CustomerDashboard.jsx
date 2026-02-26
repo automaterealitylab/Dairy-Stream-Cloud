@@ -58,7 +58,7 @@ const CustomerDashboard = () => {
 
   /* ---------- DATA RESOLUTION ---------- */
   const resolvedData = dashboardData || data;
-  const { customer, todayDelivery, tomorrowDelivery, billing, subscription } = resolvedData;
+  const { customer, todayDelivery, tomorrowDelivery, billing, subscription, alerts } = resolvedData;
 
   const openTomorrowEdit = () => {
     if (!subscription?.dairyId) {
@@ -84,7 +84,7 @@ const CustomerDashboard = () => {
       const token = storedUser ? JSON.parse(storedUser)?.token : localStorage.getItem("token");
       if (!token) throw new Error("Customer token missing");
 
-      await saveCustomerSubscription(token, {
+      await saveCustomerSubscription({
         dairyId: subscription.dairyId,
         milkType: subscription.milkType || "Milk",
         quantity: Number(editTomorrowForm.quantity || 1),
@@ -95,7 +95,7 @@ const CustomerDashboard = () => {
         status: subscription.status || "ACTIVE",
       });
 
-      const freshDashboard = await fetchCustomerDashboard(token, { force: true });
+      const freshDashboard = await fetchCustomerDashboard({ force: true });
       setDashboardData(freshDashboard);
       setShowEditTomorrowModal(false);
     } catch (err) {
@@ -122,6 +122,8 @@ const CustomerDashboard = () => {
             </div>
           </div>
         </header>
+
+        <UpcomingDeliveryAlert alert={alerts?.upcomingDelivery} />
 
         {/* ================= TODAY STATUS ================= */}
         <TodayStatusCard data={todayDelivery} navigate={navigate} />
@@ -164,7 +166,6 @@ const CustomerDashboard = () => {
 const TodayStatusCard = ({ data = {}, navigate }) => {
   const isDelivered = data.status === "DELIVERED";
   const isPending = data.status === "PENDING";
-  const isNotScheduled = data.status === "NOT_SCHEDULED" || data.status === "NOT_SUBSCRIBED";
   
   const title = isDelivered ? "Delivered Successfully" : isPending ? "Delivery Pending" : "No Delivery Scheduled Today";
 
@@ -198,6 +199,17 @@ const TodayStatusCard = ({ data = {}, navigate }) => {
           <button className="text-xs font-semibold text-text-secondary underline">Report Issue</button>
         </div>
       </div>
+    </div>
+  );
+};
+
+const UpcomingDeliveryAlert = ({ alert }) => {
+  if (!alert?.date) return null;
+  const dateLabel = new Date(alert.date).toLocaleDateString();
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+      Upcoming delivery scheduled: {alert.quantity} {alert.product} on {dateLabel}.
     </div>
   );
 };
@@ -277,7 +289,8 @@ const BillingSummaryCard = ({ data = {} }) => {
 };
 
 /* QUICK ACTION */
-const QuickAction = ({ icon: Icon, label, color, to }) => {
+const QuickAction = ({ icon, label, color, to }) => {
+  const Icon = icon;
   const navigate = useNavigate();
   const colorMap = {
     brand: "bg-brand-soft text-brand",

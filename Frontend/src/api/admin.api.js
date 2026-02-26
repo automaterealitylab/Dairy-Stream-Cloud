@@ -97,6 +97,45 @@ export const registerDairyApi = async (dairyData) => {
   return data;
 };
 
+export const fetchAdminDeliveries = async ({ limit = 1000 } = {}) => {
+  const { data } = await client.get("/admin/deliveries", {
+    params: { limit },
+  });
+  return data;
+};
+
+export const fetchAdminDeliverySchedulingOptions = async () => {
+  const { data } = await client.get("/admin/deliveries/scheduling-options");
+  return data;
+};
+
+export const scheduleAdminDelivery = async ({ customerId, agentId, deliveryDate, notes } = {}) => {
+  const { data } = await client.post("/admin/deliveries/schedule", {
+    customerId,
+    agentId,
+    deliveryDate,
+    notes,
+  });
+  return data;
+};
+
+export const scheduleAdminDeliveriesBulk = async ({
+  deliveryDate,
+  agentId,
+  slot = "ALL",
+  route = "ALL",
+  notes,
+} = {}) => {
+  const { data } = await client.post("/admin/deliveries/schedule-bulk", {
+    deliveryDate,
+    agentId,
+    slot,
+    route,
+    notes,
+  });
+  return data;
+};
+
 /* =========================
    PAYMENTS
 ========================= */

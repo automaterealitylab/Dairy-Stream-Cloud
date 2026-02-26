@@ -56,6 +56,56 @@ html[data-theme="dark"] .text-text-muted {
   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition;
 }
 
+@layer components {
+  .pro-page {
+    @apply min-h-screen bg-background text-text-primary;
+  }
+
+  .pro-panel {
+    @apply rounded-card border border-border bg-surface shadow-card;
+  }
+
+  .pro-panel-title {
+    @apply text-lg font-semibold text-text-primary;
+  }
+
+  .pro-panel-subtitle {
+    @apply mt-1 text-sm text-text-secondary;
+  }
+
+  .pro-kpi {
+    @apply rounded-card border border-border bg-surface p-4 shadow-card;
+  }
+
+  .pro-kpi-label {
+    @apply text-xs uppercase tracking-wide text-text-muted;
+  }
+
+  .pro-kpi-value {
+    @apply mt-1 text-2xl font-semibold text-text-primary;
+  }
+
+  .pro-btn-primary {
+    @apply rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .pro-btn-dark {
+    @apply rounded-xl bg-text-primary px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .pro-btn-outline {
+    @apply rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .pro-feedback-success {
+    @apply rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700;
+  }
+
+  .pro-feedback-error {
+    @apply rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700;
+  }
+}
+
 @keyframes slideIn {
   from { transform: translateX(120%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }

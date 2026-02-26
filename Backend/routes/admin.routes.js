@@ -3,6 +3,12 @@ import { adminLogin } from "../controllers/authentication/adminAuth.controller.j
 import { verifyAdmin } from "../middleware/admin.middleware.js";
 import { getDashboard } from "../controllers/admin/dashboard.controller.js";
 import {
+  fetchAdminDeliveries,
+  fetchDeliverySchedulingOptions,
+  scheduleAdminDelivery,
+  scheduleAdminDeliveriesBulk,
+} from "../controllers/admin/adminDeliveries.controller.js";
+import {
   fetchAdminCustomers,
   fetchAdminCustomerById,
   updateAdminCustomerById,
@@ -33,6 +39,10 @@ router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById);
 router.put("/customers/:id", verifyAdmin, updateAdminCustomerById);
 router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById);
 router.get("/dashboard", verifyAdmin, getDashboard);
+router.get("/deliveries", verifyAdmin, fetchAdminDeliveries);
+router.get("/deliveries/scheduling-options", verifyAdmin, fetchDeliverySchedulingOptions);
+router.post("/deliveries/schedule", verifyAdmin, scheduleAdminDelivery);
+router.post("/deliveries/schedule-bulk", verifyAdmin, scheduleAdminDeliveriesBulk);
 router.get("/buildings", verifyAdmin, getUniqueBuildings);
 router.get("/agents",verifyAdmin, fetchAdminAgents);
 router.get("/agents/:id",verifyAdmin,fetchAdminAgentById);

@@ -1,88 +1,105 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  fetchAdminDeliveries,
+  fetchAdminDeliverySchedulingOptions,
+  scheduleAdminDelivery,
+  scheduleAdminDeliveriesBulk,
+} from "../../api/admin.api";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
-const deliveriesSeed = [
-  {
-    id: "DLV-1001",
-    customerName: "Rahul Sharma",
-    agentName: "Aman Singh",
-    route: "Green Park",
-    quantity: "2L",
-    date: "2026-02-25",
-    slot: "05:30 AM",
-    status: "DELIVERED",
-  },
-  {
-    id: "DLV-1002",
-    customerName: "Neha Verma",
-    agentName: "Priya Das",
-    route: "City Center",
-    quantity: "1L",
-    date: "2026-02-25",
-    slot: "06:00 AM",
-    status: "PENDING",
-  },
-  {
-    id: "DLV-1003",
-    customerName: "Ramesh Patel",
-    agentName: "Aman Singh",
-    route: "Sunrise Colony",
-    quantity: "3L",
-    date: "2026-02-25",
-    slot: "07:00 AM",
-    status: "FAILED",
-  },
-  {
-    id: "DLV-1004",
-    customerName: "Anjali Mehta",
-    agentName: "Vikram Rao",
-    route: "Lake View",
-    quantity: "1.5L",
-    date: "2026-02-24",
-    slot: "05:45 AM",
-    status: "DELIVERED",
-  },
-  {
-    id: "DLV-1005",
-    customerName: "Sonia Kapoor",
-    agentName: "Priya Das",
-    route: "City Center",
-    quantity: "2L",
-    date: "2026-02-24",
-    slot: "06:15 AM",
-    status: "DELIVERED",
-  },
-  {
-    id: "DLV-1006",
-    customerName: "Karan Malhotra",
-    agentName: "Vikram Rao",
-    route: "Green Park",
-    quantity: "1L",
-    date: "2026-02-24",
-    slot: "07:10 AM",
-    status: "PENDING",
-  },
-];
-
+// --- Utilities & Constants ---
 const statusStyles = {
-  DELIVERED: "bg-green-50 text-green-700 border-green-200",
-  PENDING: "bg-amber-50 text-amber-700 border-amber-200",
-  FAILED: "bg-red-50 text-red-700 border-red-200",
+  DELIVERED: "bg-green-100 text-green-700 border-green-200",
+  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+  FAILED: "bg-red-100 text-red-700 border-red-200",
 };
 
+const toQuantityValue = (value) => {
+  const parsed = Number.parseFloat(String(value || "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toDateTimestamp = (value) => {
+  if (!value) return 0;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Date(year, month - 1, day).getTime();
+  }
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const formatDate = (value) => {
+  const timestamp = toDateTimestamp(value);
+  if (!timestamp) return "-";
+  return new Date(timestamp).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getTodayDateInput = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+// --- Sub-components ---
 function StatusPill({ status }) {
   return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyles[status] || "bg-gray-50 text-gray-600 border-gray-200"}`}
-    >
+    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${statusStyles[status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
       {status}
     </span>
   );
 }
 
+const FeedbackBanner = ({ feedback }) => {
+  if (!feedback?.message) return null;
+  const isSuccess = feedback.type === "success";
+  return (
+    <div className={`mt-4 p-3 rounded-lg text-sm font-medium border ${isSuccess ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"}`}>
+      {isSuccess ? "✓ " : "✕ "} {feedback.message}
+    </div>
+  );
+};
+
+// --- Main Component ---
 export default function AdminDeliveries() {
+  const [activeTab, setActiveTab] = useState("bulk"); // 'bulk' | 'single'
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [deliveries, setDeliveries] = useState([]);
+
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [scheduleOptions, setScheduleOptions] = useState({ customers: [], agents: [] });
+
+  const [singleForm, setSingleForm] = useState({
+    customerId: "",
+    agentId: "",
+    deliveryDate: getTodayDateInput(),
+    notes: "",
+  });
+  const [singleSubmitting, setSingleSubmitting] = useState(false);
+  const [singleFeedback, setSingleFeedback] = useState({ type: "", message: "" });
+
+  const [bulkForm, setBulkForm] = useState({
+    deliveryDate: getTodayDateInput(),
+    agentId: "",
+    slot: "ALL",
+    route: "ALL",
+    notes: "",
+  });
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkFeedback, setBulkFeedback] = useState({ type: "", message: "" });
+  const [bulkSummary, setBulkSummary] = useState(null);
+
+  // Filters State
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("");
@@ -93,241 +110,342 @@ export default function AdminDeliveries() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const filterOptions = useMemo(() => {
-    const agents = [...new Set(deliveriesSeed.map((d) => d.agentName))].sort();
-    const routes = [...new Set(deliveriesSeed.map((d) => d.route))].sort();
-    return { agents, routes };
+  const loadDeliveries = async () => {
+    const response = await fetchAdminDeliveries();
+    setDeliveries(Array.isArray(response?.deliveries) ? response.deliveries : []);
+  };
+
+  const loadSchedulingOptions = async () => {
+    const response = await fetchAdminDeliverySchedulingOptions();
+    setScheduleOptions({
+      customers: Array.isArray(response?.customers) ? response.customers : [],
+      agents: Array.isArray(response?.agents) ? response.agents : [],
+    });
+  };
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setOptionsLoading(true);
+      try {
+        const [deliveryData, optionsData] = await Promise.all([
+          fetchAdminDeliveries(),
+          fetchAdminDeliverySchedulingOptions(),
+        ]);
+        if (!active) return;
+        setDeliveries(Array.isArray(deliveryData?.deliveries) ? deliveryData.deliveries : []);
+        setScheduleOptions({
+          customers: Array.isArray(optionsData?.customers) ? optionsData.customers : [],
+          agents: Array.isArray(optionsData?.agents) ? optionsData.agents : [],
+        });
+      } catch (err) {
+        if (!active) return;
+        setLoadError(err?.message || "Failed to load data.");
+      } finally {
+        if (active) {
+          setLoading(false);
+          setOptionsLoading(false);
+        }
+      }
+    };
+    load();
+    return () => { active = false; };
   }, []);
+
+  // --- Memos ---
+  const selectedScheduleCustomer = useMemo(() => {
+    return scheduleOptions.customers.find((c) => String(c.id) === String(singleForm.customerId)) || null;
+  }, [singleForm.customerId, scheduleOptions.customers]);
+
+  const bulkRoutes = useMemo(() => {
+    return [...new Set(scheduleOptions.customers.map((item) => item.route).filter(Boolean))].sort();
+  }, [scheduleOptions.customers]);
+
+  const bulkPreviewCount = useMemo(() => {
+    return scheduleOptions.customers.filter((item) => {
+      const matchesSlot = bulkForm.slot === "ALL" || String(item.slot || "").toUpperCase() === bulkForm.slot;
+      const matchesRoute = bulkForm.route === "ALL" || String(item.route || "").toLowerCase() === bulkForm.route.toLowerCase();
+      return matchesSlot && matchesRoute;
+    }).length;
+  }, [scheduleOptions.customers, bulkForm.slot, bulkForm.route]);
+
+  const filterOptions = useMemo(() => {
+    const agents = [...new Set(deliveries.map((d) => d.agentName).filter(Boolean))].sort();
+    const routes = [...new Set(deliveries.map((d) => d.route).filter(Boolean))].sort();
+    return { agents, routes };
+  }, [deliveries]);
 
   const filteredAndSortedDeliveries = useMemo(() => {
     const q = search.trim().toLowerCase();
-
-    const filtered = deliveriesSeed.filter((d) => {
+    const filtered = deliveries.filter((d) => {
       const searchableText = `${d.id} ${d.customerName} ${d.agentName} ${d.route}`.toLowerCase();
-      const matchesSearch = !q || searchableText.includes(q);
-
-      const matchesStatus = statusFilter === "ALL" || d.status === statusFilter;
-      const matchesDate = !dateFilter || d.date === dateFilter;
-      const matchesAgent = agentFilter === "ALL" || d.agentName === agentFilter;
-      const matchesRoute = routeFilter === "ALL" || d.route === routeFilter;
-
-      return matchesSearch && matchesStatus && matchesDate && matchesAgent && matchesRoute;
+      return (
+        (!q || searchableText.includes(q)) &&
+        (statusFilter === "ALL" || d.status === statusFilter) &&
+        (!dateFilter || d.date === dateFilter) &&
+        (agentFilter === "ALL" || d.agentName === agentFilter) &&
+        (routeFilter === "ALL" || d.route === routeFilter)
+      );
     });
 
-    const sorted = [...filtered].sort((a, b) => {
-      let compare = 0;
-
-      if (sortBy === "date") {
-        compare = new Date(a.date).getTime() - new Date(b.date).getTime();
-      } else if (sortBy === "customer") {
-        compare = a.customerName.localeCompare(b.customerName);
-      } else if (sortBy === "agent") {
-        compare = a.agentName.localeCompare(b.agentName);
-      } else if (sortBy === "status") {
-        compare = a.status.localeCompare(b.status);
-      } else if (sortBy === "quantity") {
-        compare = parseFloat(a.quantity) - parseFloat(b.quantity);
-      }
-
-      return sortOrder === "asc" ? compare : -compare;
+    return [...filtered].sort((a, b) => {
+      let comp = 0;
+      if (sortBy === "date") comp = toDateTimestamp(a.date) - toDateTimestamp(b.date);
+      else if (sortBy === "customer") comp = a.customerName.localeCompare(b.customerName);
+      else if (sortBy === "agent") comp = (a.agentName || "").localeCompare(b.agentName || "");
+      else if (sortBy === "status") comp = a.status.localeCompare(b.status);
+      else if (sortBy === "quantity") comp = toQuantityValue(a.quantity) - toQuantityValue(b.quantity);
+      return sortOrder === "asc" ? comp : -comp;
     });
+  }, [deliveries, search, statusFilter, dateFilter, agentFilter, routeFilter, sortBy, sortOrder]);
 
-    return sorted;
-  }, [search, statusFilter, dateFilter, agentFilter, routeFilter, sortBy, sortOrder]);
-
-  const totalRecords = filteredAndSortedDeliveries.length;
-  const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter, dateFilter, agentFilter, routeFilter, sortBy, sortOrder, pageSize]);
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const stats = useMemo(() => ({
+    total: filteredAndSortedDeliveries.length,
+    delivered: filteredAndSortedDeliveries.filter(d => d.status === "DELIVERED").length,
+    pending: filteredAndSortedDeliveries.filter(d => d.status === "PENDING").length,
+    failed: filteredAndSortedDeliveries.filter(d => d.status === "FAILED").length,
+  }), [filteredAndSortedDeliveries]);
 
   const paginatedDeliveries = useMemo(() => {
     const start = (page - 1) * pageSize;
     return filteredAndSortedDeliveries.slice(start, start + pageSize);
   }, [filteredAndSortedDeliveries, page, pageSize]);
 
-  const stats = useMemo(() => {
-    const total = filteredAndSortedDeliveries.length;
-    const delivered = filteredAndSortedDeliveries.filter((d) => d.status === "DELIVERED").length;
-    const pending = filteredAndSortedDeliveries.filter((d) => d.status === "PENDING").length;
-    const failed = filteredAndSortedDeliveries.filter((d) => d.status === "FAILED").length;
-    return { total, delivered, pending, failed };
-  }, [filteredAndSortedDeliveries]);
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedDeliveries.length / pageSize));
+
+  // --- Handlers ---
+  const handleScheduleSingle = async (e) => {
+    e.preventDefault();
+    setSingleFeedback({ type: "", message: "" });
+    setSingleSubmitting(true);
+    try {
+      await scheduleAdminDelivery({
+        customerId: Number(singleForm.customerId),
+        agentId: singleForm.agentId ? Number(singleForm.agentId) : null,
+        deliveryDate: singleForm.deliveryDate,
+        notes: singleForm.notes || null,
+      });
+      await Promise.all([loadDeliveries(), loadSchedulingOptions()]);
+      setSingleFeedback({ type: "success", message: "Delivery scheduled successfully." });
+      setSingleForm({ customerId: "", agentId: "", deliveryDate: getTodayDateInput(), notes: "" });
+    } catch (err) {
+      setSingleFeedback({ type: "error", message: err.message });
+    } finally { setSingleSubmitting(false); }
+  };
+
+  const handleScheduleBulk = async (e) => {
+    e.preventDefault();
+    setBulkFeedback({ type: "", message: "" });
+    setBulkSubmitting(true);
+    try {
+      const res = await scheduleAdminDeliveriesBulk(bulkForm);
+      await Promise.all([loadDeliveries(), loadSchedulingOptions()]);
+      setBulkSummary(res?.summary || null);
+      setBulkFeedback({ type: "success", message: "Bulk scheduling complete." });
+    } catch (err) {
+      setBulkFeedback({ type: "error", message: err.message });
+    } finally { setBulkSubmitting(false); }
+  };
+
+  const resetFilters = () => {
+    setSearch(""); setStatusFilter("ALL"); setDateFilter(""); setAgentFilter("ALL");
+    setRouteFilter("ALL"); setSortBy("date"); setSortOrder("desc"); setPage(1);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminMobileTopbar title="Deliveries" onMenu={() => setSidebarOpen(true)} />
-
+    <div className="flex min-h-screen bg-slate-50">
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
+      <main className="flex-1 lg:ml-64 w-full transition-all duration-300">
+        <AdminMobileTopbar title="Deliveries" onMenu={() => setSidebarOpen(true)} />
 
-      <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Deliveries</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Track daily fulfillment across agents and routes.
-          </p>
-        </div>
-
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Total</p>
-            <p className="mt-1 text-2xl font-semibold text-gray-900">{stats.total}</p>
-          </div>
-          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Delivered</p>
-            <p className="mt-1 text-2xl font-semibold text-green-700">{stats.delivered}</p>
-          </div>
-          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Pending</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-700">{stats.pending}</p>
-          </div>
-          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Failed</p>
-            <p className="mt-1 text-2xl font-semibold text-red-700">{stats.failed}</p>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="grid gap-3 border-b px-4 py-4 sm:px-6 sm:grid-cols-2 lg:grid-cols-4">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search id, customer, agent, route"
-              className="pro-input mt-0"
-            />
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="pro-input mt-0"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="DELIVERED">Delivered</option>
-              <option value="PENDING">Pending</option>
-              <option value="FAILED">Failed</option>
-            </select>
-
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="pro-input mt-0"
-            />
-
-            <button
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("ALL");
-                setDateFilter("");
-                setAgentFilter("ALL");
-                setRouteFilter("ALL");
-                setSortBy("date");
-                setSortOrder("desc");
-                setPage(1);
-                setPageSize(25);
-              }}
-              className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-            >
-              Reset Filters
-            </button>
-          </div>
-
-          <div className="grid gap-3 border-b px-4 py-4 sm:px-6 sm:grid-cols-2 lg:grid-cols-5">
-            <select
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(e.target.value)}
-              className="pro-input mt-0"
-            >
-              <option value="ALL">All Agents</option>
-              {filterOptions.agents.map((agent) => (
-                <option key={agent} value={agent}>
-                  {agent}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={routeFilter}
-              onChange={(e) => setRouteFilter(e.target.value)}
-              className="pro-input mt-0"
-            >
-              <option value="ALL">All Routes</option>
-              {filterOptions.routes.map((route) => (
-                <option key={route} value={route}>
-                  {route}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="pro-input mt-0"
-            >
-              <option value="date">Sort by Date</option>
-              <option value="customer">Sort by Customer</option>
-              <option value="agent">Sort by Agent</option>
-              <option value="status">Sort by Status</option>
-              <option value="quantity">Sort by Quantity</option>
-            </select>
-
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className="pro-input mt-0"
-            >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="pro-input mt-0"
-            >
-              <option value={25}>25 per page</option>
-              <option value={50}>50 per page</option>
-              <option value={100}>100 per page</option>
-            </select>
-          </div>
-
-          {paginatedDeliveries.length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-gray-500">
-              No deliveries match the selected filters.
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+          {/* Page Header */}
+          <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Delivery Management</h1>
+              <p className="text-slate-500 text-sm">Organize and monitor distribution runs.</p>
             </div>
-          ) : (
-            <>
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                    <tr>
-                      <th className="px-6 py-3 font-medium">Delivery ID</th>
-                      <th className="px-6 py-3 font-medium">Customer</th>
-                      <th className="px-6 py-3 font-medium">Agent</th>
-                      <th className="px-6 py-3 font-medium">Route</th>
-                      <th className="px-6 py-3 font-medium">Qty</th>
-                      <th className="px-6 py-3 font-medium">Date</th>
-                      <th className="px-6 py-3 font-medium">Slot</th>
-                      <th className="px-6 py-3 font-medium">Status</th>
+            
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Total", val: stats.total, color: "text-slate-700" },
+                { label: "Delivered", val: stats.delivered, color: "text-green-600" },
+                { label: "Pending", val: stats.pending, color: "text-amber-600" },
+                { label: "Failed", val: stats.failed, color: "text-red-600" }
+              ].map((item) => (
+                <div key={item.label} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm min-w-[100px]">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
+                  <p className={`text-xl font-bold ${item.color}`}>{item.val}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Scheduling Section */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+            <div className="flex bg-slate-50/50 border-b border-slate-200">
+              <button 
+                onClick={() => setActiveTab("bulk")}
+                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "bulk" ? "text-blue-600 border-b-2 border-blue-600 bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+              >
+                Bulk Distribution Run
+              </button>
+              <button 
+                onClick={() => setActiveTab("single")}
+                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "single" ? "text-blue-600 border-b-2 border-blue-600 bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+              >
+                Single Exception
+              </button>
+            </div>
+
+            <div className="p-6">
+              {activeTab === "bulk" ? (
+                <form onSubmit={handleScheduleBulk} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Distribution Date</label>
+                      <input type="date" value={bulkForm.deliveryDate} onChange={(e) => setBulkForm(p => ({...p, deliveryDate: e.target.value}))} className="pro-input w-full" required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Assigned Agent</label>
+                      <select value={bulkForm.agentId} onChange={(e) => setBulkForm(p => ({...p, agentId: e.target.value}))} className="pro-input w-full text-sm">
+                        <option value="">Auto-Assign (Based on Route)</option>
+                        {scheduleOptions.agents.map(a => <option key={a.id} value={a.id}>{a.name} ({a.route})</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Slot</label>
+                        <select value={bulkForm.slot} onChange={(e) => setBulkForm(p => ({...p, slot: e.target.value}))} className="pro-input w-full text-sm">
+                          <option value="ALL">All Slots</option>
+                          <option value="MORNING">Morning</option>
+                          <option value="EVENING">Evening</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Route</label>
+                        <select value={bulkForm.route} onChange={(e) => setBulkForm(p => ({...p, route: e.target.value}))} className="pro-input w-full text-sm">
+                          <option value="ALL">All Routes</option>
+                          {bulkRoutes.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea value={bulkForm.notes} onChange={(e) => setBulkForm(p => ({...p, notes: e.target.value}))} placeholder="Notes for this distribution run..." className="pro-input w-full h-20 text-sm" />
+                  
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                    <div className="text-sm font-medium text-blue-700 bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
+                      Eligible customers found: <span className="font-bold">{bulkPreviewCount}</span>
+                    </div>
+                    <button type="submit" disabled={bulkSubmitting || bulkPreviewCount === 0} className="pro-btn-primary w-full sm:w-auto px-8 py-2.5">
+                      {bulkSubmitting ? "Processing..." : "Start Distribution Run"}
+                    </button>
+                  </div>
+                  <FeedbackBanner feedback={bulkFeedback} />
+                </form>
+              ) : (
+                <form onSubmit={handleScheduleSingle} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Search Customer</label>
+                      <select value={singleForm.customerId} onChange={(e) => setSingleForm(p => ({...p, customerId: e.target.value}))} className="pro-input w-full text-sm" required>
+                        <option value="">Select Subscribed Customer</option>
+                        {scheduleOptions.customers.map(c => <option key={c.id} value={c.id}>{c.name} — {c.route} ({c.quantityLiters}L)</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Date</label>
+                        <input type="date" value={singleForm.deliveryDate} onChange={(e) => setSingleForm(p => ({...p, deliveryDate: e.target.value}))} className="pro-input w-full" required />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Agent</label>
+                        <select value={singleForm.agentId} onChange={(e) => setSingleForm(p => ({...p, agentId: e.target.value}))} className="pro-input w-full text-sm">
+                          <option value="">Unassigned</option>
+                          {scheduleOptions.agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea value={singleForm.notes} onChange={(e) => setSingleForm(p => ({...p, notes: e.target.value}))} placeholder="Special instructions for this specific delivery..." className="pro-input w-full h-20 text-sm" />
+                  
+                  <div className="flex justify-end pt-2">
+                    <button type="submit" disabled={singleSubmitting} className="pro-btn-dark w-full sm:w-64 py-2.5">
+                      {singleSubmitting ? "Scheduling..." : "Create Exception Delivery"}
+                    </button>
+                  </div>
+                  <FeedbackBanner feedback={singleFeedback} />
+                </form>
+              )}
+            </div>
+          </section>
+
+          {/* Delivery Log Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30">
+              <div className="relative w-full lg:w-96">
+                <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
+                <input 
+                  value={search} 
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Filter by ID, Customer, Agent or Route..." 
+                  className="pro-input w-full pl-10 text-sm py-2" 
+                />
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="pro-input text-[13px] py-1.5 flex-1 lg:flex-none">
+                  <option value="ALL">All Status</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+                <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="pro-input text-[13px] py-1.5 flex-1 lg:flex-none" />
+                <button onClick={resetFilters} className="text-xs font-bold text-blue-600 hover:text-blue-800 px-3 uppercase tracking-wider transition-colors">
+                  Reset Filters
+                </button>
+              </div>
+            </div>
+
+            {/* Content Area */}
+            {loading ? (
+              <div className="py-20"><LoadingIndicator message="Fetching logs..." /></div>
+            ) : paginatedDeliveries.length === 0 ? (
+              <div className="py-20 text-center">
+                <p className="text-slate-400 font-medium">No distribution logs found for selected criteria.</p>
+                <button onClick={resetFilters} className="mt-2 text-blue-600 underline text-sm">Clear all filters</button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                      <th className="px-6 py-4 font-bold">ID</th>
+                      <th className="px-6 py-4 font-bold">Customer</th>
+                      <th className="px-6 py-4 font-bold">Logistics</th>
+                      <th className="px-6 py-4 font-bold">Schedule</th>
+                      <th className="px-6 py-4 font-bold">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-slate-100">
                     {paginatedDeliveries.map((d) => (
-                      <tr key={d.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">{d.id}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{d.customerName}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{d.agentName}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{d.route}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{d.quantity}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
-                          {new Date(d.date).toLocaleDateString()}
+                      <tr key={d.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-6 py-4 text-xs font-bold text-slate-400 group-hover:text-slate-900">#{d.id}</td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-bold text-slate-800">{d.customerName}</p>
+                          <p className="text-[11px] text-slate-500">{d.route}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{d.slot}</td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-slate-600">{d.agentName || "Unassigned"}</p>
+                          <p className="text-[11px] text-slate-400 italic">Qty: {d.quantity}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-slate-800">{formatDate(d.date)}</p>
+                          <p className="text-[11px] font-medium text-slate-500">{d.slot}</p>
+                        </td>
                         <td className="px-6 py-4">
                           <StatusPill status={d.status} />
                         </td>
@@ -336,71 +454,31 @@ export default function AdminDeliveries() {
                   </tbody>
                 </table>
               </div>
+            )}
 
-              <div className="space-y-3 p-4 lg:hidden">
-                {paginatedDeliveries.map((d) => (
-                  <article
-                    key={d.id}
-                    className="rounded-xl border border-gray-200 bg-gray-50 p-4"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-gray-900">{d.id}</p>
-                      <StatusPill status={d.status} />
-                    </div>
-
-                    <div className="space-y-1 text-sm text-gray-700">
-                      <p>
-                        <span className="font-medium text-gray-900">Customer:</span> {d.customerName}
-                      </p>
-                      <p>
-                        <span className="font-medium text-gray-900">Agent:</span> {d.agentName}
-                      </p>
-                      <p>
-                        <span className="font-medium text-gray-900">Route:</span> {d.route}
-                      </p>
-                      <p>
-                        <span className="font-medium text-gray-900">Quantity:</span> {d.quantity}
-                      </p>
-                      <p>
-                        <span className="font-medium text-gray-900">Date:</span>{" "}
-                        {new Date(d.date).toLocaleDateString()}
-                      </p>
-                      <p>
-                        <span className="font-medium text-gray-900">Slot:</span> {d.slot}
-                      </p>
-                    </div>
-                  </article>
-                ))}
+            {/* Pagination */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-500">
+                Showing {Math.min(filteredAndSortedDeliveries.length, (page - 1) * pageSize + 1)} - {Math.min(page * pageSize, filteredAndSortedDeliveries.length)} of {filteredAndSortedDeliveries.length}
+              </span>
+              <div className="flex gap-2">
+                <button 
+                  disabled={page === 1} 
+                  onClick={() => setPage(p => p - 1)}
+                  className="px-3 py-1 text-xs font-bold border rounded bg-white hover:bg-slate-50 disabled:opacity-50 transition-all"
+                >
+                  Prev
+                </button>
+                <button 
+                  disabled={page === totalPages} 
+                  onClick={() => setPage(p => p + 1)}
+                  className="px-3 py-1 text-xs font-bold border rounded bg-white hover:bg-slate-50 disabled:opacity-50 transition-all"
+                >
+                  Next
+                </button>
               </div>
-
-              <div className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <p className="text-sm text-gray-500">
-                  Showing {(page - 1) * pageSize + 1}-
-                  {Math.min(page * pageSize, totalRecords)} of {totalRecords} deliveries
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-600">
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+            </div>
+          </div>
         </div>
       </main>
     </div>

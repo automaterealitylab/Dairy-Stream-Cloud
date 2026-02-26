@@ -20,6 +20,11 @@ const isMissingTableError = (error) => {
   return message.includes("relation") && message.includes("does not exist");
 };
 
+const isActiveSubscriptionStatus = (status) => {
+  const value = String(status || "ACTIVE").trim().toUpperCase();
+  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
 const ensureCustomerDairyAssignment = async ({ customerId, dairyId }) => {
   if (!customerId) return;
 
@@ -95,9 +100,9 @@ export const getSubscriptionByCustomerId = async (customerId) => {
     .from("subscriptions")
     .select("*")
     .eq("customer_id", customerId)
+    .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(50);
 
   if (error) {
     // Legacy-safe behavior: dashboard should still load even if subscriptions
@@ -111,7 +116,12 @@ export const getSubscriptionByCustomerId = async (customerId) => {
     }
     throw error;
   }
-  return data ?? null;
+
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return null;
+
+  const active = rows.find((row) => isActiveSubscriptionStatus(row?.status));
+  return active || rows[0] || null;
 };
 
 export const upsertSubscription = async (customerId, payload) => {
