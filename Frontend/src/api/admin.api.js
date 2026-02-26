@@ -59,6 +59,11 @@ export const deleteAdminCustomer = async (id) => {
   return data;
 };
 
+export const createAdminCustomerSubscription = async (customerId, payload) => {
+  const { data } = await client.post(`/admin/customers/${customerId}/subscription`, payload);
+  return data;
+};
+
 /* =========================
    AGENT MANAGEMENT
 ========================= */

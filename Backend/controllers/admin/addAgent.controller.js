@@ -1,4 +1,7 @@
-import { createAgentService } from "../../services/admin/addAgent.service.js"
+import {
+  createAgentService,
+  generateUniqueAgentId,
+} from "../../services/admin/addAgent.service.js";
 
 export const addAgent = async (req, res) => {
   try {
@@ -33,6 +36,22 @@ export const addAgent = async (req, res) => {
     res.status(statusCode).json({ 
       success: false,
       error: err.message 
+    });
+  }
+};
+
+export const getUniqueAgentId = async (_req, res) => {
+  try {
+    const agentId = await generateUniqueAgentId();
+    res.status(200).json({
+      success: true,
+      agentId,
+    });
+  } catch (err) {
+    console.error("Agent ID generation error:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to generate staff ID",
     });
   }
 };

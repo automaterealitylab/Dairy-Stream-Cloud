@@ -20,8 +20,6 @@ import Profile from "./pages/customer/CustomerProfile.jsx";
 // --- Admin Pages ---
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCustomers from "./pages/admin/AdminCustomers";
-import AddNewCustomerForm from "./pages/admin/AddNewCustomerForm";
-import AddNewAgentForm from "./pages/admin/AddNewAgentForm";
 // ⚠️ Ensure these files exist, even if empty placeholders for now:
 import AdminAgents from "./pages/admin/AdminAgents.jsx"; 
 import AdminDeliveries from "./pages/admin/AdminDeliveries"; 
@@ -132,7 +130,7 @@ function App() {
         path="/admin/addCustomer"
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AddNewCustomerForm />
+            <Navigate to="/admin/customers?addCustomer=1" replace />
           </ProtectedRoute>
         }
       />
@@ -150,7 +148,7 @@ function App() {
         path="/admin/addagent"
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AddNewAgentForm />
+            <Navigate to="/admin/agents?addAgent=1" replace />
           </ProtectedRoute>
         }
       />
