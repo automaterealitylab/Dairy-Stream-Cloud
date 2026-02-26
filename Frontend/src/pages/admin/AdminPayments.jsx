@@ -28,6 +28,8 @@ export default function AdminPayments() {
   // UI States
   const [filter, setFilter] = useState("ALL"); // ALL, PAID, PENDING
   const [editingPayment, setEditingPayment] = useState(null); // ID of payment being edited
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [billingCycle, setBillingCycle] = useState("monthly");
 
   const loadPayments = async () => {
     try {
@@ -69,20 +71,61 @@ export default function AdminPayments() {
   };
 
   const handleChangeFarmPlan = () => {
-    const plans = ["Basic", "Pro", "Enterprise"];
-    const currentPlan = farmPlan?.plan || "Standard";
-    const newPlan = prompt(`Enter new plan name (${plans.join(", ")}):`, currentPlan);
-    if (!newPlan) return;
+    setPlanModalOpen(true);
+  };
 
+  const handlePlanSelect = (newPlan) => {
     updateAdminFarmPlan(newPlan)
       .then(() => {
         setFarmPlan({ ...(farmPlan || {}), plan: newPlan });
         toast.success("Farm plan updated successfully!");
+        setPlanModalOpen(false);
       })
       .catch((err) => {
         toast.error(err?.response?.data?.error || "Failed to update farm plan");
       });
   };
+
+  const planOptions = [
+    {
+      name: "Free",
+      monthlyPrice: 0,
+      yearlyPrice: 0,
+      features: [
+        "2 auto tracking",
+        "7 day transaction clearing",
+        "Email support",
+        "Basic widget access",
+      ],
+      popular: false,
+    },
+    {
+      name: "Growth",
+      monthlyPrice: 150,
+      yearlyPrice: 1500,
+      features: [
+        "AI advisor",
+        "Unlimited auto tracking",
+        "1 day transaction clearing",
+        "Priority customer support",
+        "All widget access",
+      ],
+      popular: true,
+    },
+    {
+      name: "Prime",
+      monthlyPrice: 180,
+      yearlyPrice: 1800,
+      features: [
+        "Dedicated AI advisor",
+        "Unlimited auto tracking",
+        "Same day transaction clearing",
+        "Priority customer support",
+        "All widget access",
+      ],
+      popular: false,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -287,6 +330,105 @@ export default function AdminPayments() {
         </div>
 
       </main>
+
+      {planModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[2px] px-3 py-8 sm:px-6 md:py-10">
+          <div className="w-full max-w-5xl overflow-hidden rounded-[24px] sm:rounded-[30px] border border-gray-200 bg-white p-4 sm:p-6 md:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
+            <div className="text-center">
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">Choose your plan</h3>
+              <p className="mt-2 text-sm text-gray-500">Pick the best plan for your dairy operations.</p>
+
+              <div className="mt-5 inline-flex items-center rounded-full border border-gray-200 bg-white p-1">
+                <button
+                  onClick={() => setBillingCycle("monthly")}
+                  className={`text-sm font-semibold ${
+                    billingCycle === "monthly"
+                      ? "rounded-full bg-blue-600 px-4 py-2 text-white"
+                      : "rounded-full px-4 py-2 text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  Bill Monthly
+                </button>
+                <button
+                  onClick={() => setBillingCycle("yearly")}
+                  className={`text-sm font-semibold ${
+                    billingCycle === "yearly"
+                      ? "rounded-full bg-blue-600 px-4 py-2 text-white"
+                      : "rounded-full px-4 py-2 text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  Bill Yearly
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+              {planOptions.map((plan) => {
+                const price = billingCycle === "yearly" ? plan.yearlyPrice : plan.monthlyPrice;
+                const isCurrent = farmPlan?.plan === plan.name;
+
+                return (
+                  <div
+                    key={plan.name}
+                    className={`relative rounded-2xl border p-4 md:p-5 bg-white shadow-sm ${
+                      plan.popular ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200"
+                    }`}
+                  >
+                    {plan.popular && (
+                      <div className="absolute left-0 right-0 -top-0 rounded-t-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2 text-center text-xs font-bold tracking-wide text-white">
+                        MOST POPULAR
+                      </div>
+                    )}
+
+                    <div className={plan.popular ? "pt-5" : ""}>
+                      <h4 className="text-lg font-bold text-gray-900">{plan.name}</h4>
+
+                      <div className="mt-3 flex items-end gap-2">
+                        <span className="text-4xl font-bold text-gray-900">${price}</span>
+                        <span className="mb-1 text-sm text-gray-500">
+                          / {billingCycle === "yearly" ? "Year" : "Month"}
+                        </span>
+                      </div>
+
+                      <ul className="mt-4 space-y-2">
+                        {plan.features.map((feature) => (
+                          <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
+                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px]">
+                              ✓
+                            </span>
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button
+                        onClick={() => handlePlanSelect(plan.name)}
+                        className={`mt-5 w-full rounded-full px-4 py-2 text-sm font-semibold transition ${
+                          isCurrent
+                            ? "bg-gray-200 text-gray-700 cursor-default"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                        disabled={isCurrent}
+                      >
+                        {isCurrent ? "Current Plan" : "Purchase Plan"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => setPlanModalOpen(false)}
+                className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

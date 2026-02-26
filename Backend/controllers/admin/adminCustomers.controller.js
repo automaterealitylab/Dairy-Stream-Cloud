@@ -3,6 +3,7 @@ import {
   getCustomerDetails,
   updateCustomerById,
   deleteCustomerById,
+  upsertAdminCustomerSubscriptionById,
 } from "../../services/admin/adminCustomers.service.js";
 
 export const fetchAdminCustomers = async (req, res) => {
@@ -57,5 +58,31 @@ export const deleteAdminCustomerById = async (req, res) => {
   } catch (err) {
     console.error("ADMIN CUSTOMER DELETE ERROR:", err.message);
     res.status(500).json({ message: "Failed to delete customer" });
+  }
+};
+
+export const upsertAdminCustomerSubscription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+
+    if (!dairyId) {
+      return res.status(403).json({
+        message: "Admin is not linked to any dairy",
+      });
+    }
+
+    const subscription = await upsertAdminCustomerSubscriptionById({
+      customerId: id,
+      dairyId,
+      ...req.body,
+    });
+
+    res.json({ success: true, subscription });
+  } catch (err) {
+    console.error("ADMIN CUSTOMER SUBSCRIPTION ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to save customer subscription",
+    });
   }
 };

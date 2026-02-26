@@ -13,10 +13,11 @@ import {
   fetchAdminCustomerById,
   updateAdminCustomerById,
   deleteAdminCustomerById,
+  upsertAdminCustomerSubscription,
 } from "../controllers/admin/adminCustomers.controller.js";
 import { registerDairy } from "../controllers/admin/dairy.controller.js";
 import { uploadSingleImage } from "../middleware/upload.middleware.js";
-import { addAgent } from "../controllers/admin/addAgent.controller.js";
+import { addAgent, getUniqueAgentId } from "../controllers/admin/addAgent.controller.js";
 import { getUniqueBuildings } from "../controllers/shared/building.controller.js";
 import {
   fetchAdminAgents,
@@ -34,10 +35,12 @@ const router = express.Router();
 router.post("/", adminLogin);
 router.post("/register-dairy", uploadSingleImage, registerDairy);
 router.post("/addagent", verifyAdmin, addAgent);
+router.get("/agents/generate-id", verifyAdmin, getUniqueAgentId);
 router.get("/customers", verifyAdmin, fetchAdminCustomers); //need to work on this route, where we just fetch the customer data from the db, if no customer just a banner "you dont have any customer now, add you customer"
 router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById);
 router.put("/customers/:id", verifyAdmin, updateAdminCustomerById);
 router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById);
+router.post("/customers/:id/subscription", verifyAdmin, upsertAdminCustomerSubscription);
 router.get("/dashboard", verifyAdmin, getDashboard);
 router.get("/deliveries", verifyAdmin, fetchAdminDeliveries);
 router.get("/deliveries/scheduling-options", verifyAdmin, fetchDeliverySchedulingOptions);

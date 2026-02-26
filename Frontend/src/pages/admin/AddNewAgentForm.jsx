@@ -20,6 +20,7 @@ function AddNewAgentForm() {
   const [fetchError, setFetchError] = useState(null);
 
   const apiurlAddAgent = "http://localhost:4000/api/admin/addagent";
+  const apiurlGenerateAgentId = "http://localhost:4000/api/admin/agents/generate-id";
   const apiurlFetchBuildings = "http://localhost:4000/api/admin/buildings"; 
   
   const navigate = useNavigate();
@@ -39,10 +40,20 @@ function AddNewAgentForm() {
     generateNewAgentId();
   }, []);
 
-  const generateNewAgentId = () => {
-    const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 Random Digits
-    const newId = `STF${randomNum}`;
-    setAgent(prev => ({ ...prev, agentId: newId }));
+  const generateNewAgentId = async () => {
+    try {
+      const response = await axios.get(apiurlGenerateAgentId, getAuthHeader());
+      const newId = response?.data?.agentId;
+      if (!newId) {
+        throw new Error("No agentId returned by server");
+      }
+      setAgent((prev) => ({ ...prev, agentId: newId }));
+    } catch (error) {
+      console.error("Failed to generate unique agent id:", error);
+      const randomNum = Math.floor(100000 + Math.random() * 900000);
+      const fallbackId = `STF${randomNum}`;
+      setAgent((prev) => ({ ...prev, agentId: fallbackId }));
+    }
   };
 
   // --- Fetch Building Names ---
@@ -89,10 +100,11 @@ function AddNewAgentForm() {
     }
 
     try {
-      await axios.post(apiurlAddAgent, agent, getAuthHeader());
+      const response = await axios.post(apiurlAddAgent, agent, getAuthHeader());
+      const createdAgentId = response?.data?.data?.agent_id || agent.agentId;
       
       // Show the ID in the success message so admin can note it down
-      alert(`✅ Delivery Agent Created Successfully!\n\nAgent ID: ${agent.agentId}\n(Please share this ID with the agent for login)`);
+      alert(`✅ Delivery Agent Created Successfully!\n\nAgent ID: ${createdAgentId}\n(Please share this ID with the agent for login)`);
       navigate("/admin/agents");
     } catch (error) {
       console.error("Error adding agent:", error);
@@ -344,3 +356,4 @@ function AddNewAgentForm() {
 }
 
 export default AddNewAgentForm;
+

@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js";
+import { upsertSubscription } from "../customer/subscription.service.js";
 
 export const getAdminCustomers = async ({
   page = 1,
@@ -147,4 +148,41 @@ export const deleteCustomerById = async (customerId) => {
   const { error } = await supabase.from("customers").delete().eq("id", customerId);
   if (error) throw error;
   return { success: true };
+};
+
+export const upsertAdminCustomerSubscriptionById = async ({
+  customerId,
+  dairyId,
+  milkType,
+  quantity,
+  slot,
+  startDate,
+  address,
+  paymentMethod,
+  status,
+}) => {
+  if (!customerId) throw new Error("customerId is required");
+  if (!dairyId) throw new Error("dairyId is required");
+
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("id", customerId)
+    .maybeSingle();
+
+  if (customerError) throw customerError;
+  if (!customer) throw new Error("Customer not found");
+
+  const subscription = await upsertSubscription(customerId, {
+    dairy_id: dairyId,
+    milk_type: milkType || "Buffalo Milk",
+    quantity_liters: Number(quantity || 1),
+    delivery_slot: slot || "Morning",
+    start_date: startDate || undefined,
+    address: address || "",
+    payment_method: paymentMethod || "UPI",
+    status: (status || "ACTIVE").toUpperCase(),
+  });
+
+  return subscription;
 };
