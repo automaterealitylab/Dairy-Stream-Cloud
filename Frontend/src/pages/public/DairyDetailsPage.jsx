@@ -190,6 +190,17 @@ const handleContinueFromStep2 = () => {
     setStep(1);
     setShowSubscribe(true);
   };
+
+  const handleBuyOnceClick = () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Login to place a one-time order first");
+      redirectToLogin(`/buy-once/${id}`);
+      return;
+    }
+    navigate(`/buy-once/${id}`);
+  };
+
   if (loading) return <LoadingIndicator fullScreen message="Fetching farm details..." />;
 
   return (
@@ -246,19 +257,35 @@ const handleContinueFromStep2 = () => {
             </div>
 
             {isSubscribedToThis ? (
-              <button 
-                onClick={() => navigate("/customer/dashboard/subscriptions")}
-                className="w-full bg-green-600 text-white py-5 rounded-[24px] font-bold shadow-xl shadow-green-100 flex items-center justify-center gap-2"
-              >
-                <CheckCircle2 size={20} /> Active Subscription
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigate("/customer/dashboard/subscriptions")}
+                  className="w-full bg-green-600 text-white py-5 rounded-[24px] font-bold shadow-xl shadow-green-100 flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 size={20} /> Active Subscription
+                </button>
+                <button
+                  onClick={handleBuyOnceClick}
+                  className="w-full bg-white text-slate-900 py-4 rounded-[20px] font-bold border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Calendar size={18} /> Buy Once
+                </button>
+              </div>
             ) : (
-              <button 
-                onClick={handleSubscribeClick}
-                className="w-full bg-blue-600 text-white py-5 rounded-[24px] font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 group"
-              >
-                Subscribe Now <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={handleSubscribeClick}
+                  className="w-full bg-blue-600 text-white py-5 rounded-[24px] font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 group"
+                >
+                  Subscribe Now <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button
+                  onClick={handleBuyOnceClick}
+                  className="w-full bg-white text-slate-900 py-4 rounded-[20px] font-bold border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Calendar size={18} /> Buy Once
+                </button>
+              </div>
             )}
 
             <p className="mt-4 text-xs text-slate-500">
