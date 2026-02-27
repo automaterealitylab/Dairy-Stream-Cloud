@@ -6,7 +6,10 @@ import {
   Clock, Truck, ChevronDown, User, LogOut, ArrowLeft
 } from 'lucide-react';
 import { fetchPublicDairies } from '../../api/public.api.js';
+import { fetchCustomerSubscription } from '../../api/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
+
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
@@ -16,6 +19,7 @@ const ExploreDairiesPage = () => {
   const [dairies, setDairies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -61,7 +65,37 @@ const ExploreDairiesPage = () => {
   );
 
   const isLoggedIn = Boolean(user?.token || user?.role || localStorage.getItem("user"));
-  const isFromCustomerSubscriptions = location.state?.from === "customer-subscriptions";
+  const roleFromStorage = localStorage.getItem("userRole");
+  const currentUserRole = String(user?.role || roleFromStorage || "").toUpperCase();
+  const isCustomerLoggedIn = isLoggedIn && currentUserRole === "CUSTOMER";
+  const isFromCustomerSubscriptions =
+    location.state?.from === "customer-subscriptions" && hasActiveSubscription;
+  const hasVisitedDashboard = sessionStorage.getItem(DASHBOARD_VISITED_FLAG) === "1";
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSubscriptionState = async () => {
+      if (!isCustomerLoggedIn) {
+        if (active) setHasActiveSubscription(false);
+        return;
+      }
+
+      try {
+        const data = await fetchCustomerSubscription();
+        const sub = data?.subscription;
+        const status = String(sub?.status || "").toUpperCase();
+        if (active) {
+          setHasActiveSubscription(Boolean(sub) && status !== "CLOSED");
+        }
+      } catch {
+        if (active) setHasActiveSubscription(false);
+      }
+    };
+
+    loadSubscriptionState();
+    return () => { active = false; };
+  }, [isCustomerLoggedIn]);
   const deliveryLocation = useMemo(() => {
     const stored = localStorage.getItem("user");
     if (!stored) return "Your area";
@@ -84,6 +118,12 @@ const ExploreDairiesPage = () => {
   const handleAuthAction = () => {
     if (isFromCustomerSubscriptions) {
       navigate("/customer/dashboard/subscriptions");
+      return;
+    }
+
+    if (isCustomerLoggedIn) {
+      sessionStorage.setItem(DASHBOARD_VISITED_FLAG, "1");
+      navigate("/customer/dashboard");
       return;
     }
 
@@ -141,10 +181,17 @@ const ExploreDairiesPage = () => {
                        Back to Subscriptions
                      </>
                    ) : (
-                     <>
-                       {isLoggedIn ? <LogOut size={20} /> : <User size={20} />}
-                       {isLoggedIn ? "Logout" : "Login"}
-                     </>
+                     isCustomerLoggedIn ? (
+                       <>
+                         <ArrowLeft size={20} />
+                         {hasVisitedDashboard ? "Back to Dashboard" : "Go to Dashboard"}
+                       </>
+                     ) : (
+                       <>
+                         {isLoggedIn ? <LogOut size={20} /> : <User size={20} />}
+                         {isLoggedIn ? "Logout" : "Login"}
+                       </>
+                     )
                    )}
                 </button>
              </div>

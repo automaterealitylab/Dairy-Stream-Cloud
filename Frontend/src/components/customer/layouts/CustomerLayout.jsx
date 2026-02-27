@@ -15,11 +15,12 @@ import {
 const NAV_ITEMS = [
   { icon: Home, label: "Home", path: "/customer/dashboard" },
   { icon: Calendar, label: "Deliveries", path: "/customer/dashboard/deliveries" },
-  { icon: ShoppingBag, label: "Subscribe", path: "/customer/dashboard/subscriptions" },
+  { icon: ShoppingBag, label: "My Subscription", path: "/customer/dashboard/subscriptions" },
   { icon: CreditCard, label: "Payments", path: "/customer/dashboard/payments" },
    { icon:MapPin, label: "Track Agent", path: "/customer/dashboard/track/agent" },
   { icon: User, label: "Profile", path: "/customer/dashboard/profile" },
 ];
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 
 const CustomerLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ const CustomerLayout = ({ children }) => {
 
   const handleLogout = () => {
     localStorage.clear();
+    sessionStorage.removeItem(DASHBOARD_VISITED_FLAG);
     navigate("/", { replace: true });
   };
 

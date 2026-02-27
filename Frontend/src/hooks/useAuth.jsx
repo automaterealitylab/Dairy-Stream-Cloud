@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 const AuthContext = createContext(null);
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     localStorage.clear(); // Clears all tokens and user data safely
+    sessionStorage.removeItem(DASHBOARD_VISITED_FLAG);
     window.location.href = "/login"; // Force redirect to login on logout
   };
 
