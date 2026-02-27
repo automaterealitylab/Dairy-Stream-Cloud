@@ -4,7 +4,10 @@ import { generateToken } from "../../utils/jwt.js";
 import { sendEmail } from "../../utils/email.js";
 
 const adminResetOtpStore = new Map();
+const adminResetOtpRequestStore = new Map();
 const ADMIN_OTP_EXPIRY_MS = 10 * 60 * 1000;
+const ADMIN_OTP_REQUEST_LIMIT = 3;
+const ADMIN_OTP_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
 
@@ -58,12 +61,48 @@ const purgeExpiredAdminResetOtps = () => {
   }
 };
 
+const trackAdminOtpRequest = (key) => {
+  const now = Date.now();
+  const existing = adminResetOtpRequestStore.get(key);
+  const isExpiredWindow = !existing || now - existing.windowStart > ADMIN_OTP_REQUEST_WINDOW_MS;
+
+  if (isExpiredWindow) {
+    adminResetOtpRequestStore.set(key, { count: 1, windowStart: now });
+    return {
+      allowed: true,
+      remainingRequests: ADMIN_OTP_REQUEST_LIMIT - 1,
+    };
+  }
+
+  if (existing.count >= ADMIN_OTP_REQUEST_LIMIT) {
+    return {
+      allowed: false,
+      remainingRequests: 0,
+    };
+  }
+
+  const nextCount = existing.count + 1;
+  adminResetOtpRequestStore.set(key, { ...existing, count: nextCount });
+  return {
+    allowed: true,
+    remainingRequests: Math.max(0, ADMIN_OTP_REQUEST_LIMIT - nextCount),
+  };
+};
+
 export const requestAdminResetOtpService = async ({ identifier }) => {
   const admin = await findAdminByIdentifier(identifier);
   if (!admin) throw new Error("Admin account not found");
   if (!admin.email) throw new Error("Admin email not available for OTP delivery");
 
   purgeExpiredAdminResetOtps();
+  const requestCheck = trackAdminOtpRequest(String(admin.id));
+  if (!requestCheck.allowed) {
+    const err = new Error("OTP request limit exceeded. Try after 15 minutes.");
+    err.statusCode = 429;
+    err.remainingRequests = 0;
+    err.retryAfterMinutes = 15;
+    throw err;
+  }
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const key = String(admin.id);
@@ -83,7 +122,11 @@ export const requestAdminResetOtpService = async ({ identifier }) => {
     `,
   });
 
-  return { email: admin.email };
+  return {
+    email: admin.email,
+    remainingRequests: requestCheck.remainingRequests,
+    limit: ADMIN_OTP_REQUEST_LIMIT,
+  };
 };
 
 export const resetAdminPasswordWithOtpService = async ({

@@ -387,19 +387,46 @@ const DairyDetailsPage = () => {
                   </div>
 
                   <div className="bg-slate-50 p-4 rounded-2xl text-sm border border-slate-100">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Total Payable (Daily)</span>
-                      <span className="font-black text-blue-600">Rs {currentPrice * subscription.quantity}</span>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Selected Plan</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Milk Type</span>
+                        <span className="font-semibold text-slate-900">{subscription.milkType}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Rate</span>
+                        <span className="font-semibold text-slate-900">Rs {currentPrice}/L</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Quantity</span>
+                        <span className="font-semibold text-slate-900">{subscription.quantity} L/day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Delivery Slot</span>
+                        <span className="font-semibold text-slate-900">{subscription.slot}</span>
+                      </div>
+                      <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between">
+                        <span className="text-slate-500">Estimated Daily Amount</span>
+                        <span className="font-black text-blue-600">Rs {currentPrice * subscription.quantity}</span>
+                      </div>
                     </div>
                   </div>
 
-                  <button
-                    disabled={saving}
-                    onClick={handleConfirmSubscription}
-                    className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold"
-                  >
-                    {saving ? "Processing..." : "Confirm Subscription"}
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="flex-1 py-3.5 rounded-xl font-bold text-slate-600 border border-slate-200 hover:bg-slate-50"
+                    >
+                      Back
+                    </button>
+                    <button
+                      disabled={saving}
+                      onClick={handleConfirmSubscription}
+                      className="flex-[2] bg-blue-600 text-white py-3.5 rounded-xl font-bold"
+                    >
+                      {saving ? "Processing..." : "Confirm Subscription"}
+                    </button>
+                  </div>
                 </div>
               )}
 

@@ -46,11 +46,13 @@ const LoginPage = () => {
   const [adminResetOtp, setAdminResetOtp] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
+  const [adminOtpRequestsRemaining, setAdminOtpRequestsRemaining] = useState(null);
   const [agentResetMode, setAgentResetMode] = useState(false);
   const [agentResetOtpSent, setAgentResetOtpSent] = useState(false);
   const [agentResetOtp, setAgentResetOtp] = useState("");
   const [newAgentPassword, setNewAgentPassword] = useState("");
   const [confirmAgentPassword, setConfirmAgentPassword] = useState("");
+  const [agentOtpRequestsRemaining, setAgentOtpRequestsRemaining] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -81,11 +83,13 @@ const LoginPage = () => {
     setAdminResetOtp("");
     setNewAdminPassword("");
     setConfirmAdminPassword("");
+    setAdminOtpRequestsRemaining(null);
     setAgentResetMode(false);
     setAgentResetOtpSent(false);
     setAgentResetOtp("");
     setNewAgentPassword("");
     setConfirmAgentPassword("");
+    setAgentOtpRequestsRemaining(null);
   };
 
   // ================= IDENTIFIER SUBMIT =================
@@ -146,8 +150,10 @@ const LoginPage = () => {
       setStep(response.nextStep); // e.g., "PASSWORD"
       setAdminResetMode(false);
       setAdminResetOtpSent(false);
+      setAdminOtpRequestsRemaining(null);
       setAgentResetMode(false);
       setAgentResetOtpSent(false);
+      setAgentOtpRequestsRemaining(null);
       
     } catch (err) {
       const backendMessage =
@@ -187,6 +193,10 @@ const LoginPage = () => {
       setAdminResetOtpSent(true);
       setAgentResetMode(false);
       setAgentResetOtpSent(false);
+      setAdminOtpRequestsRemaining(
+        typeof result?.remainingRequests === "number" ? result.remainingRequests : null
+      );
+      setAgentOtpRequestsRemaining(null);
       toast.success(result?.message || "OTP sent to registered admin email");
     } catch (err) {
       const backendMessage =
@@ -195,6 +205,9 @@ const LoginPage = () => {
         err.message ||
         "Failed to send OTP";
       setError(backendMessage);
+      if (typeof err.response?.data?.remainingRequests === "number") {
+        setAdminOtpRequestsRemaining(err.response.data.remainingRequests);
+      }
       toast.error(backendMessage);
     } finally {
       setLoading(false);
@@ -263,6 +276,10 @@ const LoginPage = () => {
       setAgentResetOtpSent(true);
       setAdminResetMode(false);
       setAdminResetOtpSent(false);
+      setAgentOtpRequestsRemaining(
+        typeof result?.remainingRequests === "number" ? result.remainingRequests : null
+      );
+      setAdminOtpRequestsRemaining(null);
       toast.success(result?.message || "OTP sent to registered agent email");
     } catch (err) {
       const backendMessage =
@@ -271,6 +288,9 @@ const LoginPage = () => {
         err.message ||
         "Failed to send OTP";
       setError(backendMessage);
+      if (typeof err.response?.data?.remainingRequests === "number") {
+        setAgentOtpRequestsRemaining(err.response.data.remainingRequests);
+      }
       toast.error(backendMessage);
     } finally {
       setLoading(false);
@@ -601,6 +621,27 @@ const LoginPage = () => {
                     </button>
                   ) : (
                     <>
+                      {typeof adminOtpRequestsRemaining === "number" && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500">
+                            OTP requests remaining: {adminOtpRequestsRemaining}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleAdminForgotPasswordRequest}
+                            disabled={loading || adminOtpRequestsRemaining <= 0}
+                            className="text-blue-600 font-semibold hover:underline disabled:text-gray-400 disabled:no-underline"
+                          >
+                            Resend OTP
+                          </button>
+                        </div>
+                      )}
+                      {adminOtpRequestsRemaining === 0 && (
+                        <p className="text-xs text-red-600 font-medium">
+                          Limit reached. Try after 15 minutes.
+                        </p>
+                      )}
+
                       <input
                         value={adminResetOtp}
                         onChange={(e) => setAdminResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -660,6 +701,7 @@ const LoginPage = () => {
                           setAdminResetOtp("");
                           setNewAdminPassword("");
                           setConfirmAdminPassword("");
+                          setAdminOtpRequestsRemaining(null);
                         }}
                         className="w-full text-sm text-gray-500 hover:text-gray-700"
                       >
@@ -685,6 +727,27 @@ const LoginPage = () => {
                     </button>
                   ) : (
                     <>
+                      {typeof agentOtpRequestsRemaining === "number" && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500">
+                            OTP requests remaining: {agentOtpRequestsRemaining}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleAgentForgotPasswordRequest}
+                            disabled={loading || agentOtpRequestsRemaining <= 0}
+                            className="text-blue-600 font-semibold hover:underline disabled:text-gray-400 disabled:no-underline"
+                          >
+                            Resend OTP
+                          </button>
+                        </div>
+                      )}
+                      {agentOtpRequestsRemaining === 0 && (
+                        <p className="text-xs text-red-600 font-medium">
+                          Limit reached. Try after 15 minutes.
+                        </p>
+                      )}
+
                       <input
                         value={agentResetOtp}
                         onChange={(e) => setAgentResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -744,6 +807,7 @@ const LoginPage = () => {
                           setAgentResetOtp("");
                           setNewAgentPassword("");
                           setConfirmAgentPassword("");
+                          setAgentOtpRequestsRemaining(null);
                         }}
                         className="w-full text-sm text-gray-500 hover:text-gray-700"
                       >

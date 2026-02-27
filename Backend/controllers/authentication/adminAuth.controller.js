@@ -55,11 +55,15 @@ export const requestAdminResetOtp = async (req, res) => {
       success: true,
       message: "OTP sent to admin email",
       email: result.email,
+      remainingRequests: result.remainingRequests,
+      limit: result.limit,
     });
   } catch (err) {
-    res.status(400).json({
+    res.status(err.statusCode || 400).json({
       success: false,
       error: err.message || "Failed to send reset OTP",
+      remainingRequests: err.remainingRequests,
+      retryAfterMinutes: err.retryAfterMinutes,
     });
   }
 };

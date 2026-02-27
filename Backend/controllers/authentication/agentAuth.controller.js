@@ -4,7 +4,10 @@ import jwt from "jsonwebtoken";
 import { sendEmail } from "../../utils/email.js";
 
 const agentResetOtpStore = new Map();
+const agentResetOtpRequestStore = new Map();
 const AGENT_OTP_EXPIRY_MS = 10 * 60 * 1000;
+const AGENT_OTP_REQUEST_LIMIT = 3;
+const AGENT_OTP_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 
 const normalizeStaffId = (agentId) => String(agentId || "").trim().toUpperCase();
 
@@ -15,6 +18,34 @@ const purgeExpiredAgentResetOtps = () => {
       agentResetOtpStore.delete(key);
     }
   }
+};
+
+const trackAgentOtpRequest = (key) => {
+  const now = Date.now();
+  const existing = agentResetOtpRequestStore.get(key);
+  const isExpiredWindow = !existing || now - existing.windowStart > AGENT_OTP_REQUEST_WINDOW_MS;
+
+  if (isExpiredWindow) {
+    agentResetOtpRequestStore.set(key, { count: 1, windowStart: now });
+    return {
+      allowed: true,
+      remainingRequests: AGENT_OTP_REQUEST_LIMIT - 1,
+    };
+  }
+
+  if (existing.count >= AGENT_OTP_REQUEST_LIMIT) {
+    return {
+      allowed: false,
+      remainingRequests: 0,
+    };
+  }
+
+  const nextCount = existing.count + 1;
+  agentResetOtpRequestStore.set(key, { ...existing, count: nextCount });
+  return {
+    allowed: true,
+    remainingRequests: Math.max(0, AGENT_OTP_REQUEST_LIMIT - nextCount),
+  };
 };
 
 const findAgentByStaffId = async (agentId) => {
@@ -93,6 +124,16 @@ export const requestAgentResetOtp = async (req, res) => {
     }
 
     purgeExpiredAgentResetOtps();
+    const requestCheck = trackAgentOtpRequest(String(agent.id));
+    if (!requestCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: "OTP request limit exceeded. Try after 15 minutes.",
+        remainingRequests: 0,
+        retryAfterMinutes: 15,
+      });
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const key = String(agent.id);
     agentResetOtpStore.set(key, {
@@ -115,6 +156,8 @@ export const requestAgentResetOtp = async (req, res) => {
       success: true,
       message: "OTP sent to agent email",
       email: agent.email,
+      remainingRequests: requestCheck.remainingRequests,
+      limit: AGENT_OTP_REQUEST_LIMIT,
     });
   } catch (err) {
     return res.status(400).json({
