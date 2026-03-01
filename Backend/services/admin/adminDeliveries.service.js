@@ -48,6 +48,14 @@ const normalizeStatus = (status) => {
   return "PENDING";
 };
 
+const normalizeApprovalStatus = (value, { isOneTimeOrder = false } = {}) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (normalized === "APPROVED") return "APPROVED";
+  if (normalized === "REJECTED") return "REJECTED";
+  if (normalized === "PENDING") return "PENDING";
+  return isOneTimeOrder ? "PENDING" : "APPROVED";
+};
+
 const formatQuantity = (value) => {
   const quantity = Number(value);
   if (!Number.isFinite(quantity)) return "-";
@@ -148,9 +156,14 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
 
     const quantity = row.quantity_liters ?? subscription.quantity_liters ?? null;
     const route = customer.building_name || agent.building || "-";
+    const notes = String(row.notes || "");
+    const isOneTimeOrder = notes.includes("[ONE_TIME_ORDER]");
+    const approvalStatus = normalizeApprovalStatus(row.approval_status, { isOneTimeOrder });
 
     return {
       id: row.id != null ? `DLV-${row.id}` : "DLV-NA",
+      rawId: row.id ?? null,
+      agentId: row.agent_id ?? null,
       customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
       agentName: agent.agent_name || "Unassigned",
       route,
@@ -158,8 +171,51 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
       date: normalizeDate(row.delivery_date || row.created_at),
       slot: subscription.delivery_slot || "-",
       status: normalizeStatus(row.status),
+      isOneTimeOrder,
+      approvalStatus,
+      needsApproval: approvalStatus === "PENDING",
+      isAssigned: row.agent_id != null,
     };
   });
+};
+
+const getAgentAvailabilityMap = async ({ agentIds = [], deliveryDate }) => {
+  const ids = [...new Set((agentIds || []).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const targetDate = normalizeDate(deliveryDate) || normalizeDate(new Date());
+  const { data, error } = await supabase
+    .from("deliveries")
+    .select("agent_id, status, delivery_date")
+    .in("agent_id", ids)
+    .eq("delivery_date", targetDate);
+
+  if (error) throw error;
+
+  const availabilityMap = new Map();
+  for (const id of ids) {
+    availabilityMap.set(id, {
+      assignedCount: 0,
+      availability: "AVAILABLE",
+    });
+  }
+
+  for (const row of data || []) {
+    const agentId = row?.agent_id;
+    if (!agentId || !availabilityMap.has(agentId)) continue;
+
+    const current = availabilityMap.get(agentId);
+    const status = String(row?.status || "").toUpperCase();
+    const isOpenDelivery = status === "PENDING" || status === "PENDING_APPROVAL";
+    const nextCount = current.assignedCount + (isOpenDelivery ? 1 : 0);
+
+    availabilityMap.set(agentId, {
+      assignedCount: nextCount,
+      availability: nextCount > 0 ? "BUSY" : "AVAILABLE",
+    });
+  }
+
+  return availabilityMap;
 };
 
 const getDairyNameById = async (dairyId) => {
@@ -222,7 +278,7 @@ export const getAdminDeliveries = async ({ dairyId = null, limit } = {}) => {
   let deliveriesQuery = supabase
     .from("deliveries")
     .select(
-      "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, created_at"
+      "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, created_at"
     )
     .order("delivery_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -347,13 +403,30 @@ export const getDeliverySchedulingOptions = async ({ dairyId = null } = {}) => {
     })
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
-  const availableAgents = (agents || [])
-    .filter((agent) => String(agent?.status || "ACTIVE").toUpperCase() !== "INACTIVE")
-    .map((agent) => ({
+  const agentIds = (agents || []).map((agent) => agent?.id).filter(Boolean);
+  const availabilityMap = await getAgentAvailabilityMap({
+    agentIds,
+    deliveryDate: new Date(),
+  });
+
+  const availableAgents = (agents || []).map((agent) => {
+    const normalizedStatus = String(agent?.status || "ACTIVE").toUpperCase();
+    const isActive = normalizedStatus !== "INACTIVE";
+    const availability = availabilityMap.get(agent?.id) || {
+      assignedCount: 0,
+      availability: "AVAILABLE",
+    };
+
+    return {
       id: agent.id,
       name: agent.agent_name || `Agent #${agent.id}`,
       route: agent.building || "-",
-    }));
+      status: normalizedStatus,
+      isActive,
+      availability: availability.availability,
+      assignedCount: availability.assignedCount,
+    };
+  });
 
   return {
     customers: schedulableCustomers,
@@ -439,6 +512,7 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     milk_type: activeSubscription.milk_type || "Milk",
     quantity_liters: activeSubscription.quantity_liters ?? null,
     status: "PENDING",
+    approval_status: "APPROVED",
     notes: notes ? String(notes).slice(0, 500) : null,
   };
 
@@ -616,6 +690,7 @@ export const scheduleBulkDeliveriesForDate = async ({
       milk_type: sub?.milk_type || "Milk",
       quantity_liters: sub?.quantity_liters ?? null,
       status: "PENDING",
+      approval_status: "APPROVED",
       notes: notes ? String(notes).slice(0, 500) : null,
     });
   }
@@ -660,5 +735,160 @@ export const scheduleBulkDeliveriesForDate = async ({
     skippedExistingCount: filteredCustomerIds.length - createdRows.length - skippedNoDairyCount,
     skippedNoDairyCount,
     skippedByFilterCount: candidateCustomerIds.length - filteredCustomerIds.length,
+  };
+};
+
+export const approvePendingDeliveryOrder = async ({ dairyId = null, deliveryId }) => {
+  const parsedDeliveryId = toIntegerOrNull(deliveryId);
+  if (!parsedDeliveryId) {
+    throw makeError("deliveryId is required");
+  }
+
+  let existingQuery = supabase
+    .from("deliveries")
+    .select("id, dairy_id, notes, approval_status")
+    .eq("id", parsedDeliveryId)
+    .limit(1);
+  if (dairyId) {
+    existingQuery = existingQuery.eq("dairy_id", dairyId);
+  }
+
+  const { data: delivery, error: deliveryError } = await existingQuery.maybeSingle();
+  if (deliveryError) throw deliveryError;
+  if (!delivery) throw makeError("Order not found", 404);
+
+  const isOneTimeOrder = String(delivery?.notes || "").includes("[ONE_TIME_ORDER]");
+  if (!isOneTimeOrder) {
+    throw makeError("Only customer one-time orders require approval", 400);
+  }
+
+  const currentStatus = normalizeApprovalStatus(delivery?.approval_status, {
+    isOneTimeOrder: true,
+  });
+  if (currentStatus === "APPROVED") {
+    return {
+      approvedCount: 0,
+      alreadyApproved: true,
+      deliveryId: parsedDeliveryId,
+    };
+  }
+
+  const { data: updatedDelivery, error: updateError } = await supabase
+    .from("deliveries")
+    .update({
+      approval_status: "APPROVED",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsedDeliveryId)
+    .eq("dairy_id", delivery.dairy_id)
+    .select("id, approval_status")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!updatedDelivery) throw makeError("Failed to approve order", 500);
+
+  return {
+    approvedCount: 1,
+    deliveryId: updatedDelivery.id,
+    approvalStatus: String(updatedDelivery.approval_status || "APPROVED").toUpperCase(),
+  };
+};
+
+export const approveAllPendingDeliveryOrders = async ({ dairyId = null } = {}) => {
+  if (!dairyId) {
+    throw makeError("dairyId is required", 400);
+  }
+
+  const { data: pendingRows, error: pendingError } = await supabase
+    .from("deliveries")
+    .select("id")
+    .eq("dairy_id", dairyId)
+    .ilike("notes", "%[ONE_TIME_ORDER]%")
+    .eq("approval_status", "PENDING");
+
+  if (pendingError) throw pendingError;
+  const pendingIds = (pendingRows || []).map((row) => row.id).filter(Boolean);
+  if (pendingIds.length === 0) {
+    return { approvedCount: 0 };
+  }
+
+  const { data: updatedRows, error: updateError } = await supabase
+    .from("deliveries")
+    .update({
+      approval_status: "APPROVED",
+      updated_at: new Date().toISOString(),
+    })
+    .in("id", pendingIds)
+    .select("id");
+
+  if (updateError) throw updateError;
+
+  return {
+    approvedCount: (updatedRows || []).length,
+  };
+};
+
+export const assignDeliveryPartnerToOrder = async ({
+  dairyId = null,
+  deliveryId,
+  agentId,
+} = {}) => {
+  const parsedDeliveryId = toIntegerOrNull(deliveryId);
+  const parsedAgentId = toIntegerOrNull(agentId);
+  if (!parsedDeliveryId) throw makeError("deliveryId is required");
+  if (!parsedAgentId) throw makeError("agentId is required");
+
+  let deliveryQuery = supabase
+    .from("deliveries")
+    .select("id, dairy_id, agent_id, notes, approval_status")
+    .eq("id", parsedDeliveryId)
+    .limit(1);
+  if (dairyId) {
+    deliveryQuery = deliveryQuery.eq("dairy_id", dairyId);
+  }
+
+  const { data: delivery, error: deliveryError } = await deliveryQuery.maybeSingle();
+  if (deliveryError) throw deliveryError;
+  if (!delivery) throw makeError("Delivery not found", 404);
+
+  const isOneTimeOrder = String(delivery?.notes || "").includes("[ONE_TIME_ORDER]");
+  const approvalStatus = normalizeApprovalStatus(delivery?.approval_status, {
+    isOneTimeOrder,
+  });
+  if (isOneTimeOrder && approvalStatus !== "APPROVED") {
+    throw makeError("Approve order first, then assign delivery partner", 400);
+  }
+
+  const resolvedDairyId = delivery?.dairy_id || dairyId;
+  if (!resolvedDairyId) throw makeError("Could not resolve dairy for this delivery", 400);
+
+  const { data: agent, error: agentError } = await supabase
+    .from("agents")
+    .select("id, dairy_id")
+    .eq("id", parsedAgentId)
+    .eq("dairy_id", resolvedDairyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (agentError) throw agentError;
+  if (!agent) throw makeError("Selected delivery partner is not valid for this dairy", 400);
+
+  const { data: updated, error: updateError } = await supabase
+    .from("deliveries")
+    .update({
+      agent_id: parsedAgentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsedDeliveryId)
+    .eq("dairy_id", resolvedDairyId)
+    .select("id, agent_id")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!updated) throw makeError("Failed to assign delivery partner", 500);
+
+  return {
+    deliveryId: updated.id,
+    agentId: updated.agent_id,
   };
 };

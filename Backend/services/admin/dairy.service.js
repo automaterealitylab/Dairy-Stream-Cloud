@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { supabase } from "../../config/supabase.js";
 import { generateToken } from "../../utils/jwt.js";
 import { ensureIdentityIsUnique } from "../authentication/identityUniqueness.service.js";
+import verifyEmail from "../../utils/verifyEmail.js";
 
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 const normalizeIfsc = (value) => String(value || "").trim().toUpperCase();
@@ -55,6 +56,7 @@ export const registerDairyService = async ({
 }) => {
   try {
     const normalizedDairyEmail = normalizeEmail(dairyEmail);
+    const normalizedAdminEmail = normalizeEmail(adminEmail);
     const sanitizedAccountNumber = normalizeDigits(bankAccountNumber);
     const sanitizedIfsc = normalizeIfsc(bankIfscCode);
     if (sanitizedAccountNumber.length < 8 || sanitizedAccountNumber.length > 20) {
@@ -86,9 +88,26 @@ export const registerDairyService = async ({
       throw conflictError;
     }
 
+    const [isDairyEmailValid, isAdminEmailValid] = await Promise.all([
+      verifyEmail(normalizedDairyEmail),
+      verifyEmail(normalizedAdminEmail),
+    ]);
+
+    if (!isDairyEmailValid) {
+      const inputError = new Error("Invalid or undeliverable dairy email address");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
+    if (!isAdminEmailValid) {
+      const inputError = new Error("Invalid or undeliverable admin email address");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
     try {
       await ensureIdentityIsUnique({
-        email: adminEmail,
+        email: normalizedAdminEmail,
         phone: adminMobile,
       });
     } catch (identityError) {
@@ -108,7 +127,7 @@ export const registerDairyService = async ({
       .insert({
         dairy_name: dairyName,
         dairy_phone: dairyPhone,
-        dairy_email: dairyEmail,
+        dairy_email: normalizedDairyEmail,
         image_url: imageUrl || null,
         gstin,
         category,
@@ -160,7 +179,7 @@ export const registerDairyService = async ({
       .from("admins")
       .insert({
         dairy_id: dairyData.id,
-        email: adminEmail,
+        email: normalizedAdminEmail,
         password: hashedPassword,
         name: ownerName,
         phone: adminMobile,

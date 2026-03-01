@@ -38,6 +38,15 @@ const menuItems = [
     ),
   },
   {
+    label: "Products",
+    to: "/admin/products",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-6 h-6">
+        <path d="M21 16V8a1 1 0 00-.5-.87l-8-4.5a1 1 0 00-1 0l-8 4.5A1 1 0 003 8v8a1 1 0 00.5.87l8 4.5a1 1 0 001 0l8-4.5A1 1 0 0021 16zm-9 3.85L5 16V9.15l7 3.94v6.76zm1-8.49L6.04 7.5 12 4.15 17.96 7.5 13 11.36zM19 16l-6 3.85v-6.76l6-3.94V16z" />
+      </svg>
+    ),
+  },
+  {
     label: "Payments",
     to: "/admin/payments",
     icon: (

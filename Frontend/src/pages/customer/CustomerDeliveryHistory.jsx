@@ -35,9 +35,14 @@ const Deliveries = () => {
 
   const todayStatus = String(todayDelivery?.status || 'PENDING').toUpperCase();
   const isTodayPending = todayStatus === 'PENDING';
+  const isTodayApprovalPending = todayStatus === 'PENDING_APPROVAL';
   const isTodayDelivered = todayStatus === 'DELIVERED';
+  const isTodayPartnerUnassigned =
+    (isTodayPending || isTodayApprovalPending) && !todayDelivery?.canTrackAgent;
   const todayStatusClass = isTodayPending
     ? 'bg-amber-100 text-amber-700'
+    : isTodayApprovalPending
+    ? 'bg-indigo-100 text-indigo-700'
     : isTodayDelivered
     ? 'bg-green-100 text-green-700'
     : 'bg-slate-100 text-slate-700';
@@ -121,6 +126,9 @@ const Deliveries = () => {
                 {todayDelivery?.dairyName && (
                   <p className="text-xs text-gray-500 mt-2">Dairy: {todayDelivery.dairyName}</p>
                 )}
+                {isTodayPartnerUnassigned && (
+                  <p className="text-xs text-gray-500 mt-1">Delivery partner not assigned yet.</p>
+                )}
                 {todayDelivery?.address && (
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">Address: {todayDelivery.address}</p>
                 )}
@@ -155,7 +163,22 @@ const Deliveries = () => {
               </div>
             )}
 
-            {deliveries.map((item) => (
+            {deliveries.map((item) => {
+              const itemStatus = String(item?.status || '').toUpperCase();
+              const isItemPending = itemStatus === 'PENDING' || itemStatus === 'PENDING_APPROVAL';
+              const itemStatusLabel =
+                itemStatus === 'PENDING_APPROVAL'
+                  ? 'APPROVAL PENDING'
+                  : itemStatus;
+              const itemStatusClass =
+                itemStatus === 'DELIVERED'
+                  ? 'bg-green-50 text-green-700'
+                  : itemStatus === 'SKIPPED'
+                  ? 'bg-red-50 text-red-600'
+                  : itemStatus === 'PENDING_APPROVAL'
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'bg-amber-50 text-amber-600';
+              return (
               <div
                 key={item.id}
                 className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6 transition-all hover:shadow-md"
@@ -206,18 +229,19 @@ const Deliveries = () => {
                     {item.address && (
                       <p className="text-xs text-gray-500 mt-2 line-clamp-2">Address: {item.address}</p>
                     )}
+                    {isItemPending && (
+                      <p className="text-xs text-gray-500 mt-1">Delivery partner not assigned yet.</p>
+                    )}
                   </div>
                 </div>
 
                 {/* Right Status Card Style */}
-                <div className={`px-6 py-3 rounded-2xl font-bold text-sm uppercase tracking-wider ${
-                    item.status === 'DELIVERED' ? 'bg-green-50 text-green-700' : 
-                    item.status === 'SKIPPED' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
-                  }`}>
-                  {item.status}
+                <div className={`px-6 py-3 rounded-2xl font-bold text-sm uppercase tracking-wider ${itemStatusClass}`}>
+                  {itemStatusLabel}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

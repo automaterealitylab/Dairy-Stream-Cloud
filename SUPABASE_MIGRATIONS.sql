@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS public.deliveries (
   milk_type VARCHAR(100),
   quantity_liters NUMERIC(10, 2),
   status VARCHAR(50) DEFAULT 'PENDING',
+  approval_status VARCHAR(50) DEFAULT 'APPROVED',
   delivered_at TIMESTAMP WITH TIME ZONE,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -248,6 +249,8 @@ ALTER TABLE public.deliveries
 ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'PENDING';
 ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) DEFAULT 'APPROVED';
+ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS notes TEXT;
@@ -260,6 +263,59 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_customer_id ON public.deliveries(custo
 CREATE INDEX IF NOT EXISTS idx_deliveries_dairy_id ON public.deliveries(dairy_id);
 CREATE INDEX IF NOT EXISTS idx_deliveries_agent_id ON public.deliveries(agent_id);
 CREATE INDEX IF NOT EXISTS idx_deliveries_delivery_date ON public.deliveries(delivery_date);
+CREATE INDEX IF NOT EXISTS idx_deliveries_approval_status ON public.deliveries(approval_status);
+
+-- ============================================
+-- Create / Normalize Products Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.products (
+  id BIGSERIAL PRIMARY KEY,
+  dairy_id BIGINT NOT NULL REFERENCES public.dairies(id) ON DELETE CASCADE,
+  name VARCHAR(150) NOT NULL,
+  product_type VARCHAR(80) DEFAULT 'MILK',
+  unit VARCHAR(40) DEFAULT 'LITER',
+  rate_per_unit NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  stock_quantity NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS dairy_id BIGINT;
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS name VARCHAR(150);
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS product_type VARCHAR(80) DEFAULT 'MILK';
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS unit VARCHAR(40) DEFAULT 'LITER';
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS rate_per_unit NUMERIC(10, 2) DEFAULT 0;
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS stock_quantity NUMERIC(10, 2) DEFAULT 0;
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_products_dairy_id ON public.products(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_products_name ON public.products(name);
+CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'uq_products_dairy_name_ci'
+  ) THEN
+    CREATE UNIQUE INDEX uq_products_dairy_name_ci
+      ON public.products (dairy_id, lower(name));
+  END IF;
+END $$;
 
 -- ============================================
 -- Create / Normalize Payments Table

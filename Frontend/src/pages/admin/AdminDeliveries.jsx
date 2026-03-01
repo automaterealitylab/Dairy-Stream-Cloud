@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  assignAdminDeliveryPartner,
+  approveAdminDelivery,
+  approveAllAdminDeliveries,
   fetchAdminDeliveries,
   fetchAdminDeliverySchedulingOptions,
   scheduleAdminDelivery,
@@ -86,6 +89,12 @@ export default function AdminDeliveries() {
     notes: "",
   });
   const [singleSubmitting, setSingleSubmitting] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
+  const [assigningId, setAssigningId] = useState(null);
+  const [approvingAll, setApprovingAll] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignTargetDelivery, setAssignTargetDelivery] = useState(null);
+  const [selectedAssignAgentId, setSelectedAssignAgentId] = useState("");
   const [singleFeedback, setSingleFeedback] = useState({ type: "", message: "" });
 
   const [bulkForm, setBulkForm] = useState({
@@ -205,6 +214,7 @@ export default function AdminDeliveries() {
     delivered: filteredAndSortedDeliveries.filter(d => d.status === "DELIVERED").length,
     pending: filteredAndSortedDeliveries.filter(d => d.status === "PENDING").length,
     failed: filteredAndSortedDeliveries.filter(d => d.status === "FAILED").length,
+    pendingApproval: filteredAndSortedDeliveries.filter(d => d.approvalStatus === "PENDING").length,
   }), [filteredAndSortedDeliveries]);
 
   const paginatedDeliveries = useMemo(() => {
@@ -253,6 +263,74 @@ export default function AdminDeliveries() {
     setRouteFilter("ALL"); setSortBy("date"); setSortOrder("desc"); setPage(1);
   };
 
+  const handleApproveOne = async (delivery) => {
+    if (!delivery?.rawId) return;
+    setSingleFeedback({ type: "", message: "" });
+    setApprovingId(delivery.rawId);
+    try {
+      await approveAdminDelivery(delivery.rawId);
+      await loadDeliveries();
+      setSingleFeedback({ type: "success", message: `Order ${delivery.id} approved.` });
+    } catch (err) {
+      setSingleFeedback({ type: "error", message: err?.message || "Failed to approve order." });
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleApproveAll = async () => {
+    setBulkFeedback({ type: "", message: "" });
+    setApprovingAll(true);
+    try {
+      const res = await approveAllAdminDeliveries();
+      await loadDeliveries();
+      setBulkFeedback({
+        type: "success",
+        message: `Approved ${res?.approvedCount || 0} pending order(s).`,
+      });
+    } catch (err) {
+      setBulkFeedback({ type: "error", message: err?.message || "Failed to approve all pending orders." });
+    } finally {
+      setApprovingAll(false);
+    }
+  };
+
+  const handleAssignPartner = (delivery) => {
+    if (!delivery?.rawId) return;
+    if (!Array.isArray(scheduleOptions?.agents) || scheduleOptions.agents.length === 0) {
+      setSingleFeedback({ type: "error", message: "No delivery partners available to assign." });
+      return;
+    }
+
+    setAssignTargetDelivery(delivery);
+    setSelectedAssignAgentId("");
+    setAssignModalOpen(true);
+  };
+
+  const handleConfirmAssignPartner = async () => {
+    if (!assignTargetDelivery?.rawId) return;
+    const chosenAgentId = Number(selectedAssignAgentId);
+    if (!Number.isFinite(chosenAgentId) || chosenAgentId <= 0) {
+      setSingleFeedback({ type: "error", message: "Select a delivery partner." });
+      return;
+    }
+
+    setSingleFeedback({ type: "", message: "" });
+    setAssigningId(assignTargetDelivery.rawId);
+    try {
+      await assignAdminDeliveryPartner(assignTargetDelivery.rawId, chosenAgentId);
+      await loadDeliveries();
+      setSingleFeedback({ type: "success", message: `Delivery partner assigned for ${assignTargetDelivery.id}.` });
+      setAssignModalOpen(false);
+      setAssignTargetDelivery(null);
+      setSelectedAssignAgentId("");
+    } catch (err) {
+      setSingleFeedback({ type: "error", message: err?.message || "Failed to assign delivery partner." });
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -270,11 +348,12 @@ export default function AdminDeliveries() {
             
             {/* KPI Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
+              {[ 
                 { label: "Total", val: stats.total, color: "text-slate-700" },
                 { label: "Delivered", val: stats.delivered, color: "text-green-600" },
                 { label: "Pending", val: stats.pending, color: "text-amber-600" },
-                { label: "Failed", val: stats.failed, color: "text-red-600" }
+                { label: "Failed", val: stats.failed, color: "text-red-600" },
+                { label: "Approval Pending", val: stats.pendingApproval, color: "text-indigo-600" }
               ].map((item) => (
                 <div key={item.label} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm min-w-[100px]">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
@@ -313,7 +392,11 @@ export default function AdminDeliveries() {
                       <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Assigned Agent</label>
                       <select value={bulkForm.agentId} onChange={(e) => setBulkForm(p => ({...p, agentId: e.target.value}))} className="pro-input w-full text-sm">
                         <option value="">Auto-Assign (Based on Route)</option>
-                        {scheduleOptions.agents.map(a => <option key={a.id} value={a.id}>{a.name} ({a.route})</option>)}
+                        {scheduleOptions.agents.map(a => (
+                          <option key={a.id} value={a.id} disabled={!a.isActive}>
+                            {a.name} ({a.route}) - {a.status || "ACTIVE"} / {a.availability || "AVAILABLE"}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -336,15 +419,25 @@ export default function AdminDeliveries() {
                   </div>
                   <textarea value={bulkForm.notes} onChange={(e) => setBulkForm(p => ({...p, notes: e.target.value}))} placeholder="Notes for this distribution run..." className="pro-input w-full h-20 text-sm" />
                   
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                    <div className="text-sm font-medium text-blue-700 bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
-                      Eligible customers found: <span className="font-bold">{bulkPreviewCount}</span>
-                    </div>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                  <div className="text-sm font-medium text-blue-700 bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
+                    Eligible customers found: <span className="font-bold">{bulkPreviewCount}</span>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleApproveAll}
+                      disabled={approvingAll || stats.pendingApproval === 0}
+                      className="pro-btn-dark w-full sm:w-auto px-5 py-2.5"
+                    >
+                      {approvingAll ? "Approving..." : "Approve All Orders"}
+                    </button>
                     <button type="submit" disabled={bulkSubmitting || bulkPreviewCount === 0} className="pro-btn-primary w-full sm:w-auto px-8 py-2.5">
                       {bulkSubmitting ? "Processing..." : "Start Distribution Run"}
                     </button>
                   </div>
-                  <FeedbackBanner feedback={bulkFeedback} />
+                </div>
+                <FeedbackBanner feedback={bulkFeedback} />
                 </form>
               ) : (
                 <form onSubmit={handleScheduleSingle} className="space-y-4">
@@ -365,7 +458,11 @@ export default function AdminDeliveries() {
                         <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Agent</label>
                         <select value={singleForm.agentId} onChange={(e) => setSingleForm(p => ({...p, agentId: e.target.value}))} className="pro-input w-full text-sm">
                           <option value="">Unassigned</option>
-                          {scheduleOptions.agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          {scheduleOptions.agents.map(a => (
+                            <option key={a.id} value={a.id} disabled={!a.isActive}>
+                              {a.name} - {a.status || "ACTIVE"} / {a.availability || "AVAILABLE"}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -427,7 +524,9 @@ export default function AdminDeliveries() {
                       <th className="px-6 py-4 font-bold">Customer</th>
                       <th className="px-6 py-4 font-bold">Logistics</th>
                       <th className="px-6 py-4 font-bold">Schedule</th>
+                      <th className="px-6 py-4 font-bold">Approval</th>
                       <th className="px-6 py-4 font-bold">Status</th>
+                      <th className="px-6 py-4 font-bold text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -447,7 +546,39 @@ export default function AdminDeliveries() {
                           <p className="text-[11px] font-medium text-slate-500">{d.slot}</p>
                         </td>
                         <td className="px-6 py-4">
+                          <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                            d.approvalStatus === "PENDING"
+                              ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                              : "bg-green-100 text-green-700 border-green-200"
+                          }`}>
+                            {d.approvalStatus || "APPROVED"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
                           <StatusPill status={d.status} />
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {d.needsApproval ? (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveOne(d)}
+                              disabled={approvingId === d.rawId}
+                              className="px-3 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:bg-indigo-300"
+                            >
+                              {approvingId === d.rawId ? "Approving..." : "Approve"}
+                            </button>
+                          ) : !d.isAssigned ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAssignPartner(d)}
+                              disabled={assigningId === d.rawId}
+                              className="px-3 py-1.5 rounded bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:bg-blue-300"
+                            >
+                              {assigningId === d.rawId ? "Assigning..." : "Assign Delivery Partner"}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -481,6 +612,95 @@ export default function AdminDeliveries() {
           </div>
         </div>
       </main>
+
+      {assignModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Assign Delivery Partner</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Delivery: {assignTargetDelivery?.id || "-"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignModalOpen(false);
+                  setAssignTargetDelivery(null);
+                  setSelectedAssignAgentId("");
+                }}
+                className="text-slate-500 hover:text-slate-700 text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+              {scheduleOptions.agents.map((agent) => (
+                <label
+                  key={agent.id}
+                  className={`flex items-center justify-between gap-3 border rounded-xl px-4 py-3 ${
+                    !agent.isActive ? "bg-slate-50 border-slate-200 opacity-70" : "border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="assign-agent"
+                      value={agent.id}
+                      disabled={!agent.isActive}
+                      checked={String(selectedAssignAgentId) === String(agent.id)}
+                      onChange={(e) => setSelectedAssignAgentId(e.target.value)}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{agent.name}</p>
+                      <p className="text-xs text-slate-500">Route: {agent.route || "-"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                      agent.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}>
+                      {agent.isActive ? "Active" : "Inactive"}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                      String(agent.availability || "").toUpperCase() === "BUSY"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {agent.availability || "AVAILABLE"}
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignModalOpen(false);
+                  setAssignTargetDelivery(null);
+                  setSelectedAssignAgentId("");
+                }}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAssignPartner}
+                disabled={assigningId === assignTargetDelivery?.rawId || !selectedAssignAgentId}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold disabled:bg-blue-300"
+              >
+                {assigningId === assignTargetDelivery?.rawId ? "Assigning..." : "Assign Partner"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -79,6 +79,14 @@ const toTitleStatus = (status) => {
   return "PENDING";
 };
 
+const toApprovalStatus = (approvalStatus, { isOneTimeOrder = false } = {}) => {
+  const normalized = String(approvalStatus || "").toUpperCase();
+  if (normalized === "APPROVED") return "APPROVED";
+  if (normalized === "REJECTED") return "REJECTED";
+  if (normalized === "PENDING") return "PENDING";
+  return isOneTimeOrder ? "PENDING" : "APPROVED";
+};
+
 const formatDateLabel = (value) => {
   if (!value) return "-";
   const target = new Date(value);
@@ -156,6 +164,13 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
   const paymentMethod =
     parsedNotes.paymentMethod || row?.payment_method || row?.method || null;
   const normalizedStatus = toTitleStatus(row.status);
+  const approvalStatus = toApprovalStatus(row?.approval_status, {
+    isOneTimeOrder: parsedNotes.isOneTimeOrder,
+  });
+  const uiStatus =
+    parsedNotes.isOneTimeOrder && approvalStatus === "PENDING"
+      ? "PENDING_APPROVAL"
+      : normalizedStatus;
 
   return {
     id: String(row.id ?? `delivery-${index}`),
@@ -163,7 +178,8 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     deliveryDate: row?.delivery_date || row?.date || null,
     product,
     qty: qty != null ? `${qty} L` : "-",
-    status: normalizedStatus,
+    status: uiStatus,
+    approvalStatus,
     time: normalizedStatus === "DELIVERED" ? formatTimeLabel(timeSource) : null,
     dairyId,
     dairyName:
@@ -207,6 +223,7 @@ const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
 
   return {
     status: normalized.status || "PENDING",
+    approvalStatus: normalized.approvalStatus || "APPROVED",
     product: normalized.product || "Milk",
     quantity: normalized.qty || "-",
     time: normalized.time || null,
@@ -272,6 +289,99 @@ const tryFetchFromTable = async (table, customerId) => {
   return data || [];
 };
 
+const getProductByNameForDairy = async ({ dairyId, productName }) => {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, dairy_id, name, rate_per_unit, stock_quantity, is_active")
+    .eq("dairy_id", dairyId)
+    .ilike("name", productName)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    const message = String(error?.message || "").toLowerCase();
+    const isMissingRelation = message.includes("relation") && message.includes("does not exist");
+    const isMissingColumn = message.includes("column") && message.includes("does not exist");
+    if (isMissingRelation || isMissingColumn) {
+      throw new Error("Product inventory is not configured. Run latest migrations first.");
+    }
+    throw error;
+  }
+
+  return data || null;
+};
+
+const reserveStockForOrder = async ({ dairyId, productId, quantity }) => {
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("id, stock_quantity")
+    .eq("id", productId)
+    .eq("dairy_id", dairyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (productError) throw productError;
+  if (!product) throw new Error("Selected product not found");
+
+  const availableStock = Number(product.stock_quantity || 0);
+  if (availableStock < quantity) {
+    throw new Error(`Insufficient stock. Only ${availableStock} left`);
+  }
+
+  const nextStock = Number((availableStock - quantity).toFixed(2));
+  const { data: updatedProduct, error: updateError } = await supabase
+    .from("products")
+    .update({
+      stock_quantity: nextStock,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", productId)
+    .eq("dairy_id", dairyId)
+    .gte("stock_quantity", quantity)
+    .select("id, stock_quantity")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!updatedProduct) {
+    throw new Error("Stock changed recently. Please try again.");
+  }
+
+  return {
+    previousStock: availableStock,
+    currentStock: Number(updatedProduct.stock_quantity || 0),
+  };
+};
+
+const releaseStockForCancelledOrder = async ({ dairyId, milkType, quantity }) => {
+  const resolvedDairyId = Number(dairyId);
+  const resolvedQuantity = Number(quantity);
+  if (!Number.isFinite(resolvedDairyId) || resolvedDairyId <= 0) return;
+  if (!Number.isFinite(resolvedQuantity) || resolvedQuantity <= 0) return;
+  if (!String(milkType || "").trim()) return;
+
+  const product = await getProductByNameForDairy({
+    dairyId: resolvedDairyId,
+    productName: milkType,
+  });
+
+  if (!product?.id) return;
+
+  const currentStock = Number(product.stock_quantity || 0);
+  const nextStock = Number((currentStock + resolvedQuantity).toFixed(2));
+
+  const { error } = await supabase
+    .from("products")
+    .update({
+      stock_quantity: nextStock,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", product.id)
+    .eq("dairy_id", resolvedDairyId);
+
+  if (error) throw error;
+};
+
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
   const rows =
     (await tryFetchFromTable("deliveries", customerId)) ??
@@ -315,7 +425,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const paymentMethod = String(payload?.paymentMethod || "UPI").trim().toUpperCase();
   const address = String(payload?.address || "").trim();
   const slot = normalizeOneTimeSlot(payload?.slot);
-  const pricePerLiter = toFiniteNumber(payload?.pricePerLiter ?? payload?.unitPrice);
+  const pricePerLiterInput = toFiniteNumber(payload?.pricePerLiter ?? payload?.unitPrice);
 
   if (!Number.isFinite(dairyId) || dairyId <= 0) {
     throw new Error("Valid dairyId is required");
@@ -335,10 +445,6 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   if (!address || address.length < 10) {
     throw new Error("Detailed delivery address is required");
   }
-  if (!Number.isFinite(pricePerLiter) || pricePerLiter <= 0) {
-    throw new Error("pricePerLiter must be greater than zero");
-  }
-
   const todayIso = new Date().toISOString().slice(0, 10);
   if (deliveryDate < todayIso) {
     throw new Error("Cannot place one-time order for a past date");
@@ -353,6 +459,22 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
 
   if (dairyError) throw dairyError;
   if (!dairy) throw new Error("Selected dairy not found");
+
+  const selectedProduct = await getProductByNameForDairy({
+    dairyId,
+    productName: milkType,
+  });
+  if (!selectedProduct) {
+    throw new Error("Selected product is not available in this dairy");
+  }
+
+  const databaseRate = toFiniteNumber(selectedProduct?.rate_per_unit);
+  const resolvedPricePerLiter = Number.isFinite(databaseRate) && databaseRate > 0
+    ? databaseRate
+    : pricePerLiterInput;
+  if (!Number.isFinite(resolvedPricePerLiter) || resolvedPricePerLiter <= 0) {
+    throw new Error("Invalid product rate. Ask dairy admin to update product price.");
+  }
 
   const { data: duplicate, error: duplicateError } = await supabase
     .from("deliveries")
@@ -370,6 +492,12 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
     throw new Error("A one-time order for this product/date already exists");
   }
 
+  await reserveStockForOrder({
+    dairyId,
+    productId: selectedProduct.id,
+    quantity,
+  });
+
   const deliveryNotes = `[ONE_TIME_ORDER] slot=${slot}; payment=${paymentMethod}; address=${address}`.slice(
     0,
     500
@@ -384,14 +512,22 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
       milk_type: milkType,
       quantity_liters: quantity,
       status: "PENDING",
+      approval_status: "PENDING",
       notes: deliveryNotes,
     })
-    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, created_at")
+    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, created_at")
     .single();
 
-  if (createDeliveryError) throw createDeliveryError;
+  if (createDeliveryError) {
+    await releaseStockForCancelledOrder({
+      dairyId,
+      milkType,
+      quantity,
+    });
+    throw createDeliveryError;
+  }
 
-  const amount = Number((quantity * pricePerLiter).toFixed(2));
+  const amount = Number((quantity * resolvedPricePerLiter).toFixed(2));
   const paymentDescription = `One-time order: ${milkType} ${quantity}L (${slot}) for ${deliveryDate}`.slice(
     0,
     300
@@ -411,7 +547,14 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
     .select("id, amount, status, due_date")
     .single();
 
-  if (createPaymentError) throw createPaymentError;
+  if (createPaymentError) {
+    await releaseStockForCancelledOrder({
+      dairyId,
+      milkType,
+      quantity,
+    });
+    throw createPaymentError;
+  }
 
   return {
     order: {
@@ -423,6 +566,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
       quantity,
       slot,
       status: createdDelivery.status || "PENDING",
+      approvalStatus: String(createdDelivery.approval_status || "PENDING").toUpperCase(),
     },
     payment: createdPayment,
   };
@@ -441,7 +585,7 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
 
   const { data: delivery, error: deliveryFetchError } = await supabase
     .from("deliveries")
-    .select("id, customer_id, status, notes")
+    .select("id, customer_id, dairy_id, milk_type, quantity_liters, status, notes")
     .eq("id", orderId)
     .eq("customer_id", customerId)
     .limit(1)
@@ -494,6 +638,12 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
   if (deletePaymentError) {
     throw deletePaymentError;
   }
+
+  await releaseStockForCancelledOrder({
+    dairyId: delivery?.dairy_id,
+    milkType: delivery?.milk_type,
+    quantity: delivery?.quantity_liters,
+  });
 
   return {
     success: true,

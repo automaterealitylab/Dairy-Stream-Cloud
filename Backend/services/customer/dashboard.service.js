@@ -20,7 +20,10 @@ const isUuidSyntaxError = (error) => {
   return message.includes("invalid input syntax for type uuid");
 };
 
-const normalizeOneTimeStatus = (status) => {
+const normalizeOneTimeStatus = (status, approvalStatus) => {
+  const normalizedApproval = String(approvalStatus || "").toUpperCase();
+  if (normalizedApproval === "PENDING") return "PENDING_APPROVAL";
+
   const value = String(status || "").toUpperCase();
   if (value === "DELIVERED" || value === "COMPLETED") return "DELIVERED";
   if (value === "SKIPPED" || value === "CANCELLED" || value === "CANCELED") return "SKIPPED";
@@ -76,7 +79,7 @@ const getDairyNamesMap = async (dairyIds) => {
 const getRecentOneTimeOrders = async (customerId) => {
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes, created_at")
+    .select("id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, created_at")
     .eq("customer_id", customerId)
     .ilike("notes", "%[ONE_TIME_ORDER]%")
     .order("created_at", { ascending: false })
@@ -112,7 +115,8 @@ const getRecentOneTimeOrders = async (customerId) => {
         deliveryDate: row?.delivery_date || null,
         product: row?.milk_type || "Milk",
         quantity,
-        status: normalizeOneTimeStatus(row?.status),
+        status: normalizeOneTimeStatus(row?.status, row?.approval_status),
+        approvalStatus: String(row?.approval_status || "PENDING").toUpperCase(),
         slot: parsedNotes.slot || "-",
         paymentMethod: parsedNotes.paymentMethod || "-",
         createdAt: row?.created_at || null,
@@ -168,7 +172,7 @@ const getUpcomingScheduledDelivery = async (customerId) => {
 
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, delivery_date, milk_type, quantity_liters, status")
+    .select("id, delivery_date, milk_type, quantity_liters, status, approval_status, notes")
     .eq("customer_id", customerId)
     .gte("delivery_date", todayIso)
     .order("delivery_date", { ascending: true })
@@ -183,6 +187,10 @@ const getUpcomingScheduledDelivery = async (customerId) => {
 
   const upcoming = (data || []).find((row) => {
     const status = String(row?.status || "PENDING").toUpperCase();
+    const approvalStatus = String(row?.approval_status || "").toUpperCase();
+    const isOneTimeOrder = String(row?.notes || "").includes("[ONE_TIME_ORDER]");
+    const blockedByApproval = isOneTimeOrder && approvalStatus === "PENDING";
+    if (blockedByApproval) return true;
     return status !== "DELIVERED" && status !== "COMPLETED" && status !== "FAILED";
   });
 
@@ -195,6 +203,7 @@ const getUpcomingScheduledDelivery = async (customerId) => {
     quantity:
       upcoming.quantity_liters == null ? "-" : `${Number(upcoming.quantity_liters)} L`,
     status: String(upcoming.status || "PENDING").toUpperCase(),
+    approvalStatus: String(upcoming.approval_status || "").toUpperCase() || null,
   };
 };
 

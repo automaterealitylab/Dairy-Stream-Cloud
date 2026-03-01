@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -273,7 +273,7 @@ const CustomerDashboard = () => {
         <header className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-text-primary">
-              Good Morning, {customer.name || "Customer"} 👋
+              Good Morning, {customer.name || "Customer"} ðŸ‘‹
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-text-secondary">Member of</span>
@@ -377,22 +377,39 @@ const PostDeliveryDecisionCard = ({ dairyName, onSubscribe, onExplore }) => (
 const TodayStatusCard = ({ data = {}, navigate }) => {
   const isDelivered = data.status === "DELIVERED";
   const isPending = data.status === "PENDING";
-  
-  const title = isDelivered ? "Delivered Successfully" : isPending ? "Delivery Pending" : "No Delivery Scheduled Today";
+  const isApprovalPending = data.status === "PENDING_APPROVAL";
+  const isPartnerUnassigned = isPending && !data?.agent?.name;
+
+  const title = isDelivered
+    ? "Delivered Successfully"
+    : isApprovalPending
+    ? "Approval Pending"
+    : isPartnerUnassigned
+    ? "Delivery Partner Not Assigned"
+    : isPending
+    ? "Delivery Pending"
+    : "No Delivery Scheduled Today";
 
   return (
-    <div className={`p-4 md:p-6 rounded-card border ${isDelivered ? "bg-success-soft border-border" : isPending ? "bg-brand-soft border-border" : "bg-gray-50 border-border"}`}>
+    <div className={`p-4 md:p-6 rounded-card border ${isDelivered ? "bg-success-soft border-border" : isApprovalPending ? "bg-indigo-50 border-indigo-200" : isPending ? "bg-brand-soft border-border" : "bg-gray-50 border-border"}`}>
       <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-4">Today's Delivery</h3>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex gap-4">
-          <div className={`p-3 rounded-full ${isDelivered ? "bg-success text-white" : isPending ? "bg-brand text-white" : "bg-gray-300 text-gray-700"}`}>
+          <div className={`p-3 rounded-full ${isDelivered ? "bg-success text-white" : isApprovalPending ? "bg-indigo-600 text-white" : isPending ? "bg-brand text-white" : "bg-gray-300 text-gray-700"}`}>
             {isDelivered ? <CheckCircle size={22} /> : <AlertCircle size={22} />}
           </div>
           <div>
             <h3 className="text-base md:text-lg font-bold text-text-primary">{title}</h3>
             <p className="text-sm text-text-secondary mt-1">{data.quantity || "-"} • {data.product || "-"}</p>
-            {data?.agent?.name && (
+            {isApprovalPending && (
+              <p className="text-xs text-indigo-700 mt-2 font-medium">
+                Your order is waiting for dairy admin approval.
+              </p>
+            )}
+            {data?.agent?.name ? (
               <p className="text-xs text-text-muted mt-2">Agent: {data.agent.name} ({data.agent.phone || "-"})</p>
+            ) : (
+              <p className="text-xs text-text-muted mt-2">Delivery partner not assigned yet.</p>
             )}
             {isDelivered && (
               <p className="text-xs text-text-muted mt-2">Dropped at Doorstep • {data.time || "-"}</p>
@@ -403,7 +420,8 @@ const TodayStatusCard = ({ data = {}, navigate }) => {
         <div className="flex items-center gap-3 self-start">
           <button
             onClick={() => navigate("/customer/dashboard/track/agent", { state: { delivery: data } })}
-            className="text-xs font-semibold text-brand border border-border px-3 py-1.5 rounded-lg hover:bg-white transition-colors"
+            disabled={isApprovalPending}
+            className="text-xs font-semibold text-brand border border-border px-3 py-1.5 rounded-lg hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Track Agent
           </button>
@@ -413,14 +431,16 @@ const TodayStatusCard = ({ data = {}, navigate }) => {
     </div>
   );
 };
-
 const UpcomingDeliveryAlert = ({ alert }) => {
   if (!alert?.date) return null;
   const dateLabel = new Date(alert.date).toLocaleDateString();
+  const isApprovalPending = String(alert?.approvalStatus || "").toUpperCase() === "PENDING";
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-      Upcoming delivery scheduled: {alert.quantity} {alert.product} on {dateLabel}.
+    <div className={`rounded-xl px-4 py-3 text-sm ${isApprovalPending ? "border border-indigo-200 bg-indigo-50 text-indigo-800" : "border border-blue-200 bg-blue-50 text-blue-800"}`}>
+      {isApprovalPending
+        ? `Order approval pending: ${alert.quantity} ${alert.product} for ${dateLabel}.`
+        : `Upcoming delivery scheduled: ${alert.quantity} ${alert.product} on ${dateLabel}.`}
     </div>
   );
 };
@@ -482,12 +502,12 @@ const BillingSummaryCard = ({ data = {} }) => {
         <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-2">Billing Summary</h3>
         <div className="flex justify-between items-end">
           <div>
-            <p className="text-2xl md:text-3xl font-bold text-text-primary">₹{data.monthlyDue || 0}</p>
+            <p className="text-2xl md:text-3xl font-bold text-text-primary">â‚¹{data.monthlyDue || 0}</p>
             <p className="text-xs text-red-500 font-medium mt-1">Due in {data.dueInDays || 0} days</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-text-muted">Wallet Balance</p>
-            <p className="font-semibold text-text-secondary">₹{data.walletBalance || 0}</p>
+            <p className="font-semibold text-text-secondary">â‚¹{data.walletBalance || 0}</p>
           </div>
         </div>
       </div>
@@ -521,3 +541,5 @@ const QuickAction = ({ icon, label, color, to }) => {
 };
 
 export default CustomerDashboard;
+
+

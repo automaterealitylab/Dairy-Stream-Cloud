@@ -25,6 +25,7 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminAgents from "./pages/admin/AdminAgents.jsx"; 
 import AdminDeliveries from "./pages/admin/AdminDeliveries"; 
 import AdminPayments from "./pages/admin/AdminPayments"; 
+import AdminProducts from "./pages/admin/AdminProducts.jsx";
 
 // --- Agent Pages ---
 import AgentDashboard from "./pages/agent/agentDashboard.jsx";
@@ -171,6 +172,14 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
             <AdminPayments />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/products"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminProducts />
           </ProtectedRoute>
         }
       />

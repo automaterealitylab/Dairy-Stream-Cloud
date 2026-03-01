@@ -44,6 +44,36 @@ const buildAddressFromParts = (source = {}) => {
   return parts.join(", ");
 };
 
+const normalizeProducts = (dairy = {}) => {
+  const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
+  if (explicitItems.length > 0) {
+    return explicitItems
+      .map((item) => ({
+        id: item.id || item.name,
+        name: String(item.name || "").trim(),
+        ratePerUnit: Number(item.ratePerUnit || 0),
+        stockQuantity: Number(item.stockQuantity || 0),
+        unit: item.unit || "LITER",
+      }))
+      .filter((item) => item.name && item.ratePerUnit > 0);
+  }
+
+  const legacy = dairy?.products || {
+    "Full Cream": 64,
+    Toned: 54,
+    "Cow Milk": 60,
+    "Buffalo Milk": 72,
+  };
+
+  return Object.keys(legacy).map((name) => ({
+    id: name,
+    name,
+    ratePerUnit: Number(legacy[name] || 0),
+    stockQuantity: Number.POSITIVE_INFINITY,
+    unit: "LITER",
+  }));
+};
+
 const DairyDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,7 +90,7 @@ const DairyDetailsPage = () => {
 
   const [address, setAddress] = useState("");
   const [subscription, setSubscription] = useState({
-    milkType: "Full Cream",
+    milkType: "",
     quantity: 1,
     slot: "Morning",
     startDate: new Date().toISOString().slice(0, 10),
@@ -102,6 +132,12 @@ const DairyDetailsPage = () => {
 
   const dairy = useMemo(() => {
     if (!data) return null;
+    const productItems = normalizeProducts(data);
+    const products = productItems.reduce((acc, item) => {
+      acc[item.name] = item.ratePerUnit;
+      return acc;
+    }, {});
+
     return {
       id: data.id,
       name: data.dairy_name || data.name || "Dairy Farm",
@@ -109,16 +145,26 @@ const DairyDetailsPage = () => {
       description: data.description || "Fresh milk delivered to your doorstep.",
       address: data.address || data.city || "Address not available",
       rating: data.rating || 4.5,
-      products: data.products || {
-        "Full Cream": 64,
-        Toned: 54,
-        "Cow Milk": 60,
-        "Buffalo Milk": 72,
-      },
+      products,
+      productItems,
     };
   }, [data]);
 
-  const currentPrice = useMemo(() => dairy?.products[subscription.milkType] || 0, [dairy, subscription.milkType]);
+  useEffect(() => {
+    if (!dairy?.productItems?.length) return;
+    const hasSelected = dairy.productItems.some((item) => item.name === subscription.milkType);
+    if (hasSelected) return;
+    setSubscription((prev) => ({
+      ...prev,
+      milkType: dairy.productItems[0].name,
+    }));
+  }, [dairy, subscription.milkType]);
+
+  const selectedProduct = useMemo(
+    () => dairy?.productItems?.find((item) => item.name === subscription.milkType) || null,
+    [dairy, subscription.milkType]
+  );
+  const currentPrice = useMemo(() => Number(selectedProduct?.ratePerUnit || 0), [selectedProduct]);
 
   const isSubscribedToThis = useMemo(() => {
     if (!existingSubscription) return false;
@@ -320,14 +366,14 @@ const handleContinueFromStep2 = () => {
                       <Layers size={16} /> Select Variant
                     </label>
                     <div className="grid grid-cols-1 gap-3">
-                      {Object.keys(dairy.products).map((variant) => (
+                      {dairy.productItems.map((item) => (
                         <button
-                          key={variant}
-                          onClick={() => setSubscription({...subscription, milkType: variant})}
-                          className={`flex justify-between items-center p-4 border-2 rounded-2xl transition-all ${subscription.milkType === variant ? 'border-blue-600 bg-blue-50' : 'border-slate-100 hover:border-slate-200'}`}
+                          key={item.id}
+                          onClick={() => setSubscription({...subscription, milkType: item.name})}
+                          className={`flex justify-between items-center p-4 border-2 rounded-2xl transition-all ${subscription.milkType === item.name ? 'border-blue-600 bg-blue-50' : 'border-slate-100 hover:border-slate-200'}`}
                         >
-                          <span className="font-bold">{variant}</span>
-                          <span className="text-blue-600 font-black">Rs {dairy.products[variant]}/L</span>
+                          <span className="font-bold">{item.name}</span>
+                          <span className="text-blue-600 font-black">Rs {item.ratePerUnit}/{item.unit}</span>
                         </button>
                       ))}
                     </div>

@@ -3,6 +3,9 @@ import { adminLogin } from "../controllers/authentication/adminAuth.controller.j
 import { verifyAdmin } from "../middleware/admin.middleware.js";
 import { getDashboard } from "../controllers/admin/dashboard.controller.js";
 import {
+  approveAdminDelivery,
+  approveAllAdminDeliveries,
+  assignAdminDeliveryPartner,
   fetchAdminDeliveries,
   fetchDeliverySchedulingOptions,
   scheduleAdminDelivery,
@@ -30,6 +33,12 @@ import {
   fetchPageData,
   updateStatus,
 } from "../controllers/admin/adminPayments.controller.js";
+import {
+  addAdminProduct,
+  editAdminProduct,
+  fetchAdminProducts,
+  removeAdminProduct,
+} from "../controllers/admin/products.controller.js";
 const router = express.Router();
 
 router.post("/", adminLogin);
@@ -46,6 +55,9 @@ router.get("/deliveries", verifyAdmin, fetchAdminDeliveries);
 router.get("/deliveries/scheduling-options", verifyAdmin, fetchDeliverySchedulingOptions);
 router.post("/deliveries/schedule", verifyAdmin, scheduleAdminDelivery);
 router.post("/deliveries/schedule-bulk", verifyAdmin, scheduleAdminDeliveriesBulk);
+router.patch("/deliveries/:id/approve", verifyAdmin, approveAdminDelivery);
+router.patch("/deliveries/:id/assign-partner", verifyAdmin, assignAdminDeliveryPartner);
+router.post("/deliveries/approve-all", verifyAdmin, approveAllAdminDeliveries);
 router.get("/buildings", verifyAdmin, getUniqueBuildings);
 router.get("/agents",verifyAdmin, fetchAdminAgents);
 router.get("/agents/:id",verifyAdmin,fetchAdminAgentById);
@@ -54,6 +66,10 @@ router.delete("/agents/:id", verifyAdmin, deleteAdminAgentById);
 router.get("/payments", verifyAdmin, fetchPageData);
 router.patch("/payments/:id/status", verifyAdmin, updateStatus);
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan);
+router.get("/products", verifyAdmin, fetchAdminProducts);
+router.post("/products", verifyAdmin, addAdminProduct);
+router.put("/products/:id", verifyAdmin, editAdminProduct);
+router.delete("/products/:id", verifyAdmin, removeAdminProduct);
 
 router.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date() }); //dont get any output

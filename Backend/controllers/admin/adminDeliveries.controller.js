@@ -1,4 +1,7 @@
 import {
+  approveAllPendingDeliveryOrders,
+  approvePendingDeliveryOrder,
+  assignDeliveryPartnerToOrder,
   getAdminDeliveries,
   getDeliverySchedulingOptions,
   scheduleBulkDeliveriesForDate,
@@ -80,6 +83,68 @@ export const scheduleAdminDeliveriesBulk = async (req, res) => {
     console.error("ADMIN BULK DELIVERY SCHEDULE ERROR:", err.message);
     res.status(err?.statusCode || 500).json({
       message: err?.message || "Failed to schedule deliveries in bulk",
+    });
+  }
+};
+
+export const approveAdminDelivery = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId || null;
+    const { id } = req.params;
+
+    const result = await approvePendingDeliveryOrder({
+      dairyId,
+      deliveryId: id,
+    });
+
+    res.json({
+      message: result?.alreadyApproved ? "Order already approved" : "Order approved",
+      ...result,
+    });
+  } catch (err) {
+    console.error("ADMIN DELIVERY APPROVAL ERROR:", err.message);
+    res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to approve order",
+    });
+  }
+};
+
+export const approveAllAdminDeliveries = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId || null;
+    const result = await approveAllPendingDeliveryOrders({ dairyId });
+    res.json({
+      message: "Pending orders approved",
+      ...result,
+    });
+  } catch (err) {
+    console.error("ADMIN BULK APPROVAL ERROR:", err.message);
+    res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to approve all pending orders",
+    });
+  }
+};
+
+export const assignAdminDeliveryPartner = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId || null;
+    const { id } = req.params;
+    const { agentId } = req.body || {};
+
+    const result = await assignDeliveryPartnerToOrder({
+      dairyId,
+      deliveryId: id,
+      agentId,
+    });
+
+    res.json({
+      message: "Delivery partner assigned",
+      ...result,
+    });
+  } catch (err) {
+    console.error("ADMIN ASSIGN DELIVERY PARTNER ERROR:", err.message);
+    res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to assign delivery partner",
     });
   }
 };

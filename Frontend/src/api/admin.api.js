@@ -211,3 +211,43 @@ export const updateAdminFarmPlan = async (plan) => {
   const { data } = await client.patch("/admin/farm-plan", { plan });
   return data;
 };
+
+export const approveAdminDelivery = async (id) => {
+  const { data } = await client.patch(`/admin/deliveries/${id}/approve`);
+  return data;
+};
+
+export const approveAllAdminDeliveries = async () => {
+  const { data } = await client.post("/admin/deliveries/approve-all");
+  return data;
+};
+
+export const assignAdminDeliveryPartner = async (id, agentId) => {
+  const { data } = await client.patch(`/admin/deliveries/${id}/assign-partner`, { agentId });
+  return data;
+};
+
+/* =========================
+   PRODUCTS & STOCK
+========================= */
+export const fetchAdminProducts = async ({ search = "", includeInactive = true } = {}) => {
+  const { data } = await client.get("/admin/products", {
+    params: { search, includeInactive },
+  });
+  return data;
+};
+
+export const createAdminProduct = async (payload) => {
+  const { data } = await client.post("/admin/products", payload);
+  return data;
+};
+
+export const updateAdminProduct = async (id, payload) => {
+  const { data } = await client.put(`/admin/products/${id}`, payload);
+  return data;
+};
+
+export const deleteAdminProduct = async (id) => {
+  const { data } = await client.delete(`/admin/products/${id}`);
+  return data;
+};

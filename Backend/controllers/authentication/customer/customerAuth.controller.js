@@ -48,11 +48,11 @@ export const addCustomerAuth = async (req, res) => {
     
     // Handle specific errors (like duplicate email/phone from your uniqueness service)
     const isDuplicate = err.message.includes("already used") || err.message.includes("unique");
-    const statusCode = isDuplicate ? 409 : 500;
+    const statusCode = err.statusCode || (isDuplicate ? 409 : 500);
     
     return res.status(statusCode).json({
       success: false,
-      message: isDuplicate ? err.message : "Registration failed",
+      message: statusCode >= 500 ? "Registration failed" : err.message,
       error: err.message,
     });
   }
@@ -87,9 +87,7 @@ export const requestOtpAuth = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: isEmail
-        ? "OTP sent successfully to your email"
-        : "OTP sent successfully to your mobile",
+      message: "OTP sent successfully to your email",
     });
 
   } catch (err) {
