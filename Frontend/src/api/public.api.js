@@ -1,25 +1,34 @@
-import client from "./client"; // ✅ Use the centralized client
+import axios from "axios";
 
-/**
- * Fetch all public dairies with optional search and location filtering.
- * Supports a 10km radius filter for "Nearby Dairies".
- */
-export const fetchPublicDairies = async ({ search = "", lat = null, lng = null, radius = 10 } = {}) => {
-  const { data } = await client.get("/dairies", {
-    params: { 
-      search,
-      lat,   // ✅ Latitude from browser geolocation
-      lng,   // ✅ Longitude from browser geolocation
-      radius // ✅ 10km limit as per project requirements
-    }, 
-  });
-  return data;
+export const fetchPublicDairies = async ({
+  search = "",
+  city = "",
+  pincode = "",
+  lat = null,
+  lng = null,
+  radius = 10,
+} = {}) => {
+
+  const params = {};
+
+  if (search) params.search = search;
+  if (city) params.city = city;
+  if (pincode) params.pincode = pincode;
+
+  if (lat !== null && lat !== undefined) params.lat = lat;
+  if (lng !== null && lng !== undefined) params.lng = lng;
+
+  if (radius) params.radius = radius;
+
+  const res = await axios.get("/api/public/dairies", { params });
+
+  return res.data;
 };
 
-/**
- * Fetch details for a specific dairy by its ID.
- */
+/* ---------- GET SINGLE DAIRY ---------- */
+
 export const fetchPublicDairyById = async (id) => {
-  const { data } = await client.get(`/dairies/${id}`);
-  return data;
+  const res = await axios.get(`/api/public/dairies/${id}`);
+
+  return res.data;
 };

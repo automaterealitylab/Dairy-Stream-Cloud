@@ -1,21 +1,26 @@
-import { listPublicDairies, getPublicDairyById } from "../../services/public/dairies.service.js";
+import {
+  listPublicDairies,
+  getPublicDairyById,
+} from "../../services/public/dairies.service.js";
 
 export const getPublicDairies = async (req, res) => {
   try {
-    const search = req.query.search || "";
-    
-    // 1. Extract location parameters from the query string
-    const lat = req.query.lat ? parseFloat(req.query.lat) : null;
-    const lng = req.query.lng ? parseFloat(req.query.lng) : null;
-    const radius = req.query.radius ? parseFloat(req.query.radius) : 10; // Default to 10km
+    const { search, city, pincode, lat, lng, radius } = req.query;
 
-    // 2. Pass these to the service
-    // We include search, lat, lng, and radius to enable filtered discovery
-    const dairies = await listPublicDairies({ 
-      search, 
-      lat, 
-      lng, 
-      radius 
+    const parsedLat = lat !== undefined ? Number(lat) : null;
+    const parsedLng = lng !== undefined ? Number(lng) : null;
+    const parsedRadius =
+      radius !== undefined && !Number.isNaN(Number(radius))
+        ? Number(radius)
+        : 10;
+
+    const dairies = await listPublicDairies({
+      search,
+      city,
+      pincode,
+      lat: parsedLat,
+      lng: parsedLng,
+      radius: parsedRadius,
     });
 
     res.json({ dairies });
@@ -28,10 +33,15 @@ export const getPublicDairies = async (req, res) => {
 export const getPublicDairy = async (req, res) => {
   try {
     const { id } = req.params;
+
     const dairy = await getPublicDairyById(id);
+
     res.json({ dairy });
   } catch (err) {
     console.error("PUBLIC DAIRY ERROR:", err.message);
-    res.status(500).json({ message: "Failed to fetch dairy" });
+
+    res.status(500).json({
+      message: "Failed to fetch dairy",
+    });
   }
 };

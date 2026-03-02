@@ -1,113 +1,67 @@
+// Backend/src/controllers/admin/dairy.controller.js
 import { registerDairyService } from "../../services/admin/dairy.service.js";
 import cloudinary from "../../config/cloudinary.js";
+import streamifier from "streamifier";
 
-// ===============================
-// REGISTER DAIRY
-// ===============================
+const uploadFromBuffer = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const cld_upload_stream = cloudinary.uploader.upload_stream(
+      { folder: "dairies" },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(fileBuffer).pipe(cld_upload_stream);
+  });
+};
+
 export const registerDairy = async (req, res) => {
   try {
+    // 1. Extract all fields (Ensure these match your frontend formData keys)
     const {
-      dairyName,
-      dairyPhone,
-      dairyEmail,
-      gstin,
-      category,
-      address,
-      city,
-      state,
-      pincode,
-      serviceType,
-      servicePincodes,
-      serviceRadius,
-      ownerName,
-      adminEmail,
-      adminMobile,
-      password,
-      selectedPlan,
-      bankAccountHolderName,
-      bankAccountNumber,
-      bankIfscCode,
-      bankName,
-      bankBranch,
-      upiId,
+      dairy_name, dairy_phone, dairy_email, address, city, state, pincode,
+      latitude, longitude, owner_name, admin_email, password,
+      bank_account_holder_name, bank_account_number, bank_ifsc_code,
+      bank_name, bank_branch, upi_id, selected_plan
     } = req.body;
 
-    let imageUrl = null;
-    if (req.file) {
-      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-      const upload = await cloudinary.uploader.upload(dataUri, {
-        folder: "dairies",
-        resource_type: "image",
-      });
-      imageUrl = upload.secure_url;
+    // 2. Logo Validation (Mandatory for Branding Recognition)
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "Dairy logo is required." });
     }
 
-    // Validation
-    const requiredFields = {
-      dairyName,
-      dairyPhone,
-      dairyEmail,
-      address,
-      city,
-      state,
-      pincode,
-      ownerName,
-      adminEmail,
-      password,
-      bankAccountHolderName,
-      bankAccountNumber,
-      bankIfscCode,
+    // 3. Strict Validation List (Must match the 400 error triggers)
+    const required = { 
+      dairy_name, dairy_phone, dairy_email, address, city, state, pincode,
+      owner_name, admin_email, password, bank_account_number, bank_ifsc_code 
     };
 
-    const missingFields = Object.entries(requiredFields)
-      .filter(([key, value]) => !value)
+    const missing = Object.entries(required)
+      .filter(([_, value]) => !value)
       .map(([key]) => key);
 
-    if (missingFields.length > 0) {
-      console.error("❌ Missing fields:", missingFields);
-      return res.status(400).json({
-        success: false,
-        error: `Missing required fields: ${missingFields.join(", ")}`,
+    if (missing.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Missing fields: ${missing.join(", ")}` 
       });
     }
 
+    // 4. Upload Logo
+    const uploadResult = await uploadFromBuffer(req.file.buffer);
+
+    // 5. Call Service with parsed coordinates for 10km radius logic
     const result = await registerDairyService({
-      dairyName,
-      dairyPhone,
-      dairyEmail,
-      gstin,
-      category,
-      address,
-      city,
-      state,
-      pincode,
-      serviceType,
-      servicePincodes,
-      serviceRadius,
-      ownerName,
-      adminEmail,
-      adminMobile,
-      password,
-      selectedPlan,
-      bankAccountHolderName,
-      bankAccountNumber,
-      bankIfscCode,
-      bankName,
-      bankBranch,
-      upiId,
-      imageUrl,
+      ...req.body,
+      imageUrl: uploadResult.secure_url,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null
     });
 
-    res.json({
-      success: true,
-      message: "Dairy registered successfully",
-      data: result,
-    });
+    res.status(201).json({ success: true, data: result });
   } catch (err) {
-    console.error("❌ Dairy registration error:", err.message);
-    res.status(err.statusCode || 400).json({
-      success: false,
-      error: err.message,
-    });
+    console.error("REGISTRATION ERROR:", err.message);
+    res.status(400).json({ success: false, error: err.message });
   }
 };

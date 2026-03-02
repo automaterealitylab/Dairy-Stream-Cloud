@@ -7,8 +7,8 @@ import agentRoutes from './agent.routes.js';
 
 const router = express.Router();
 
-// 1. Public Routes (Base: /api)
-router.use('/', publicRoutes);
+// 1. Public Routes (Base: /api/public)
+router.use('/public', publicRoutes);
 
 // 2. Customer Routes (Base: /api/customer)
 router.use('/customer', customerRoutes);
