@@ -5,6 +5,7 @@ import {
   approveAllAdminDeliveries,
   fetchAdminDeliveries,
   fetchAdminDeliverySchedulingOptions,
+  resolveAdminDeliveryIssue,
   scheduleAdminDelivery,
   scheduleAdminDeliveriesBulk,
 } from "../../api/admin.api";
@@ -73,6 +74,14 @@ const FeedbackBanner = ({ feedback }) => {
 
 // --- Main Component ---
 export default function AdminDeliveries() {
+  const RESOLVE_ACTION_OPTIONS = [
+    "Replacement milk sent",
+    "Refund initiated",
+    "Delivery partner warned",
+    "Quality issue escalated to dairy team",
+    "Customer contacted and issue clarified",
+  ];
+
   const [activeTab, setActiveTab] = useState("bulk"); // 'bulk' | 'single'
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -92,6 +101,11 @@ export default function AdminDeliveries() {
   const [approvingId, setApprovingId] = useState(null);
   const [assigningId, setAssigningId] = useState(null);
   const [approvingAll, setApprovingAll] = useState(false);
+  const [resolvingIssueId, setResolvingIssueId] = useState(null);
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
+  const [resolveTargetDelivery, setResolveTargetDelivery] = useState(null);
+  const [resolveAction, setResolveAction] = useState("Replacement milk sent");
+  const [resolveCustomAction, setResolveCustomAction] = useState("");
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignTargetDelivery, setAssignTargetDelivery] = useState(null);
   const [selectedAssignAgentId, setSelectedAssignAgentId] = useState("");
@@ -305,6 +319,49 @@ export default function AdminDeliveries() {
     setAssignTargetDelivery(delivery);
     setSelectedAssignAgentId("");
     setAssignModalOpen(true);
+  };
+
+  const openResolveIssueModal = (delivery) => {
+    if (!delivery?.rawId) return;
+    setResolveTargetDelivery(delivery);
+    setResolveAction("Replacement milk sent");
+    setResolveCustomAction("");
+    setResolveModalOpen(true);
+  };
+
+  const handleResolveIssue = async () => {
+    if (!resolveTargetDelivery?.rawId) return;
+
+    const note =
+      resolveAction === "OTHER"
+        ? String(resolveCustomAction || "").trim()
+        : resolveAction;
+
+    if (!note) {
+      setSingleFeedback({ type: "error", message: "Please enter action taken." });
+      return;
+    }
+
+    setSingleFeedback({ type: "", message: "" });
+    setResolvingIssueId(resolveTargetDelivery.rawId);
+    try {
+      await resolveAdminDeliveryIssue(resolveTargetDelivery.rawId, note);
+      await loadDeliveries();
+      setSingleFeedback({
+        type: "success",
+        message: `Issue resolved for ${resolveTargetDelivery.id}.`,
+      });
+      setResolveModalOpen(false);
+      setResolveTargetDelivery(null);
+      setResolveCustomAction("");
+    } catch (err) {
+      setSingleFeedback({
+        type: "error",
+        message: err?.message || "Failed to resolve issue.",
+      });
+    } finally {
+      setResolvingIssueId(null);
+    }
   };
 
   const handleConfirmAssignPartner = async () => {
@@ -540,6 +597,16 @@ export default function AdminDeliveries() {
                         <td className="px-6 py-4">
                           <p className="text-sm text-slate-600">{d.agentName || "Unassigned"}</p>
                           <p className="text-[11px] text-slate-400 italic">Qty: {d.quantity}</p>
+                          {d.hasOpenIssue && (
+                            <p className="mt-1 text-[11px] text-rose-700 font-semibold">
+                              Issue: {d.customerIssue || "Reported by customer"}
+                            </p>
+                          )}
+                          {!d.hasOpenIssue && d.issueStatus === "RESOLVED" && d.issueAdminAction && (
+                            <p className="mt-1 text-[11px] text-emerald-700 font-semibold">
+                              Action Taken: {d.issueAdminAction}
+                            </p>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-sm text-slate-800">{formatDate(d.date)}</p>
@@ -558,7 +625,16 @@ export default function AdminDeliveries() {
                           <StatusPill status={d.status} />
                         </td>
                         <td className="px-6 py-4 text-right">
-                          {d.needsApproval ? (
+                          {d.hasOpenIssue ? (
+                            <button
+                              type="button"
+                              onClick={() => openResolveIssueModal(d)}
+                              disabled={resolvingIssueId === d.rawId}
+                              className="px-3 py-1.5 rounded bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 disabled:bg-rose-300"
+                            >
+                              {resolvingIssueId === d.rawId ? "Resolving..." : "Resolve Issue"}
+                            </button>
+                          ) : d.needsApproval ? (
                             <button
                               type="button"
                               onClick={() => handleApproveOne(d)}
@@ -696,6 +772,91 @@ export default function AdminDeliveries() {
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold disabled:bg-blue-300"
               >
                 {assigningId === assignTargetDelivery?.rawId ? "Assigning..." : "Assign Partner"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resolveModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Resolve Reported Issue</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Delivery: {resolveTargetDelivery?.id || "-"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setResolveModalOpen(false);
+                  setResolveTargetDelivery(null);
+                  setResolveCustomAction("");
+                }}
+                className="text-slate-500 hover:text-slate-700 text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase ml-1">
+                  Action Taken
+                </label>
+                <select
+                  value={resolveAction}
+                  onChange={(e) => setResolveAction(e.target.value)}
+                  className="pro-input w-full text-sm"
+                >
+                  {RESOLVE_ACTION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value="OTHER">Other (custom)</option>
+                </select>
+              </div>
+
+              {resolveAction === "OTHER" && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase ml-1">
+                    Custom Action Note
+                  </label>
+                  <textarea
+                    value={resolveCustomAction}
+                    onChange={(e) => setResolveCustomAction(e.target.value)}
+                    placeholder="Describe action taken by admin..."
+                    className="pro-input w-full h-24 text-sm"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setResolveModalOpen(false);
+                  setResolveTargetDelivery(null);
+                  setResolveCustomAction("");
+                }}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleResolveIssue}
+                disabled={
+                  resolvingIssueId === resolveTargetDelivery?.rawId ||
+                  (resolveAction === "OTHER" && !String(resolveCustomAction || "").trim())
+                }
+                className="px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold disabled:bg-rose-300"
+              >
+                {resolvingIssueId === resolveTargetDelivery?.rawId ? "Resolving..." : "Confirm Resolve"}
               </button>
             </div>
           </div>

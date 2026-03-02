@@ -8,6 +8,7 @@ import {
   assignAdminDeliveryPartner,
   fetchAdminDeliveries,
   fetchDeliverySchedulingOptions,
+  resolveAdminDeliveryIssue,
   scheduleAdminDelivery,
   scheduleAdminDeliveriesBulk,
 } from "../controllers/admin/adminDeliveries.controller.js";
@@ -16,6 +17,8 @@ import {
   fetchAdminCustomerById,
   updateAdminCustomerById,
   deleteAdminCustomerById,
+  approveAdminCustomerSubscription,
+  assignAdminCustomerPermanentPartner,
   upsertAdminCustomerSubscription,
 } from "../controllers/admin/adminCustomers.controller.js";
 import { registerDairy } from "../controllers/admin/dairy.controller.js";
@@ -50,6 +53,8 @@ router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById);
 router.put("/customers/:id", verifyAdmin, updateAdminCustomerById);
 router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById);
 router.post("/customers/:id/subscription", verifyAdmin, upsertAdminCustomerSubscription);
+router.patch("/customers/:id/subscription/approve", verifyAdmin, approveAdminCustomerSubscription);
+router.patch("/customers/:id/subscription/assign-partner", verifyAdmin, assignAdminCustomerPermanentPartner);
 router.get("/dashboard", verifyAdmin, getDashboard);
 router.get("/deliveries", verifyAdmin, fetchAdminDeliveries);
 router.get("/deliveries/scheduling-options", verifyAdmin, fetchDeliverySchedulingOptions);
@@ -57,6 +62,7 @@ router.post("/deliveries/schedule", verifyAdmin, scheduleAdminDelivery);
 router.post("/deliveries/schedule-bulk", verifyAdmin, scheduleAdminDeliveriesBulk);
 router.patch("/deliveries/:id/approve", verifyAdmin, approveAdminDelivery);
 router.patch("/deliveries/:id/assign-partner", verifyAdmin, assignAdminDeliveryPartner);
+router.patch("/deliveries/:id/resolve-issue", verifyAdmin, resolveAdminDeliveryIssue);
 router.post("/deliveries/approve-all", verifyAdmin, approveAllAdminDeliveries);
 router.get("/buildings", verifyAdmin, getUniqueBuildings);
 router.get("/agents",verifyAdmin, fetchAdminAgents);

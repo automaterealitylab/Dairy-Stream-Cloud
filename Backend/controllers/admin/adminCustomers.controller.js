@@ -3,6 +3,8 @@ import {
   getCustomerDetails,
   updateCustomerById,
   deleteCustomerById,
+  approveCustomerSubscriptionById,
+  assignPermanentDeliveryPartnerByCustomerId,
   upsertAdminCustomerSubscriptionById,
 } from "../../services/admin/adminCustomers.service.js";
 
@@ -83,6 +85,50 @@ export const upsertAdminCustomerSubscription = async (req, res) => {
     console.error("ADMIN CUSTOMER SUBSCRIPTION ERROR:", err.message);
     res.status(500).json({
       message: err?.message || "Failed to save customer subscription",
+    });
+  }
+};
+
+export const approveAdminCustomerSubscription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    if (!dairyId) {
+      return res.status(403).json({ message: "Admin is not linked to any dairy" });
+    }
+
+    const subscription = await approveCustomerSubscriptionById({
+      customerId: id,
+      dairyId,
+    });
+    res.json({ success: true, subscription });
+  } catch (err) {
+    console.error("ADMIN CUSTOMER SUBSCRIPTION APPROVE ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to approve customer subscription",
+    });
+  }
+};
+
+export const assignAdminCustomerPermanentPartner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    const { agentId } = req.body || {};
+    if (!dairyId) {
+      return res.status(403).json({ message: "Admin is not linked to any dairy" });
+    }
+
+    const subscription = await assignPermanentDeliveryPartnerByCustomerId({
+      customerId: id,
+      dairyId,
+      agentId,
+    });
+    res.json({ success: true, subscription });
+  } catch (err) {
+    console.error("ADMIN CUSTOMER SUBSCRIPTION ASSIGN PARTNER ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to assign permanent delivery partner",
     });
   }
 };

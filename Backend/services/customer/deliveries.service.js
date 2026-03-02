@@ -1,5 +1,6 @@
 import { supabase } from "../../config/supabase.js";
 import { getSubscriptionByCustomerId } from "./subscription.service.js";
+import { ensureCustomerSubscriptionDeliveryForDate } from "./subscription.automation.service.js";
 
 const VALID_ONE_TIME_SLOTS = new Set(["MORNING", "EVENING"]);
 const SLOT_WINDOWS = {
@@ -68,6 +69,62 @@ const parseOneTimeNotes = (notesValue) => {
     slotKey,
     paymentMethod: paymentMatch?.[1]?.trim()?.toUpperCase() || null,
     address: addressMatch?.[1]?.trim() || null,
+  };
+};
+
+const parseLatestCustomerIssueFromNotes = (notesValue) => {
+  const notes = String(notesValue || "");
+  const lines = notes
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const taggedIssueLines = lines.filter((line) => line.startsWith("[CUSTOMER_ISSUE]"));
+  if (taggedIssueLines.length === 0) {
+    return { issue: null, reportedAt: null };
+  }
+
+  const latestLine = taggedIssueLines[taggedIssueLines.length - 1];
+  const match = latestLine.match(/^\[CUSTOMER_ISSUE\]\s*([^\s]+)\s*::\s*(.+)$/i);
+  if (!match) {
+    return { issue: latestLine.replace("[CUSTOMER_ISSUE]", "").trim() || null, reportedAt: null };
+  }
+
+  const reportedAtRaw = String(match[1] || "").trim();
+  const issue = String(match[2] || "").trim() || null;
+  const parsedDate = new Date(reportedAtRaw);
+
+  return {
+    issue,
+    reportedAt: Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString(),
+  };
+};
+
+const parseLatestCustomerIssue = (row = {}) => {
+  const directIssue = String(row?.customer_issue_text || "").trim();
+  const directReportedAt = row?.customer_issue_reported_at || null;
+  const issueStatus = String(row?.customer_issue_status || "").toUpperCase();
+
+  if (directIssue && issueStatus !== "RESOLVED") {
+    return {
+      issue: directIssue,
+      reportedAt: directReportedAt,
+    };
+  }
+
+  // Backward compatibility for older rows where issue text lived in notes only.
+  return parseLatestCustomerIssueFromNotes(row?.notes);
+};
+
+const getIssueMeta = (row = {}) => {
+  const issueStatus = String(row?.customer_issue_status || "").toUpperCase();
+  const issueAdminAction = String(row?.customer_issue_admin_action || "").trim() || null;
+  const issueResolvedAt = row?.customer_issue_resolved_at || null;
+
+  return {
+    issueStatus: issueStatus || (row?.customer_issue_text ? "OPEN" : "NONE"),
+    issueAdminAction,
+    issueResolvedAt,
   };
 };
 
@@ -145,6 +202,8 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
   const dateSource = row.delivery_date || row.date || row.created_at || row.updated_at;
   const timeSource = row.delivered_at || row.time || row.updated_at || row.created_at;
   const parsedNotes = parseOneTimeNotes(row?.notes);
+  const parsedIssue = parseLatestCustomerIssue(row);
+  const issueMeta = getIssueMeta(row);
   const rowSlot = normalizeOneTimeSlot(row?.delivery_slot || row?.slot || parsedNotes.slotKey || "");
   const slotKey = VALID_ONE_TIME_SLOTS.has(rowSlot) ? rowSlot : null;
   const slotLabel = slotKey ? toSlotLabel(slotKey) : String(row?.delivery_slot || row?.slot || "-");
@@ -189,6 +248,11 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     paymentMethod: paymentMethod || "-",
     address: parsedNotes.address || null,
     isOneTimeOrder: parsedNotes.isOneTimeOrder,
+    customerIssue: parsedIssue.issue,
+    issueReportedAt: parsedIssue.reportedAt,
+    issueStatus: issueMeta.issueStatus,
+    issueAdminAction: issueMeta.issueAdminAction,
+    issueResolvedAt: issueMeta.issueResolvedAt,
   };
 };
 
@@ -222,6 +286,8 @@ const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
       : null;
 
   return {
+    id: normalized.id || null,
+    deliveryId: normalized.id || null,
     status: normalized.status || "PENDING",
     approvalStatus: normalized.approvalStatus || "APPROVED",
     product: normalized.product || "Milk",
@@ -234,6 +300,11 @@ const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
     paymentMethod: normalized.paymentMethod || null,
     address: normalized.address || null,
     isOneTimeOrder: Boolean(normalized.isOneTimeOrder),
+    customerIssue: normalized.customerIssue || null,
+    issueReportedAt: normalized.issueReportedAt || null,
+    issueStatus: normalized.issueStatus || "NONE",
+    issueAdminAction: normalized.issueAdminAction || null,
+    issueResolvedAt: normalized.issueResolvedAt || null,
     agent: null,
     canTrackAgent: false,
   };
@@ -241,7 +312,7 @@ const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
 
 const getTodayDeliveryFallback = (subscription) => {
   const isActiveSubscription =
-    subscription && String(subscription.status || "ACTIVE").toUpperCase() !== "CLOSED";
+    subscription && String(subscription.status || "ACTIVE").toUpperCase() === "ACTIVE";
   const normalizedSlot = normalizeOneTimeSlot(subscription?.delivery_slot);
   const slotKey = VALID_ONE_TIME_SLOTS.has(normalizedSlot) ? normalizedSlot : null;
   const slotLabel = slotKey ? toSlotLabel(slotKey) : String(subscription?.delivery_slot || "-");
@@ -254,6 +325,8 @@ const getTodayDeliveryFallback = (subscription) => {
     : "-";
 
   return {
+    id: null,
+    deliveryId: null,
     status: isActiveSubscription ? "NOT_SCHEDULED" : "NOT_SUBSCRIBED",
     time: null,
     product: isActiveSubscription ? (subscription?.milk_type || "Milk") : "Milk",
@@ -265,6 +338,11 @@ const getTodayDeliveryFallback = (subscription) => {
     paymentMethod: null,
     address: null,
     isOneTimeOrder: false,
+    customerIssue: null,
+    issueReportedAt: null,
+    issueStatus: "NONE",
+    issueAdminAction: null,
+    issueResolvedAt: null,
     agent: null,
     canTrackAgent: false,
   };
@@ -382,7 +460,16 @@ const releaseStockForCancelledOrder = async ({ dairyId, milkType, quantity }) =>
   if (error) throw error;
 };
 
+const appendCustomerIssueNote = (existingNotes, issueText) => {
+  const trimmedIssue = String(issueText || "").trim();
+  const previous = String(existingNotes || "").trim();
+  const stamped = `[CUSTOMER_ISSUE] ${new Date().toISOString()} :: ${trimmedIssue}`;
+  return previous ? `${previous}\n${stamped}` : stamped;
+};
+
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
+  await ensureCustomerSubscriptionDeliveryForDate({ customerId });
+
   const rows =
     (await tryFetchFromTable("deliveries", customerId)) ??
     (await tryFetchFromTable("milk_deliveries", customerId)) ??
@@ -650,5 +737,60 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     cancelled: true,
     orderId,
     paymentId,
+  };
+};
+
+export const reportCustomerDeliveryIssue = async (customerId, payload = {}) => {
+  const deliveryId = toPositiveId(payload?.deliveryId);
+  const issue = String(payload?.issue || "").trim();
+
+  if (!deliveryId) {
+    throw new Error("Valid deliveryId is required");
+  }
+  if (!issue || issue.length < 5) {
+    throw new Error("Issue must be at least 5 characters");
+  }
+  if (issue.length > 500) {
+    throw new Error("Issue must be 500 characters or less");
+  }
+
+  const { data: delivery, error: fetchError } = await supabase
+    .from("deliveries")
+    .select("id, customer_id, notes")
+    .eq("id", deliveryId)
+    .eq("customer_id", customerId)
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+  if (!delivery) {
+    throw new Error("Delivery not found");
+  }
+
+  const nextNotes = appendCustomerIssueNote(delivery.notes, issue);
+  const { data: updated, error: updateError } = await supabase
+    .from("deliveries")
+    .update({
+      customer_issue_text: issue,
+      customer_issue_reported_at: new Date().toISOString(),
+      customer_issue_status: "OPEN",
+      customer_issue_admin_action: null,
+      customer_issue_resolved_at: null,
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", deliveryId)
+    .eq("customer_id", customerId)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!updated) {
+    throw new Error("Failed to save issue");
+  }
+
+  return {
+    success: true,
+    deliveryId,
   };
 };

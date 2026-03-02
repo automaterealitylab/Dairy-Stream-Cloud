@@ -25,6 +25,7 @@ export const saveSubscription = async (req, res) => {
       address,
       paymentMethod,
       status,
+      approvalStatus,
     } = req.body;
 
     if (!dairyId) {
@@ -40,6 +41,7 @@ export const saveSubscription = async (req, res) => {
       address,
       payment_method: paymentMethod,
       status,
+      approval_status: approvalStatus,
     });
 
     res.json({ subscription });
@@ -56,12 +58,13 @@ export const clearSubscription = async (req, res) => {
     const result = await clearSubscriptionByCustomerId(req.customer.id);
     res.json({
       success: true,
-      message: "Subscription removed successfully",
+      message: "Subscription closed successfully",
       ...result,
     });
   } catch (err) {
     console.error("CUSTOMER SUBSCRIPTION CLEAR ERROR:", err.message);
-    res.status(500).json({
+    const statusCode = err?.statusCode || (/pending|dues|unpaid|clear/i.test(String(err?.message || "")) ? 400 : 500);
+    res.status(statusCode).json({
       message: err?.message || "Failed to clear subscription",
     });
   }

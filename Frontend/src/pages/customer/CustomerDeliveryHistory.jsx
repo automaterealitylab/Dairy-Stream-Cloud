@@ -107,6 +107,22 @@ const Deliveries = () => {
                   <span className="text-gray-500 text-sm font-medium">{todayTimingLabel}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {todayDelivery?.customerIssue && (
+                    <span
+                      title={todayDelivery.customerIssue}
+                      className="max-w-full truncate px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-rose-100 text-rose-700"
+                    >
+                      Issue: {todayDelivery.customerIssue}
+                    </span>
+                  )}
+                  {todayDelivery?.issueAdminAction && (
+                    <span
+                      title={todayDelivery.issueAdminAction}
+                      className="max-w-full truncate px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700"
+                    >
+                      Action: {todayDelivery.issueAdminAction}
+                    </span>
+                  )}
                   {todayDelivery?.isOneTimeOrder && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700">
                       One-time order
@@ -205,6 +221,22 @@ const Deliveries = () => {
                       </p>
                     )}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {item.customerIssue && (
+                        <span
+                          title={item.customerIssue}
+                          className="max-w-full truncate px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-rose-100 text-rose-700"
+                        >
+                          Issue: {item.customerIssue}
+                        </span>
+                      )}
+                      {item.issueAdminAction && (
+                        <span
+                          title={item.issueAdminAction}
+                          className="max-w-full truncate px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700"
+                        >
+                          Action: {item.issueAdminAction}
+                        </span>
+                      )}
                       {item.isOneTimeOrder && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700">
                           One-time

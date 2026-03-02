@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { fetchAdminCustomers } from "../../api/admin.api";
+import {
+  approveAdminCustomerSubscription,
+  assignAdminCustomerPermanentPartner,
+  fetchAdminAgents,
+  fetchAdminCustomers,
+} from "../../api/admin.api";
 
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
@@ -19,6 +24,11 @@ export default function AdminCustomers() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
+  const [agents, setAgents] = useState([]);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignTargetCustomer, setAssignTargetCustomer] = useState(null);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -52,6 +62,66 @@ export default function AdminCustomers() {
       active = false;
     };
   }, [page, search, refreshKey]);
+
+  useEffect(() => {
+    let active = true;
+    const loadAgents = async () => {
+      try {
+        const res = await fetchAdminAgents({ page: 1, limit: 200, search: "" });
+        if (!active) return;
+        setAgents(Array.isArray(res?.agents) ? res.agents : []);
+      } catch {
+        if (!active) return;
+        setAgents([]);
+      }
+    };
+    loadAgents();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const reloadCustomers = () => setRefreshKey((k) => k + 1);
+
+  const handleApproveSubscription = async (customer) => {
+    setRowActionLoadingId(customer.id);
+    try {
+      await approveAdminCustomerSubscription(customer.id);
+      reloadCustomers();
+    } catch (err) {
+      alert(err?.message || "Failed to approve subscription");
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
+  const openAssignModal = (customer) => {
+    setAssignTargetCustomer(customer);
+    setSelectedAgentId("");
+    setAssignModalOpen(true);
+  };
+
+  const handleAssignPermanentPartner = async () => {
+    if (!assignTargetCustomer?.id) return;
+    const parsedAgentId = Number(selectedAgentId);
+    if (!Number.isFinite(parsedAgentId) || parsedAgentId <= 0) {
+      alert("Select a delivery partner");
+      return;
+    }
+
+    setRowActionLoadingId(assignTargetCustomer.id);
+    try {
+      await assignAdminCustomerPermanentPartner(assignTargetCustomer.id, parsedAgentId);
+      setAssignModalOpen(false);
+      setAssignTargetCustomer(null);
+      setSelectedAgentId("");
+      reloadCustomers();
+    } catch (err) {
+      alert(err?.message || "Failed to assign delivery partner");
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
 
   const openAddModal = () => {
     setIsAddModalOpen(true);
@@ -122,19 +192,64 @@ export default function AdminCustomers() {
                   </div>
 
                   <div className="flex items-center gap-8 text-sm">
-                    <div className="text-gray-500">
-                      Joined{" "}
-                      <span className="text-gray-900 font-medium">
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </span>
+                    <div className="text-gray-500 min-w-[180px]">
+                      <div>
+                        Joined{" "}
+                        <span className="text-gray-900 font-medium">
+                          {new Date(c.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {c.subscriptionId && (
+                        <div className="mt-1 text-xs">
+                          Subscription:{" "}
+                          <span
+                            className={`font-semibold ${
+                              String(c.subscriptionApprovalStatus || "").toUpperCase() === "PENDING"
+                                ? "text-amber-700"
+                                : "text-emerald-700"
+                            }`}
+                          >
+                            {String(c.subscriptionApprovalStatus || "APPROVED").toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {c.assignedSubscriptionAgentName && (
+                        <div className="mt-1 text-xs text-blue-700 font-medium">
+                          Partner: {c.assignedSubscriptionAgentName}
+                        </div>
+                      )}
                     </div>
 
-                    <button
-                      onClick={() => setSelectedCustomer(c.id)}
-                      className="text-blue-600 font-medium hover:underline"
-                    >
-                      View
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {c.subscriptionId &&
+                        String(c.subscriptionApprovalStatus || "").toUpperCase() === "PENDING" && (
+                          <button
+                            onClick={() => handleApproveSubscription(c)}
+                            disabled={rowActionLoadingId === c.id}
+                            className="px-3 py-1.5 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            {rowActionLoadingId === c.id ? "Approving..." : "Approve Subscription"}
+                          </button>
+                        )}
+
+                      {c.subscriptionId &&
+                        String(c.subscriptionApprovalStatus || "").toUpperCase() === "APPROVED" && (
+                          <button
+                            onClick={() => openAssignModal(c)}
+                            disabled={rowActionLoadingId === c.id}
+                            className="px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {c.assignedSubscriptionAgentId ? "Change Partner" : "Assign Delivery Partner"}
+                          </button>
+                        )}
+
+                      <button
+                        onClick={() => setSelectedCustomer(c.id)}
+                        className="text-blue-600 font-medium hover:underline"
+                      >
+                        View
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -192,6 +307,72 @@ export default function AdminCustomers() {
         }}
         onSaved={() => setRefreshKey((k) => k + 1)}
       />
+
+      {assignModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-gray-200 shadow-xl overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Assign Permanent Delivery Partner</h3>
+                <p className="text-sm text-gray-500">
+                  {assignTargetCustomer?.customer_name || "Customer"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignModalOpen(false);
+                  setAssignTargetCustomer(null);
+                  setSelectedAgentId("");
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Delivery Partner
+              </label>
+              <select
+                value={selectedAgentId}
+                onChange={(e) => setSelectedAgentId(e.target.value)}
+                className="pro-input w-full"
+              >
+                <option value="">Select Agent</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.agent_name || a.agentId || `Agent #${a.id}`} ({a.phone_number || "-"})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="px-6 py-4 border-t bg-white flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignModalOpen(false);
+                  setAssignTargetCustomer(null);
+                  setSelectedAgentId("");
+                }}
+                className="px-4 py-2 border rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAssignPermanentPartner}
+                disabled={!selectedAgentId || rowActionLoadingId === assignTargetCustomer?.id}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
+              >
+                {rowActionLoadingId === assignTargetCustomer?.id ? "Saving..." : "Save Assignment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

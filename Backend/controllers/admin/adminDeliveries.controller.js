@@ -4,6 +4,7 @@ import {
   assignDeliveryPartnerToOrder,
   getAdminDeliveries,
   getDeliverySchedulingOptions,
+  resolveDeliveryIssue,
   scheduleBulkDeliveriesForDate,
   scheduleDeliveryForSubscribedCustomer,
 } from "../../services/admin/adminDeliveries.service.js";
@@ -145,6 +146,30 @@ export const assignAdminDeliveryPartner = async (req, res) => {
     console.error("ADMIN ASSIGN DELIVERY PARTNER ERROR:", err.message);
     res.status(err?.statusCode || 500).json({
       message: err?.message || "Failed to assign delivery partner",
+    });
+  }
+};
+
+export const resolveAdminDeliveryIssue = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId || null;
+    const { id } = req.params;
+    const { note } = req.body || {};
+
+    const result = await resolveDeliveryIssue({
+      dairyId,
+      deliveryId: id,
+      note,
+    });
+
+    res.json({
+      message: result?.alreadyResolved ? "Issue already resolved" : "Issue resolved successfully",
+      ...result,
+    });
+  } catch (err) {
+    console.error("ADMIN ISSUE RESOLVE ERROR:", err.message);
+    res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to resolve issue",
     });
   }
 };

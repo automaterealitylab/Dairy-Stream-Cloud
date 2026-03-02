@@ -90,6 +90,12 @@ export const fetchCustomerDeliveries = async () => {
   return data;
 };
 
+export const reportCustomerDeliveryIssue = async ({ deliveryId, issue }) => {
+  const { data } = await client.post(`/customer/deliveries/${deliveryId}/issue`, { issue });
+  invalidateCustomerDashboardCache();
+  return data;
+};
+
 export const createCustomerOneTimeOrder = async (payload) => {
   const { data } = await client.post("/customer/orders/one-time", payload);
   invalidateCustomerDashboardCache();

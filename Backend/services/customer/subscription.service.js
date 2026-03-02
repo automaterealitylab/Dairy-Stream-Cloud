@@ -1,4 +1,9 @@
 import { supabase } from "../../config/supabase.js";
+import {
+  ensureCustomerSubscriptionDeliveryForDate,
+  ensureDeliveredSubscriptionPaymentsForCustomer,
+  getUnpaidDeliveredSubscriptionPaymentSummary,
+} from "./subscription.automation.service.js";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
@@ -125,6 +130,20 @@ export const getSubscriptionByCustomerId = async (customerId) => {
 };
 
 export const upsertSubscription = async (customerId, payload) => {
+  let resolvedApprovalStatus = payload.approval_status;
+  if (!resolvedApprovalStatus) {
+    const { data: existingApproval, error: existingApprovalError } = await supabase
+      .from("subscriptions")
+      .select("approval_status")
+      .eq("customer_id", customerId)
+      .eq("dairy_id", payload.dairy_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingApprovalError) throw existingApprovalError;
+    resolvedApprovalStatus = existingApproval?.approval_status || "PENDING";
+  }
+
   const body = {
     customer_id: customerId,
     dairy_id: payload.dairy_id,
@@ -135,6 +154,8 @@ export const upsertSubscription = async (customerId, payload) => {
     address: payload.address,
     payment_method: payload.payment_method,
     status: payload.status || "ACTIVE",
+    approval_status: String(resolvedApprovalStatus || "PENDING").toUpperCase(),
+    assigned_agent_id: payload.assigned_agent_id ?? null,
   };
 
   let data;
@@ -200,10 +221,28 @@ export const upsertSubscription = async (customerId, payload) => {
     dairyId: payload.dairy_id,
   });
 
+  if (
+    String(data?.status || payload?.status || "ACTIVE").toUpperCase() === "ACTIVE" &&
+    String(data?.approval_status || payload?.approval_status || "APPROVED").toUpperCase() === "APPROVED"
+  ) {
+    // Keep daily recurring delivery in sync whenever subscription becomes active.
+    await ensureCustomerSubscriptionDeliveryForDate({ customerId });
+  }
+
   return data;
 };
 
 export const clearSubscriptionByCustomerId = async (customerId) => {
+  await ensureDeliveredSubscriptionPaymentsForCustomer(customerId);
+  const unpaidSummary = await getUnpaidDeliveredSubscriptionPaymentSummary(customerId);
+  if (unpaidSummary.unpaidCount > 0) {
+    const error = new Error(
+      `Please clear all pending subscription dues before closing. Unpaid delivered entries: ${unpaidSummary.unpaidCount}`
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
   const { data: deletedRows, error } = await supabase
     .from("subscriptions")
     .delete()

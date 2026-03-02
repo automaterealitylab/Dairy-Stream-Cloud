@@ -59,8 +59,69 @@ export const getAdminCustomers = async ({
 
   if (error) throw error;
 
+  const customers = Array.isArray(data) ? data : [];
+  const customerIds = customers.map((row) => row?.id).filter(Boolean);
+
+  let latestSubscriptionByCustomer = new Map();
+  if (customerIds.length > 0) {
+    let subQuery = supabase
+      .from("subscriptions")
+      .select(
+        "id, customer_id, dairy_id, status, approval_status, assigned_agent_id, updated_at, created_at"
+      )
+      .in("customer_id", customerIds)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (dairyId) {
+      subQuery = subQuery.eq("dairy_id", dairyId);
+    }
+
+    const { data: subRows, error: subError } = await subQuery;
+    if (subError) throw subError;
+
+    for (const row of subRows || []) {
+      if (!row?.customer_id) continue;
+      if (!latestSubscriptionByCustomer.has(row.customer_id)) {
+        latestSubscriptionByCustomer.set(row.customer_id, row);
+      }
+    }
+  }
+
+  const assignedAgentIds = [...new Set(
+    [...latestSubscriptionByCustomer.values()].map((row) => row?.assigned_agent_id).filter(Boolean)
+  )];
+  const agentNameById = new Map();
+  if (assignedAgentIds.length > 0) {
+    const { data: agentRows, error: agentErr } = await supabase
+      .from("agents")
+      .select("id, agent_name")
+      .in("id", assignedAgentIds);
+    if (agentErr) throw agentErr;
+    for (const row of agentRows || []) {
+      agentNameById.set(row.id, row.agent_name || `Agent #${row.id}`);
+    }
+  }
+
+  const enrichedCustomers = customers.map((row) => {
+    const sub = latestSubscriptionByCustomer.get(row.id) || null;
+    const approvalStatus = String(sub?.approval_status || "APPROVED").toUpperCase();
+    const subscriptionStatus = String(sub?.status || "ACTIVE").toUpperCase();
+    const assignedAgentId = sub?.assigned_agent_id || null;
+
+    return {
+      ...row,
+      subscriptionId: sub?.id || null,
+      subscriptionStatus,
+      subscriptionApprovalStatus: approvalStatus,
+      hasPendingSubscriptionApproval: approvalStatus === "PENDING",
+      assignedSubscriptionAgentId: assignedAgentId,
+      assignedSubscriptionAgentName: assignedAgentId ? (agentNameById.get(assignedAgentId) || null) : null,
+    };
+  });
+
   return {
-    customers: data,
+    customers: enrichedCustomers,
     total: count,
     page,
     limit,
@@ -160,6 +221,8 @@ export const upsertAdminCustomerSubscriptionById = async ({
   address,
   paymentMethod,
   status,
+  approvalStatus,
+  assignedAgentId,
 }) => {
   if (!customerId) throw new Error("customerId is required");
   if (!dairyId) throw new Error("dairyId is required");
@@ -182,7 +245,71 @@ export const upsertAdminCustomerSubscriptionById = async ({
     address: address || "",
     payment_method: paymentMethod || "UPI",
     status: (status || "ACTIVE").toUpperCase(),
+    approval_status: (approvalStatus || "APPROVED").toUpperCase(),
+    assigned_agent_id: assignedAgentId ? Number(assignedAgentId) : null,
   });
 
   return subscription;
+};
+
+export const approveCustomerSubscriptionById = async ({ customerId, dairyId }) => {
+  if (!customerId) throw new Error("customerId is required");
+  if (!dairyId) throw new Error("dairyId is required");
+
+  const { data: updated, error } = await supabase
+    .from("subscriptions")
+    .update({
+      approval_status: "APPROVED",
+      status: "ACTIVE",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("customer_id", customerId)
+    .eq("dairy_id", dairyId)
+    .neq("status", "CLOSED")
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!updated) throw new Error("Subscription not found for this customer");
+  return updated;
+};
+
+export const assignPermanentDeliveryPartnerByCustomerId = async ({
+  customerId,
+  dairyId,
+  agentId,
+}) => {
+  if (!customerId) throw new Error("customerId is required");
+  if (!dairyId) throw new Error("dairyId is required");
+  const parsedAgentId = Number(agentId);
+  if (!Number.isFinite(parsedAgentId) || parsedAgentId <= 0) {
+    throw new Error("Valid agentId is required");
+  }
+
+  const { data: agent, error: agentError } = await supabase
+    .from("agents")
+    .select("id")
+    .eq("id", parsedAgentId)
+    .eq("dairy_id", dairyId)
+    .maybeSingle();
+  if (agentError) throw agentError;
+  if (!agent) throw new Error("Selected agent is not valid for this dairy");
+
+  const { data: updated, error } = await supabase
+    .from("subscriptions")
+    .update({
+      assigned_agent_id: parsedAgentId,
+      approval_status: "APPROVED",
+      status: "ACTIVE",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("customer_id", customerId)
+    .eq("dairy_id", dairyId)
+    .neq("status", "CLOSED")
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!updated) throw new Error("Subscription not found for this customer");
+  return updated;
 };
