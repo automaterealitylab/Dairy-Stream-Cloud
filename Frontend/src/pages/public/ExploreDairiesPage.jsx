@@ -19,34 +19,43 @@ const ExploreDairiesPage = () => {
   const [dairies, setDairies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [activeSubData, setActiveSubData] = useState(null); // Stores the actual sub object
+  const [activeSubData, setActiveSubData] = useState(null);
 
-
+  // Helper: Capture Live Location
   const getLiveLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject("Geolocation is not supported by your browser");
-    } else {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject("Geolocation not supported");
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
-        },
-        () => reject("Unable to retrieve your location")
-      );
-    }
-  });
-};
+          }),
+          () => reject("Location access denied")
+        );
+      }
+    });
+  };
 
-  // 1. Load Dairies
+  // 1. Load Dairies with Location-wise logic
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
         setLoading(true);
-        const res = await fetchPublicDairies();
+        
+        let coords = null;
+        try {
+          // Attempt to get live coordinates
+          coords = await getLiveLocation();
+        } catch (geoErr) {
+          console.warn("📍 Location fallback: Using general list", geoErr);
+        }
+
+        // Pass coords to API for 10km radius filtering
+        const res = await fetchPublicDairies(coords);
+        
         if (active) {
           setDairies(res?.dairies || []);
           setLoadError('');
@@ -66,7 +75,7 @@ const ExploreDairiesPage = () => {
   const currentUserRole = String(user?.role || roleFromStorage || "").toUpperCase();
   const isCustomerLoggedIn = isLoggedIn && currentUserRole === "CUSTOMER";
 
-  // 2. Load Subscription State (to find which dairy is subscribed)
+  // 2. Load Subscription State
   useEffect(() => {
     let active = true;
     const loadSubscriptionState = async () => {
@@ -86,7 +95,7 @@ const ExploreDairiesPage = () => {
     return () => { active = false; };
   }, [isCustomerLoggedIn]);
 
-  // 3. Logic to show subscribed dairy on top
+  // 3. Sorting Logic: Subscribed dairy on top
   const mappedDairies = useMemo(() => {
     const list = dairies.map((d) => ({
       id: d.id,
@@ -100,10 +109,9 @@ const ExploreDairiesPage = () => {
       image: d.image_url || '',
       address: d.address || d.dairy_address || d.city || 'Address not set',
       minPrice: d.min_price ?? 50,
-      isSubscribed: activeSubData?.dairy_id === d.id // Check if this is the one
+      isSubscribed: activeSubData?.dairy_id === d.id 
     }));
 
-    // Sort: Subscribed dairy comes first
     return list.sort((a, b) => (a.isSubscribed === b.isSubscribed ? 0 : a.isSubscribed ? -1 : 1));
   }, [dairies, activeSubData]);
 
@@ -147,14 +155,13 @@ const ExploreDairiesPage = () => {
               <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
               <input
                 type="text"
-                placeholder="Search dairies..."
-                className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search for dairies in your 10km radius..."
+                className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
-            {/* ENHANCED DASHBOARD BUTTON */}
             <div className="hidden md:block">
               {isCustomerLoggedIn ? (
                 <button 
@@ -176,7 +183,11 @@ const ExploreDairiesPage = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Nearby Dairies</h2>
+        <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">Nearby Dairies</h2>
+            <p className="text-xs text-gray-400 font-medium bg-gray-100 px-3 py-1 rounded-full italic">Sorted by proximity within 10km</p>
+        </div>
+
         {loading ? (
           <LoadingIndicator className="py-20" />
         ) : (
@@ -188,29 +199,31 @@ const ExploreDairiesPage = () => {
                 onClick={() => navigate(`/join/${dairy.id}`)}
               >
                 <div className="relative h-48 bg-gray-100">
-                  {dairy.image && <img src={dairy.image} alt={dairy.name} className="w-full h-full object-cover" />}
+                  {dairy.image && <img src={dairy.image} alt={dairy.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />}
                   
-                  {/* SUBSCRIBED BADGE */}
                   {dairy.isSubscribed && (
                     <div className="absolute top-3 left-3 bg-green-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md">
                       Your Active Plan
                     </div>
                   )}
                   
-                  <div className="absolute top-3 right-3 bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-gray-800">
-                    <Clock size={12} className="inline mr-1"/> {dairy.distance}
+                  <div className="absolute top-3 right-3 bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-gray-800 backdrop-blur-sm">
+                    <Clock size={12} className="inline mr-1 text-blue-500"/> {dairy.distance}
                   </div>
                 </div>
 
                 <div className="p-4">
                   <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-lg">{dairy.name}</h3>
+                    <h3 className="font-bold text-lg group-hover:text-blue-600 transition-colors">{dairy.name}</h3>
                     {dairy.rating && <div className="bg-green-100 px-1.5 py-0.5 rounded text-xs font-bold text-green-700">{dairy.rating} ★</div>}
                   </div>
-                  <p className="text-sm text-gray-500 mb-4">{dairy.address}</p>
+                  <p className="text-sm text-gray-500 mb-4 line-clamp-1">{dairy.address}</p>
                   <div className="pt-3 border-t flex items-center justify-between">
-                    <p className="font-bold text-gray-900">₹{dairy.minPrice}/L</p>
-                    <button className={`${dairy.isSubscribed ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'} px-4 py-1.5 rounded-lg text-xs font-bold`}>
+                    <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Starts at</span>
+                        <p className="font-bold text-gray-900">₹{dairy.minPrice}/L</p>
+                    </div>
+                    <button className={`${dairy.isSubscribed ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'} px-4 py-1.5 rounded-lg text-xs font-bold transition-all`}>
                       {dairy.isSubscribed ? 'View Plan' : 'View Details'}
                     </button>
                   </div>
