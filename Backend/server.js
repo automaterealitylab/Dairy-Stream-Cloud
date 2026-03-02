@@ -11,6 +11,7 @@ dotenv.config();
 import { supabase } from "./config/supabase.js"; 
 // ✅ Points to your central Route Hub
 import routes from "./routes/index.route.js"; 
+import { runDailySubscriptionAutomationForAllCustomers } from "./services/customer/subscription.automation.service.js";
 
 // 3. Create App
 const app = express();
@@ -83,6 +84,20 @@ const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
+
+const runSubscriptionAutomation = async () => {
+  try {
+    const result = await runDailySubscriptionAutomationForAllCustomers();
+    console.log(
+      `[AUTO_SUBSCRIPTION] date=${result.date} created=${result.createdCount} skipped=${result.skippedCount}`
+    );
+  } catch (err) {
+    console.error("AUTO_SUBSCRIPTION ERROR:", err?.message || err);
+  }
+};
+
+runSubscriptionAutomation();
+setInterval(runSubscriptionAutomation, 60 * 60 * 1000);
 
 // Handle "Port in use" errors gracefully (from your old app.js)
 server.on('error', (err) => {

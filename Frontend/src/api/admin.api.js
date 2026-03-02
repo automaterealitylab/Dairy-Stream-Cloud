@@ -115,6 +115,18 @@ export const createAdminCustomerSubscription = async (customerId, payload) => {
   return data;
 };
 
+export const approveAdminCustomerSubscription = async (customerId) => {
+  const { data } = await client.patch(`/admin/customers/${customerId}/subscription/approve`);
+  return data;
+};
+
+export const assignAdminCustomerPermanentPartner = async (customerId, agentId) => {
+  const { data } = await client.patch(`/admin/customers/${customerId}/subscription/assign-partner`, {
+    agentId,
+  });
+  return data;
+};
+
 /* =========================
    AGENT MANAGEMENT
 ========================= */
@@ -224,6 +236,11 @@ export const approveAllAdminDeliveries = async () => {
 
 export const assignAdminDeliveryPartner = async (id, agentId) => {
   const { data } = await client.patch(`/admin/deliveries/${id}/assign-partner`, { agentId });
+  return data;
+};
+
+export const resolveAdminDeliveryIssue = async (id, note = "") => {
+  const { data } = await client.patch(`/admin/deliveries/${id}/resolve-issue`, { note });
   return data;
 };
 

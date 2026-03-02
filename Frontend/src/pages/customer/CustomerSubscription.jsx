@@ -19,6 +19,8 @@ const EMPTY_FORM = {
   slot: 'Morning',
   timeRange: '6:00 - 8:00 AM',
   status: 'ACTIVE',
+  approvalStatus: 'PENDING',
+  assignedAgentId: null,
   startDate: '',
   address: '',
   paymentMethod: 'UPI',
@@ -35,6 +37,8 @@ const toUiSubscription = (record) => {
     slot,
     timeRange: slot === 'Evening' ? '5:00 - 8:00 PM' : '6:00 - 8:00 AM',
     status: (record.status || 'ACTIVE').toUpperCase(),
+    approvalStatus: (record.approval_status || 'PENDING').toUpperCase(),
+    assignedAgentId: record.assigned_agent_id ?? null,
     startDate: record.start_date || '',
     address: record.address || '',
     paymentMethod: record.payment_method || 'UPI',
@@ -53,6 +57,7 @@ const toSavePayload = (model, overrides = {}) => {
     address: next.address || '',
     paymentMethod: next.paymentMethod || 'UPI',
     status: (next.status || 'ACTIVE').toUpperCase(),
+    approvalStatus: (next.approvalStatus || 'PENDING').toUpperCase(),
   };
 };
 
@@ -85,6 +90,19 @@ const Subscribe = () => {
     locationGuestDairyName || localStorage.getItem("guest_dairy_name") || "";
   const hasActivePlan =
     !!subscription && String(subscription.status || "ACTIVE").toUpperCase() !== "CLOSED";
+  const isApprovalPending =
+    hasActivePlan && String(subscription?.approvalStatus || "PENDING").toUpperCase() === "PENDING";
+  const isPartnerAssignmentPending =
+    hasActivePlan &&
+    String(subscription?.approvalStatus || "PENDING").toUpperCase() === "APPROVED" &&
+    !subscription?.assignedAgentId;
+  const isApprovedSubscription =
+    hasActivePlan && String(subscription?.approvalStatus || "PENDING").toUpperCase() === "APPROVED";
+  const canTogglePauseResume =
+    hasActivePlan &&
+    isApprovedSubscription &&
+    Boolean(subscription?.assignedAgentId) &&
+    !saving;
 
   // -----------------------------------------
   // 1. Initial Data Fetch
@@ -272,6 +290,20 @@ const Subscribe = () => {
                       ? `You can start subscription directly with ${guestDairyName || `Dairy #${guestDairyId}`}.`
                       : 'Choose a dairy and create your plan from See Other Dairies'}
                   </p>
+                  {hasActivePlan && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {isApprovalPending && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                          Subscription approval pending
+                        </span>
+                      )}
+                      {isPartnerAssignmentPending && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                          Delivery partner assignment pending
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {hasActivePlan ? (
@@ -286,7 +318,7 @@ const Subscribe = () => {
 
                     {subscription.status === 'ACTIVE' ? (
                       <button
-                        disabled={saving}
+                        disabled={!canTogglePauseResume}
                         onClick={pause}
                         className="px-5 py-2 rounded-xl bg-white border text-orange-600 hover:bg-orange-50 flex items-center gap-2 text-sm font-medium disabled:opacity-50"
                       >
@@ -294,7 +326,7 @@ const Subscribe = () => {
                       </button>
                     ) : (
                       <button
-                        disabled={saving}
+                        disabled={!canTogglePauseResume}
                         onClick={resume}
                         className="px-5 py-2 rounded-xl bg-white border text-green-600 hover:bg-green-50 flex items-center gap-2 text-sm font-medium disabled:opacity-50"
                       >
@@ -307,7 +339,7 @@ const Subscribe = () => {
                       onClick={() => setShowCancelModal(true)}
                       className="px-5 py-2 rounded-xl bg-white border text-red-600 hover:bg-red-50 text-sm font-medium disabled:opacity-50"
                     >
-                      Close Subscription
+                      {isApprovedSubscription ? 'Close Subscription' : 'Cancel Subscription'}
                     </button>
                   </div>
                 ) : (
@@ -417,9 +449,13 @@ const Subscribe = () => {
       {showCancelModal && (
         <ModalWrapper small>
           <div className="p-8">
-            <h3 className="text-2xl font-semibold text-gray-900">Close Subscription?</h3>
+            <h3 className="text-2xl font-semibold text-gray-900">
+              {isApprovedSubscription ? 'Close Subscription?' : 'Cancel Subscription?'}
+            </h3>
             <p className="text-gray-600 mt-3">
-              Are you sure you want to remove your subscription? This will stop deliveries immediately.
+              {isApprovedSubscription
+                ? 'Are you sure you want to close your subscription? This will stop deliveries immediately.'
+                : 'Are you sure you want to cancel your subscription? Your subscription is still pending approval, so cancelling will simply remove the pending request.'}
             </p>
             <div className="flex justify-end gap-4 mt-8">
               <button
@@ -434,7 +470,9 @@ const Subscribe = () => {
                 className="px-6 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 flex items-center gap-2 disabled:bg-red-400"
               >
                 {closing && <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
-                {closing ? 'Removing...' : 'Yes, Remove Subscription'}
+                {closing
+                  ? (isApprovedSubscription ? 'Closing...' : 'Cancelling...')
+                  : (isApprovedSubscription ? 'Yes, Close Subscription' : 'Yes, Cancel Subscription')}
               </button>
             </div>
           </div>

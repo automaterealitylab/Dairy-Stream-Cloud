@@ -20,11 +20,15 @@ const EMPTY_AGENT_PROFILE = {
 
 const AgentProfile = () => {
   const [profile, setProfile] = useState(EMPTY_AGENT_PROFILE);
-  const [isActive, setIsActive] = useState(false);
   const [showInactiveDaysInput, setShowInactiveDaysInput] = useState(false);
   const [inactiveDays, setInactiveDays] = useState("1");
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState("");
+
+  const isActive =
+    typeof profile?.isActive === "boolean"
+      ? profile.isActive
+      : String(profile?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -53,9 +57,10 @@ const AgentProfile = () => {
     loadProfile();
   }, []);
 
-  useEffect(() => {
-    setIsActive(Boolean(profile.isActive));
-  }, [profile.isActive]);
+  const refreshProfileFromServer = async () => {
+    const payload = await fetchAgentProfile();
+    if (payload) setProfile(payload);
+  };
 
   const handleToggleStatus = async () => {
     if (statusSaving) return;
@@ -77,6 +82,11 @@ const AgentProfile = () => {
         inactiveUntil: payload?.inactiveUntil || null,
         inactiveDaysRemaining: payload?.inactiveDaysRemaining || 0,
       }));
+      try {
+        await refreshProfileFromServer();
+      } catch {
+        // UI already updated from PATCH response.
+      }
       setShowInactiveDaysInput(false);
       setInactiveDays("1");
     } catch (err) {
@@ -108,6 +118,11 @@ const AgentProfile = () => {
         inactiveUntil: payload?.inactiveUntil || null,
         inactiveDaysRemaining: payload?.inactiveDaysRemaining || parsedDays,
       }));
+      try {
+        await refreshProfileFromServer();
+      } catch {
+        // UI already updated from PATCH response.
+      }
       setShowInactiveDaysInput(false);
     } catch (err) {
       setStatusError(err?.response?.data?.message || err?.message || "Failed to update status.");
@@ -150,29 +165,33 @@ const AgentProfile = () => {
               </div>
 
               {/* Active Status Toggle */}
-              <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <div className="rounded-xl border border-white/40 bg-white/15 p-3 shadow-md backdrop-blur-sm">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium">Status</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-white/90">Status</span>
                 </div>
                 <button
                   onClick={handleToggleStatus}
                   disabled={statusSaving}
-                  className="flex items-center gap-2"
+                  className="flex min-w-[150px] items-center justify-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isActive ? (
                     <>
-                      <ToggleRight className="text-green-300" size={32} />
-                      <span className="text-sm font-medium">Active</span>
+                      <ToggleRight className="text-green-600" size={28} />
+                      <span>
+                        {statusSaving ? "Updating..." : "Active"}
+                      </span>
                     </>
                   ) : (
                     <>
-                      <ToggleLeft className="text-gray-300" size={32} />
-                      <span className="text-sm font-medium">Inactive</span>
+                      <ToggleLeft className="text-red-500" size={28} />
+                      <span>
+                        {statusSaving ? "Updating..." : "Inactive"}
+                      </span>
                     </>
                   )}
                 </button>
                 {!isActive && profile?.inactiveUntil && (
-                  <p className="text-xs text-blue-100 mt-2">
+                  <p className="mt-2 text-xs text-white/90">
                     Inactive until: {new Date(profile.inactiveUntil).toLocaleDateString()} ({profile?.inactiveDaysRemaining || 0} day(s) left)
                   </p>
                 )}

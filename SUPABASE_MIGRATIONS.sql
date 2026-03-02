@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   address TEXT,
   payment_method VARCHAR(100),
   status VARCHAR(50) DEFAULT 'ACTIVE',
+  approval_status VARCHAR(50) DEFAULT 'APPROVED',
+  assigned_agent_id BIGINT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -147,6 +149,10 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100);
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE';
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) DEFAULT 'APPROVED';
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS assigned_agent_id BIGINT;
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.subscriptions
@@ -201,6 +207,8 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_customer_id ON public.subscriptions(customer_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_dairy_id ON public.subscriptions(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_approval_status ON public.subscriptions(approval_status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_assigned_agent_id ON public.subscriptions(assigned_agent_id);
 
 DO $$
 BEGIN
@@ -228,6 +236,11 @@ CREATE TABLE IF NOT EXISTS public.deliveries (
   quantity_liters NUMERIC(10, 2),
   status VARCHAR(50) DEFAULT 'PENDING',
   approval_status VARCHAR(50) DEFAULT 'APPROVED',
+  customer_issue_text TEXT,
+  customer_issue_status VARCHAR(50) DEFAULT 'NONE',
+  customer_issue_reported_at TIMESTAMP WITH TIME ZONE,
+  customer_issue_admin_action TEXT,
+  customer_issue_resolved_at TIMESTAMP WITH TIME ZONE,
   delivered_at TIMESTAMP WITH TIME ZONE,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -251,6 +264,16 @@ ALTER TABLE public.deliveries
 ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) DEFAULT 'APPROVED';
 ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS customer_issue_text TEXT;
+ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS customer_issue_status VARCHAR(50) DEFAULT 'NONE';
+ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS customer_issue_reported_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS customer_issue_admin_action TEXT;
+ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS customer_issue_resolved_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS notes TEXT;
@@ -264,6 +287,8 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_dairy_id ON public.deliveries(dairy_id
 CREATE INDEX IF NOT EXISTS idx_deliveries_agent_id ON public.deliveries(agent_id);
 CREATE INDEX IF NOT EXISTS idx_deliveries_delivery_date ON public.deliveries(delivery_date);
 CREATE INDEX IF NOT EXISTS idx_deliveries_approval_status ON public.deliveries(approval_status);
+CREATE INDEX IF NOT EXISTS idx_deliveries_issue_status ON public.deliveries(customer_issue_status);
+CREATE INDEX IF NOT EXISTS idx_deliveries_issue_reported_at ON public.deliveries(customer_issue_reported_at);
 
 -- ============================================
 -- Create / Normalize Products Table

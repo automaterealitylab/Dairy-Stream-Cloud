@@ -4,6 +4,7 @@ import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import {
   fetchCustomerDashboard,
+  reportCustomerDeliveryIssue,
   saveCustomerSubscription,
 } from "../../api/customer.api.js";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -30,7 +31,11 @@ const CustomerDashboard = () => {
   const [guestDairyId, setGuestDairyId] = useState(null);
   const [showEditTomorrowModal, setShowEditTomorrowModal] = useState(false);
   const [savingTomorrow, setSavingTomorrow] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueText, setIssueText] = useState("");
+  const [reportingIssue, setReportingIssue] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
   const [editTomorrowForm, setEditTomorrowForm] = useState({
     quantity: "1",
     slot: "Morning",
@@ -231,6 +236,46 @@ const CustomerDashboard = () => {
     }
   };
 
+  const openIssueModal = () => {
+    const deliveryId = Number(todayDelivery?.deliveryId ?? todayDelivery?.id);
+    if (!Number.isFinite(deliveryId) || deliveryId <= 0) {
+      setActionError("No valid today's delivery found to report.");
+      return;
+    }
+    setIssueText("");
+    setActionError("");
+    setActionSuccess("");
+    setShowIssueModal(true);
+  };
+
+  const submitIssue = async () => {
+    const deliveryId = Number(todayDelivery?.deliveryId ?? todayDelivery?.id);
+    const trimmedIssue = String(issueText || "").trim();
+
+    if (!Number.isFinite(deliveryId) || deliveryId <= 0) {
+      setActionError("No valid delivery selected for reporting.");
+      return;
+    }
+    if (trimmedIssue.length < 5) {
+      setActionError("Please enter at least 5 characters.");
+      return;
+    }
+
+    try {
+      setReportingIssue(true);
+      setActionError("");
+      setActionSuccess("");
+      await reportCustomerDeliveryIssue({ deliveryId, issue: trimmedIssue });
+      setShowIssueModal(false);
+      setIssueText("");
+      setActionSuccess("Issue reported successfully. Our team will check it soon.");
+    } catch (err) {
+      setActionError(err?.message || "Failed to report issue.");
+    } finally {
+      setReportingIssue(false);
+    }
+  };
+
   return (
     <CustomerLayout>
       <div className="space-y-4 md:space-y-6 px-2 sm:px-4">
@@ -296,7 +341,7 @@ const CustomerDashboard = () => {
         <UpcomingDeliveryAlert alert={alerts?.upcomingDelivery} />
 
         {/* ================= TODAY STATUS ================= */}
-        <TodayStatusCard data={todayDelivery} navigate={navigate} />
+        <TodayStatusCard data={todayDelivery} navigate={navigate} onReportIssue={openIssueModal} />
 
         {/* QUICK ACTIONS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
@@ -318,6 +363,12 @@ const CustomerDashboard = () => {
           </div>
         )}
 
+        {actionSuccess && (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {actionSuccess}
+          </div>
+        )}
+
         {showEditTomorrowModal && (
           <EditTomorrowModal
             form={editTomorrowForm}
@@ -325,6 +376,16 @@ const CustomerDashboard = () => {
             onClose={() => setShowEditTomorrowModal(false)}
             onChange={(next) => setEditTomorrowForm((prev) => ({ ...prev, ...next }))}
             onSave={saveTomorrowDelivery}
+          />
+        )}
+
+        {showIssueModal && (
+          <ReportIssueModal
+            issueText={issueText}
+            saving={reportingIssue}
+            onClose={() => setShowIssueModal(false)}
+            onChange={setIssueText}
+            onSubmit={submitIssue}
           />
         )}
       </div>
@@ -383,11 +444,16 @@ const PostDeliveryDecisionCard = ({ dairyName, onSubscribe, onExplore }) => (
 );
 
 /* TODAY CARD */
-const TodayStatusCard = ({ data = {}, navigate }) => {
+const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
   const isDelivered = data.status === "DELIVERED";
   const isPending = data.status === "PENDING";
   const isApprovalPending = data.status === "PENDING_APPROVAL";
   const isPartnerUnassigned = isPending && !data?.agent?.name;
+  const reportId = Number(data?.deliveryId ?? data?.id);
+  const canReportIssue = Number.isFinite(reportId) && reportId > 0;
+  const issueStatus = String(data?.issueStatus || "").toUpperCase();
+  const hasIssue = Boolean(String(data?.customerIssue || "").trim());
+  const hasAdminAction = Boolean(String(data?.issueAdminAction || "").trim());
 
   const title = isDelivered
     ? "Delivered Successfully"
@@ -423,6 +489,21 @@ const TodayStatusCard = ({ data = {}, navigate }) => {
             {isDelivered && (
               <p className="text-xs text-text-muted mt-2">Dropped at Doorstep • {data.time || "-"}</p>
             )}
+            {hasIssue && (
+              <p className="text-xs text-rose-700 mt-2 font-medium">
+                Reported Issue: {data.customerIssue}
+              </p>
+            )}
+            {hasAdminAction && (
+              <p className="text-xs text-emerald-700 mt-1 font-medium">
+                Action Taken: {data.issueAdminAction}
+              </p>
+            )}
+            {hasIssue && issueStatus === "OPEN" && (
+              <p className="text-xs text-amber-700 mt-1 font-medium">
+                Issue Status: Pending resolution
+              </p>
+            )}
           </div>
         </div>
 
@@ -434,7 +515,13 @@ const TodayStatusCard = ({ data = {}, navigate }) => {
           >
             Track Agent
           </button>
-          <button className="text-xs font-semibold text-text-secondary underline">Report Issue</button>
+          <button
+            onClick={onReportIssue}
+            disabled={!canReportIssue}
+            className="text-xs font-semibold text-text-secondary underline disabled:opacity-50 disabled:no-underline"
+          >
+            Report Issue
+          </button>
         </div>
       </div>
     </div>
@@ -496,6 +583,44 @@ const EditTomorrowModal = ({ form, saving, onClose, onChange, onSave }) => (
         <button onClick={onSave} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           {saving && <Loader2 size={14} className="animate-spin" />}
           {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const ReportIssueModal = ({ issueText, saving, onClose, onChange, onSubmit }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+    <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-card">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-text-primary">Report Delivery Issue</h3>
+        <button onClick={onClose} className="rounded-lg p-1 text-text-secondary hover:bg-background">
+          <X size={18} />
+        </button>
+      </div>
+
+      <label className="mb-2 block text-sm font-medium text-text-secondary">
+        Describe the issue
+      </label>
+      <textarea
+        rows={4}
+        value={issueText}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Example: Milk packet was damaged / quantity mismatch..."
+        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+      />
+
+      <div className="mt-6 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium">
+          Cancel
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {saving && <Loader2 size={14} className="animate-spin" />}
+          {saving ? "Submitting..." : "Submit Issue"}
         </button>
       </div>
     </div>

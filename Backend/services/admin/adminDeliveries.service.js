@@ -17,9 +17,10 @@ const makeError = (message, statusCode = 400) => {
   return err;
 };
 
-const isSubscriptionActive = (status) => {
+const isSubscriptionActive = (status, approvalStatus = "APPROVED") => {
   const value = String(status || "ACTIVE").toUpperCase();
-  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+  const approval = String(approvalStatus || "APPROVED").toUpperCase();
+  return value === "ACTIVE" && approval === "APPROVED";
 };
 
 const isValidDateString = (value) =>
@@ -91,6 +92,66 @@ const normalizeDate = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+const extractIssueMetaFromNotes = (notesValue) => {
+  const lines = String(notesValue || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let lastIssueIndex = -1;
+  let lastResolveIndex = -1;
+  let latestIssueText = null;
+
+  lines.forEach((line, index) => {
+    if (line.startsWith("[CUSTOMER_ISSUE]")) {
+      lastIssueIndex = index;
+      const match = line.match(/^\[CUSTOMER_ISSUE\]\s*[^\s]+\s*::\s*(.+)$/i);
+      latestIssueText = match?.[1]?.trim() || line.replace("[CUSTOMER_ISSUE]", "").trim();
+    }
+    if (line.startsWith("[ISSUE_RESOLVED]")) {
+      lastResolveIndex = index;
+    }
+  });
+
+  const hasOpenIssue =
+    lastIssueIndex >= 0 && (lastResolveIndex < 0 || lastResolveIndex < lastIssueIndex);
+
+  return {
+    hasOpenIssue,
+    customerIssue: hasOpenIssue ? latestIssueText || "Issue reported by customer" : null,
+  };
+};
+
+const extractIssueMeta = (row = {}) => {
+  const status = String(row?.customer_issue_status || "").toUpperCase();
+  const issueText = String(row?.customer_issue_text || "").trim();
+  const adminAction = String(row?.customer_issue_admin_action || "").trim() || null;
+  const reportedAt = row?.customer_issue_reported_at || null;
+  const resolvedAt = row?.customer_issue_resolved_at || null;
+
+  if (issueText) {
+    const hasOpenIssue = status !== "RESOLVED";
+    return {
+      hasOpenIssue,
+      customerIssue: hasOpenIssue ? issueText : null,
+      issueStatus: hasOpenIssue ? "OPEN" : "RESOLVED",
+      issueAdminAction: adminAction,
+      issueReportedAt: reportedAt,
+      issueResolvedAt: resolvedAt,
+    };
+  }
+
+  const fallback = extractIssueMetaFromNotes(row?.notes);
+  return {
+    hasOpenIssue: fallback.hasOpenIssue,
+    customerIssue: fallback.customerIssue,
+    issueStatus: fallback.hasOpenIssue ? "OPEN" : "NONE",
+    issueAdminAction: null,
+    issueReportedAt: null,
+    issueResolvedAt: null,
+  };
+};
+
 const resolveLimit = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_LIMIT;
@@ -110,7 +171,7 @@ const pickLatestSubscriptionByCustomer = (subscriptions, dairyId, { activeOnly =
     if (!customerId || byCustomer.has(customerId)) continue;
     if (dairyId && row?.dairy_id && Number(row.dairy_id) !== Number(dairyId)) continue;
 
-    if (activeOnly && !isSubscriptionActive(row?.status)) continue;
+    if (activeOnly && !isSubscriptionActive(row?.status, row?.approval_status)) continue;
 
     byCustomer.set(customerId, row);
   }
@@ -151,7 +212,7 @@ const getSubscriptionMapForCustomers = async ({ customerIds, dairyId }) => {
   let query = supabase
     .from("subscriptions")
     .select(
-      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, created_at, updated_at"
+      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, created_at, updated_at"
     )
     .in("customer_id", customerIds);
 
@@ -176,6 +237,7 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
     const notes = String(row.notes || "");
     const isOneTimeOrder = notes.includes("[ONE_TIME_ORDER]");
     const approvalStatus = normalizeApprovalStatus(row.approval_status, { isOneTimeOrder });
+    const issueMeta = extractIssueMeta(row);
 
     return {
       id: row.id != null ? `DLV-${row.id}` : "DLV-NA",
@@ -192,6 +254,12 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
       approvalStatus,
       needsApproval: approvalStatus === "PENDING",
       isAssigned: row.agent_id != null,
+      hasOpenIssue: issueMeta.hasOpenIssue,
+      customerIssue: issueMeta.customerIssue,
+      issueStatus: issueMeta.issueStatus,
+      issueAdminAction: issueMeta.issueAdminAction,
+      issueReportedAt: issueMeta.issueReportedAt,
+      issueResolvedAt: issueMeta.issueResolvedAt,
     };
   });
 };
@@ -295,7 +363,7 @@ export const getAdminDeliveries = async ({ dairyId = null, limit } = {}) => {
   let deliveriesQuery = supabase
     .from("deliveries")
     .select(
-      "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, created_at"
+      "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, customer_issue_text, customer_issue_status, customer_issue_reported_at, customer_issue_admin_action, customer_issue_resolved_at, created_at"
     )
     .order("delivery_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -334,7 +402,7 @@ export const getDeliverySchedulingOptions = async ({ dairyId = null } = {}) => {
   let subscriptionsQuery = supabase
     .from("subscriptions")
     .select(
-      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, created_at, updated_at"
+      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, created_at, updated_at"
     );
 
   if (dairyId) {
@@ -470,7 +538,7 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
 
   let subscriptionQuery = supabase
     .from("subscriptions")
-    .select("customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, updated_at, created_at")
+    .select("customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, updated_at, created_at")
     .eq("customer_id", parsedCustomerId)
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })
@@ -484,7 +552,7 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
   if (subscriptionError) throw subscriptionError;
 
   const activeSubscription = (customerSubscriptions || []).find((row) =>
-    isSubscriptionActive(row?.status)
+    isSubscriptionActive(row?.status, row?.approval_status)
   );
 
   if (!activeSubscription) {
@@ -609,7 +677,7 @@ export const scheduleBulkDeliveriesForDate = async ({
   let subscriptionQuery = supabase
     .from("subscriptions")
     .select(
-      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, updated_at, created_at"
+      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, updated_at, created_at"
     );
 
   if (dairyId) {
@@ -907,5 +975,65 @@ export const assignDeliveryPartnerToOrder = async ({
   return {
     deliveryId: updated.id,
     agentId: updated.agent_id,
+  };
+};
+
+export const resolveDeliveryIssue = async ({
+  dairyId = null,
+  deliveryId,
+  note = "",
+} = {}) => {
+  const parsedDeliveryId = toIntegerOrNull(deliveryId);
+  if (!parsedDeliveryId) throw makeError("deliveryId is required");
+
+  let deliveryQuery = supabase
+    .from("deliveries")
+    .select("id, dairy_id, notes, customer_issue_text, customer_issue_status")
+    .eq("id", parsedDeliveryId)
+    .limit(1);
+  if (dairyId) {
+    deliveryQuery = deliveryQuery.eq("dairy_id", dairyId);
+  }
+
+  const { data: delivery, error: deliveryError } = await deliveryQuery.maybeSingle();
+  if (deliveryError) throw deliveryError;
+  if (!delivery) throw makeError("Delivery not found", 404);
+
+  const issueMeta = extractIssueMeta(delivery);
+  if (!issueMeta.hasOpenIssue) {
+    return {
+      resolved: false,
+      alreadyResolved: true,
+      deliveryId: parsedDeliveryId,
+    };
+  }
+
+  const resolutionNote = String(note || "").trim();
+  const marker = `[ISSUE_RESOLVED] ${new Date().toISOString()}${
+    resolutionNote ? ` :: ${resolutionNote.slice(0, 250)}` : ""
+  }`;
+  const currentNotes = String(delivery.notes || "").trim();
+  const nextNotes = currentNotes ? `${currentNotes}\n${marker}` : marker;
+
+  const { data: updated, error: updateError } = await supabase
+    .from("deliveries")
+    .update({
+      customer_issue_status: "RESOLVED",
+      customer_issue_admin_action: resolutionNote || "Issue resolved by admin",
+      customer_issue_resolved_at: new Date().toISOString(),
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsedDeliveryId)
+    .eq("dairy_id", delivery.dairy_id)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!updated) throw makeError("Failed to resolve issue", 500);
+
+  return {
+    resolved: true,
+    deliveryId: updated.id,
   };
 };

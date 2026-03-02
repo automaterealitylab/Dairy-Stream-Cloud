@@ -224,7 +224,7 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
 
   const subscription = await getSubscriptionByCustomerId(customerId);
   const isActiveSubscription =
-    subscription && String(subscription.status || "ACTIVE").toUpperCase() !== "CLOSED";
+    subscription && String(subscription.status || "ACTIVE").toUpperCase() === "ACTIVE";
   const membershipDairyId = await getMembershipDairyId(customerId);
   const linkedDairyId =
     membershipDairyId ??
