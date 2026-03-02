@@ -80,6 +80,9 @@ export const patchAssignedDeliveryStatus = async (req, res) => {
       deliveryId: req.params.id,
       status: req.body?.status,
       reason: req.body?.reason || "",
+      proofType: req.body?.proofType || "",
+      proofOtp: req.body?.proofOtp || "",
+      proofImage: req.body?.proofImage || "",
     });
     return res.json({
       message: "Delivery status updated",

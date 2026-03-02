@@ -3,26 +3,15 @@ import { Wifi, WifiOff } from 'lucide-react';
 
 const ConnectivityIndicator = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [lastSync, setLastSync] = useState(new Date());
-  const [syncStatus, setSyncStatus] = useState('synced'); // 'synced', 'syncing', 'pending'
   const [pendingItems, setPendingItems] = useState(0);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      // Trigger sync when coming back online
-      handleSync();
-    };
+    const handleOnline = () => setIsOnline(true);
 
     const handleOffline = () => {
       setIsOnline(false);
-      setSyncStatus('pending');
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Check for pending items in localStorage
     const checkPendingItems = () => {
       try {
         const pendingDeliveries = JSON.parse(
@@ -37,130 +26,50 @@ const ConnectivityIndicator = () => {
       }
     };
 
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     checkPendingItems();
+    const interval = setInterval(checkPendingItems, 5000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
     };
   }, []);
 
-  const handleSync = async () => {
-    if (!isOnline) {
-      setSyncStatus('pending');
-      return;
-    }
-
-    setSyncStatus('syncing');
-
-    try {
-      // Simulate sync process
-      // TODO: Implement actual sync logic with API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Clear pending items from localStorage (in real app, only after successful sync)
-      localStorage.removeItem('pendingDeliveries');
-      localStorage.removeItem('pendingProofs');
-      setPendingItems(0);
-
-      setSyncStatus('synced');
-      setLastSync(new Date());
-
-      // Revert to synced status after 3 seconds
-      setTimeout(() => {
-        setSyncStatus('synced');
-      }, 3000);
-    } catch (error) {
-      console.error('Sync error:', error);
-      setSyncStatus('pending');
-    }
-  };
-
   const getStatusColor = () => {
     if (!isOnline) return 'text-red-600';
-    if (syncStatus === 'syncing') return 'text-yellow-600';
-    if (syncStatus === 'pending') return 'text-orange-600';
+    if (pendingItems > 0) return 'text-orange-600';
     return 'text-green-600';
   };
 
   const getStatusBgColor = () => {
     if (!isOnline) return 'bg-red-50';
-    if (syncStatus === 'syncing') return 'bg-yellow-50';
-    if (syncStatus === 'pending') return 'bg-orange-50';
+    if (pendingItems > 0) return 'bg-orange-50';
     return 'bg-green-50';
   };
 
   const getStatusText = () => {
     if (!isOnline) return 'Offline';
-    if (syncStatus === 'syncing') return 'Syncing...';
-    if (syncStatus === 'pending') return `${pendingItems} pending`;
+    if (pendingItems > 0) return `${pendingItems} pending`;
     return 'Online';
   };
 
-  const getStatusMessage = () => {
-    if (!isOnline) {
-      return 'No internet connection. Changes will be saved locally and synced when online.';
-    }
-    if (syncStatus === 'syncing') {
-      return 'Syncing data with server...';
-    }
-    if (syncStatus === 'pending') {
-      return `${pendingItems} items pending sync. Click to sync now.`;
-    }
-    return `Last synced at ${lastSync.toLocaleTimeString()}`;
-  };
-
   return (
-    <>
-      {/* Compact indicator for header/navigation */}
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium ${getStatusBgColor()} ${getStatusColor()}`}>
-        {isOnline && syncStatus !== 'pending' ? (
-          <Wifi size={16} />
-        ) : (
-          <WifiOff size={16} />
-        )}
-        <span>{getStatusText()}</span>
-        {syncStatus === 'syncing' && (
-          <div className="w-3 h-3 bg-current rounded-full animate-pulse"></div>
-        )}
-      </div>
-
-      {/* Expandable tooltip/status panel */}
-      <div className="group relative">
-        <button
-          className={`p-2 rounded-full ${getStatusBgColor()} ${getStatusColor()} hover:opacity-80 transition-opacity cursor-help`}
-          title={getStatusMessage()}
-          onClick={handleSync}
-          disabled={!isOnline || syncStatus === 'syncing'}
-        >
-          {isOnline && syncStatus !== 'pending' ? (
-            <Wifi size={20} />
-          ) : (
-            <WifiOff size={20} />
-          )}
-          {syncStatus === 'syncing' && (
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-current animate-spin"></div>
-          )}
-        </button>
-
-        {/* Tooltip/Status message */}
-        <div
-          className={`hidden group-hover:block absolute bottom-full right-0 mb-2 p-3 text-sm rounded-lg shadow-lg whitespace-nowrap ${getStatusBgColor()} ${getStatusColor()} border border-current border-opacity-20 z-50`}
-        >
-          <p className="font-medium mb-1">Sync Status</p>
-          <p className="text-xs opacity-80">{getStatusMessage()}</p>
-          {pendingItems > 0 && isOnline && (
-            <button
-              onClick={handleSync}
-              className="mt-2 w-full px-2 py-1 text-xs font-medium bg-current text-white rounded hover:opacity-90 transition-opacity"
-              disabled={syncStatus === 'syncing'}
-            >
-              {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
-            </button>
-          )}
-        </div>
-      </div>
-    </>
+    <div
+      className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium ${getStatusBgColor()} ${getStatusColor()}`}
+      title={
+        isOnline
+          ? pendingItems > 0
+            ? `${pendingItems} changes are waiting for sync`
+            : 'Connected'
+          : 'No internet connection. Changes will sync once online.'
+      }
+    >
+      {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+      <span>{getStatusText()}</span>
+    </div>
   );
 };
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 
-const DeliveryCard = ({ delivery, onStatusChange, onClick }) => {
+const DeliveryCard = ({ delivery, onStatusChange, onClick, onCompleteRequest }) => {
   const getStatusColor = () => {
     switch (delivery.status) {
       case 'COMPLETED':
@@ -15,6 +15,10 @@ const DeliveryCard = ({ delivery, onStatusChange, onClick }) => {
 
   const handleComplete = () => {
     if (delivery.status === 'PENDING') {
+      if (typeof onCompleteRequest === 'function') {
+        onCompleteRequest(delivery);
+        return;
+      }
       onStatusChange(delivery.id, 'COMPLETED');
     }
   };
@@ -37,6 +41,12 @@ const DeliveryCard = ({ delivery, onStatusChange, onClick }) => {
             <p className="text-sm text-gray-600 mt-1">
               Quantity: <span className="font-medium">{delivery.quantity}</span>
             </p>
+            {delivery.buildingName && (
+              <p className="text-xs text-blue-700 mt-1">
+                Route Group: {delivery.buildingName}
+                {delivery.buildingSequence ? ` • Stop ${delivery.buildingSequence}` : ''}
+              </p>
+            )}
           </div>
 
           {/* Status Badge */}

@@ -25,7 +25,7 @@ const AdminPerformanceDashboard = () => {
         // const performance = await fetchAgentPerformance(dateRange);
         // const topAgents = await fetchTopPerformers();
         // const missed = await fetchMissedDeliveries();
-        
+
         // Mock data for demonstration
         const mockPerformance = [
           { agent: 'Raj Kumar', completed: 45, failed: 5, efficiency: 90 },
@@ -61,10 +61,10 @@ const AdminPerformanceDashboard = () => {
         setPerformanceData(mockPerformance);
         setTopPerformers(mockTopPerformers);
         setMissedDeliveries(mockMissedDeliveries);
-        
+
         const totalDeliveries = mockPerformance.reduce((sum, item) => sum + item.completed + item.failed, 0);
         const completedDeliveries = mockPerformance.reduce((sum, item) => sum + item.completed, 0);
-        
+
         setSummaryStats({
           totalAgents: mockPerformance.length,
           totalDeliveries,
@@ -72,7 +72,7 @@ const AdminPerformanceDashboard = () => {
           missedDeliveries: totalDeliveries - completedDeliveries,
           overallEfficiency: Math.round(completedDeliveries / totalDeliveries * 100),
         });
-        
+
         setError(null);
       } catch (err) {
         console.error('Error fetching performance data:', err);

@@ -55,6 +55,15 @@ const menuItems = [
       </svg>
     ),
   },
+  {
+    label: "Performance",
+    to: "/admin/performance",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-6 h-6">
+        <path d="M3 17h2v2H3v-2zm4-4h2v6H7v-6zm4-3h2v9h-2v-9zm4-5h2v14h-2V5zm4 8h2v6h-2v-6z" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminSidebar({ open, onClose }) {

@@ -42,6 +42,19 @@ import {
   fetchAdminProducts,
   removeAdminProduct,
 } from "../controllers/admin/products.controller.js";
+import {
+  getPerformance,
+  getPerformanceSummaryData,
+  getTopPerformers,
+  getMissedDeliveries,
+  updatePerformanceMetrics,
+} from "../controllers/admin/agentPerformance.controller.js";
+import {
+  getEarnings,
+  getTodayWorkSummaryData,
+  getSummary,
+  calculateEarnings,
+} from "../controllers/admin/agentEarnings.controller.js";
 const router = express.Router();
 
 router.post("/", adminLogin);
@@ -76,6 +89,15 @@ router.get("/products", verifyAdmin, fetchAdminProducts);
 router.post("/products", verifyAdmin, addAdminProduct);
 router.put("/products/:id", verifyAdmin, editAdminProduct);
 router.delete("/products/:id", verifyAdmin, removeAdminProduct);
+router.get("/performance", verifyAdmin, getPerformance);
+router.get("/performance/summary", verifyAdmin, getPerformanceSummaryData);
+router.get("/performance/top-performers", verifyAdmin, getTopPerformers);
+router.get("/performance/missed-deliveries", verifyAdmin, getMissedDeliveries);
+router.post("/performance/update", verifyAdmin, updatePerformanceMetrics);
+router.get("/earnings", verifyAdmin, getEarnings);
+router.get("/earnings/today-summary", verifyAdmin, getTodayWorkSummaryData);
+router.get("/earnings/summary", verifyAdmin, getSummary);
+router.post("/earnings/calculate", verifyAdmin, calculateEarnings);
 
 router.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date() }); //dont get any output

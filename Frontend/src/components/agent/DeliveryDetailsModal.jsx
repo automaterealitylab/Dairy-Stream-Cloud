@@ -98,6 +98,23 @@ const DeliveryDetailsModal = ({ delivery, onClose }) => {
               )}
             </div>
           )}
+
+          {delivery.status === 'COMPLETED' && delivery.deliveryProofType && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-green-800 mb-1">Delivery Proof:</p>
+              <p className="text-sm text-green-700">{delivery.deliveryProofType}</p>
+              {delivery.deliveryProofValue && (
+                <p className="text-xs text-green-700 mt-1">{delivery.deliveryProofValue}</p>
+              )}
+              {delivery.deliveryProofImage && (
+                <img
+                  src={delivery.deliveryProofImage}
+                  alt="Delivery proof"
+                  className="mt-3 rounded-lg max-h-48 w-full object-cover"
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

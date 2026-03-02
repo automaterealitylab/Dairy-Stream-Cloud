@@ -37,11 +37,17 @@ export const updateAssignedAgentDeliveryStatus = async ({
   deliveryId,
   status,
   reason = "",
+  proofType = "",
+  proofOtp = "",
+  proofImage = "",
 } = {}) => {
   if (!deliveryId) throw new Error("deliveryId is required");
   const { data } = await client.patch(`/agent/deliveries/${deliveryId}/status`, {
     status,
     reason,
+    proofType,
+    proofOtp,
+    proofImage,
   });
   return data;
 };

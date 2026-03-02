@@ -3,17 +3,20 @@ import AgentLayout from '../../components/agent/AgentLayout';
 import DeliveryCard from '../../components/agent/DeliveryCard';
 import DeliveryDetailsModal from '../../components/agent/DeliveryDetailsModal';
 import FailedReasonModal from '../../components/agent/FailedReasonModal';
+import DeliveryProofModal from '../../components/agent/DeliveryProofModal';
 import { Filter } from 'lucide-react';
 import {
   fetchAssignedAgentDeliveries,
   updateAssignedAgentDeliveryStatus,
 } from "../../api/agent.api";
+import { optimizeRouteWithPriority } from '../../utils/routeOptimization';
 
 const AgentWorkingPage = () => {
   const [deliveries, setDeliveries] = useState([]);
   const [filter, setFilter] = useState('ALL');
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [failedDelivery, setFailedDelivery] = useState(null);
+  const [proofDelivery, setProofDelivery] = useState(null);
 
   useEffect(() => {
     const loadDeliveries = async () => {
@@ -31,6 +34,50 @@ const AgentWorkingPage = () => {
     if (filter === 'ALL') return true;
     return delivery.status === filter;
   });
+
+  const orderedDeliveries = optimizeRouteWithPriority(filteredDeliveries, ['PENDING', 'COMPLETED', 'FAILED']);
+
+  const handleCompleteWithProof = (delivery) => {
+    setProofDelivery(delivery);
+  };
+
+  const handleProofSubmit = async ({ proofType, proofOtp, imagePreview }) => {
+    if (!proofDelivery?.id) return;
+    const deliveryId = proofDelivery.id;
+
+    const proofNote = proofType === 'OTP'
+      ? `OTP_CONFIRMED:${proofOtp}`
+      : `PHOTO_ATTACHED`;
+
+    setDeliveries((prev) =>
+      prev.map((d) =>
+        String(d.id) === String(deliveryId)
+          ? {
+              ...d,
+              status: 'COMPLETED',
+              deliveryProofType: proofType,
+              deliveryProofOtp: proofType === 'OTP' ? proofOtp : null,
+              deliveryProofImage: proofType === 'PHOTO' ? imagePreview : null,
+            }
+          : d
+      )
+    );
+
+    setProofDelivery(null);
+
+    try {
+      await updateAssignedAgentDeliveryStatus({
+        deliveryId,
+        status: 'COMPLETED',
+        proofType,
+        proofOtp,
+        proofImage: proofType === 'PHOTO' ? imagePreview : '',
+        reason: proofNote,
+      });
+    } catch (_err) {
+      // Keep local state update for now to avoid blocking operator flow.
+    }
+  };
 
   const handleStatusChange = async (deliveryId, newStatus) => {
     if (newStatus === 'FAILED') {
@@ -91,6 +138,7 @@ const AgentWorkingPage = () => {
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Delivery Working Page</h2>
             <p className="text-gray-600">Manage your deliveries</p>
+            <p className="text-xs text-blue-600 mt-1">Route sorted by status and building proximity</p>
           </div>
         </div>
 
@@ -125,18 +173,19 @@ const AgentWorkingPage = () => {
 
         {/* Deliveries List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDeliveries.length === 0 ? (
+          {orderedDeliveries.length === 0 ? (
             <div className="col-span-full bg-white rounded-xl p-12 text-center border border-gray-200">
               <Filter className="mx-auto text-gray-400 mb-4" size={48} />
               <p className="text-gray-600">No deliveries found</p>
             </div>
           ) : (
-            filteredDeliveries.map(delivery => (
+            orderedDeliveries.map(delivery => (
               <DeliveryCard
                 key={delivery.id}
                 delivery={delivery}
                 onStatusChange={handleStatusChange}
                 onClick={setSelectedDelivery}
+                onCompleteRequest={handleCompleteWithProof}
               />
             ))
           )}
@@ -156,6 +205,14 @@ const AgentWorkingPage = () => {
           delivery={failedDelivery}
           onSubmit={handleFailedSubmit}
           onClose={() => setFailedDelivery(null)}
+        />
+      )}
+
+      {proofDelivery && (
+        <DeliveryProofModal
+          delivery={proofDelivery}
+          onClose={() => setProofDelivery(null)}
+          onSubmit={handleProofSubmit}
         />
       )}
     </AgentLayout>
