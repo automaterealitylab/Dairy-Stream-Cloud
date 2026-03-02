@@ -20,24 +20,24 @@ import { fetchCustomerSubscription } from "../../api/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 // import LocationSelector from "../../components/dairy/LocationSelector.jsx";
 
-const CITY_OPTIONS = [
-  "Kolkata",
-  "Bardhaman",
-  "Durgapur",
-  "Asansol",
-  "Siliguri",
-];
+// const CITY_OPTIONS = [
+//   "Kolkata",
+//   "Bardhaman",
+//   "Durgapur",
+//   "Asansol",
+//   "Siliguri",
+// ];
 
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const [page, setPage] = useState(0)
-const [hasMore, setHasMore] = useState(true)
-const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-const [currentLat, setCurrentLat] = useState(null)
-const [currentLng, setCurrentLng] = useState(null)
+  const [currentLat, setCurrentLat] = useState(null);
+  const [currentLng, setCurrentLng] = useState(null);
 
   // Core Data States
   const [dairies, setDairies] = useState([]);
@@ -67,70 +67,79 @@ const [currentLng, setCurrentLng] = useState(null)
   };
 
   // ---------- CENTRAL FETCH LOGIC (MODE-BASED) ----------
- const loadNearby = useCallback(
-  async ({ lat, lng, radius = 150, page = 0 }) => {
-    try {
-      if (page === 0) setLoading(true)
-      else setLoadingMore(true)
+  const loadNearby = useCallback(
+    async ({ lat, lng, radius = 150, page = 0 }) => {
+      try {
+        if (page === 0) setLoading(true);
+        else setLoadingMore(true);
 
-      const res = await fetchNearbyDairies({ lat, lng, radius, page })
+        const cacheKey = `nearby-${lat}-${lng}-${page}`;
+        const cached = sessionStorage.getItem(cacheKey);
 
-      const newDairies = res?.dairies || []
+        if (cached) {
+          const cachedData = JSON.parse(cached);
 
-      if (page === 0) {
-        setDairies(newDairies)
-      } else {
-        setDairies(prev => [...prev, ...newDairies])
+          if (page === 0) {
+            setDairies(cachedData);
+          } else {
+            setDairies((prev) => [...prev, ...cachedData]);
+          }
+
+          return;
+        }
+
+        console.time("nearby");
+
+        const res = await fetchNearbyDairies({ lat, lng, radius, page });
+
+        console.timeEnd("nearby");
+        const newDairies = res?.dairies || [];
+
+        sessionStorage.setItem(cacheKey, JSON.stringify(newDairies));
+
+        if (page === 0) {
+          setDairies(newDairies);
+        } else {
+          setDairies((prev) => [...prev, ...newDairies]);
+        }
+
+        if (newDairies.length < 20) {
+          setHasMore(false);
+        }
+      } catch (err) {
+        console.error("Failed to fetch nearby dairies:", err);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
+    },
+    [],
+  );
 
-      if (newDairies.length < 20) {
-        setHasMore(false)
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 500
+      ) {
+        if (!loadingMore && hasMore && currentLat && currentLng) {
+          const nextPage = page + 1;
+
+          setPage(nextPage);
+
+          loadNearby({
+            lat: currentLat,
+            lng: currentLng,
+            page: nextPage,
+          });
+        }
       }
+    };
 
-    } catch (err) {
-      console.error("Failed to fetch nearby dairies:", err)
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  },
-  []
-)
+    window.addEventListener("scroll", handleScroll);
 
-
-useEffect(() => {
-
-  const handleScroll = () => {
-
-    if (
-      window.innerHeight + window.scrollY >=
-      document.body.offsetHeight - 500
-    ) {
-
-      if (!loadingMore && hasMore && currentLat && currentLng) {
-
-        const nextPage = page + 1
-
-        setPage(nextPage)
-
-        loadNearby({
-          lat: currentLat,
-          lng: currentLng,
-          page: nextPage
-        })
-
-      }
-
-    }
-
-  }
-
-  window.addEventListener("scroll", handleScroll)
-
-  return () => window.removeEventListener("scroll", handleScroll)
-
-}, [page, loadingMore, hasMore, currentLat, currentLng, loadNearby])
-
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [page, loadingMore, hasMore, currentLat, currentLng, loadNearby]);
 
   const loadSearch = useCallback(async (q) => {
     try {
@@ -181,27 +190,26 @@ useEffect(() => {
     }
   }, []);
 
-
   // initial load for faast load
-//   useEffect(() => {
-//   loadSearch(""); // quick initial dairies
-// }, []);
+  // useEffect(() => {
+  //   loadSearch(""); // quick initial dairies
+  // }, []);
   // ---------- INITIAL LOAD (NEARBY) ----------
   useEffect(() => {
     const initNearby = async () => {
       try {
         const coords = await getLiveLocation();
 
-setDetectedLocation("Nearby");
+        setDetectedLocation("Nearby");
 
-setCurrentLat(coords.lat)
-setCurrentLng(coords.lng)
+        setCurrentLat(coords.lat);
+        setCurrentLng(coords.lng);
 
-await loadNearby({
-  lat: coords.lat,
-  lng: coords.lng,
-  page: 0
-});
+        await loadNearby({
+          lat: coords.lat,
+          lng: coords.lng,
+          page: 0,
+        });
       } catch (err) {
         setLoadError("LOCATION_OFF");
         setLoading(false);
@@ -351,7 +359,7 @@ await loadNearby({
                       onClick={() => {
                         setSearchTerm(s.suggestion);
                         setSuggestions([]);
-                        setShowSuggestions(false)
+                        setShowSuggestions(false);
                         setSelectedCity("");
                         setDetectedLocation(s.suggestion);
 
@@ -432,75 +440,74 @@ await loadNearby({
               Try adjusting your search or radius.
             </p>
           </div>
-        ) : (/* DAIRY GRID */
+        ) : (
+          /* DAIRY GRID */
           <>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {mappedDairies.map((dairy) => (
-              <div
-                key={dairy.id}
-                onClick={() => navigate(`/join/${dairy.id}`)}
-                className="group bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl transition-all cursor-pointer overflow-hidden"
-              >
-                <div className="relative h-48 bg-gray-200">
-                  {dairy.image ? (
-                    <img
-                      src={dairy.image}
-                      alt={dairy.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold uppercase tracking-widest text-xs">
-                      No Image
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {mappedDairies.map((dairy) => (
+                <div
+                  key={dairy.id}
+                  onClick={() => navigate(`/join/${dairy.id}`)}
+                  className="group bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl transition-all cursor-pointer overflow-hidden"
+                >
+                  <div className="relative h-48 bg-gray-200">
+                    {dairy.image ? (
+                      <img
+                        src={dairy.image}
+                        alt={dairy.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold uppercase tracking-widest text-xs">
+                        No Image
+                      </div>
+                    )}
+                    {dairy.isSubscribed && (
+                      <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                        My Subscription
+                      </div>
+                    )}
+                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-gray-700">
+                      <Clock size={12} className="inline mr-1 text-blue-500" />
+                      {dairy.distance}
                     </div>
-                  )}
-                  {dairy.isSubscribed && (
-                    <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                      My Subscription
-                    </div>
-                  )}
-                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-gray-700">
-                    <Clock size={12} className="inline mr-1 text-blue-500" />
-                    {dairy.distance}
                   </div>
-                </div>
 
-                <div className="p-5">
-                  <h3 className="font-bold text-lg text-gray-900 mb-1 truncate">
-                    {dairy.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 mb-4 flex items-start gap-1">
-                    <MapPin size={14} className="mt-0.5 shrink-0" />
-                    <span className="line-clamp-1">{dairy.address}</span>
-                  </p>
+                  <div className="p-5">
+                    <h3 className="font-bold text-lg text-gray-900 mb-1 truncate">
+                      {dairy.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4 flex items-start gap-1">
+                      <MapPin size={14} className="mt-0.5 shrink-0" />
+                      <span className="line-clamp-1">{dairy.address}</span>
+                    </p>
 
-                  <div className="pt-4 border-t flex justify-between items-end">
-                    <div>
-                      <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                        Starts at
-                      </span>
-                      <p className="font-bold text-lg text-gray-900">
-                        ₹{dairy.minPrice}
-                        <span className="text-sm font-normal text-gray-500">
-                          /L
+                    <div className="pt-4 border-t flex justify-between items-end">
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
+                          Starts at
                         </span>
-                      </p>
+                        <p className="font-bold text-lg text-gray-900">
+                          ₹{dairy.minPrice}
+                          <span className="text-sm font-normal text-gray-500">
+                            /L
+                          </span>
+                        </p>
+                      </div>
+                      <button className="bg-blue-50 text-blue-600 px-5 py-2 rounded-xl text-xs font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        View Menu
+                      </button>
                     </div>
-                    <button className="bg-blue-50 text-blue-600 px-5 py-2 rounded-xl text-xs font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      View Menu
-                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
+            {loadingMore && (
+              <div className="text-center py-10 text-gray-400">
+                Loading more dairies...
               </div>
-            ))}
-          </div>
-          {loadingMore && (
-  <div className="text-center py-10 text-gray-400">
-    Loading more dairies...
-  </div>
-  
-)}
-</>
+            )}
+          </>
         )}
       </main>
     </div>
