@@ -1,32 +1,93 @@
 import {
-  listPublicDairies,
+  getNearbyDairies,
+  searchDairies,
+  getCityDairies,
   getPublicDairyById,
+  getSearchSuggestions
 } from "../../services/public/dairies.service.js";
 
-export const getPublicDairies = async (req, res) => {
+export const getNearbyDairiesController = async (req, res) => {
   try {
-    const { search, city, pincode, lat, lng, radius } = req.query;
+    const { lat, lng, radius = "10", page = "0" } = req.query;
 
-    const parsedLat = lat !== undefined ? Number(lat) : null;
-    const parsedLng = lng !== undefined ? Number(lng) : null;
-    const parsedRadius =
-      radius !== undefined && !Number.isNaN(Number(radius))
-        ? Number(radius)
-        : 10;
+    const parsedLat = Number(lat);
+    const parsedLng = Number(lng);
+    const parsedRadius = Number(radius);
+    const parsedPage = Number(page);
 
-    const dairies = await listPublicDairies({
-      search,
-      city,
-      pincode,
-      lat: parsedLat,
-      lng: parsedLng,
-      radius: parsedRadius,
-    });
+    if (
+      Number.isNaN(parsedLat) ||
+      Number.isNaN(parsedLng) ||
+      Number.isNaN(parsedRadius) ||
+      Number.isNaN(parsedPage)
+    ) {
+      return res.status(400).json({ message: "Invalid geo parameters" });
+    }
+
+    const dairies = await getNearbyDairies(
+      parsedLat,
+      parsedLng,
+      parsedRadius,
+      parsedPage,
+    );
 
     res.json({ dairies });
   } catch (err) {
-    console.error("PUBLIC DAIRIES ERROR:", err.message);
-    res.status(500).json({ message: "Failed to fetch dairies" });
+    console.error("NEARBY DAIRIES ERROR:", err.message);
+    res.status(500).json({ message: "Failed to fetch nearby dairies" });
+  }
+};
+
+export const getSearchDairiesController = async (req, res) => {
+  try {
+    const { q = "" } = req.query;
+    const trimmed = String(q).trim();
+
+    if (!trimmed) {
+      return res.json({ dairies: [] });
+    }
+
+    const dairies = await searchDairies(trimmed);
+    res.json({ dairies });
+  } catch (err) {
+    console.error("SEARCH DAIRIES ERROR:", err.message);
+    res.status(500).json({ message: "Failed to search dairies" });
+  }
+};
+
+
+export const getSearchSuggestionsController = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    const suggestions = await getSearchSuggestions(q);
+
+    // disable caching
+    res.set("Cache-Control", "no-store");
+
+    res.json({
+      suggestions
+    });
+
+  } catch (error) {
+    console.error("SEARCH SUGGESTION ERROR:", error.message);
+    res.status(500).json({ error: "Failed to fetch suggestions" });
+  }
+};
+export const getCityDairiesController = async (req, res) => {
+  try {
+    const { city = "" } = req.query;
+    const trimmed = String(city).trim();
+
+    if (!trimmed) {
+      return res.json({ dairies: [] });
+    }
+
+    const dairies = await getCityDairies(trimmed);
+    res.json({ dairies });
+  } catch (err) {
+    console.error("CITY DAIRIES ERROR:", err.message);
+    res.status(500).json({ message: "Failed to fetch city dairies" });
   }
 };
 

@@ -1,27 +1,46 @@
 import axios from "axios";
 
-export const fetchPublicDairies = async ({
-  search = "",
-  city = "",
-  pincode = "",
-  lat = null,
-  lng = null,
+export const fetchNearbyDairies = async ({
+  lat,
+  lng,
   radius = 10,
+  page = 0,
 } = {}) => {
+  const params = {
+    lat,
+    lng,
+    radius,
+    page,
+  };
 
+  const res = await axios.get("/api/public/dairies/nearby", { params });
+  return res.data;
+};
+
+export const fetchSearchDairies = async ({ q } = {}) => {
   const params = {};
+  if (q) params.q = q;
 
-  if (search) params.search = search;
+  const res = await axios.get("/api/public/dairies/search", { params });
+  return res.data;
+};
+
+
+export const fetchSearchSuggestions = async (q) => {
+  const res = await axios.get("/api/public/dairies/suggestions", {
+    params: {
+      q,
+      t: Date.now()
+    }
+  });
+
+  return res.data;
+};
+export const fetchCityDairies = async ({ city } = {}) => {
+  const params = {};
   if (city) params.city = city;
-  if (pincode) params.pincode = pincode;
 
-  if (lat !== null && lat !== undefined) params.lat = lat;
-  if (lng !== null && lng !== undefined) params.lng = lng;
-
-  if (radius) params.radius = radius;
-
-  const res = await axios.get("/api/public/dairies", { params });
-
+  const res = await axios.get("/api/public/dairies/city", { params });
   return res.data;
 };
 
@@ -29,6 +48,5 @@ export const fetchPublicDairies = async ({
 
 export const fetchPublicDairyById = async (id) => {
   const res = await axios.get(`/api/public/dairies/${id}`);
-
   return res.data;
 };

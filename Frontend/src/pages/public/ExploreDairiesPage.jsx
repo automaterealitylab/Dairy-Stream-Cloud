@@ -10,10 +10,15 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 
-import { fetchPublicDairies } from "../../api/public.api.js";
+import {
+  fetchNearbyDairies,
+  fetchSearchDairies,
+  fetchCityDairies,
+  fetchSearchSuggestions,
+} from "../../api/public.api.js";
 import { fetchCustomerSubscription } from "../../api/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
-import LocationSelector from "../../components/dairy/LocationSelector.jsx";
+// import LocationSelector from "../../components/dairy/LocationSelector.jsx";
 
 const CITY_OPTIONS = [
   "Kolkata",
@@ -27,6 +32,13 @@ const ExploreDairiesPage = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  const [page, setPage] = useState(0)
+const [hasMore, setHasMore] = useState(true)
+const [loadingMore, setLoadingMore] = useState(false)
+
+const [currentLat, setCurrentLat] = useState(null)
+const [currentLng, setCurrentLng] = useState(null)
+
   // Core Data States
   const [dairies, setDairies] = useState([]);
   const [activeSubData, setActiveSubData] = useState(null);
@@ -38,6 +50,8 @@ const ExploreDairiesPage = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [showLocation, setShowLocation] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // ---------- GPS HELPER ----------
   const getLiveLocation = () => {
@@ -52,19 +66,80 @@ const ExploreDairiesPage = () => {
     });
   };
 
-  // ---------- CENTRAL FETCH LOGIC ----------
-  const loadDairiesList = useCallback(async (params = {}) => {
+  // ---------- CENTRAL FETCH LOGIC (MODE-BASED) ----------
+ const loadNearby = useCallback(
+  async ({ lat, lng, radius = 150, page = 0 }) => {
+    try {
+      if (page === 0) setLoading(true)
+      else setLoadingMore(true)
+
+      const res = await fetchNearbyDairies({ lat, lng, radius, page })
+
+      const newDairies = res?.dairies || []
+
+      if (page === 0) {
+        setDairies(newDairies)
+      } else {
+        setDairies(prev => [...prev, ...newDairies])
+      }
+
+      if (newDairies.length < 20) {
+        setHasMore(false)
+      }
+
+    } catch (err) {
+      console.error("Failed to fetch nearby dairies:", err)
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  },
+  []
+)
+
+
+useEffect(() => {
+
+  const handleScroll = () => {
+
+    if (
+      window.innerHeight + window.scrollY >=
+      document.body.offsetHeight - 500
+    ) {
+
+      if (!loadingMore && hasMore && currentLat && currentLng) {
+
+        const nextPage = page + 1
+
+        setPage(nextPage)
+
+        loadNearby({
+          lat: currentLat,
+          lng: currentLng,
+          page: nextPage
+        })
+
+      }
+
+    }
+
+  }
+
+  window.addEventListener("scroll", handleScroll)
+
+  return () => window.removeEventListener("scroll", handleScroll)
+
+}, [page, loadingMore, hasMore, currentLat, currentLng, loadNearby])
+
+
+  const loadSearch = useCallback(async (q) => {
     try {
       setLoading(true);
-      const res = await fetchPublicDairies({
-        radius: 150, // Changed from 20 to 150 for testing/broad discovery
-        ...params,
-      });
-      console.log("API RESPONSE:", res);
+      const res = await fetchSearchDairies({ q });
       setDairies(res?.dairies || []);
       setLoadError("");
     } catch (err) {
-      console.error("Failed to fetch dairies:", err);
+      console.error("Failed to search dairies:", err);
       setDairies([]);
       setLoadError("FETCH_ERROR");
     } finally {
@@ -72,40 +147,89 @@ const ExploreDairiesPage = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!searchTerm.trim() || searchTerm.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const delay = setTimeout(async () => {
+      try {
+        const res = await fetchSearchSuggestions(searchTerm);
+        setSuggestions(res?.suggestions || []);
+      } catch (err) {
+        console.error("Suggestion fetch failed:", err);
+        setSuggestions([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(delay);
+  }, [searchTerm]);
+
+  const loadCity = useCallback(async (city) => {
+    try {
+      setLoading(true);
+      const res = await fetchCityDairies({ city });
+      setDairies(res?.dairies || []);
+      setLoadError("");
+    } catch (err) {
+      console.error("Failed to fetch city dairies:", err);
+      setDairies([]);
+      setLoadError("FETCH_ERROR");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+
+  // initial load for faast load
+//   useEffect(() => {
+//   loadSearch(""); // quick initial dairies
+// }, []);
   // ---------- INITIAL LOAD (NEARBY) ----------
   useEffect(() => {
     const initNearby = async () => {
       try {
         const coords = await getLiveLocation();
-        setDetectedLocation("Nearby");
-        await loadDairiesList({ lat: coords.lat, lng: coords.lng });
+
+setDetectedLocation("Nearby");
+
+setCurrentLat(coords.lat)
+setCurrentLng(coords.lng)
+
+await loadNearby({
+  lat: coords.lat,
+  lng: coords.lng,
+  page: 0
+});
       } catch (err) {
         setLoadError("LOCATION_OFF");
         setLoading(false);
       }
     };
     initNearby();
-  }, [loadDairiesList]);
+  }, [loadNearby]);
 
   // ---------- GLOBAL SEARCH (DEBOUNCED) ----------
   useEffect(() => {
     if (!searchTerm.trim()) return;
 
     const delay = setTimeout(() => {
-      setSelectedCity(""); // Clear city shortcut if user starts typing
-      loadDairiesList({ search: searchTerm });
+      setSelectedCity("");
+      // setDetectedLocation(searchTerm);
+      loadSearch(searchTerm);
     }, 500);
 
     return () => clearTimeout(delay);
-  }, [searchTerm, loadDairiesList]);
+  }, [searchTerm, loadSearch]);
 
   // ---------- CITY SHORTCUTS ----------
-  const handleCityClick = (city) => {
-    setSearchTerm("");
-    setSelectedCity(city);
-    setDetectedLocation(city);
-    loadDairiesList({ city });
-  };
+  // const handleCityClick = (city) => {
+  //   setSearchTerm("");
+  //   setSelectedCity(city);
+  //   setDetectedLocation(city);
+  //   loadCity(city);
+  // };
 
   // ---------- SUBSCRIPTION CHECK ----------
   const isLoggedIn = Boolean(user?.token || localStorage.getItem("user"));
@@ -164,7 +288,7 @@ const ExploreDairiesPage = () => {
 
               <div className="relative">
                 <button
-                  onClick={() => setShowLocation(!showLocation)}
+                  // onClick={() => setShowLocation(!showLocation)}
                   className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full hover:bg-gray-200 transition-colors"
                 >
                   <MapPin size={18} className="text-red-500" />
@@ -189,11 +313,9 @@ const ExploreDairiesPage = () => {
                         setSearchTerm("");
                         setSelectedCity(data.city || "");
                         setDetectedLocation(""); // Clear 'Nearby' so the label shows the city name
-                        loadDairiesList({
-                          city: data.city,
-                          pincode: data.pincode,
-                          radius: data.radius,
-                        });
+                        if (data.city) {
+                          loadCity(data.city);
+                        }
                       }}
                     />
                   </div>
@@ -207,13 +329,44 @@ const ExploreDairiesPage = () => {
                 className="absolute left-4 top-3.5 text-gray-400"
                 size={20}
               />
+
               <input
                 type="text"
-                placeholder="Search dairies by name or area..."
+                placeholder="Search dairies, city, area, pincode..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setShowSuggestions(true);
+                }}
                 className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
               />
+
+              {/* Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 z-50">
+                  {suggestions.map((s, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                      onClick={() => {
+                        setSearchTerm(s.suggestion);
+                        setSuggestions([]);
+                        setShowSuggestions(false)
+                        setSelectedCity("");
+                        setDetectedLocation(s.suggestion);
+
+                        loadSearch(s.suggestion);
+                      }}
+                    >
+                      <span>{s.suggestion}</span>
+
+                      <span className="text-xs text-gray-400 uppercase">
+                        {s.type}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4">
@@ -241,7 +394,7 @@ const ExploreDairiesPage = () => {
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         {/* CITY QUICK LINKS */}
-        <div className="flex gap-3 mb-8 overflow-x-auto pb-2 no-scrollbar">
+        {/* <div className="flex gap-3 mb-8 overflow-x-auto pb-2 no-scrollbar">
           {CITY_OPTIONS.map((city) => (
             <button
               key={city}
@@ -255,7 +408,7 @@ const ExploreDairiesPage = () => {
               {city}
             </button>
           ))}
-        </div>
+        </div> */}
 
         {/* LOADING & ERRORS */}
         {loading ? (
@@ -279,8 +432,9 @@ const ExploreDairiesPage = () => {
               Try adjusting your search or radius.
             </p>
           </div>
-        ) : (
-          /* DAIRY GRID */
+        ) : (/* DAIRY GRID */
+          <>
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {mappedDairies.map((dairy) => (
               <div
@@ -340,6 +494,13 @@ const ExploreDairiesPage = () => {
               </div>
             ))}
           </div>
+          {loadingMore && (
+  <div className="text-center py-10 text-gray-400">
+    Loading more dairies...
+  </div>
+  
+)}
+</>
         )}
       </main>
     </div>
