@@ -268,3 +268,53 @@ export const deleteAdminProduct = async (id) => {
   const { data } = await client.delete(`/admin/products/${id}`);
   return data;
 };
+
+/* =========================
+   PERFORMANCE & EARNINGS
+========================= */
+export const fetchAdminPerformance = async ({ startDate = "", endDate = "", agentId = "" } = {}) => {
+  const params = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  if (agentId) params.agentId = agentId;
+
+  const { data } = await client.get('/admin/performance', { params });
+  return data;
+};
+
+export const fetchAdminTopPerformers = async ({ limit = 10 } = {}) => {
+  const { data } = await client.get('/admin/performance/top-performers', {
+    params: { limit },
+  });
+  return data;
+};
+
+export const fetchAdminMissedDeliveries = async ({ startDate = "", endDate = "" } = {}) => {
+  const params = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+
+  const { data } = await client.get('/admin/performance/missed-deliveries', { params });
+  return data;
+};
+
+export const fetchAdminPerformanceSummary = async () => {
+  const { data } = await client.get('/admin/performance/summary');
+  return data;
+};
+
+export const fetchAdminAgentTodayWorkSummary = async ({ agentId } = {}) => {
+  const { data } = await client.get('/admin/earnings/today-summary', {
+    params: { agentId },
+  });
+  return data;
+};
+
+export const fetchAdminAgentEarningsSummary = async ({ agentId, startDate = "", endDate = "" } = {}) => {
+  const params = { agentId };
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+
+  const { data } = await client.get('/admin/earnings/summary', { params });
+  return data;
+};

@@ -110,15 +110,50 @@ const parseFailedReason = (notes) => {
   return reason || null;
 };
 
+const parseDeliveryProof = (notes) => {
+  const text = String(notes || "");
+  const marker = "[DELIVERY_PROOF]:";
+  const index = text.indexOf(marker);
+  if (index < 0) return { proofType: null, proofValue: null };
+  const raw = text.slice(index + marker.length).trim();
+  if (!raw) return { proofType: null, proofValue: null };
+
+  const [typePart, valuePart] = raw.split("|", 2);
+  return {
+    proofType: String(typePart || "").trim() || null,
+    proofValue: String(valuePart || "").trim() || null,
+  };
+};
+
+const withDeliveryProof = (notes, proofType, proofValue = "") => {
+  const safeType = String(proofType || "").trim().toUpperCase();
+  const safeValue = String(proofValue || "").trim();
+  const current = String(notes || "").trim();
+
+  const lines = current
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("[DELIVERY_PROOF]:"));
+
+  if (!safeType) {
+    return lines.length ? lines.join("\n") : null;
+  }
+
+  lines.push(`[DELIVERY_PROOF]: ${safeType}${safeValue ? `|${safeValue}` : ""}`);
+  return lines.join("\n");
+};
+
 const withFailureReason = (notes, reason) => {
   const safeReason = String(reason || "").trim();
   const current = String(notes || "").trim();
-  const withoutMarker = current
-    .split("[FAILED_REASON]:")[0]
-    .trim();
-  if (!safeReason) return withoutMarker || null;
-  if (!withoutMarker) return `[FAILED_REASON]: ${safeReason}`;
-  return `${withoutMarker}\n[FAILED_REASON]: ${safeReason}`;
+  const lines = current
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("[FAILED_REASON]:"));
+
+  if (!safeReason) return lines.length ? lines.join("\n") : null;
+  lines.push(`[FAILED_REASON]: ${safeReason}`);
+  return lines.join("\n");
 };
 
 const fetchAgentCore = async (agentDbId, dairyId = null) => {
@@ -215,6 +250,7 @@ const buildLookupMaps = async (rows) => {
 const mapAssignedDelivery = (row, lookups) => {
   const customer = lookups.customersById.get(row.customer_id) || {};
   const dairy = lookups.dairiesById.get(row.dairy_id) || {};
+  const parsedProof = parseDeliveryProof(row.notes);
 
   return {
     id: String(row.id),
@@ -228,6 +264,8 @@ const mapAssignedDelivery = (row, lookups) => {
     dairyFarmName: dairy.dairy_name || "Dairy",
     farmPhoneNumber: "-",
     failedReason: parseFailedReason(row.notes),
+    deliveryProofType: parsedProof.proofType,
+    deliveryProofValue: parsedProof.proofValue,
     failedImage: null,
     date: normalizeDate(row.delivery_date || row.created_at),
     completedAt: row.updated_at || row.created_at || null,
@@ -463,6 +501,9 @@ export const updateAgentDeliveryStatus = async ({
   deliveryId,
   status,
   reason = "",
+  proofType = "",
+  proofOtp = "",
+  proofImage = "",
 } = {}) => {
   const parsedId = Number(deliveryId);
   if (!Number.isFinite(parsedId) || parsedId <= 0) {
@@ -495,9 +536,24 @@ export const updateAgentDeliveryStatus = async ({
   }
 
   const dbStatus = nextStatus === "COMPLETED" ? "COMPLETED" : nextStatus;
-  const notes = nextStatus === "FAILED"
+
+  const normalizedProofType = String(proofType || "").trim().toUpperCase();
+  const otpMasked = String(proofOtp || "").trim();
+  const hasProofImage = Boolean(String(proofImage || "").trim());
+
+  const proofValue = normalizedProofType === "OTP"
+    ? `OTP_${otpMasked.slice(-4).padStart(4, "*")}`
+    : normalizedProofType === "PHOTO" && hasProofImage
+    ? "PHOTO_ATTACHED"
+    : "";
+
+  let notes = nextStatus === "FAILED"
     ? withFailureReason(existing.notes, reason)
     : withFailureReason(existing.notes, "");
+
+  if (nextStatus === "COMPLETED") {
+    notes = withDeliveryProof(notes, normalizedProofType, proofValue);
+  }
 
   const { data: updated, error: updateError } = await supabase
     .from("deliveries")
@@ -522,6 +578,8 @@ export const updateAgentDeliveryStatus = async ({
     deliveryId: updated.id,
     status: normalizeStatusForCard(updated.status),
     failedReason: parseFailedReason(updated.notes),
+    deliveryProofType: parseDeliveryProof(updated.notes).proofType,
+    deliveryProofValue: parseDeliveryProof(updated.notes).proofValue,
     updatedAt: updated.updated_at || null,
   };
 };

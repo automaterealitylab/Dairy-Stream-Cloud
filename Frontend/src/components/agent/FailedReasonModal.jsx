@@ -1,8 +1,21 @@
 import React, { useState, useRef } from 'react';
 import { X, Camera, Upload, AlertCircle } from 'lucide-react';
 
+const FAILED_REASONS = [
+  'CUSTOMER_UNAVAILABLE',
+  'PAYMENT_ISSUE',
+  'WRONG_ADDRESS',
+];
+
+const FAILED_REASON_LABELS = {
+  CUSTOMER_UNAVAILABLE: 'Customer unavailable',
+  PAYMENT_ISSUE: 'Payment issue',
+  WRONG_ADDRESS: 'Wrong address',
+};
+
 const FailedReasonModal = ({ delivery, onSubmit, onClose }) => {
   const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
@@ -21,11 +34,17 @@ const FailedReasonModal = ({ delivery, onSubmit, onClose }) => {
   };
 
   const handleSubmit = () => {
-    if (!reason.trim()) {
-      alert('Please provide a reason for failed delivery');
+    if (!reason) {
+      alert('Please select a reason for failed delivery');
       return;
     }
-    onSubmit({ reason, image, imagePreview });
+
+    const detailText = String(details || '').trim();
+    const finalReason = detailText
+      ? `${reason}: ${detailText}`
+      : reason;
+
+    onSubmit({ reason: finalReason, image, imagePreview });
   };
 
   return (
@@ -58,11 +77,27 @@ const FailedReasonModal = ({ delivery, onSubmit, onClose }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Reason for Failed Delivery *
             </label>
+            <div className="space-y-2">
+              {FAILED_REASONS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setReason(item)}
+                  className={`w-full text-left px-3 py-2 rounded-lg border transition-colors ${
+                    reason === item
+                      ? 'border-red-500 bg-red-50 text-red-700'
+                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {FAILED_REASON_LABELS[item]}
+                </button>
+              ))}
+            </div>
             <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g., Customer not available, Wrong address, etc."
-              className="w-full border border-gray-300 rounded-lg p-3 min-h-[100px] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Optional note"
+              className="mt-3 w-full border border-gray-300 rounded-lg p-3 min-h-[80px] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
