@@ -42,88 +42,57 @@ const getPublicProductsByDairyId = async (dairyId) => {
     products: buildLegacyProductsMap(productItems),
   };
 };
+/* ---------------- GEO DISCOVERY (DB-DRIVEN) ---------------- */
 
-/* ---------------- DISTANCE HELPER ---------------- */
+const NEARBY_PAGE_SIZE = 20;
 
-const getDistance = (lat1, lon1, lat2, lon2) => {
- if (
-  lat1 === null || lon1 === null ||
-  lat2 === null || lon2 === null
-) return Infinity; 
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
+export const getNearbyDairies = async (lat, lng, radius = 10, page = 0) => {
+  const offset = page * NEARBY_PAGE_SIZE;
 
-/* ---------------- PUBLIC DAIRIES ---------------- */
+  const { data, error } = await supabase.rpc("get_nearby_dairies", {
+  lat,
+  lng,
+  page_offset: page * 20,
+  radius
+});
 
-export const listPublicDairies = async ({
-  search = "",
-  city = "",
-  pincode = "",
-  lat = null,
-  lng = null,
-  radius = 10,
-}) => {
-  const PUBLIC_DAIRY_FIELDS = "id, dairy_name, category, address, city, state, pincode, image_url, latitude, longitude, status, created_at";
-
-  let query = supabase
-    .from("dairies")
-    .select(PUBLIC_DAIRY_FIELDS);
-    // REMOVED .eq("status", "ACTIVE") since you mentioned it's not set
-
-  // Filter Logic
-if (search) {
-  query = query.or(`dairy_name.ilike.%${search}%,address.ilike.%${search}%`);
-}
-
-if (city) {
-  query = query.ilike("city", `%${city}%`);
-}
-
-if (pincode) {
-  query = query.eq("pincode", pincode);
-}
-
-  const { data, error } = await query;
   if (error) throw error;
 
-  let dairies = data || [];
+  return data || [];
+};
 
-  // Define these INSIDE the function so they are accessible
-  const hasUserCoords = lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng);
-  const isExplicitSearch = Boolean(search || city || pincode);
 
-  if (hasUserCoords) {
-    dairies = dairies
-      .map((row) => {
-        const dLat = parseFloat(row.latitude);
-        const dLng = parseFloat(row.longitude);
+export const getSearchSuggestions = async (q) => {
 
-        const distanceKm = (!isNaN(dLat) && !isNaN(dLng)) 
-          ? getDistance(lat, lng, dLat, dLng) 
-          : Infinity;
+  const { data, error } = await supabase.rpc(
+    "search_dairy_suggestions",
+    { q }
+  );
 
-        return { ...row, distance: distanceKm };
-      })
-      .filter((row) => {
-        // This is the most important part: 
-        // If user searched for a name or clicked a city, DO NOT filter by radius.
-        if (isExplicitSearch) return true; 
-        return row.distance <= radius;
-      })
-      .sort((a, b) => a.distance - b.distance);
-  }
+  if (error) throw error;
 
-  return dairies;
+  return data || [];
+
+};
+
+export const searchDairies = async (query) => {
+  const { data, error } = await supabase.rpc("search_dairies", {
+    q: query,
+  });
+
+  if (error) throw error;
+
+  return data || [];
+};
+
+export const getCityDairies = async (city) => {
+  const { data, error } = await supabase.rpc("get_city_dairies", {
+    city,
+  });
+
+  if (error) throw error;
+
+  return data || [];
 };
 
 /* ---------------- SINGLE DAIRY ---------------- */
