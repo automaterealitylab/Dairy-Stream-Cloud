@@ -1,8 +1,10 @@
 import React from 'react';
 import { ShieldAlert, Info } from 'lucide-react';
 
-const CustomerRiskIndicator = ({ riskData }) => {
-  // Risk levels based on failed payments and pauses
+const CustomerRiskIndicator = ({ riskData = [] }) => { // ✅ Safety default
+  // ✅ Extra layer: Normalize to array
+  const safeRiskData = Array.isArray(riskData) ? riskData : [];
+
   const getRiskLevel = (score) => {
     if (score >= 5) return { label: "High Risk", color: "bg-red-500", text: "text-red-700", bg: "bg-red-50" };
     if (score >= 2) return { label: "Moderate", color: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50" };
@@ -17,26 +19,27 @@ const CustomerRiskIndicator = ({ riskData }) => {
       </div>
 
       <div className="space-y-4">
-        {riskData.map((customer, i) => {
-          const risk = getRiskLevel(customer.failed_payments);
-          return (
-            <div key={i} className={`p-4 rounded-2xl flex items-center justify-between ${risk.bg}`}>
-              <div className="flex items-center gap-3">
-                <div className={`h-2 w-2 rounded-full ${risk.color}`} />
-                <span className="font-bold text-gray-700">{customer.name}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <p className={`text-[10px] font-black uppercase ${risk.text}`}>{risk.label}</p>
-                  <p className="text-xs font-medium text-gray-500">{customer.failed_payments} fails</p>
+        {safeRiskData.length > 0 ? (
+          safeRiskData.map((customer, i) => {
+            const risk = getRiskLevel(customer?.failed_payments || 0);
+            return (
+              <div key={i} className={`p-4 rounded-2xl flex items-center justify-between ${risk.bg}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`h-2 w-2 rounded-full ${risk.color}`} />
+                  <span className="font-bold text-gray-700">{customer?.name || "Unknown Customer"}</span>
                 </div>
-                <button className="p-2 hover:bg-white/50 rounded-lg transition-colors">
-                  <Info size={16} className="text-gray-400" />
-                </button>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className={`text-[10px] font-black uppercase ${risk.text}`}>{risk.label}</p>
+                    <p className="text-xs font-medium text-gray-500">{customer?.failed_payments || 0} fails</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        ) : (
+          <p className="text-sm text-gray-400 italic text-center py-4 font-bold">No customer risks detected.</p>
+        )}
       </div>
     </div>
   );
