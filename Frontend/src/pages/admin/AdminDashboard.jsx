@@ -24,17 +24,15 @@ export default function AdminDashboard() {
   // ---- UI state
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedDeliveries, setSelectedDeliveries] = useState([]); // ✅ For Bulk Actions
-  const [activePayment, setActivePayment] = useState({
-  id: "TEMP_ID",
-  customer_name: "Test Customer",
-  amount_due: 1200
-}); // ✅ For Manual Payment
+  
+  // ✅ ENHANCED SELECTION STATE
+  const [selectedDeliveries, setSelectedDeliveries] = useState([]); 
+  const [activePayment, setActivePayment] = useState(null); 
 
   const cachedDashboard = useMemo(() => getCachedAdminDashboard(), []);
   const [uiReady, setUiReady] = useState(Boolean(cachedDashboard));
 
-  // ---- Admin name (SYNC, SAFE)
+  // ---- Admin name
   let adminName = "Admin";
   try {
     const adminUserStr = localStorage.getItem("adminUser");
@@ -55,7 +53,6 @@ export default function AdminDashboard() {
       activeAgents: 0,
       deliveriesToday: 0,
       pendingPayments: 0,
-      // ✅ New Data Fields
       stats: { total_milk: 0, pending: 0, collected: 0, failed: 0 },
       exceptions: [],
       suppliers: [],
@@ -65,21 +62,22 @@ export default function AdminDashboard() {
 
   const dashboardDisplayName = data?.dairyName || adminName;
 
+  // ✅ NEW: SELECTION HANDLER
+  const toggleDeliverySelection = (id) => {
+    setSelectedDeliveries(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
   // ---- Fetch dashboard
- // ---- Debug Fetch: Force Mock Data to show UI
   useEffect(() => {
     let isMounted = true;
-
     const loadDashboard = async () => {
       try {
-        // 1. Try to fetch real data
         const res = await fetchAdminDashboard({ forceRefresh: true });
-        
         if (isMounted) {
-          // 2. Merge real data with Mock data for missing fields
           setData({
             ...res,
-            // If the backend doesn't send these, we force them to exist
             stats: res.stats || { total_milk: 145.5, pending: 12, collected: 8400, failed: 3 },
             exceptions: (res.exceptions && res.exceptions.length > 0) ? res.exceptions : [
               { id: 101, customer_id: 26, quantity_liters: "1.5", notes: "[FAILED_REASON]: CUSTOMER_UNAVAILABLE" },
@@ -97,27 +95,17 @@ export default function AdminDashboard() {
           setUiReady(true);
         }
       } catch (err) {
-        console.error("Fetch failed, using 100% mock data for UI debug");
         if (isMounted) {
-          // Fallback to complete mock if server is down
-          setData(prev => ({
-            ...prev,
-            stats: { total_milk: 145.5, pending: 12, collected: 8400, failed: 3 },
-            exceptions: [{ id: 101, customer_id: 26, quantity_liters: "1.5", notes: "[FAILED_REASON]: CUSTOMER_UNAVAILABLE" }],
-            suppliers: [{ id: 1, name: "City Dairy Farm" }],
-            riskData: [{ name: "Suresh Kumar", failed_payments: 4 }]
-          }));
+          setError(err.message);
           setUiReady(true);
         }
       }
     };
-
     loadDashboard();
     return () => { isMounted = false; };
   }, []);
 
-  // ---- Error UI
-  if (error) {
+  if (error && !uiReady) {
     return (
       <div className="h-screen flex items-center justify-center px-4">
         <div className="bg-red-50 border border-red-200 p-5 rounded-xl text-red-700">{error}</div>
@@ -137,24 +125,24 @@ export default function AdminDashboard() {
           <>
             <AdminHeader adminName={dashboardDisplayName} />
             
-            {/* ✅ KPI & DAILY SNAPSHOT SECTION */}
             <DailyOperationsSnapshot stats={data.stats} />
             <AdminKpis data={data} />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
-              {/* ✅ LEFT COLUMN: LOGISTICS & PROCUREMENT */}
               <div className="lg:col-span-2 space-y-8">
-  <DeliveryExceptionDashboard 
-    exceptions={data?.exceptions || []}  // ✅ Use Optional Chaining + Fallback
-    onReschedule={(id) => console.log("Rescheduling", id)} 
-  />
-  <ProcurementTracker 
-    suppliers={data?.suppliers || []}    // ✅ Use Optional Chaining + Fallback
-    onAddLog={(log) => console.log("New Procurement Log", log)} 
-  />
-</div>
+                {/* ✅ UPDATED: Pass selection props */}
+                <DeliveryExceptionDashboard 
+                  exceptions={data?.exceptions || []}
+                  selectedIds={selectedDeliveries}
+                  onToggleSelect={toggleDeliverySelection}
+                  onReschedule={(id) => console.log("Rescheduling", id)} 
+                />
+                <ProcurementTracker 
+                  suppliers={data?.suppliers || []}
+                  onAddLog={(log) => console.log("New Procurement Log", log)} 
+                />
+              </div>
 
-              {/* ✅ RIGHT COLUMN: FINANCIAL ALERTS & RISK */}
               <div className="space-y-8">
                 <AdminFinancialAlert amount={data.pendingPayments} />
                 <CustomerRiskIndicator riskData={data.riskData} />
@@ -164,12 +152,15 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {/* ✅ OVERLAYS & MODALS */}
-        {uiReady && selectedDeliveries.length > 0 && (
+        {/* ✅ BULK ACTIONS: Triggered by selection */}
+        {selectedDeliveries.length > 0 && (
           <BulkDeliveryActions 
             selectedCount={selectedDeliveries.length} 
-            onReschedule={() => alert("Rescheduling...")}
-            onAssign={() => alert("Assigning...")}
+            onReschedule={() => {
+              alert(`Rescheduling ${selectedDeliveries.length} items`);
+              setSelectedDeliveries([]); // Clear after action
+            }}
+            onAssign={() => alert("Assigning Agents...")}
           />
         )}
 

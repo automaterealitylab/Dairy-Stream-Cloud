@@ -13,6 +13,7 @@ import CustomerDrawer from "../../components/customer/CustomerDrawer";
 import AddCustomerModal from "../../components/customer/AddCustomerModal.jsx";
 import AddCustomerSubscriptionModal from "../../components/customer/AddCustomerSubscriptionModal.jsx";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
 
 export default function AdminCustomers() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,6 +35,19 @@ export default function AdminCustomers() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [createdCustomer, setCreatedCustomer] = useState(null);
+  const [paymentTarget, setPaymentTarget] = useState(null); // ✅ State for payment modal
+
+  // ✅ New handler for saving the manual payment
+  const handleSavePayment = async (payData) => {
+    try {
+      // Logic for API call to save payment goes here
+      console.log("Saving payment for customer:", paymentTarget.id, payData);
+      setPaymentTarget(null);
+      reloadCustomers();
+    } catch (err) {
+      alert("Failed to save payment");
+    }
+  };
 
   useEffect(() => {
     if (searchParams.get("addCustomer") === "1") {
