@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { IndianRupee, Check } from 'lucide-react';
+import { IndianRupee, Check, Wallet } from 'lucide-react';
 
 const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
   const [received, setReceived] = useState(delivery.amount_due || 0);
   const [method, setMethod] = useState('CASH');
 
-  const remaining = Math.max(0, delivery.amount_due - received);
+  // Logic: Negative means they paid EXTRA (Credit)
+  const balance = delivery.amount_due - received;
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95">
         <h2 className="text-2xl font-black mb-6">Record Payment</h2>
         
         <div className="space-y-5">
@@ -29,23 +30,23 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
             </div>
           </div>
 
-          <div className="flex gap-3">
-            {['CASH', 'OFFLINE_UPI'].map(m => (
-              <button key={m} onClick={() => setMethod(m)} className={`flex-1 py-3 rounded-xl font-bold text-sm ${method === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                {m.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-
-          {remaining > 0 && (
+          {/* Balance / Credit Notification */}
+          {balance > 0 ? (
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-amber-700 text-xs font-bold text-center">
-              ⚠️ Remaining balance: ₹{remaining} will be tracked.
+              ⚠️ Remaining balance: ₹{balance} will be due.
             </div>
-          )}
+          ) : balance < 0 ? (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-emerald-700 text-xs font-bold text-center flex items-center justify-center gap-2">
+              <Wallet size={14} /> Extra Payment: ₹{Math.abs(balance)} will be added as Credit.
+            </div>
+          ) : null}
 
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} className="flex-1 py-4 font-bold text-gray-400">Cancel</button>
-            <button onClick={() => onSave({ received, method, remaining })} className="flex-[2] bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-100 flex items-center justify-center gap-2">
+            <button 
+              onClick={() => onSave({ received, method, balance })} 
+              className="flex-[2] bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2"
+            >
               <Check size={18} /> Save Payment
             </button>
           </div>
@@ -54,5 +55,4 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
     </div>
   );
 };
-
-export default ManualPaymentModal;
+export default ManualPaymentModal
