@@ -45,27 +45,33 @@ export default function AdminDashboard() {
       return adminUserStr ? JSON.parse(adminUserStr)?.name : "Admin";
     } catch { return "Admin"; }
   }, []);
+const loadDashboard = useCallback(async (force = false) => {
+  try {
+    const res = await fetchAdminDashboard({ forceRefresh: force });
+    
+    // Debugging: Check your browser console to see what the server actually sent
+    console.log("Full Dashboard Response:", res);
 
-  const loadDashboard = useCallback(async (force = false) => {
-    try {
-      const res = await fetchAdminDashboard({ forceRefresh: force });
-      
-      setData(prev => ({
-        ...prev,
-        dairyName: res.dairyName || prev.dairyName,
-        stats: res.stats || prev.stats,
-        // Ensure suppliers are explicitly mapped from the backend response
-        suppliers: res.suppliers || [], 
-        exceptions: res.exceptions || [],
-        riskData: res.riskData || []
-      }));
-      
-      setUiReady(true);
-    } catch (err) {
-      setError(err.message);
-      setUiReady(true);
-    }
-  }, []);
+    setData({
+      dairyName: res.dairyName,
+      totalCustomers: res.totalCustomers,
+      totalAgents: res.totalAgents,
+      activeAgents: res.activeAgents,
+      deliveriesToday: res.deliveriesToday,
+      // FORCE the update of suppliers
+      suppliers: res.suppliers || [], 
+      stats: res.stats || { total_milk: 0, procured_milk: 0, pending: 0, collected: 0, failed: 0 },
+      exceptions: res.exceptions || [],
+      riskData: res.riskData || []
+    });
+    
+    setUiReady(true);
+  } catch (err) {
+    console.error("Dashboard Load Error:", err);
+    setError(err.message);
+    setUiReady(true);
+  }
+}, []);
 
   useEffect(() => {
     loadDashboard();

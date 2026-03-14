@@ -17,12 +17,14 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
   const startIso = startOfDay.toISOString();
 
   // 1. Fetch Basic Row Counts & Suppliers
-  const [totalCustomers, totalAgents, dairyRow, suppliersRes] = await Promise.all([
-    supabase.from("memberships").select("id", { count: "exact", head: true }).eq("dairy_id", dairyId),
-    supabase.from("agents").select("id", { count: "exact", head: true }).eq("dairy_id", dairyId),
-    supabase.from("dairies").select("dairy_name").eq("id", dairyId).maybeSingle(),
-    supabase.from("suppliers").select("id, name").eq("dairy_id", dairyId).eq("status", "ACTIVE")
-  ]);
+const targetDairyId = Number(dairyId); 
+
+const [totalCustomers, totalAgents, dairyRow, suppliersRes] = await Promise.all([
+  supabase.from("memberships").select("id", { count: "exact", head: true }).eq("dairy_id", targetDairyId),
+  supabase.from("agents").select("id", { count: "exact", head: true }).eq("dairy_id", targetDairyId),
+  supabase.from("dairies").select("dairy_name").eq("id", targetDairyId).maybeSingle(),
+  supabase.from("suppliers").select("id, name").eq("dairy_id", targetDairyId).eq("status", "ACTIVE")
+]);
 
   // 2. FETCH MILK NEEDED (Fixed the variable name typo: dairyId)
   const { data: deliveriesToday } = await supabase

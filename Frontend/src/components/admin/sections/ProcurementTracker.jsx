@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Plus, Landmark, Droplets, Scale, CheckCircle2 } from "lucide-react";
+import { Plus, Landmark, Droplets, Scale, CheckCircle2, ChevronDown } from "lucide-react";
 
 const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
   const [log, setLog] = useState({
@@ -27,7 +27,7 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
       ...log,
       quantity: parseFloat(log.quantity),
       rate: parseFloat(log.rate),
-      fat_content: parseFloat(log.fat_content || 0)
+      fat_content: parseFloat(log.fat_content || 0),
     });
 
     setLog({ supplier_id: "", quantity: "", rate: "", fat_content: "" });
@@ -47,32 +47,34 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {/* Supplier Selection */}
-        <div className="md:col-span-1">
+        <div className="md:col-span-1 relative">
           <select
             value={log.supplier_id}
             onChange={(e) => setLog({ ...log, supplier_id: e.target.value })}
-            className="w-full p-4 bg-gray-50 rounded-2xl border-none font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
+            className="w-full p-4 bg-gray-50 rounded-2xl border-none font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer pr-10"
           >
             <option value="" disabled>
-              Select Supplier
+              Select Supp
             </option>
-
-            {/* ✅ Fixed the mapping logic to use supplierList */}
-            {supplierList.length > 0 ? (
-              supplierList.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))
-            ) : (
-              <option disabled>No suppliers found in DB</option>
-            )}
+            {supplierList.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
           </select>
+          {/* Add this icon to replace the hidden browser arrow */}
+          <ChevronDown
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+            size={16}
+          />
         </div>
 
         {/* Quantity Input */}
         <div className="relative">
-          <Scale className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <Scale
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={16}
+          />
           <input
             type="number"
             placeholder="Qty (L)"
@@ -84,7 +86,9 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
 
         {/* Rate Input */}
         <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">₹</span>
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
+            ₹
+          </span>
           <input
             type="number"
             placeholder="Rate/L"
@@ -96,7 +100,10 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
 
         {/* Fat Content */}
         <div className="relative">
-          <Droplets className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <Droplets
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={16}
+          />
           <input
             type="number"
             placeholder="Fat %"
@@ -116,7 +123,13 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
               : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 active:scale-95"
           }`}
         >
-          {isSubmitting ? "Saving..." : <><Plus size={20} /> Add Log</>}
+          {isSubmitting ? (
+            "Saving..."
+          ) : (
+            <>
+              <Plus size={20} /> Add Log
+            </>
+          )}
         </button>
       </div>
 

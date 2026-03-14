@@ -63,6 +63,11 @@ import {
   fetchProcurementLogs 
 } from "../controllers/admin/procurement.controller.js";
 
+import { 
+  addSupplier, 
+  fetchSuppliers 
+} from "../controllers/suppliers/supplier.controller.js";
+
 // ==========================================
 // 1. AUTHENTICATION & INITIAL SETUP
 // ==========================================
@@ -151,5 +156,13 @@ router.post("/earnings/calculate", verifyAdmin, calculateEarnings);
 
 // Utilities
 router.get("/buildings", verifyAdmin, getUniqueBuildings); // Fetch list of service locations
+
+
+
+// ==========================================
+// 10. SUPPLIER MANAGEMENT
+// ==========================================
+router.get("/suppliers", verifyAdmin, fetchSuppliers); // Fetch all active suppliers
+router.post("/suppliers", verifyAdmin, addSupplier); // Register a new supplier
 
 export default router;
