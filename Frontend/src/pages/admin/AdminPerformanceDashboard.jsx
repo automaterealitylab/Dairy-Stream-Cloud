@@ -1,333 +1,220 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, CheckCircle, XCircle, Zap, Calendar } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, Users, CheckCircle, XCircle, Zap, Calendar, Target, Award, Search, Filter,Loader2 } from 'lucide-react';
 
-const AdminPerformanceDashboard = () => {
-  const [performanceData, setPerformanceData] = useState([]);
-  const [topPerformers, setTopPerformers] = useState([]);
-  const [missedDeliveries, setMissedDeliveries] = useState([]);
-  const [summaryStats, setSummaryStats] = useState({
-    totalAgents: 0,
-    totalDeliveries: 0,
-    completedDeliveries: 0,
-    missedDeliveries: 0,
-    overallEfficiency: 0,
-  });
+// Layout Components
+import AdminSidebar from "../../components/admin/layout/AdminSidebar";
+import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+
+const AdminPerformance = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dateRange, setDateRange] = useState('7days');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // TODO: Replace with actual API calls
-        // const performance = await fetchAgentPerformance(dateRange);
-        // const topAgents = await fetchTopPerformers();
-        // const missed = await fetchMissedDeliveries();
-
-        // Mock data for demonstration
-        const mockPerformance = [
-          { agent: 'Raj Kumar', completed: 45, failed: 5, efficiency: 90 },
-          { agent: 'Priya Singh', completed: 42, failed: 3, efficiency: 93 },
-          { agent: 'Amit Patel', completed: 38, failed: 7, efficiency: 84 },
-          { agent: 'Neha Verma', completed: 40, failed: 5, efficiency: 89 },
-          { agent: 'Sanjay Gupta', completed: 35, failed: 8, efficiency: 81 },
-        ];
-
-        const mockTopPerformers = [
-          { agentName: 'Priya Singh', completionRate: 93, deliveriesCompleted: 42 },
-          { agentName: 'Raj Kumar', completionRate: 90, deliveriesCompleted: 45 },
-          { agentName: 'Neha Verma', completionRate: 89, deliveriesCompleted: 40 },
-        ];
-
-        const mockMissedDeliveries = [
-          {
-            agentName: 'Sanjay Gupta',
-            customerName: 'John Doe',
-            address: 'Flat 101, Building A',
-            failedReason: 'CUSTOMER_UNAVAILABLE',
-            deliveryDate: new Date().toLocaleDateString(),
-          },
-          {
-            agentName: 'Amit Patel',
-            customerName: 'Jane Smith',
-            address: 'Flat 202, Building B',
-            failedReason: 'PAYMENT_ISSUE',
-            deliveryDate: new Date(Date.now() - 86400000).toLocaleDateString(),
-          },
-        ];
-
-        setPerformanceData(mockPerformance);
-        setTopPerformers(mockTopPerformers);
-        setMissedDeliveries(mockMissedDeliveries);
-
-        const totalDeliveries = mockPerformance.reduce((sum, item) => sum + item.completed + item.failed, 0);
-        const completedDeliveries = mockPerformance.reduce((sum, item) => sum + item.completed, 0);
-
-        setSummaryStats({
-          totalAgents: mockPerformance.length,
-          totalDeliveries,
-          completedDeliveries,
-          missedDeliveries: totalDeliveries - completedDeliveries,
-          overallEfficiency: Math.round(completedDeliveries / totalDeliveries * 100),
-        });
-
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching performance data:', err);
-        setError('Failed to load performance data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [dateRange]);
-
-  const efficiencyData = [
-    { name: '90-100%', value: topPerformers.length, color: '#10b981' },
-    { name: '80-90%', value: performanceData.filter(d => d.efficiency >= 80 && d.efficiency < 90).length, color: '#f59e0b' },
-    { name: '< 80%', value: performanceData.filter(d => d.efficiency < 80).length, color: '#ef4444' },
+  // Mock Data (Aligned with your project brief requirements)
+  const performanceData = [
+    { agent: 'Raj Kumar', completed: 45, failed: 5, efficiency: 90 },
+    { agent: 'Priya Singh', completed: 42, failed: 3, efficiency: 93 },
+    { agent: 'Amit Patel', completed: 38, failed: 7, efficiency: 84 },
+    { agent: 'Neha Verma', completed: 40, failed: 5, efficiency: 89 },
+    { agent: 'Sanjay Gupta', completed: 35, failed: 8, efficiency: 81 },
   ];
 
-  const failureReasons = {
-    CUSTOMER_UNAVAILABLE: missedDeliveries.filter(d => d.failedReason === 'CUSTOMER_UNAVAILABLE').length,
-    PAYMENT_ISSUE: missedDeliveries.filter(d => d.failedReason === 'PAYMENT_ISSUE').length,
-    WRONG_ADDRESS: missedDeliveries.filter(d => d.failedReason === 'WRONG_ADDRESS').length,
-    OTHER: missedDeliveries.filter(d => d.failedReason === 'OTHER').length,
-  };
+  const topPerformers = [
+    { name: 'Priya Singh', score: 93, count: 42 },
+    { name: 'Raj Kumar', score: 90, count: 45 },
+    { name: 'Neha Verma', score: 89, count: 40 },
+  ];
+
+  const missedDeliveries = [
+    { agent: 'Sanjay Gupta', customer: 'John Doe', reason: 'CUSTOMER_UNAVAILABLE', date: '13/03/2026' },
+    { agent: 'Amit Patel', customer: 'Jane Smith', reason: 'PAYMENT_ISSUE', date: '12/03/2026' },
+  ];
+
+  const efficiencyStats = [
+    { name: '90-100%', value: 2, color: '#10b981' },
+    { name: '80-90%', value: 3, color: '#f59e0b' },
+    { name: '< 80%', value: 0, color: '#ef4444' },
+  ];
+
+  useEffect(() => {
+    // Simulate API fetch
+    const timer = setTimeout(() => setLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, [dateRange]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-gray-500">Loading performance data...</div>
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-blue-600" size={40} />
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Analyzing Metrics...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-800">Agent Performance Dashboard</h1>
-          <p className="text-gray-600 mt-2">Monitor agent performance and delivery metrics</p>
-        </div>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <AdminMobileTopbar title="Performance Analytics" onMenu={() => setSidebarOpen(true)} />
+      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
+      <main className="lg:ml-64 px-4 sm:px-8 lg:px-12 py-10 pb-32">
+        
+        {/* HEADER AREA */}
+        <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Agent Intelligence</h1>
+            <p className="text-slate-500 font-medium text-sm">Real-time delivery efficiency and reliability scores.</p>
           </div>
-        )}
-
-        {/* Date Range Filter */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex items-center gap-4">
-            <Calendar size={24} className="text-gray-600" />
-            <div className="flex gap-2">
-              {[
-                { value: '7days', label: 'Last 7 days' },
-                { value: '30days', label: 'Last 30 days' },
-                { value: 'month', label: 'This Month' },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setDateRange(option.value)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    dateRange === option.value
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+          
+          <div className="flex bg-slate-100 p-1.5 rounded-[20px] border border-slate-200">
+            {['7days', '30days', 'month'].map((range) => (
+              <button 
+                key={range}
+                onClick={() => setDateRange(range)}
+                className={`px-6 py-2.5 text-[10px] font-black rounded-[14px] transition-all uppercase tracking-widest ${
+                  dateRange === range ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                {range}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Total Agents</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">{summaryStats.totalAgents}</p>
+        {/* KPI GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          {[
+            { label: 'Avg Efficiency', val: '88.4%', icon: Target, col: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Total Deliveries', val: '223', icon: Zap, col: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Success Rate', val: '91.2%', icon: CheckCircle, col: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Missed Hits', val: '28', icon: XCircle, col: 'text-rose-600', bg: 'bg-rose-50' }
+          ].map((kpi, i) => (
+            <div key={i} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-5 group hover:border-blue-200 transition-all">
+              <div className={`h-14 w-14 ${kpi.bg} ${kpi.col} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                <kpi.icon size={28} />
               </div>
-              <Users size={40} className="text-blue-500 opacity-20" />
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{kpi.label}</p>
+                <h3 className="text-2xl font-black text-slate-900">{kpi.val}</h3>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* CHARTS SECTION */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+          {/* Bar Chart */}
+          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+            <h3 className="text-lg font-black text-slate-800 mb-8 uppercase tracking-tighter flex items-center gap-2">
+              <Users size={20} className="text-blue-500" /> Delivery Volume by Agent
+            </h3>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={performanceData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="agent" axisLine={false} tickLine={false} tick={{fill: '#64748B', fontSize: 12, fontWeight: 700}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748B', fontSize: 12}} />
+                  <Tooltip cursor={{fill: '#F8FAFC'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                  <Bar dataKey="completed" fill="#3B82F6" radius={[6, 6, 0, 0]} name="Successful" />
+                  <Bar dataKey="failed" fill="#FDA4AF" radius={[6, 6, 0, 0]} name="Failed" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Total Deliveries</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">{summaryStats.totalDeliveries}</p>
-              </div>
-              <Zap size={40} className="text-yellow-500 opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Completed</p>
-                <p className="text-3xl font-bold text-green-600 mt-2">{summaryStats.completedDeliveries}</p>
-              </div>
-              <CheckCircle size={40} className="text-green-500 opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Missed</p>
-                <p className="text-3xl font-bold text-red-600 mt-2">{summaryStats.missedDeliveries}</p>
-              </div>
-              <XCircle size={40} className="text-red-500 opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Overall Efficiency</p>
-                <p className="text-3xl font-bold text-indigo-600 mt-2">{summaryStats.overallEfficiency}%</p>
-              </div>
-              <TrendingUp size={40} className="text-indigo-500 opacity-20" />
+          {/* Pie Chart */}
+          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+            <h3 className="text-lg font-black text-slate-800 mb-8 uppercase tracking-tighter flex items-center gap-2">
+              <TrendingUp size={20} className="text-emerald-500" /> Efficiency Clusters
+            </h3>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={efficiencyStats}
+                    innerRadius={80}
+                    outerRadius={110}
+                    paddingAngle={8}
+                    dataKey="value"
+                  >
+                    {efficiencyStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Performance by Agent */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Performance by Agent</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={performanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="agent" angle={-45} textAnchor="end" height={80} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="completed" fill="#10b981" name="Completed" />
-                <Bar dataKey="failed" fill="#ef4444" name="Failed" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Efficiency Distribution */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Efficiency Distribution</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={efficiencyData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {efficiencyData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Top Performers */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <TrendingUp size={24} className="text-green-600" />
-              Top Performers
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* TOP PERFORMERS LIST */}
+          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+            <h3 className="text-lg font-black text-slate-800 mb-6 uppercase tracking-tighter flex items-center gap-2">
+              <Award size={20} className="text-amber-500" /> Top Agents
             </h3>
             <div className="space-y-4">
-              {topPerformers.map((agent, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-green-400 to-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold">
-                      {index + 1}
+              {topPerformers.map((agent, i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-hover hover:border-blue-200">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-black text-sm shadow-md shadow-blue-200">
+                      #{i+1}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-800">{agent.agentName}</p>
-                      <p className="text-sm text-gray-600">{agent.deliveriesCompleted} deliveries</p>
+                      <p className="font-black text-slate-800 text-sm">{agent.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{agent.count} Completed</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-green-600">{agent.completionRate}%</p>
-                    <p className="text-xs text-gray-600">efficiency</p>
+                    <p className="text-xl font-black text-blue-600">{agent.score}%</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Failure Reasons */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Failure Reasons</h3>
-            <div className="space-y-3">
-              {[
-                { reason: 'Customer Unavailable', count: failureReasons.CUSTOMER_UNAVAILABLE, color: 'bg-red-500' },
-                { reason: 'Payment Issue', count: failureReasons.PAYMENT_ISSUE, color: 'bg-orange-500' },
-                { reason: 'Wrong Address', count: failureReasons.WRONG_ADDRESS, color: 'bg-yellow-500' },
-                { reason: 'Other', count: failureReasons.OTHER, color: 'bg-gray-500' },
-              ].map((item, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <div className={`${item.color} w-4 h-4 rounded`}></div>
-                  <span className="flex-1 text-gray-700 font-medium">{item.reason}</span>
-                  <span className="bg-gray-100 px-3 py-1 rounded-full text-sm font-semibold text-gray-800">
-                    {item.count}
-                  </span>
-                </div>
-              ))}
+          {/* FAILED DELIVERY TRACKER */}
+          <div className="lg:col-span-2 bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-50">
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Recent Failure Logs</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                  <tr>
+                    <th className="px-8 py-4">Agent / Customer</th>
+                    <th className="px-8 py-4">Status / Reason</th>
+                    <th className="px-8 py-4">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {missedDeliveries.map((item, i) => (
+                    <tr key={i} className="hover:bg-blue-50/20 transition-all">
+                      <td className="px-8 py-5">
+                        <div className="font-black text-slate-800 text-sm">{item.agent}</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">To: {item.customer}</div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest">
+                          {item.reason.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-sm font-bold text-slate-500">{item.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
 
-        {/* Recent Missed Deliveries */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Missed Deliveries</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Agent</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Customer</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Address</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Reason</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {missedDeliveries.map((item, index) => (
-                  <tr key={index} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-800">{item.agentName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{item.customerName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{item.address}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                        {item.failedReason.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{item.deliveryDate}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   );
 };
 
-export default AdminPerformanceDashboard;
+export default AdminPerformance;

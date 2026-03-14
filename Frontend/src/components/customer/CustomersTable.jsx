@@ -1,6 +1,6 @@
 import CustomersRow from "./CustomersRow";
 
-export default function CustomersTable({ customers }) {
+export default function CustomersTable({ customers, onRecordPayment }) {
   return (
     <div className="bg-white border rounded-xl overflow-x-auto">
       <table className="min-w-full text-sm">
@@ -10,12 +10,17 @@ export default function CustomersTable({ customers }) {
             <th className="text-left px-6 py-3">Phone</th>
             <th className="text-left px-6 py-3">Address</th>
             <th className="text-right px-6 py-3">Status</th>
+            <th className="text-right px-6 py-3">Actions</th> {/* Added Header */}
           </tr>
         </thead>
 
         <tbody className="divide-y">
           {customers.map(customer => (
-            <CustomersRow key={customer.id} customer={customer} />
+            <CustomersRow 
+              key={customer.id} 
+              customer={customer} 
+              onRecordPayment={onRecordPayment} // Pass function down
+            />
           ))}
         </tbody>
       </table>

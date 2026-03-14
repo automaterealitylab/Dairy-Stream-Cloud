@@ -194,29 +194,42 @@ const ExploreDairiesPage = () => {
   // useEffect(() => {
   //   loadSearch(""); // quick initial dairies
   // }, []);
-  // ---------- INITIAL LOAD (NEARBY) ----------
-  useEffect(() => {
-    const initNearby = async () => {
+// ---------- INITIAL LOAD (NEARBY) ----------
+useEffect(() => {
+  const initNearby = async () => {
+    try {
+      // 1. Get GPS Coords
+      const coords = await getLiveLocation();
+      setCurrentLat(coords.lat);
+      setCurrentLng(coords.lng);
+
+      // 2. FETCH ACTUAL CITY NAME (Reverse Geocoding)
       try {
-        const coords = await getLiveLocation();
-
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.lat}&lon=${coords.lng}`
+        );
+        const data = await response.json();
+        // Fallback chain: City -> Town -> Village -> "Nearby"
+        const cityName = data.address.city || data.address.town || data.address.village || "Nearby";
+        setDetectedLocation(cityName);
+      } catch (geoErr) {
+        console.error("Geocoding failed, falling back to 'Nearby'");
         setDetectedLocation("Nearby");
-
-        setCurrentLat(coords.lat);
-        setCurrentLng(coords.lng);
-
-        await loadNearby({
-          lat: coords.lat,
-          lng: coords.lng,
-          page: 0,
-        });
-      } catch (err) {
-        setLoadError("LOCATION_OFF");
-        setLoading(false);
       }
-    };
-    initNearby();
-  }, [loadNearby]);
+
+      // 3. Load the data
+      await loadNearby({
+        lat: coords.lat,
+        lng: coords.lng,
+        page: 0,
+      });
+    } catch (err) {
+      setLoadError("LOCATION_OFF");
+      setLoading(false);
+    }
+  };
+  initNearby();
+}, [loadNearby]);
 
   // ---------- GLOBAL SEARCH (DEBOUNCED) ----------
   useEffect(() => {
