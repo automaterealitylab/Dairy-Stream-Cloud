@@ -1,18 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { fetchAdminDashboard, getCachedAdminDashboard } from "../../api/admin.api";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { fetchAdminDashboard, getCachedAdminDashboard, addProcurementLog } from "../../api/admin.api";
+import toast from "react-hot-toast";
 
-// Layout Components
+// Layout & Sections
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminDashboardSkeleton from "../../components/admin/skeletons/AdminDashboardSkeleton";
-
-// Existing Sections
 import AdminHeader from "../../components/admin/sections/AdminHeader";
 import AdminKpis from "../../components/admin/sections/AdminKpis";
 import AdminFinancialAlert from "../../components/admin/sections/AdminFinancialAlert";
 import AdminActivity from "../../components/admin/sections/AdminActivity";
-
-// ✅ NEW OPERATIONAL COMPONENTS
 import DailyOperationsSnapshot from "../../components/admin/sections/DailyOperationsSnapshot";
 import DeliveryExceptionDashboard from "../../components/admin/sections/DeliveryExceptionDashboard";
 import ProcurementTracker from "../../components/admin/sections/ProcurementTracker";
@@ -21,89 +18,85 @@ import BulkDeliveryActions from "../../components/admin/sections/BulkDeliveryAct
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
 
 export default function AdminDashboard() {
-  // ---- UI state
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
-  // ✅ ENHANCED SELECTION STATE
   const [selectedDeliveries, setSelectedDeliveries] = useState([]); 
   const [activePayment, setActivePayment] = useState(null); 
-
-  const cachedDashboard = useMemo(() => getCachedAdminDashboard(), []);
-  const [uiReady, setUiReady] = useState(Boolean(cachedDashboard));
-
-  // ---- Admin name
-  let adminName = "Admin";
-  try {
-    const adminUserStr = localStorage.getItem("adminUser");
-    if (adminUserStr) {
-      const parsed = JSON.parse(adminUserStr);
-      adminName = parsed?.name || "Admin";
-    }
-  } catch {
-    adminName = "Admin";
-  }
-
-  // ---- Dashboard data
-  const [data, setData] = useState({
-    ...(cachedDashboard || {
+  
+  // Hydrate from cache immediately
+  const initialData = useMemo(() => {
+    const cached = getCachedAdminDashboard();
+    return cached || {
       dairyName: null,
-      totalCustomers: 0,
-      totalAgents: 0,
-      activeAgents: 0,
-      deliveriesToday: 0,
-      pendingPayments: 0,
-      stats: { total_milk: 0, pending: 0, collected: 0, failed: 0 },
+      stats: { total_milk: 0, procured_milk: 0, pending: 0, collected: 0, failed: 0 },
       exceptions: [],
       suppliers: [],
-      riskData: []
-    }),
-  });
+      riskData: [],
+      procurementLogs: []
+    };
+  }, []);
 
-  const dashboardDisplayName = data?.dairyName || adminName;
+  const [data, setData] = useState(initialData);
+  // uiReady should be true if we have cached data, so the user sees something immediately
+  const [uiReady, setUiReady] = useState(Boolean(initialData.suppliers?.length > 0 || initialData.dairyName));
 
-  // ✅ NEW: SELECTION HANDLER
+  const adminName = useMemo(() => {
+    try {
+      const adminUserStr = localStorage.getItem("adminUser");
+      return adminUserStr ? JSON.parse(adminUserStr)?.name : "Admin";
+    } catch { return "Admin"; }
+  }, []);
+const loadDashboard = useCallback(async (force = false) => {
+  try {
+    const res = await fetchAdminDashboard({ forceRefresh: force });
+    
+    // Debugging: Check your browser console to see what the server actually sent
+    console.log("Full Dashboard Response:", res);
+
+    setData({
+      dairyName: res.dairyName,
+      totalCustomers: res.totalCustomers,
+      totalAgents: res.totalAgents,
+      activeAgents: res.activeAgents,
+      deliveriesToday: res.deliveriesToday,
+      // FORCE the update of suppliers
+      suppliers: res.suppliers || [], 
+      stats: res.stats || { total_milk: 0, procured_milk: 0, pending: 0, collected: 0, failed: 0 },
+      exceptions: res.exceptions || [],
+      riskData: res.riskData || [],
+      procurementLogs: res.procurementLogs || []
+    });
+    
+    setUiReady(true);
+  } catch (err) {
+    console.error("Dashboard Load Error:", err);
+    setError(err.message);
+    setUiReady(true);
+  }
+}, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  // Handlers
+  const handleAddProcurement = async (logData) => {
+    try {
+      // Ensure the log data uses 'supplier_id' to match your Supabase schema
+      await addProcurementLog(logData);
+      toast.success("Log added successfully!");
+      // Refresh to update the Milk Procured card and history
+      loadDashboard(true); 
+    } catch (err) {
+      toast.error("Failed to add log");
+    }
+  };
+
   const toggleDeliverySelection = (id) => {
     setSelectedDeliveries(prev => 
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
-
-  // ---- Fetch dashboard
-  useEffect(() => {
-    let isMounted = true;
-    const loadDashboard = async () => {
-      try {
-        const res = await fetchAdminDashboard({ forceRefresh: true });
-        if (isMounted) {
-          setData({
-            ...res,
-            stats: res.stats || { total_milk: 145.5, pending: 12, collected: 8400, failed: 3 },
-            exceptions: (res.exceptions && res.exceptions.length > 0) ? res.exceptions : [
-              { id: 101, customer_id: 26, quantity_liters: "1.5", notes: "[FAILED_REASON]: CUSTOMER_UNAVAILABLE" },
-              { id: 102, customer_id: 42, quantity_liters: "2.0", notes: "[FAILED_REASON]: GATE_LOCKED" }
-            ],
-            suppliers: (res.suppliers && res.suppliers.length > 0) ? res.suppliers : [
-              { id: 1, name: "City Dairy Farm" },
-              { id: 2, name: "Green Valley Suppliers" }
-            ],
-            riskData: (res.riskData && res.riskData.length > 0) ? res.riskData : [
-              { name: "Suresh Kumar", failed_payments: 4 },
-              { name: "Anita Devi", failed_payments: 2 }
-            ]
-          });
-          setUiReady(true);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err.message);
-          setUiReady(true);
-        }
-      }
-    };
-    loadDashboard();
-    return () => { isMounted = false; };
-  }, []);
 
   if (error && !uiReady) {
     return (
@@ -115,7 +108,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AdminMobileTopbar adminName={dashboardDisplayName} onMenu={() => setSidebarOpen(true)} />
+      <AdminMobileTopbar adminName={data?.dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8 pb-32">
@@ -123,28 +116,29 @@ export default function AdminDashboard() {
           <AdminDashboardSkeleton />
         ) : (
           <>
-            <AdminHeader adminName={dashboardDisplayName} />
+            <AdminHeader adminName={data?.dairyName || adminName} />
             
             <DailyOperationsSnapshot stats={data.stats} />
             <AdminKpis data={data} />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
               <div className="lg:col-span-2 space-y-8">
-                {/* ✅ UPDATED: Pass selection props */}
                 <DeliveryExceptionDashboard 
-                  exceptions={data?.exceptions || []}
+                  exceptions={data?.exceptions}
                   selectedIds={selectedDeliveries}
                   onToggleSelect={toggleDeliverySelection}
                   onReschedule={(id) => console.log("Rescheduling", id)} 
                 />
+                
                 <ProcurementTracker 
-                  suppliers={data?.suppliers || []}
-                  onAddLog={(log) => console.log("New Procurement Log", log)} 
+                  suppliers={data?.suppliers} 
+                  logs={data?.procurementLogs}
+                  onAddLog={handleAddProcurement} 
                 />
               </div>
 
               <div className="space-y-8">
-                <AdminFinancialAlert amount={data.pendingPayments} />
+                <AdminFinancialAlert amount={data.stats?.pendingPayments || 0} />
                 <CustomerRiskIndicator riskData={data.riskData} />
                 <AdminActivity />
               </div>
@@ -152,13 +146,12 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {/* ✅ BULK ACTIONS: Triggered by selection */}
         {selectedDeliveries.length > 0 && (
           <BulkDeliveryActions 
             selectedCount={selectedDeliveries.length} 
             onReschedule={() => {
               alert(`Rescheduling ${selectedDeliveries.length} items`);
-              setSelectedDeliveries([]); // Clear after action
+              setSelectedDeliveries([]);
             }}
             onAssign={() => alert("Assigning Agents...")}
           />
@@ -168,8 +161,8 @@ export default function AdminDashboard() {
           <ManualPaymentModal 
             delivery={activePayment} 
             onClose={() => setActivePayment(null)}
-            onSave={(payData) => {
-              console.log("Processing Payment:", payData);
+            onSave={() => {
+              loadDashboard(true);
               setActivePayment(null);
             }}
           />

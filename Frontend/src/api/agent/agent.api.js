@@ -1,4 +1,4 @@
-import client from "./client";
+import client from "../client";
 
 export const fetchAgentDashboard = async () => {
   const { data } = await client.get("/agent/dashboard");

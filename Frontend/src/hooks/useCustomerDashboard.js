@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./useAuth.jsx";
-import { fetchCustomerDashboard } from "../api/customer.api.js";
+import { fetchCustomerDashboard } from "../api/customer/customer.api.js";
 
 export const useCustomerDashboard = () => {
   const { user } = useAuth();

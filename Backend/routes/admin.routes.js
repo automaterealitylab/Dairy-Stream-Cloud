@@ -1,4 +1,7 @@
 import express from "express";
+const router = express.Router();
+
+// --- CONTROLLER IMPORTS ---
 import { adminLogin } from "../controllers/authentication/adminAuth.controller.js";
 import { verifyAdmin } from "../middleware/admin.middleware.js";
 import { getDashboard } from "../controllers/admin/dashboard.controller.js";
@@ -55,52 +58,111 @@ import {
   getSummary,
   calculateEarnings,
 } from "../controllers/admin/agentEarnings.controller.js";
-const router = express.Router();
+import { 
+  addProcurementLog, 
+  fetchProcurementLogs 
+} from "../controllers/admin/procurement.controller.js";
 
-router.post("/", adminLogin);
-router.post("/register-dairy", uploadSingleImage, registerDairy);
-router.post("/addagent", verifyAdmin, addAgent);
-router.get("/agents/generate-id", verifyAdmin, getUniqueAgentId);
-router.get("/customers", verifyAdmin, fetchAdminCustomers); //need to work on this route, where we just fetch the customer data from the db, if no customer just a banner "you dont have any customer now, add you customer"
-router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById);
-router.put("/customers/:id", verifyAdmin, updateAdminCustomerById);
-router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById);
-router.post("/customers/:id/subscription", verifyAdmin, upsertAdminCustomerSubscription);
-router.patch("/customers/:id/subscription/approve", verifyAdmin, approveAdminCustomerSubscription);
-router.patch("/customers/:id/subscription/assign-partner", verifyAdmin, assignAdminCustomerPermanentPartner);
-router.get("/dashboard", verifyAdmin, getDashboard);
-router.get("/deliveries", verifyAdmin, fetchAdminDeliveries);
-router.get("/deliveries/scheduling-options", verifyAdmin, fetchDeliverySchedulingOptions);
-router.post("/deliveries/schedule", verifyAdmin, scheduleAdminDelivery);
-router.post("/deliveries/schedule-bulk", verifyAdmin, scheduleAdminDeliveriesBulk);
-router.patch("/deliveries/:id/approve", verifyAdmin, approveAdminDelivery);
-router.patch("/deliveries/:id/assign-partner", verifyAdmin, assignAdminDeliveryPartner);
-router.patch("/deliveries/:id/resolve-issue", verifyAdmin, resolveAdminDeliveryIssue);
-router.post("/deliveries/approve-all", verifyAdmin, approveAllAdminDeliveries);
-router.get("/buildings", verifyAdmin, getUniqueBuildings);
-router.get("/agents",verifyAdmin, fetchAdminAgents);
-router.get("/agents/:id",verifyAdmin,fetchAdminAgentById);
-router.put("/agents/:id", verifyAdmin, updateAdminAgentById);
-router.delete("/agents/:id", verifyAdmin, deleteAdminAgentById);
-router.get("/payments", verifyAdmin, fetchPageData);
-router.patch("/payments/:id/status", verifyAdmin, updateStatus);
-router.patch("/farm-plan", verifyAdmin, changeFarmPlan);
-router.get("/products", verifyAdmin, fetchAdminProducts);
-router.post("/products", verifyAdmin, addAdminProduct);
-router.put("/products/:id", verifyAdmin, editAdminProduct);
-router.delete("/products/:id", verifyAdmin, removeAdminProduct);
+import { 
+  addSupplier, 
+  fetchSuppliers 
+} from "../controllers/suppliers/supplier.controller.js";
+
+// ==========================================
+// 1. AUTHENTICATION & INITIAL SETUP
+// ==========================================
+router.post("/", adminLogin); // Admin login route
+router.post("/register-dairy", uploadSingleImage, registerDairy); // Initial dairy registration with logo upload
+
+// ==========================================
+// 2. DASHBOARD & CORE METRICS
+// ==========================================
+router.get("/dashboard", verifyAdmin, getDashboard); // Main dashboard data (Needed vs Procured, etc.)
+router.get("/health", (req, res) => {
+  res.json({ status: "ok", time: new Date() });
+});
+
+// ==========================================
+// 3. CUSTOMER MANAGEMENT
+// ==========================================
+router.get("/customers", verifyAdmin, fetchAdminCustomers); // List all customers
+router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById); // Get specific customer details
+router.put("/customers/:id", verifyAdmin, updateAdminCustomerById); // Edit customer info
+router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById); // Remove customer
+
+// Subscriptions & Assignments
+router.post("/customers/:id/subscription", verifyAdmin, upsertAdminCustomerSubscription); // Add/Update customer plan
+router.patch("/customers/:id/subscription/approve", verifyAdmin, approveAdminCustomerSubscription); // Approve requested sub
+router.patch("/customers/:id/subscription/assign-partner", verifyAdmin, assignAdminCustomerPermanentPartner); // Link agent to customer
+
+// ==========================================
+// 4. AGENT (DELIVERY PARTNER) MANAGEMENT
+// ==========================================
+router.get("/agents", verifyAdmin, fetchAdminAgents); // List all agents
+router.post("/addagent", verifyAdmin, addAgent); // Onboard new agent
+router.get("/agents/generate-id", verifyAdmin, getUniqueAgentId); // Helper for unique agent IDs
+router.get("/agents/:id", verifyAdmin, fetchAdminAgentById); // View specific agent profile
+router.put("/agents/:id", verifyAdmin, updateAdminAgentById); // Edit agent info
+router.delete("/agents/:id", verifyAdmin, deleteAdminAgentById); // Remove agent
+
+// ==========================================
+// 5. DELIVERY OPERATIONS
+// ==========================================
+router.get("/deliveries", verifyAdmin, fetchAdminDeliveries); // View current/past delivery logs
+router.get("/deliveries/scheduling-options", verifyAdmin, fetchDeliverySchedulingOptions); // Get shifts/times for scheduling
+router.post("/deliveries/schedule", verifyAdmin, scheduleAdminDelivery); // Single delivery schedule
+router.post("/deliveries/schedule-bulk", verifyAdmin, scheduleAdminDeliveriesBulk); // Batch scheduling
+router.patch("/deliveries/:id/approve", verifyAdmin, approveAdminDelivery); // Approve a specific delivery
+router.patch("/deliveries/:id/assign-partner", verifyAdmin, assignAdminDeliveryPartner); // Change agent for a delivery
+router.patch("/deliveries/:id/resolve-issue", verifyAdmin, resolveAdminDeliveryIssue); // Handle failed/missed delivery
+router.post("/deliveries/approve-all", verifyAdmin, approveAllAdminDeliveries); // Bulk approval for current shift
+
+// ==========================================
+// 6. PROCUREMENT (SUPPLY CHAIN)
+// ==========================================
+router.get("/procurement", verifyAdmin, fetchProcurementLogs); // View milk purchase history
+router.post("/procurement", verifyAdmin, addProcurementLog); // Log new milk purchase from supplier
+
+// ==========================================
+// 7. PAYMENTS & BILLING
+// ==========================================
+router.get("/payments", verifyAdmin, fetchPageData); // Fetch payment ledger data
+router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
+router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
+
+// ==========================================
+// 8. PRODUCT & INVENTORY
+// ==========================================
+router.get("/products", verifyAdmin, fetchAdminProducts); // List products (Milk, Paneer, Dahi)
+router.post("/products", verifyAdmin, addAdminProduct); // Add new product
+router.put("/products/:id", verifyAdmin, editAdminProduct); // Edit product price/details
+router.delete("/products/:id", verifyAdmin, removeAdminProduct); // Remove product
+
+// ==========================================
+// 9. ANALYTICS & EARNINGS
+// ==========================================
+// Agent Performance
 router.get("/performance", verifyAdmin, getPerformance);
 router.get("/performance/summary", verifyAdmin, getPerformanceSummaryData);
 router.get("/performance/top-performers", verifyAdmin, getTopPerformers);
 router.get("/performance/missed-deliveries", verifyAdmin, getMissedDeliveries);
 router.post("/performance/update", verifyAdmin, updatePerformanceMetrics);
+
+// Earnings & Work Summaries
 router.get("/earnings", verifyAdmin, getEarnings);
 router.get("/earnings/today-summary", verifyAdmin, getTodayWorkSummaryData);
 router.get("/earnings/summary", verifyAdmin, getSummary);
 router.post("/earnings/calculate", verifyAdmin, calculateEarnings);
 
-router.get("/health", (req, res) => {
-  res.json({ status: "ok", time: new Date() }); //dont get any output
-});
+// Utilities
+router.get("/buildings", verifyAdmin, getUniqueBuildings); // Fetch list of service locations
+
+
+
+// ==========================================
+// 10. SUPPLIER MANAGEMENT
+// ==========================================
+router.get("/suppliers", verifyAdmin, fetchSuppliers); // Fetch all active suppliers
+router.post("/suppliers", verifyAdmin, addSupplier); // Register a new supplier
 
 export default router;

@@ -16,7 +16,7 @@ import {
   fetchCityDairies,
   fetchSearchSuggestions,
 } from "../../api/public.api.js";
-import { fetchCustomerSubscription } from "../../api/customer.api.js";
+import { fetchCustomerSubscription } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 // import LocationSelector from "../../components/dairy/LocationSelector.jsx";
 

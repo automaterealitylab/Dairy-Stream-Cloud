@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AgentLayout from '../../components/agent/AgentLayout';
 import { User, Phone, Mail, MapPin, Award, TrendingUp, Route as RouteIcon, ToggleLeft, ToggleRight } from 'lucide-react';
-import { fetchAgentProfile, updateAgentAvailability } from "../../api/agent.api";
+import { fetchAgentProfile, updateAgentAvailability } from "../../api/agent/agent.api";
 
 const EMPTY_AGENT_PROFILE = {
   agentId: '',

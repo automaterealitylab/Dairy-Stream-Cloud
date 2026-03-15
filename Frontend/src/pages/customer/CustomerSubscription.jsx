@@ -6,7 +6,7 @@ import {
   fetchCustomerSubscription,
   saveCustomerSubscription,
   clearCustomerSubscription,
-} from '../../api/customer.api';
+} from '../../api/customer/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
 
 /* ======================================================

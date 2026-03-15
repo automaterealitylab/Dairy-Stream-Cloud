@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { CheckCircle, XCircle, Clock, Loader2, MapPin, RefreshCw, CalendarCheck2, CalendarX2, CirclePlus } from 'lucide-react';
-import { fetchCustomerDeliveries } from '../../api/customer.api.js';
+import { fetchCustomerDeliveries } from '../../api/customer/customer.api';
 
 const Deliveries = () => {
   const navigate = useNavigate();

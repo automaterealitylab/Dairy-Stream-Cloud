@@ -1,4 +1,4 @@
-import client from "./client";
+import client from "../client";
 
 const CUSTOMER_DASHBOARD_CACHE_TTL_MS = 10 * 1000;
 const customerDashboardCache = new Map();

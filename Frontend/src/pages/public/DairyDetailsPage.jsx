@@ -21,7 +21,7 @@ import {
   fetchCustomerProfile,
   fetchCustomerSubscription,
   saveCustomerSubscription,
-} from "../../api/customer.api.js";
+} from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 const buildAddressFromParts = (source = {}) => {

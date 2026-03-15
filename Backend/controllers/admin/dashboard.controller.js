@@ -2,10 +2,12 @@ import { getAdminDashboardStats } from "../../services/admin/dashboard.service.j
 
 export const getDashboard = async (req, res) => {
   try {
-    console.log("📊 Fetching admin dashboard stats...");
+    // Check if the user wants to bypass the cache
+    const forceRefresh = req.query.refresh === 'true';
 
     const stats = await getAdminDashboardStats({
       dairyId: req.admin?.dairyId,
+      forceRefresh: forceRefresh // We pass this to the service
     });
     
     res.json(stats);

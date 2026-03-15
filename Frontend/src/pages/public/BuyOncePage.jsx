@@ -8,7 +8,7 @@ import {
   createCustomerOneTimeOrder,
   createCustomerPaymentOrder,
   verifyCustomerPayment,
-} from "../../api/customer.api.js";
+} from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
 const toDateInput = (dateValue = new Date()) => {

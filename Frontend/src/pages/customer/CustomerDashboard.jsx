@@ -6,7 +6,7 @@ import {
   fetchCustomerDashboard,
   reportCustomerDeliveryIssue,
   saveCustomerSubscription,
-} from "../../api/customer.api.js";
+} from "../../api/customer/customer.api.js";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {

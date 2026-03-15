@@ -8,7 +8,7 @@ import { Package, CheckCircle, XCircle, Clock, Filter } from 'lucide-react';
 import {
   fetchAssignedAgentDeliveries,
   updateAssignedAgentDeliveryStatus,
-} from "../../api/agent.api";
+} from "../../api/agent/agent.api";
 import { optimizeRouteWithPriority } from '../../utils/routeOptimization';
 
 const EMPTY_STATS = {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import { Mail, Phone, MapPin, Edit, Camera, Loader2, Home, X } from "lucide-react";
-import { fetchCustomerProfile, updateCustomerProfile } from "../../api/customer.api";
+import { fetchCustomerProfile, updateCustomerProfile } from "../../api/customer/customer.api.js";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 

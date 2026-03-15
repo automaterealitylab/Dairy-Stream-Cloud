@@ -75,7 +75,10 @@ export const fetchAdminDashboard = async ({ forceRefresh = false } = {}) => {
     if (cachedDashboard) return cachedDashboard;
   }
 
-  const { data } = await client.get("/admin/dashboard");
+  // When forceRefresh is true, also tell the backend to bypass its own cache.
+  const { data } = await client.get("/admin/dashboard", {
+    params: forceRefresh ? { refresh: "true" } : {},
+  });
   const now = Date.now();
 
   dashboardCache = data;
@@ -316,5 +319,26 @@ export const fetchAdminAgentEarningsSummary = async ({ agentId, startDate = "", 
   if (endDate) params.endDate = endDate;
 
   const { data } = await client.get('/admin/earnings/summary', { params });
+  return data;
+};
+
+
+
+/* =========================
+   PROCUREMENT & SUPPLY
+========================= */
+export const fetchProcurementLogs = async () => {
+  const { data } = await client.get("/admin/procurement");
+  return data;
+};
+
+export const addProcurementLog = async (logData) => {
+  const { data } = await client.post("/admin/procurement", logData);
+  return data;
+};
+
+// Use this for recording manual payments via the modal
+export const recordManualPayment = async (payload) => {
+  const { data } = await client.post("/admin/payments/manual", payload);
   return data;
 };

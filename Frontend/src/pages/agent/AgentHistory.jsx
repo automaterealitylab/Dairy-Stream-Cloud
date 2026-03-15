@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AgentLayout from '../../components/agent/AgentLayout';
 import DeliveryDetailsModal from '../../components/agent/DeliveryDetailsModal';
 import { Calendar, CheckCircle, XCircle, Clock, Search, ChevronDown, ChevronUp, Package } from 'lucide-react';
-import { fetchAgentDeliveryHistory } from "../../api/agent.api";
+import { fetchAgentDeliveryHistory } from "../../api/agent/agent.api";
 
 const AgentHistory = () => {
   const [history, setHistory] = useState([]);
