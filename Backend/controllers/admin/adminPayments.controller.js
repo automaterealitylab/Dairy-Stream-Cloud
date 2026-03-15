@@ -46,3 +46,37 @@ export const changeFarmPlan = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+/* ================================
+   3. MANUAL PAYMENTS AND CUSTOMER WALLET LOGIC
+   ================================ */
+
+/**
+ * @desc Process a manual payment: Clear bill first, then put remainder in wallet.
+ */
+
+export const collectManualPayment = async (req, res) => {
+  try {
+    const { customerId, amount } = req.body;
+    const dairyId = req.admin.dairyId;
+
+    if (!customerId || !amount) {
+      return res.status(400).json({ error: "Customer ID and Amount are required." });
+    }
+
+    const updatedCustomer = await paymentService.recordManualPayment({
+      customerId,
+      amount,
+      dairyId,
+    });
+
+    res.json({
+      success: true,
+      message: "Payment recorded. Bill and Wallet updated.",
+      customer: updatedCustomer,
+    });
+  } catch (err) {
+    console.error("MANUAL PAYMENT ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

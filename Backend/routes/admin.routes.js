@@ -36,6 +36,7 @@ import {
 } from "../controllers/admin/adminagent.controller.js";
 import {
   changeFarmPlan,
+  collectManualPayment,
   fetchPageData,
   updateStatus,
 } from "../controllers/admin/adminPayments.controller.js";
@@ -128,6 +129,7 @@ router.post("/procurement", verifyAdmin, addProcurementLog); // Log new milk pur
 // ==========================================
 router.get("/payments", verifyAdmin, fetchPageData); // Fetch payment ledger data
 router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
+router.post("/payments/manual", verifyAdmin, collectManualPayment);
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
 
 // ==========================================
