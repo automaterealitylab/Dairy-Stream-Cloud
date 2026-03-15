@@ -75,7 +75,10 @@ export const fetchAdminDashboard = async ({ forceRefresh = false } = {}) => {
     if (cachedDashboard) return cachedDashboard;
   }
 
-  const { data } = await client.get("/admin/dashboard");
+  // When forceRefresh is true, also tell the backend to bypass its own cache.
+  const { data } = await client.get("/admin/dashboard", {
+    params: forceRefresh ? { refresh: "true" } : {},
+  });
   const now = Date.now();
 
   dashboardCache = data;

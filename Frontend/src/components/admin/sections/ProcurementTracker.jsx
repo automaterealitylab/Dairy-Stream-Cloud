@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Plus, Landmark, Droplets, Scale, CheckCircle2, ChevronDown } from "lucide-react";
 
-const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
+const ProcurementTracker = ({ suppliers = [], logs = [], onAddLog }) => {
   const [log, setLog] = useState({
     supplier_id: "",
     quantity: "",
@@ -15,23 +15,38 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
     return Array.isArray(suppliers) ? suppliers : [];
   }, [suppliers]);
 
+  const procurementLogs = useMemo(() => {
+    return Array.isArray(logs) ? logs : [];
+  }, [logs]);
+
   const handleSubmit = async () => {
     if (!log.supplier_id || !log.quantity || !log.rate) {
       alert("Please fill in Supplier, Quantity, and Rate.");
       return;
     }
 
-    setIsSubmitting(true);
-    // Ensure data is sent as numbers to the backend
-    await onAddLog?.({
-      ...log,
-      quantity: parseFloat(log.quantity),
-      rate: parseFloat(log.rate),
-      fat_content: parseFloat(log.fat_content || 0),
-    });
+    // Find the selected supplier so we can send its name to the backend
+    const selectedSupplier = supplierList.find(
+      (s) => String(s.id) === String(log.supplier_id)
+    );
 
-    setLog({ supplier_id: "", quantity: "", rate: "", fat_content: "" });
-    setIsSubmitting(false);
+    setIsSubmitting(true);
+    try {
+      // Shape the payload to match the backend controller expectations:
+      // supplier_name, quantity, rate_per_liter, fat_percentage, snf_percentage
+      await onAddLog?.({
+        supplier_id: log.supplier_id,
+        supplier_name: selectedSupplier?.name || "",
+        quantity: parseFloat(log.quantity),
+        rate_per_liter: parseFloat(log.rate),
+        fat_percentage: parseFloat(log.fat_content || 0),
+        snf_percentage: 0,
+      });
+
+      setLog({ supplier_id: "", quantity: "", rate: "", fat_content: "" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -133,27 +148,79 @@ const ProcurementTracker = ({ suppliers = [], onAddLog }) => {
         </button>
       </div>
 
-      {/* Quick History Preview */}
+      {/* Quick History Preview + Table (for this dairy only, from DB) */}
       <div className="mt-8 pt-6 border-t border-gray-50">
-        <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">
-          <CheckCircle2 size={14} className="text-green-500" />
-          Last Entry
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            <CheckCircle2 size={14} className="text-green-500" />
+            Last Entry
+          </div>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            Today&apos;s Procurement
+          </span>
         </div>
-        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center text-blue-500 shadow-sm">
-              <Landmark size={14} />
+
+        {procurementLogs.length > 0 ? (
+          <>
+            {/* Last entry card */}
+            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center text-blue-500 shadow-sm">
+                  <Landmark size={14} />
+                </div>
+                <span className="font-bold text-gray-700 text-sm">
+                  {procurementLogs[0].supplier_name || "Unknown Supplier"}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="font-black text-gray-900">
+                  {procurementLogs[0].quantity}L
+                </span>
+                <span className="text-gray-400 text-xs ml-2">
+                  @ ₹{procurementLogs[0].rate_per_liter}/L
+                </span>
+              </div>
             </div>
-            <span className="font-bold text-gray-700 text-sm">
-              {/* ✅ If you want this dynamic, you'd need the last log from 'stats' */}
-              Organic Farm Co.
-            </span>
+
+            {/* Compact table of recent logs */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-xs">
+                <thead>
+                  <tr className="text-gray-400 uppercase tracking-widest">
+                    <th className="pb-2 pr-4 font-bold">Supplier</th>
+                    <th className="pb-2 pr-4 font-bold">Qty (L)</th>
+                    <th className="pb-2 pr-4 font-bold">Rate/L</th>
+                    <th className="pb-2 pr-4 font-bold">Fat %</th>
+                    <th className="pb-2 pr-4 font-bold">Total</th>
+                    <th className="pb-2 font-bold">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {procurementLogs.slice(0, 5).map((entry) => (
+                    <tr key={entry.id} className="border-t border-slate-100 text-gray-700">
+                      <td className="py-2 pr-4 font-semibold">{entry.supplier_name}</td>
+                      <td className="py-2 pr-4">{entry.quantity}</td>
+                      <td className="py-2 pr-4">₹{entry.rate_per_liter}</td>
+                      <td className="py-2 pr-4">{entry.fat_percentage}</td>
+                      <td className="py-2 pr-4">
+                        ₹{entry.total_cost ?? (Number(entry.quantity || 0) * Number(entry.rate_per_liter || 0))}
+                      </td>
+                      <td className="py-2 text-gray-500">
+                        {entry.created_at
+                          ? new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="bg-slate-50 p-4 rounded-2xl border border-dashed border-slate-200 text-xs text-gray-400">
+            No procurement logs for today yet. Add your first entry above.
           </div>
-          <div className="text-right">
-            <span className="font-black text-gray-900">120L</span>
-            <span className="text-gray-400 text-xs ml-2">@ ₹42/L</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

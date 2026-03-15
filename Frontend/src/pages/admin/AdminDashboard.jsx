@@ -31,7 +31,8 @@ export default function AdminDashboard() {
       stats: { total_milk: 0, procured_milk: 0, pending: 0, collected: 0, failed: 0 },
       exceptions: [],
       suppliers: [],
-      riskData: []
+      riskData: [],
+      procurementLogs: []
     };
   }, []);
 
@@ -62,7 +63,8 @@ const loadDashboard = useCallback(async (force = false) => {
       suppliers: res.suppliers || [], 
       stats: res.stats || { total_milk: 0, procured_milk: 0, pending: 0, collected: 0, failed: 0 },
       exceptions: res.exceptions || [],
-      riskData: res.riskData || []
+      riskData: res.riskData || [],
+      procurementLogs: res.procurementLogs || []
     });
     
     setUiReady(true);
@@ -130,6 +132,7 @@ const loadDashboard = useCallback(async (force = false) => {
                 
                 <ProcurementTracker 
                   suppliers={data?.suppliers} 
+                  logs={data?.procurementLogs}
                   onAddLog={handleAddProcurement} 
                 />
               </div>
