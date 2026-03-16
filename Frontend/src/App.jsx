@@ -12,7 +12,7 @@ import DairyDetailsPage from "./pages/public/DairyDetailsPage";
 import BuyOncePage from "./pages/public/BuyOncePage.jsx";
 
 // --- Customer Pages ---
-import CustomerDashboard from "./pages/customer/CustomerDashboard";
+import DairyCustomerDashboard from "./pages/customer/DairyCustomerDashboard.jsx";
 import Deliveries from "./pages/customer/CustomerDeliveryHistory.jsx";
 import Subscription from "./pages/customer/CustomerSubscription.jsx";
 import Payments from "./pages/customer/CustomerPayments.jsx";
@@ -61,7 +61,7 @@ function App() {
         path="/customer/dashboard"
         element={
           <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <CustomerDashboard />
+            <DairyCustomerDashboard />
           </ProtectedRoute>
         }
       />

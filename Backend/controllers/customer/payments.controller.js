@@ -6,7 +6,10 @@ import {
 
 export const getPayments = async (req, res) => {
   try {
-    const data = await getCustomerPaymentsData(req.customer.id, null);
+    const data = await getCustomerPaymentsData(
+      req.customer.id,
+      req.customer?.dairyId ?? null
+    );
     res.json(data);
   } catch (err) {
     console.error("CUSTOMER PAYMENTS ERROR:", err.message);
@@ -24,7 +27,7 @@ export const createPaymentOrder = async (req, res) => {
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
-      dairyId: null,
+      dairyId: req.customer?.dairyId ?? null,
     });
     res.json(data);
   } catch (err) {
@@ -49,7 +52,7 @@ export const verifyPayment = async (req, res) => {
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
-      dairyId: null,
+      dairyId: req.customer?.dairyId ?? null,
       razorpayOrderId,
       razorpayPaymentId,
       razorpaySignature,

@@ -7,6 +7,7 @@ import {
   cancelCustomerOneTimeOrder,
   createCustomerOneTimeOrder,
   createCustomerPaymentOrder,
+  fetchCustomerSubscription,
   verifyCustomerPayment,
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -117,6 +118,11 @@ const formatProductStockLabel = (stockQuantity) => {
   return String(stock);
 };
 
+const hasOpenSubscriptionStatus = (status) => {
+  const value = String(status || "ACTIVE").trim().toUpperCase();
+  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
 const BuyOncePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -124,6 +130,7 @@ const BuyOncePage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [dairyRaw, setDairyRaw] = useState(null);
+  const [hasSubscriptionForThisDairy, setHasSubscriptionForThisDairy] = useState(false);
   const [form, setForm] = useState({
     milkType: "",
     quantity: 1,
@@ -140,6 +147,23 @@ const BuyOncePage = () => {
         const res = await fetchPublicDairyById(id);
         const dairy = res?.dairy || null;
         setDairyRaw(dairy);
+
+        const token = localStorage.getItem("token");
+        if (token) {
+          try {
+            const subRes = await fetchCustomerSubscription();
+            const activeSubscription = subRes?.subscription || null;
+            const isBlocked =
+              activeSubscription &&
+              hasOpenSubscriptionStatus(activeSubscription.status) &&
+              String(activeSubscription.dairy_id) === String(id);
+            setHasSubscriptionForThisDairy(Boolean(isBlocked));
+          } catch {
+            setHasSubscriptionForThisDairy(false);
+          }
+        } else {
+          setHasSubscriptionForThisDairy(false);
+        }
 
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
@@ -323,6 +347,10 @@ const BuyOncePage = () => {
       toast.error("No product selected");
       return;
     }
+    if (hasSubscriptionForThisDairy) {
+      toast.error("You already have an active subscription with this dairy.");
+      return;
+    }
 
     const selectedSlot = slotOptions.find((slot) => slot.id === form.slot);
     if (!selectedSlot?.available) {
@@ -465,6 +493,12 @@ const BuyOncePage = () => {
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="flex-1 space-y-6">
+            {hasSubscriptionForThisDairy && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800">
+                You already have an active subscription with {dairy.name}. One-time delivery is not available for this dairy.
+              </div>
+            )}
+
             <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center gap-2">
                 <ShoppingBag size={18} className="text-blue-600" />
@@ -622,11 +656,13 @@ const BuyOncePage = () => {
 
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={submitting || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
+                disabled={submitting || hasSubscriptionForThisDairy || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all transform active:scale-[0.98] disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
               >
                 {submitting
                   ? "Processing..."
+                  : hasSubscriptionForThisDairy
+                  ? "Unavailable For Active Subscribers"
                   : form.paymentMethod === "PAY_NOW"
                   ? "Pay & Place Order"
                   : "Place Order (Cash on Delivery)"}

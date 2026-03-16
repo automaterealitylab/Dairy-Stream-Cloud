@@ -22,6 +22,26 @@ const toPositiveId = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
+const isMissingColumnError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("column") && message.includes("does not exist");
+};
+
+const isMissingTableError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("relation") && message.includes("does not exist");
+};
+
+const isUuidSyntaxError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("invalid input syntax for type uuid");
+};
+
+const hasOpenSubscriptionStatus = (status) => {
+  const value = String(status || "ACTIVE").trim().toUpperCase();
+  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
 const toBoolean = (value) => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
@@ -567,6 +587,30 @@ const appendCustomerIssueNote = (existingNotes, issueText) => {
   return previous ? `${previous}\n${stamped}` : stamped;
 };
 
+const hasOpenSubscriptionForDairy = async ({ customerId, dairyId }) => {
+  if (!customerId || !dairyId) return false;
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("id, status")
+    .eq("customer_id", customerId)
+    .eq("dairy_id", dairyId)
+    .limit(20);
+
+  if (error) {
+    if (
+      isMissingTableError(error) ||
+      isMissingColumnError(error) ||
+      isUuidSyntaxError(error)
+    ) {
+      return false;
+    }
+    throw error;
+  }
+
+  return (data || []).some((row) => hasOpenSubscriptionStatus(row?.status));
+};
+
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
   await ensureCustomerSubscriptionDeliveryForDate({ customerId });
 
@@ -664,6 +708,16 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
 
   if (dairyError) throw dairyError;
   if (!dairy) throw new Error("Selected dairy not found");
+
+  const hasSubscriptionInSameDairy = await hasOpenSubscriptionForDairy({
+    customerId,
+    dairyId,
+  });
+  if (hasSubscriptionInSameDairy) {
+    throw new Error(
+      "You already have an active subscription with this dairy. One-time delivery is not available."
+    );
+  }
 
   const selectedProduct = await getProductByNameForDairy({
     dairyId,

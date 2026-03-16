@@ -244,6 +244,10 @@ const handleContinueFromStep2 = () => {
       redirectToLogin(`/buy-once/${id}`);
       return;
     }
+    if (isSubscribedToThis && hasActiveSubscription) {
+      toast.error("You already have an active subscription with this dairy.");
+      return;
+    }
     navigate(`/buy-once/${id}`);
   };
 
@@ -312,9 +316,17 @@ const handleContinueFromStep2 = () => {
                 </button>
                 <button
                   onClick={handleBuyOnceClick}
-                  className="w-full bg-white text-slate-900 py-4 rounded-[20px] font-bold border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                  disabled={isSubscribedToThis && hasActiveSubscription}
+                  className={`w-full py-4 rounded-[20px] font-bold border transition-all flex items-center justify-center gap-2 ${
+                    isSubscribedToThis && hasActiveSubscription
+                      ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                      : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+                  }`}
                 >
-                  <Calendar size={18} /> Buy Once
+                  <Calendar size={18} />
+                  {isSubscribedToThis && hasActiveSubscription
+                    ? "Buy Once Unavailable"
+                    : "Buy Once"}
                 </button>
               </div>
             ) : (
