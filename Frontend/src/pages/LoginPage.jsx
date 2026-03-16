@@ -24,6 +24,8 @@ import {
   resetAgentPasswordWithOtpApi
 } from "../services/auth.api.js"; // Adjust path if needed
 
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
+
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -382,6 +384,7 @@ const LoginPage = () => {
       const result = await verifyOtpApi({ identifier, otp, dairyId: selectedDairy?.id });
       localStorage.setItem("token", result.token);
       localStorage.setItem("userRole", "CUSTOMER");
+      sessionStorage.setItem(DASHBOARD_VISITED_FLAG, "true");
       login(result);
       const redirectOverride = location.state?.postLoginRedirect;
       const redirectState = location.state?.postLoginState;

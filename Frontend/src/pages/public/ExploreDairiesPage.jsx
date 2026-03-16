@@ -6,7 +6,6 @@ import {
   MapPin,
   Clock,
   User,
-  LogOut,
   LayoutDashboard,
 } from "lucide-react";
 
@@ -28,9 +27,11 @@ import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 //   "Siliguri",
 // ];
 
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
+
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -257,6 +258,8 @@ useEffect(() => {
   const isCustomer =
     isLoggedIn &&
     (user?.role || localStorage.getItem("userRole")) === "CUSTOMER";
+  const canOpenCustomerDashboard =
+    isCustomer && sessionStorage.getItem(DASHBOARD_VISITED_FLAG) === "true";
 
   useEffect(() => {
     if (isCustomer) {
@@ -289,8 +292,8 @@ useEffect(() => {
   }, [dairies, activeSubData]);
 
   const handleAuthAction = () => {
-    if (isCustomer) return navigate("/customer/dashboard");
-    isLoggedIn ? (logout(), navigate("/", { replace: true })) : navigate("/");
+    if (canOpenCustomerDashboard) return navigate("/customer/dashboard");
+    navigate("/", { replace: true });
   };
 
   return (
@@ -394,19 +397,17 @@ useEffect(() => {
               <button
                 onClick={handleAuthAction}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all ${
-                  isCustomer
+                  canOpenCustomerDashboard
                     ? "bg-blue-600 text-white"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                {isCustomer ? (
+                {canOpenCustomerDashboard ? (
                   <LayoutDashboard size={18} />
-                ) : isLoggedIn ? (
-                  <LogOut size={20} />
                 ) : (
                   <User size={20} />
                 )}
-                {isCustomer ? "Dashboard" : isLoggedIn ? "Logout" : "Login"}
+                {canOpenCustomerDashboard ? "Dashboard" : "Login"}
               </button>
             </div>
           </div>

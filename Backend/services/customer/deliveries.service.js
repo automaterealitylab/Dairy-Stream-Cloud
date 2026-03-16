@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js";
+import { appendDeliveryBillingMeta } from "./monthlyBilling.service.js";
 import { getSubscriptionByCustomerId } from "./subscription.service.js";
 import { ensureCustomerSubscriptionDeliveryForDate } from "./subscription.automation.service.js";
 
@@ -151,6 +152,7 @@ const getIssueMeta = (row = {}) => {
 const toTitleStatus = (status) => {
   const value = String(status || "").toUpperCase();
   if (value === "DELIVERED" || value === "COMPLETED") return "DELIVERED";
+  if (value === "FAILED" || value === "MISSED") return "FAILED";
   if (value === "SKIPPED" || value === "CANCELLED") return "SKIPPED";
   if (value === "PENDING") return "PENDING";
   return "PENDING";
@@ -455,7 +457,7 @@ const buildDeliveryInsights = (rows = [], referenceDate = new Date()) => {
     if (normalizedStatus === "DELIVERED") {
       acc.monthlyDeliveryCount += 1;
     }
-    if (normalizedStatus === "SKIPPED") {
+    if (normalizedStatus === "SKIPPED" || normalizedStatus === "FAILED") {
       acc.skippedDays += 1;
     }
     if (parseOneTimeNotes(row?.notes).isOneTimeOrder) {
@@ -755,10 +757,13 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
     quantity,
   });
 
-  const deliveryNotes = `[ONE_TIME_ORDER] slot=${slot}; payment=${paymentMethod}; address=${address}`.slice(
-    0,
-    500
-  );
+  const deliveryNotes = appendDeliveryBillingMeta(
+    `[ONE_TIME_ORDER] slot=${slot}; payment=${paymentMethod}; address=${address}`,
+    {
+      paymentMethod,
+      unitPrice: resolvedPricePerLiter,
+    }
+  ).slice(0, 500);
 
   const { data: createdDelivery, error: createDeliveryError } = await supabase
     .from("deliveries")
@@ -785,7 +790,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   }
 
   const amount = Number((quantity * resolvedPricePerLiter).toFixed(2));
-  const paymentDescription = `One-time order: ${milkType} ${quantity}L (${slot}) for ${deliveryDate}`.slice(
+  const paymentDescription = `One-time order: delivery_id=${createdDelivery.id}; ${milkType} ${quantity}L (${slot}) for ${deliveryDate}`.slice(
     0,
     300
   );

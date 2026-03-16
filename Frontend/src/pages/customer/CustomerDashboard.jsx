@@ -22,6 +22,8 @@ import {
   X,
 } from "lucide-react";
 
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
+
 const CustomerDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,6 +46,10 @@ const CustomerDashboard = () => {
   useEffect(() => {
     if (data) setDashboardData(data);
   }, [data]);
+
+  useEffect(() => {
+    sessionStorage.setItem(DASHBOARD_VISITED_FLAG, "true");
+  }, []);
 
   useEffect(() => {
     const incomingState = location.state;
@@ -448,6 +454,7 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
   const isDelivered = data.status === "DELIVERED";
   const isPending = data.status === "PENDING";
   const isApprovalPending = data.status === "PENDING_APPROVAL";
+  const isFailed = data.status === "FAILED";
   const isPartnerUnassigned = isPending && !data?.agent?.name;
   const reportId = Number(data?.deliveryId ?? data?.id);
   const canReportIssue = Number.isFinite(reportId) && reportId > 0;
@@ -459,6 +466,8 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
     ? "Delivered Successfully"
     : isApprovalPending
     ? "Approval Pending"
+    : isFailed
+    ? "Delivery Failed"
     : isPartnerUnassigned
     ? "Delivery Partner Not Assigned"
     : isPending
@@ -466,11 +475,11 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
     : "No Delivery Scheduled Today";
 
   return (
-    <div className={`p-4 md:p-6 rounded-card border ${isDelivered ? "bg-success-soft border-border" : isApprovalPending ? "bg-indigo-50 border-indigo-200" : isPending ? "bg-brand-soft border-border" : "bg-gray-50 border-border"}`}>
+    <div className={`p-4 md:p-6 rounded-card border ${isDelivered ? "bg-success-soft border-border" : isApprovalPending ? "bg-indigo-50 border-indigo-200" : isFailed ? "bg-red-50 border-red-200" : isPending ? "bg-brand-soft border-border" : "bg-gray-50 border-border"}`}>
       <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-4">Today's Delivery</h3>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex gap-4">
-          <div className={`p-3 rounded-full ${isDelivered ? "bg-success text-white" : isApprovalPending ? "bg-indigo-600 text-white" : isPending ? "bg-brand text-white" : "bg-gray-300 text-gray-700"}`}>
+          <div className={`p-3 rounded-full ${isDelivered ? "bg-success text-white" : isApprovalPending ? "bg-indigo-600 text-white" : isFailed ? "bg-red-600 text-white" : isPending ? "bg-brand text-white" : "bg-gray-300 text-gray-700"}`}>
             {isDelivered ? <CheckCircle size={22} /> : <AlertCircle size={22} />}
           </div>
           <div>
@@ -479,6 +488,11 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
             {isApprovalPending && (
               <p className="text-xs text-indigo-700 mt-2 font-medium">
                 Your order is waiting for dairy admin approval.
+              </p>
+            )}
+            {isFailed && (
+              <p className="text-xs text-red-700 mt-2 font-medium">
+                This delivery was auto-marked failed at the end of day.
               </p>
             )}
             {data?.agent?.name ? (

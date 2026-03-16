@@ -1,9 +1,8 @@
 import { supabase } from "../../config/supabase.js";
 import {
   ensureCustomerSubscriptionDeliveryForDate,
-  ensureDeliveredSubscriptionPaymentsForCustomer,
-  getUnpaidDeliveredSubscriptionPaymentSummary,
 } from "./subscription.automation.service.js";
+import { getUnpaidDeliveredSubscriptionMonthlySummary } from "./monthlyBilling.service.js";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
@@ -309,11 +308,10 @@ export const upsertSubscription = async (customerId, payload) => {
 };
 
 export const clearSubscriptionByCustomerId = async (customerId) => {
-  await ensureDeliveredSubscriptionPaymentsForCustomer(customerId);
-  const unpaidSummary = await getUnpaidDeliveredSubscriptionPaymentSummary(customerId);
+  const unpaidSummary = await getUnpaidDeliveredSubscriptionMonthlySummary(customerId);
   if (unpaidSummary.unpaidCount > 0) {
     const error = new Error(
-      `Please clear all pending subscription dues before closing. Unpaid delivered entries: ${unpaidSummary.unpaidCount}`
+      `Please clear all pending monthly subscription dues before closing. Unpaid delivered entries: ${unpaidSummary.unpaidCount}`
     );
     error.statusCode = 400;
     throw error;

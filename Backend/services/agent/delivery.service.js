@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js";
+import { ensureBuyOnceInvoiceForDeliveredOrder } from "../customer/monthlyBilling.service.js";
 
 const isValidDateString = (value) =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -521,7 +522,7 @@ export const updateAgentDeliveryStatus = async ({
 
   let existingQuery = supabase
     .from("deliveries")
-    .select("id, agent_id, dairy_id, notes")
+    .select("id, customer_id, agent_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes")
     .eq("id", parsedId)
     .eq("agent_id", agentDbId)
     .limit(1);
@@ -572,6 +573,15 @@ export const updateAgentDeliveryStatus = async ({
     const error = new Error("Failed to update delivery status");
     error.statusCode = 500;
     throw error;
+  }
+
+  if (nextStatus === "COMPLETED") {
+    await ensureBuyOnceInvoiceForDeliveredOrder({
+      ...existing,
+      status: updated.status,
+      notes: updated.notes,
+      updated_at: updated.updated_at,
+    });
   }
 
   return {

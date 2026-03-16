@@ -156,11 +156,15 @@ const mapPaymentRow = (row, index) => {
   const amount = extractPaymentAmount(row);
   const status = normalizeStatus(row.status);
   const dateSource = row.payment_date || row.date || row.created_at || row.updated_at;
-  const monthLabel = row.billing_month || row.month || null;
+  const monthMeta = parseMonthlyBillMeta(row.description);
+  const monthLabel = row.billing_month || row.month || monthMeta.monthKey || null;
+  const title = monthMeta.isMonthlyBill
+    ? `${monthLabel ? `${monthLabel} Monthly Bill` : "Monthly Bill"}`
+    : row.title || row.description || "Payment";
 
   return {
     id: row.id ?? `payment-${index}`,
-    title: row.title || row.description || (monthLabel ? `${monthLabel} Milk Bill` : "Milk Bill"),
+    title,
     date: formatDate(dateSource),
     amount,
     status,
@@ -641,10 +645,15 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId, paymentRows);
   const beneficiary = await getDairyBankDetails(resolvedDairyId);
 
-  const history = paymentRows.map(mapPaymentRow);
-  const pendingCandidates = history.filter(
+  const history = paymentRows
+    .filter(isMonthlyBillPaymentRow)
+    .map(mapPaymentRow);
+  const pendingCandidates = paymentRows
+    .filter(isMonthlyBillPaymentRow)
+    .map(mapPaymentRow)
+    .filter(
     (item) => item.status === "PENDING" || item.status === "OVERDUE"
-  );
+    );
   const totalPendingAndOverdue = pendingCandidates.reduce(
     (sum, item) => sum + toNumber(item.amount, 0),
     0
@@ -660,6 +669,7 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     summary: {
       monthlyDue: totalPendingAndOverdue,
       walletBalance: toNumber(walletBalance, 0),
+      payableTillDate: toNumber(payableTillDate, 0),
       dueInDays: nearestDueInDays,
       beneficiary,
     },

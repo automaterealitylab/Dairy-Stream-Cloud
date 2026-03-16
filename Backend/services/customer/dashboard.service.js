@@ -2,6 +2,7 @@ import { supabase } from "../../config/supabase.js";
 import { getSubscriptionByCustomerId } from "./subscription.service.js";
 import { getTodayDeliverySnapshot } from "./deliveries.service.js";
 import { getCustomerPaymentsData } from "./payments.service.js";
+import { getCustomerPaymentsData } from "./payments.service.js";
 
 const DASHBOARD_CACHE_TTL_MS = 10 * 1000;
 const dashboardCache = new Map();
@@ -251,6 +252,7 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
   const { todayDelivery } = await getTodayDeliverySnapshot(customerId, { subscription });
   const upcomingDeliveryAlert = await getUpcomingScheduledDelivery(customerId);
   const oneTimeOrders = await getRecentOneTimeOrders(customerId);
+  const paymentsData = await getCustomerPaymentsData(customerId);
   const paymentsData = await getCustomerPaymentsData(customerId, linkedDairyId);
 
   const legacyDairyName =
@@ -293,6 +295,13 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
       slot: subscription?.delivery_slot || "-",
     },
     billing: {
+      monthlyDue: Number(paymentsData?.summary?.monthlyDue || 0),
+      walletBalance: Number(paymentsData?.summary?.walletBalance || 0),
+      payableTillDate: Number(paymentsData?.summary?.payableTillDate || 0),
+      dueInDays:
+        paymentsData?.summary?.dueInDays === null || paymentsData?.summary?.dueInDays === undefined
+          ? null
+          : Number(paymentsData.summary.dueInDays),
       monthlyDue: Number(paymentsData?.summary?.monthlyDue || 0),
       walletBalance: Number(paymentsData?.summary?.walletBalance || 0),
       dueInDays:

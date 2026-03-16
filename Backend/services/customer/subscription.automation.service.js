@@ -29,6 +29,18 @@ const isDeliveredStatus = (status) => {
   return value === "DELIVERED" || value === "COMPLETED";
 };
 
+const appendAutoFailNote = (notesValue, reason = "Delivery auto-failed at end of day") => {
+  const notes = String(notesValue || "").trim();
+  const lines = notes
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("[AUTO_FAILED]:"));
+
+  lines.push(`[AUTO_FAILED]: ${reason}`);
+  return lines.join("\n");
+};
+
 const parseDeliveryIdFromPaymentDescription = (description) => {
   const text = String(description || "");
   const match = text.match(/delivery_id=(\d+)/i);
@@ -388,4 +400,48 @@ export const runDailySubscriptionAutomationForAllCustomers = async ({
   }
 
   return { date: targetDate, createdCount, skippedCount };
+};
+
+export const autoFailPendingSubscriptionDeliveriesForDate = async ({
+  targetDate = getLocalTodayIso(),
+} = {}) => {
+  if (!isValidDateString(targetDate)) {
+    return { date: targetDate, failedCount: 0 };
+  }
+
+  const { data: deliveries, error } = await supabase
+    .from("deliveries")
+    .select("id, notes, status, delivery_date")
+    .eq("delivery_date", targetDate)
+    .eq("status", "PENDING")
+    .limit(5000);
+
+  if (error) throw error;
+
+  const subscriptionRows = (deliveries || []).filter((row) => {
+    const notes = String(row?.notes || "");
+    return !notes.includes(ONE_TIME_ORDER_MARKER);
+  });
+
+  if (!subscriptionRows.length) {
+    return { date: targetDate, failedCount: 0 };
+  }
+
+  let failedCount = 0;
+  for (const row of subscriptionRows) {
+    const { error: updateError } = await supabase
+      .from("deliveries")
+      .update({
+        status: "FAILED",
+        notes: appendAutoFailNote(row?.notes),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("status", "PENDING");
+
+    if (updateError) throw updateError;
+    failedCount += 1;
+  }
+
+  return { date: targetDate, failedCount };
 };
