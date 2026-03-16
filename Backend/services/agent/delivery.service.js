@@ -1,5 +1,11 @@
+import axios from "axios";
+import crypto from "crypto";
+import Razorpay from "razorpay";
 import { supabase } from "../../config/supabase.js";
 import { ensureBuyOnceInvoiceForDeliveredOrder } from "../customer/monthlyBilling.service.js";
+
+const onlineCollectionCache = new Map();
+const ONLINE_COLLECTION_TTL_MS = 20 * 60 * 1000;
 
 const isValidDateString = (value) =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -102,6 +108,51 @@ const formatAddress = (customer = {}) => {
   return parts.length > 0 ? parts.join(", ") : "-";
 };
 
+const getRazorpayClient = () => {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    const error = new Error("Razorpay is not configured on server");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+};
+
+const parseNotesField = (notes, field) => {
+  const match = String(notes || "").match(new RegExp(`${field}=([^;\\n]+)`, "i"));
+  return match?.[1]?.trim() || null;
+};
+
+const getDeliveryTypeFromNotes = (notes) => {
+  const text = String(notes || "");
+  if (text.includes("[ONE_TIME_ORDER]")) {
+    return "BUY ONCE";
+  }
+  if (text.includes("[SUBSCRIPTION_DAILY]")) {
+    return "SUBSCRIPTION";
+  }
+  return "REGULAR";
+};
+
+const parseOrderPaymentMeta = (notes, quantityLiters) => {
+  const paymentMethod = String(parseNotesField(notes, "payment") || "").trim().toUpperCase() || null;
+  const unitPrice = Number(parseNotesField(notes, "unit_price"));
+  const quantity = Number(quantityLiters || 0);
+  const amountDue =
+    Number.isFinite(unitPrice) && unitPrice >= 0 && Number.isFinite(quantity) && quantity > 0
+      ? Number((unitPrice * quantity).toFixed(2))
+      : 0;
+
+  return {
+    paymentMethod,
+    unitPrice: Number.isFinite(unitPrice) ? unitPrice : null,
+    amountDue,
+  };
+};
+
 const parseFailedReason = (notes) => {
   const text = String(notes || "");
   const marker = "[FAILED_REASON]:";
@@ -123,6 +174,20 @@ const parseDeliveryProof = (notes) => {
   return {
     proofType: String(typePart || "").trim() || null,
     proofValue: String(valuePart || "").trim() || null,
+  };
+};
+
+const parsePaymentCollection = (notes) => {
+  const text = String(notes || "");
+  const marker = "[PAYMENT_COLLECTION]:";
+  const index = text.indexOf(marker);
+  if (index < 0) return { collectionMethod: null, paymentStatus: null };
+
+  const raw = text.slice(index + marker.length).trim();
+  const [methodPart, statusPart] = raw.split("|", 2);
+  return {
+    collectionMethod: String(methodPart || "").trim().toUpperCase() || null,
+    paymentStatus: String(statusPart || "").trim().toUpperCase() || null,
   };
 };
 
@@ -154,6 +219,23 @@ const withFailureReason = (notes, reason) => {
 
   if (!safeReason) return lines.length ? lines.join("\n") : null;
   lines.push(`[FAILED_REASON]: ${safeReason}`);
+  return lines.join("\n");
+};
+
+const withPaymentCollection = (notes, collectionMethod = "", paymentStatus = "") => {
+  const current = String(notes || "").trim();
+  const lines = current
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("[PAYMENT_COLLECTION]:"));
+
+  const safeMethod = String(collectionMethod || "").trim().toUpperCase();
+  const safeStatus = String(paymentStatus || "").trim().toUpperCase();
+  if (!safeMethod && !safeStatus) {
+    return lines.length ? lines.join("\n") : null;
+  }
+
+  lines.push(`[PAYMENT_COLLECTION]: ${safeMethod}${safeStatus ? `|${safeStatus}` : ""}`);
   return lines.join("\n");
 };
 
@@ -220,6 +302,52 @@ const fetchDeliveryRows = async ({
   return data || [];
 };
 
+const fetchAssignedDeliveryRow = async ({ agentDbId, dairyId = null, deliveryId } = {}) => {
+  const parsedId = Number(deliveryId);
+  if (!Number.isFinite(parsedId) || parsedId <= 0) {
+    const error = new Error("Valid deliveryId is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let query = supabase
+    .from("deliveries")
+    .select(
+      "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, updated_at, created_at"
+    )
+    .eq("id", parsedId)
+    .eq("agent_id", agentDbId)
+    .limit(1);
+
+  if (dairyId) query = query.eq("dairy_id", dairyId);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    const notFound = new Error("Assigned delivery not found");
+    notFound.statusCode = 404;
+    throw notFound;
+  }
+
+  return data;
+};
+
+const findPaymentRowByDeliveryId = async ({ customerId, dairyId, deliveryId } = {}) => {
+  const descriptionPattern = `%delivery_id=${deliveryId}%`;
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("dairy_id", dairyId)
+    .ilike("description", descriptionPattern)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+};
+
 const buildLookupMaps = async (rows) => {
   const customerIds = [...new Set(rows.map((row) => row.customer_id).filter(Boolean))];
   const dairyIds = [...new Set(rows.map((row) => row.dairy_id).filter(Boolean))];
@@ -234,7 +362,7 @@ const buildLookupMaps = async (rows) => {
     dairyIds.length
       ? supabase
           .from("dairies")
-          .select("id, dairy_name")
+          .select("id, dairy_name, upi_id")
           .in("id", dairyIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -252,6 +380,11 @@ const mapAssignedDelivery = (row, lookups) => {
   const customer = lookups.customersById.get(row.customer_id) || {};
   const dairy = lookups.dairiesById.get(row.dairy_id) || {};
   const parsedProof = parseDeliveryProof(row.notes);
+  const deliveryType = getDeliveryTypeFromNotes(row.notes);
+  const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
+  const paymentCollection = parsePaymentCollection(row.notes);
+  const requiresPaymentCollection =
+    deliveryType === "BUY ONCE" && paymentMeta.paymentMethod === "COD";
 
   return {
     id: String(row.id),
@@ -264,6 +397,13 @@ const mapAssignedDelivery = (row, lookups) => {
     dairyFarmId: row.dairy_id ?? null,
     dairyFarmName: dairy.dairy_name || "Dairy",
     farmPhoneNumber: "-",
+    deliveryType,
+    orderPaymentMethod: paymentMeta.paymentMethod || null,
+    requiresPaymentCollection,
+    amountDue: paymentMeta.amountDue,
+    upiId: dairy.upi_id || null,
+    paymentCollectionMethod: paymentCollection.collectionMethod,
+    paymentCollectionStatus: paymentCollection.paymentStatus,
     failedReason: parseFailedReason(row.notes),
     deliveryProofType: parsedProof.proofType,
     deliveryProofValue: parsedProof.proofValue,
@@ -282,6 +422,259 @@ export const getAgentAssignedDeliveries = async ({
   if (!rows.length) return [];
   const lookups = await buildLookupMaps(rows);
   return rows.map((row) => mapAssignedDelivery(row, lookups));
+};
+
+export const createAgentOnlineCollectionQr = async ({
+  agentDbId,
+  dairyId = null,
+  deliveryId,
+} = {}) => {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    const error = new Error("Razorpay is not configured on server");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const row = await fetchAssignedDeliveryRow({ agentDbId, dairyId, deliveryId });
+  const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
+  const deliveryType = getDeliveryTypeFromNotes(row.notes);
+
+  if (deliveryType !== "BUY ONCE" || paymentMeta.paymentMethod !== "COD") {
+    const error = new Error("Razorpay QR is available only for COD buy-once deliveries");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizeStatusForCard(row.status) !== "PENDING") {
+    const error = new Error("QR can only be generated for pending deliveries");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!Number.isFinite(paymentMeta.amountDue) || paymentMeta.amountDue <= 0) {
+    const error = new Error("Unable to determine delivery amount for QR");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const cacheKey = `${row.id}:${Math.round(paymentMeta.amountDue * 100)}`;
+  const cached = onlineCollectionCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < ONLINE_COLLECTION_TTL_MS) {
+    return cached.payload;
+  }
+
+  try {
+    const linkPayload = {
+      amount: Math.round(paymentMeta.amountDue * 100),
+      currency: "INR",
+      accept_partial: false,
+      description: `Buy-once COD collection for delivery ${row.id}`,
+      reference_id: `delivery_${row.id}_${Date.now()}`.slice(0, 40),
+      expire_by: Math.floor(Date.now() / 1000) + 30 * 60,
+      notify: {
+        sms: false,
+        email: false,
+      },
+      reminder_enable: false,
+      notes: {
+        delivery_id: String(row.id),
+        customer_id: String(row.customer_id),
+        dairy_id: String(row.dairy_id),
+      },
+    };
+
+    const linkResponse = await axios.post("https://api.razorpay.com/v1/payment_links", linkPayload, {
+      auth: {
+        username: process.env.RAZORPAY_KEY_ID,
+        password: process.env.RAZORPAY_KEY_SECRET,
+      },
+      timeout: 15000,
+    });
+
+    const payload = {
+      qrId: null,
+      imageUrl: null,
+      shortUrl: linkResponse.data?.short_url || null,
+      imageContent: null,
+      amountDue: paymentMeta.amountDue,
+      currency: "INR",
+      closeBy: linkResponse.data?.expire_by || null,
+      provider: "RAZORPAY_PAYMENT_LINK",
+    };
+
+    onlineCollectionCache.set(cacheKey, {
+      payload,
+      at: Date.now(),
+    });
+
+    return payload;
+  } catch (err) {
+    const message =
+      err?.response?.data?.error?.description ||
+      err?.response?.data?.description ||
+      err?.message ||
+      "Failed to create Razorpay payment link";
+    const error = new Error(message);
+    error.statusCode = err?.response?.status || 500;
+    throw error;
+  }
+};
+
+export const createAgentOnlineCollectionOrder = async ({
+  agentDbId,
+  dairyId = null,
+  deliveryId,
+} = {}) => {
+  const row = await fetchAssignedDeliveryRow({ agentDbId, dairyId, deliveryId });
+  const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
+  const deliveryType = getDeliveryTypeFromNotes(row.notes);
+
+  if (deliveryType !== "BUY ONCE" || paymentMeta.paymentMethod !== "COD") {
+    const error = new Error("Online collection is available only for COD buy-once deliveries");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizeStatusForCard(row.status) !== "PENDING") {
+    const error = new Error("Online payment can only be started for pending deliveries");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const paymentRow = await findPaymentRowByDeliveryId({
+    customerId: row.customer_id,
+    dairyId: row.dairy_id,
+    deliveryId: row.id,
+  });
+
+  if (!paymentRow?.id) {
+    const error = new Error("Payment record not found for this delivery");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const amountInRupees = Number(paymentRow.amount ?? paymentMeta.amountDue ?? 0);
+  if (!Number.isFinite(amountInRupees) || amountInRupees <= 0) {
+    const error = new Error("Payment amount must be greater than zero");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const razorpay = getRazorpayClient();
+  const order = await razorpay.orders.create({
+    amount: Math.round(amountInRupees * 100),
+    currency: "INR",
+    receipt: `agent_collect_${row.id}_${Date.now()}`.slice(0, 40),
+    notes: {
+      delivery_id: String(row.id),
+      payment_id: String(paymentRow.id),
+      customer_id: String(row.customer_id),
+      dairy_id: String(row.dairy_id),
+      collection_mode: "AGENT_ONLINE",
+    },
+  });
+
+  return {
+    keyId: process.env.RAZORPAY_KEY_ID,
+    order,
+    payment: {
+      id: paymentRow.id,
+      amount: amountInRupees,
+      title: paymentRow.description || `Delivery ${row.id} Payment`,
+    },
+  };
+};
+
+export const verifyAgentOnlineCollectionPayment = async ({
+  agentDbId,
+  dairyId = null,
+  deliveryId,
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature,
+} = {}) => {
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    const error = new Error("Missing Razorpay verification fields");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const row = await fetchAssignedDeliveryRow({ agentDbId, dairyId, deliveryId });
+  const deliveryType = getDeliveryTypeFromNotes(row.notes);
+  const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
+
+  if (deliveryType !== "BUY ONCE" || paymentMeta.paymentMethod !== "COD") {
+    const error = new Error("Online collection is available only for COD buy-once deliveries");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const paymentRow = await findPaymentRowByDeliveryId({
+    customerId: row.customer_id,
+    dairyId: row.dairy_id,
+    deliveryId: row.id,
+  });
+
+  if (!paymentRow?.id) {
+    const error = new Error("Payment record not found for this delivery");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const generatedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+    .digest("hex");
+
+  if (generatedSignature !== razorpaySignature) {
+    const error = new Error("Payment signature verification failed");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const updatePayload = {
+    status: "PAID",
+    method: "RAZORPAY_UPI",
+    paid_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    razorpay_order_id: razorpayOrderId,
+    razorpay_payment_id: razorpayPaymentId,
+    razorpay_signature: razorpaySignature,
+  };
+
+  let updateQuery = supabase
+    .from("payments")
+    .update(updatePayload)
+    .eq("id", paymentRow.id)
+    .eq("customer_id", row.customer_id)
+    .eq("dairy_id", row.dairy_id);
+
+  const { error: updateError } = await updateQuery;
+  if (updateError && isMissingColumnError(updateError)) {
+    const { error: fallbackError } = await supabase
+      .from("payments")
+      .update({
+        status: "PAID",
+        method: "RAZORPAY_UPI",
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", paymentRow.id)
+      .eq("customer_id", row.customer_id)
+      .eq("dairy_id", row.dairy_id);
+
+    if (fallbackError) throw fallbackError;
+  } else if (updateError) {
+    throw updateError;
+  }
+
+  return {
+    success: true,
+    paymentId: paymentRow.id,
+    razorpayPaymentId,
+    razorpayOrderId,
+    status: "PAID",
+  };
 };
 
 export const getAgentDashboard = async ({ agentDbId, dairyId = null } = {}) => {
@@ -505,6 +898,7 @@ export const updateAgentDeliveryStatus = async ({
   proofType = "",
   proofOtp = "",
   proofImage = "",
+  collectionMethod = "",
 } = {}) => {
   const parsedId = Number(deliveryId);
   if (!Number.isFinite(parsedId) || parsedId <= 0) {
@@ -537,6 +931,37 @@ export const updateAgentDeliveryStatus = async ({
   }
 
   const dbStatus = nextStatus === "COMPLETED" ? "COMPLETED" : nextStatus;
+  const deliveryType = getDeliveryTypeFromNotes(existing.notes);
+  const orderPaymentMeta = parseOrderPaymentMeta(existing.notes, existing.quantity_liters);
+  const normalizedCollectionMethod = String(collectionMethod || "").trim().toUpperCase();
+  const paymentRow = await findPaymentRowByDeliveryId({
+    customerId: existing.customer_id,
+    dairyId: existing.dairy_id,
+    deliveryId: existing.id,
+  });
+
+  if (
+    nextStatus === "COMPLETED" &&
+    deliveryType === "BUY ONCE" &&
+    orderPaymentMeta.paymentMethod === "COD" &&
+    !["CASH", "ONLINE"].includes(normalizedCollectionMethod)
+  ) {
+    const error = new Error("Payment collection method is required for COD buy-once deliveries");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (
+    nextStatus === "COMPLETED" &&
+    deliveryType === "BUY ONCE" &&
+    orderPaymentMeta.paymentMethod === "COD" &&
+    normalizedCollectionMethod === "ONLINE" &&
+    String(paymentRow?.status || "").toUpperCase() !== "PAID"
+  ) {
+    const error = new Error("Complete the Razorpay payment before confirming delivery");
+    error.statusCode = 400;
+    throw error;
+  }
 
   const normalizedProofType = String(proofType || "").trim().toUpperCase();
   const otpMasked = String(proofOtp || "").trim();
@@ -554,6 +979,11 @@ export const updateAgentDeliveryStatus = async ({
 
   if (nextStatus === "COMPLETED") {
     notes = withDeliveryProof(notes, normalizedProofType, proofValue);
+    if (deliveryType === "BUY ONCE" && orderPaymentMeta.paymentMethod === "COD") {
+      notes = withPaymentCollection(notes, normalizedCollectionMethod, "PAID");
+    } else {
+      notes = withPaymentCollection(notes, "", "");
+    }
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -576,6 +1006,27 @@ export const updateAgentDeliveryStatus = async ({
   }
 
   if (nextStatus === "COMPLETED") {
+    if (
+      deliveryType === "BUY ONCE" &&
+      orderPaymentMeta.paymentMethod === "COD" &&
+      normalizedCollectionMethod === "CASH"
+    ) {
+      const descriptionPattern = `%delivery_id=${existing.id}%`;
+      const { error: paymentUpdateError } = await supabase
+        .from("payments")
+        .update({
+          status: "PAID",
+          method: "CASH",
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("customer_id", existing.customer_id)
+        .eq("dairy_id", existing.dairy_id)
+        .ilike("description", descriptionPattern);
+
+      if (paymentUpdateError) throw paymentUpdateError;
+    }
+
     await ensureBuyOnceInvoiceForDeliveredOrder({
       ...existing,
       status: updated.status,
@@ -590,6 +1041,7 @@ export const updateAgentDeliveryStatus = async ({
     failedReason: parseFailedReason(updated.notes),
     deliveryProofType: parseDeliveryProof(updated.notes).proofType,
     deliveryProofValue: parseDeliveryProof(updated.notes).proofValue,
+    paymentCollectionMethod: parsePaymentCollection(updated.notes).collectionMethod,
     updatedAt: updated.updated_at || null,
   };
 };

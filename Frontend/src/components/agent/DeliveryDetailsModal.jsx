@@ -41,6 +41,14 @@ const DeliveryDetailsModal = ({ delivery, onClose }) => {
             <div className="flex items-start gap-3">
               <Package className="text-blue-600 mt-1" size={20} />
               <div>
+                <p className="text-sm text-gray-600">Delivery Type</p>
+                <p className="font-semibold text-gray-800">{delivery.deliveryType || 'REGULAR'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Package className="text-blue-600 mt-1" size={20} />
+              <div>
                 <p className="text-sm text-gray-600">Quantity</p>
                 <p className="font-semibold text-gray-800">{delivery.quantity}</p>
               </div>

@@ -34,6 +34,8 @@ const AgentDashboard = () => {
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [failedDelivery, setFailedDelivery] = useState(null);
   const [proofDelivery, setProofDelivery] = useState(null);
+  const [bulkCompletingSubscriptions, setBulkCompletingSubscriptions] = useState(false);
+  const [bulkCompleteError, setBulkCompleteError] = useState('');
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -57,18 +59,77 @@ const AgentDashboard = () => {
   });
 
   const orderedDeliveries = optimizeRouteWithPriority(filteredDeliveries, ['PENDING', 'COMPLETED', 'FAILED']);
+  const pendingSubscriptionDeliveries = deliveries.filter(
+    (delivery) =>
+      delivery.status === 'PENDING' &&
+      String(delivery.deliveryType || '').toUpperCase() === 'SUBSCRIPTION'
+  );
 
   const handleCompleteWithProof = (delivery) => {
     setProofDelivery(delivery);
   };
 
-  const handleProofSubmit = async ({ proofType, proofOtp, imagePreview }) => {
+  const handleCompleteAllSubscriptions = async () => {
+    if (!pendingSubscriptionDeliveries.length || bulkCompletingSubscriptions) return;
+
+    const targetIds = new Set(pendingSubscriptionDeliveries.map((delivery) => String(delivery.id)));
+    setBulkCompletingSubscriptions(true);
+    setBulkCompleteError('');
+
+    setDeliveries((prev) => {
+      const next = prev.map((delivery) =>
+        targetIds.has(String(delivery.id))
+          ? {
+              ...delivery,
+              status: 'COMPLETED',
+              deliveryProofType: null,
+              deliveryProofOtp: null,
+              deliveryProofImage: null,
+            }
+          : delivery
+      );
+      setStats(buildStatsFromDeliveries(next));
+      return next;
+    });
+
+    const failedIds = [];
+
+    for (const delivery of pendingSubscriptionDeliveries) {
+      try {
+        await updateAssignedAgentDeliveryStatus({
+          deliveryId: delivery.id,
+          status: 'COMPLETED',
+        });
+      } catch (_err) {
+        failedIds.push(String(delivery.id));
+      }
+    }
+
+    if (failedIds.length) {
+      const failedSet = new Set(failedIds);
+      setDeliveries((prev) => {
+        const next = prev.map((delivery) =>
+          failedSet.has(String(delivery.id)) ? { ...delivery, status: 'PENDING' } : delivery
+        );
+        setStats(buildStatsFromDeliveries(next));
+        return next;
+      });
+      setBulkCompleteError(`Failed to complete ${failedIds.length} subscription deliver${failedIds.length === 1 ? 'y' : 'ies'}.`);
+    }
+
+    setBulkCompletingSubscriptions(false);
+  };
+
+  const handleProofSubmit = async ({ proofType, proofOtp, imagePreview, collectionMethod }) => {
     if (!proofDelivery?.id) return;
     const deliveryId = proofDelivery.id;
+    const normalizedProofType = String(proofType || '').trim().toUpperCase();
 
-    const proofNote = proofType === 'OTP'
+    const proofNote = normalizedProofType === 'OTP'
       ? `OTP_CONFIRMED:${proofOtp}`
-      : `PHOTO_ATTACHED`;
+      : normalizedProofType === 'PHOTO'
+      ? 'PHOTO_ATTACHED'
+      : '';
 
     setDeliveries((prev) => {
       const next = prev.map((d) =>
@@ -76,9 +137,10 @@ const AgentDashboard = () => {
           ? {
               ...d,
               status: 'COMPLETED',
-              deliveryProofType: proofType,
-              deliveryProofOtp: proofType === 'OTP' ? proofOtp : null,
-              deliveryProofImage: proofType === 'PHOTO' ? imagePreview : null,
+              deliveryProofType: normalizedProofType || null,
+              deliveryProofOtp: normalizedProofType === 'OTP' ? proofOtp : null,
+              deliveryProofImage: normalizedProofType === 'PHOTO' ? imagePreview : null,
+              paymentCollectionMethod: collectionMethod || null,
             }
           : d
       );
@@ -92,9 +154,10 @@ const AgentDashboard = () => {
       await updateAssignedAgentDeliveryStatus({
         deliveryId,
         status: 'COMPLETED',
-        proofType,
+        proofType: normalizedProofType,
         proofOtp,
-        proofImage: proofType === 'PHOTO' ? imagePreview : '',
+        proofImage: normalizedProofType === 'PHOTO' ? imagePreview : '',
+        collectionMethod,
         reason: proofNote,
       });
     } catch (_err) {
@@ -307,7 +370,24 @@ const AgentDashboard = () => {
               <p className="text-gray-600">Manage your deliveries</p>
               <p className="text-xs text-blue-600 mt-1">Route sorted by status and building proximity</p>
             </div>
+            {pendingSubscriptionDeliveries.length > 0 && (
+              <button
+                onClick={handleCompleteAllSubscriptions}
+                disabled={bulkCompletingSubscriptions}
+                className="rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {bulkCompletingSubscriptions
+                  ? 'Completing...'
+                  : `Complete All Subscription (${pendingSubscriptionDeliveries.length})`}
+              </button>
+            )}
           </div>
+
+          {bulkCompleteError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {bulkCompleteError}
+            </div>
+          )}
 
           <div className="bg-white rounded-xl p-2 shadow-sm border border-gray-200 flex flex-wrap gap-2">
             {[

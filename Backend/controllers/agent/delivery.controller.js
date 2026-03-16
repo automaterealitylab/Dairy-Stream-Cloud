@@ -1,10 +1,13 @@
 import {
+  createAgentOnlineCollectionOrder,
   getAgentAssignedDeliveries,
   getAgentDashboard,
   getAgentDeliveryHistory,
+  createAgentOnlineCollectionQr,
   getAgentProfile,
   updateAgentAvailability,
   updateAgentDeliveryStatus,
+  verifyAgentOnlineCollectionPayment,
 } from "../../services/agent/delivery.service.js";
 
 const getAgentContext = (req) => ({
@@ -83,6 +86,7 @@ export const patchAssignedDeliveryStatus = async (req, res) => {
       proofType: req.body?.proofType || "",
       proofOtp: req.body?.proofOtp || "",
       proofImage: req.body?.proofImage || "",
+      collectionMethod: req.body?.collectionMethod || "",
     });
     return res.json({
       message: "Delivery status updated",
@@ -92,6 +96,54 @@ export const patchAssignedDeliveryStatus = async (req, res) => {
     console.error("AGENT DELIVERY STATUS UPDATE ERROR:", err?.message || err);
     return res.status(err?.statusCode || 500).json({
       message: err?.message || "Failed to update delivery status",
+    });
+  }
+};
+
+export const createAssignedDeliveryOnlineQr = async (req, res) => {
+  try {
+    const payload = await createAgentOnlineCollectionQr({
+      ...getAgentContext(req),
+      deliveryId: req.params.id,
+    });
+    return res.json(payload);
+  } catch (err) {
+    console.error("AGENT DELIVERY ONLINE QR ERROR:", err?.message || err);
+    return res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to create Razorpay QR",
+    });
+  }
+};
+
+export const createAssignedDeliveryOnlineOrder = async (req, res) => {
+  try {
+    const payload = await createAgentOnlineCollectionOrder({
+      ...getAgentContext(req),
+      deliveryId: req.params.id,
+    });
+    return res.json(payload);
+  } catch (err) {
+    console.error("AGENT DELIVERY ONLINE ORDER ERROR:", err?.message || err);
+    return res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to create Razorpay order",
+    });
+  }
+};
+
+export const verifyAssignedDeliveryOnlinePayment = async (req, res) => {
+  try {
+    const payload = await verifyAgentOnlineCollectionPayment({
+      ...getAgentContext(req),
+      deliveryId: req.params.id,
+      razorpayOrderId: req.body?.razorpay_order_id,
+      razorpayPaymentId: req.body?.razorpay_payment_id,
+      razorpaySignature: req.body?.razorpay_signature,
+    });
+    return res.json(payload);
+  } catch (err) {
+    console.error("AGENT DELIVERY ONLINE VERIFY ERROR:", err?.message || err);
+    return res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to verify payment",
     });
   }
 };
