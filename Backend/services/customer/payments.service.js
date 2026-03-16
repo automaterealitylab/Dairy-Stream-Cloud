@@ -1,6 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { getCurrentMonthSuccessfulSubscriptionDue } from "./monthlyBilling.service.js";
 
 const PAYMENT_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
 const MEMBERSHIP_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
@@ -638,12 +639,14 @@ export const verifyCustomerPayment = async ({
 };
 
 export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
-  const [walletBalance, paymentRows] = await Promise.all([
+  const [walletBalance, paymentRows, payableTillDateData] = await Promise.all([
     getCustomerWalletBalance(customerId),
     fetchPaymentsRows(customerId, dairyId),
+    getCurrentMonthSuccessfulSubscriptionDue(customerId),
   ]);
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId, paymentRows);
   const beneficiary = await getDairyBankDetails(resolvedDairyId);
+  const payableTillDate = Number(payableTillDateData?.payableTillDate || 0);
 
   const history = paymentRows
     .filter(isMonthlyBillPaymentRow)
