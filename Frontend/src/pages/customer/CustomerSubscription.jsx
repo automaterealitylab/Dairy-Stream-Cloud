@@ -58,6 +58,7 @@ const toSavePayload = (model, overrides = {}) => {
     paymentMethod: next.paymentMethod || 'UPI',
     status: (next.status || 'ACTIVE').toUpperCase(),
     approvalStatus: (next.approvalStatus || 'PENDING').toUpperCase(),
+    assignedAgentId: next.assignedAgentId ?? null,
   };
 };
 

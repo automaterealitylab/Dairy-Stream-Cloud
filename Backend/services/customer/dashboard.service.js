@@ -20,6 +20,11 @@ const isUuidSyntaxError = (error) => {
   return message.includes("invalid input syntax for type uuid");
 };
 
+const hasOpenSubscriptionStatus = (status) => {
+  const value = String(status || "ACTIVE").trim().toUpperCase();
+  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
 const normalizeOneTimeStatus = (status, approvalStatus) => {
   const normalizedApproval = String(approvalStatus || "").toUpperCase();
   if (normalizedApproval === "PENDING") return "PENDING_APPROVAL";
@@ -223,14 +228,15 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
   if (customerError) throw customerError;
 
   const subscription = await getSubscriptionByCustomerId(customerId);
+  const hasExistingSubscription = subscription && hasOpenSubscriptionStatus(subscription.status);
   const isActiveSubscription =
-    subscription && String(subscription.status || "ACTIVE").toUpperCase() === "ACTIVE";
+    hasExistingSubscription && String(subscription.status || "ACTIVE").toUpperCase() === "ACTIVE";
   const membershipDairyId = await getMembershipDairyId(customerId);
   const linkedDairyId =
     membershipDairyId ??
     customer?.dairy_id ??
     dairyId ??
-    (isActiveSubscription ? subscription?.dairy_id : null) ??
+    (hasExistingSubscription ? subscription?.dairy_id : null) ??
     null;
   let dairy = null;
 
@@ -266,7 +272,7 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
       dairyName: resolvedDairyName || "Not assigned",
       memberOfDairy: resolvedDairyName || "Not assigned",
     },
-    subscription: isActiveSubscription
+    subscription: hasExistingSubscription
       ? {
           dairyId: subscription.dairy_id,
           dairyName: resolvedDairyName || "Dairy",

@@ -1,11 +1,11 @@
-import { client } from "../client.js";
+import client from "../client.js";
 
 /**
  * Subscribe customer to push notifications
  */
 export const subscribeToPush = async (subscription) => {
   const response = await client.post(
-    "/customers/notifications/subscribe",
+    "/customer/notifications/subscribe",
     subscription
   );
   return response.data;
@@ -15,7 +15,7 @@ export const subscribeToPush = async (subscription) => {
  * Get delivery ETA
  */
 export const getDeliveryETA = async (deliveryId) => {
-  const response = await client.get(`/customers/deliveries/${deliveryId}/eta`);
+  const response = await client.get(`/customer/deliveries/${deliveryId}/eta`);
   return response.data.eta;
 };
 

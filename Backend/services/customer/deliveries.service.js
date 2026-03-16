@@ -198,6 +198,56 @@ const getDairyNamesMap = async (rows = []) => {
   }, {});
 };
 
+const getAgentDetailsMap = async (rows = []) => {
+  const agentIds = [
+    ...new Set(
+      (rows || [])
+        .map((row) => row?.agent_id)
+        .filter((value) => value !== null && value !== undefined && value !== "")
+    ),
+  ];
+
+  if (agentIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("agents")
+    .select("id, agent_name, phone_number, building")
+    .in("id", agentIds);
+
+  if (error) {
+    const message = String(error?.message || "").toLowerCase();
+    const isMissingRelation = message.includes("relation") && message.includes("does not exist");
+    const isMissingColumn = message.includes("column") && message.includes("does not exist");
+    if (isMissingRelation || isMissingColumn) return {};
+    throw error;
+  }
+
+  return (data || []).reduce((acc, row) => {
+    if (row?.id == null) return acc;
+    acc[String(row.id)] = {
+      id: row.id,
+      name: row.agent_name || `Agent #${row.id}`,
+      phone: row.phone_number || "-",
+      route: row.building || "-",
+    };
+    return acc;
+  }, {});
+};
+
+const buildSubscriptionAgentFallback = (subscription, agentDetailsMap = {}) => {
+  const rawAgentId = subscription?.assigned_agent_id ?? null;
+  if (rawAgentId == null) {
+    return { agentId: null, agent: null, canTrackAgent: false };
+  }
+
+  const resolvedAgent = agentDetailsMap[String(rawAgentId)] || null;
+  return {
+    agentId: rawAgentId,
+    agent: resolvedAgent,
+    canTrackAgent: false,
+  };
+};
+
 const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap = {}) => {
   const dateSource = row.delivery_date || row.date || row.created_at || row.updated_at;
   const timeSource = row.delivered_at || row.time || row.updated_at || row.created_at;
@@ -266,7 +316,12 @@ const isSameCalendarDay = (dateValue, refDate) => {
   );
 };
 
-const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
+const getTodayDeliveryFromRows = (
+  rows,
+  dairyNamesMap = {},
+  agentDetailsMap = {},
+  subscription = null
+) => {
   if (!Array.isArray(rows) || rows.length === 0) return null;
   const now = new Date();
 
@@ -280,6 +335,11 @@ const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
   if (!todayRow) return null;
 
   const normalized = mapDeliveryRow(todayRow, 0, null, null, dairyNamesMap);
+  const isSubscriptionDelivery = !String(todayRow?.notes || "").includes("[ONE_TIME_ORDER]");
+  const fallbackAgentId =
+    isSubscriptionDelivery && !todayRow?.agent_id ? subscription?.assigned_agent_id ?? null : null;
+  const rawAgentId = todayRow?.agent_id ?? fallbackAgentId ?? null;
+  const resolvedAgent = rawAgentId == null ? null : agentDetailsMap[String(rawAgentId)] || null;
   const expectedWindow =
     normalized?.slotWindow && normalized?.slot && normalized.slot !== "-"
       ? `${normalized.slot} (${normalized.slotWindow})`
@@ -305,8 +365,9 @@ const getTodayDeliveryFromRows = (rows, dairyNamesMap = {}) => {
     issueStatus: normalized.issueStatus || "NONE",
     issueAdminAction: normalized.issueAdminAction || null,
     issueResolvedAt: normalized.issueResolvedAt || null,
-    agent: null,
-    canTrackAgent: false,
+    agentId: rawAgentId,
+    agent: resolvedAgent,
+    canTrackAgent: Boolean(rawAgentId && resolvedAgent),
   };
 };
 
@@ -343,6 +404,7 @@ const getTodayDeliveryFallback = (subscription) => {
     issueStatus: "NONE",
     issueAdminAction: null,
     issueResolvedAt: null,
+    agentId: null,
     agent: null,
     canTrackAgent: false,
   };
@@ -506,20 +568,35 @@ const appendCustomerIssueNote = (existingNotes, issueText) => {
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
   await ensureCustomerSubscriptionDeliveryForDate({ customerId });
 
-  const rows =
-    (await tryFetchFromTable("deliveries", customerId)) ??
-    (await tryFetchFromTable("milk_deliveries", customerId)) ??
-    [];
-  const dairyNamesMap = await getDairyNamesMap(rows);
-
-  const todayFromRows = getTodayDeliveryFromRows(rows, dairyNamesMap);
   const resolvedSubscription =
     subscription === undefined
       ? await getSubscriptionByCustomerId(customerId)
       : subscription;
+  const rows =
+    (await tryFetchFromTable("deliveries", customerId)) ??
+    (await tryFetchFromTable("milk_deliveries", customerId)) ??
+    [];
+  const agentFallbackIds = resolvedSubscription?.assigned_agent_id
+    ? [{ agent_id: resolvedSubscription.assigned_agent_id }]
+    : [];
+  const dairyNamesMap = await getDairyNamesMap(rows);
+  const agentDetailsMap = await getAgentDetailsMap([...rows, ...agentFallbackIds]);
+
+  const todayFromRows = getTodayDeliveryFromRows(
+    rows,
+    dairyNamesMap,
+    agentDetailsMap,
+    resolvedSubscription
+  );
+  const fallbackTracking = buildSubscriptionAgentFallback(resolvedSubscription, agentDetailsMap);
 
   return {
-    todayDelivery: todayFromRows || getTodayDeliveryFallback(resolvedSubscription),
+    todayDelivery:
+      todayFromRows ||
+      {
+        ...getTodayDeliveryFallback(resolvedSubscription),
+        ...fallbackTracking,
+      },
     rows,
     dairyNamesMap,
   };
