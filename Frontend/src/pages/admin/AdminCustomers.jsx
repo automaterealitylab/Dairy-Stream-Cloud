@@ -15,6 +15,7 @@ import {
 import {
   approveAdminCustomerSubscription,
   assignAdminCustomerPermanentPartner,
+  collectAdminOfflinePayment,
   fetchAdminAgents,
   fetchAdminCustomers,
 } from "../../api/admin.api";
@@ -106,11 +107,16 @@ export default function AdminCustomers() {
   // ---- Business Logic Handlers ----
   const handleSavePayment = async (payData) => {
     try {
-      console.log("Saving Payment for:", paymentTarget.id, payData);
+      await collectAdminOfflinePayment({
+        customerId: paymentTarget.id,
+        receivedAmount: payData.received,
+        method: payData.method,
+        note: payData.note,
+      });
       setPaymentTarget(null);
       reloadCustomers();
     } catch (err) {
-      alert("Payment Failed");
+      alert(err?.response?.data?.error || "Payment Failed");
     }
   };
 

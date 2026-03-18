@@ -184,6 +184,129 @@ const normalizePaymentId = (value) => {
   return Number.isFinite(asNumber) ? asNumber : value;
 };
 
+const getCustomerById = async (customerId) => {
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("id", customerId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+};
+
+const creditCustomerWalletBalance = async ({
+  customerId,
+  amount,
+}) => {
+  const normalizedAmount = Number(Number(amount || 0).toFixed(2));
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    throw new Error("Wallet credit amount must be greater than zero");
+  }
+
+  const customer = await getCustomerById(customerId);
+  if (!customer) throw new Error("Customer not found");
+
+  const currentWallet =
+    toNumber(customer.wallet_balance, NaN) ||
+    toNumber(customer.walletBalance, NaN) ||
+    toNumber(customer.balance, 0);
+
+  const nextWallet = Number((currentWallet + normalizedAmount).toFixed(2));
+  const payload = { updated_at: new Date().toISOString() };
+
+  if (Object.prototype.hasOwnProperty.call(customer, "wallet_balance")) {
+    payload.wallet_balance = nextWallet;
+  }
+  if (Object.prototype.hasOwnProperty.call(customer, "walletBalance")) {
+    payload.walletBalance = nextWallet;
+  }
+  if (Object.prototype.hasOwnProperty.call(customer, "balance")) {
+    payload.balance = nextWallet;
+  }
+
+  if (
+    !Object.prototype.hasOwnProperty.call(payload, "wallet_balance") &&
+    !Object.prototype.hasOwnProperty.call(payload, "walletBalance") &&
+    !Object.prototype.hasOwnProperty.call(payload, "balance")
+  ) {
+    payload.wallet_balance = nextWallet;
+  }
+
+  const { error: updateError } = await supabase
+    .from("customers")
+    .update(payload)
+    .eq("id", customerId);
+
+  if (updateError) throw updateError;
+
+  return {
+    previousWalletBalance: Number(currentWallet.toFixed(2)),
+    walletBalance: nextWallet,
+    creditedAmount: normalizedAmount,
+  };
+};
+
+const createWalletLedgerEntry = async ({
+  customerId,
+  dairyId,
+  amount,
+  method,
+  description,
+  paidAtIso = new Date().toISOString(),
+  extraPayload = {},
+}) => {
+  const normalizedAmount = Number(Number(amount || 0).toFixed(2));
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return null;
+
+  const basePayload = {
+    customer_id: customerId,
+    dairy_id: dairyId ?? null,
+    amount: normalizedAmount,
+    status: "PAID",
+    method: String(method || "WALLET").trim().toUpperCase(),
+    description: String(description || "[WALLET_TOPUP]").slice(0, 300),
+    due_date: paidAtIso.slice(0, 10),
+    paid_at: paidAtIso,
+  };
+
+  const payloadVariants = [
+    { ...basePayload, ...extraPayload },
+    basePayload,
+    {
+      ...basePayload,
+      payment_method: basePayload.method,
+      method: undefined,
+      payment_date: paidAtIso,
+      paid_at: undefined,
+    },
+  ];
+
+  let lastMissingColumnError = null;
+  for (const payload of payloadVariants) {
+    const cleanPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined)
+    );
+
+    const { data, error } = await supabase
+      .from("payments")
+      .insert(cleanPayload)
+      .select("id, amount, status, method, description, created_at")
+      .maybeSingle();
+
+    if (!error) return data || null;
+    if (isMissingColumnError(error)) {
+      lastMissingColumnError = error;
+      continue;
+    }
+    throw error;
+  }
+
+  if (lastMissingColumnError) throw lastMissingColumnError;
+  return null;
+};
+
 const getRazorpayClient = () => {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
     throw new Error("Razorpay is not configured on server");
@@ -640,6 +763,136 @@ export const verifyCustomerPayment = async ({
     razorpayPaymentId,
     razorpayOrderId,
     status: "PAID",
+  };
+};
+
+export const createCustomerWalletTopupOrder = async ({
+  customerId,
+  dairyId = null,
+  amount,
+}) => {
+  const amountInRupees = Number(Number(amount || 0).toFixed(2));
+  if (!Number.isFinite(amountInRupees) || amountInRupees <= 0) {
+    throw new Error("Wallet top-up amount must be greater than zero");
+  }
+  if (amountInRupees < 10) {
+    throw new Error("Minimum wallet top-up amount is 10");
+  }
+
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const razorpay = getRazorpayClient();
+  const order = await razorpay.orders.create({
+    amount: Math.round(amountInRupees * 100),
+    currency: "INR",
+    receipt: `cust_${customerId}_wallet_${Date.now()}`.slice(0, 40),
+    notes: {
+      customer_id: String(customerId),
+      payment_mode: "WALLET_TOPUP",
+      dairy_id: String(resolvedDairyId ?? ""),
+      amount_inr: String(amountInRupees),
+    },
+  });
+
+  return {
+    keyId: process.env.RAZORPAY_KEY_ID,
+    order,
+    amount: amountInRupees,
+  };
+};
+
+export const verifyCustomerWalletTopup = async ({
+  customerId,
+  dairyId = null,
+  amount,
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature,
+}) => {
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    throw new Error("Missing Razorpay verification fields");
+  }
+
+  const amountInRupees = Number(Number(amount || 0).toFixed(2));
+  if (!Number.isFinite(amountInRupees) || amountInRupees <= 0) {
+    throw new Error("Wallet top-up amount must be greater than zero");
+  }
+
+  const generatedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+    .digest("hex");
+
+  if (generatedSignature !== razorpaySignature) {
+    throw new Error("Payment signature verification failed");
+  }
+
+  const { data: existingTopup, error: existingTopupError } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("customer_id", customerId)
+    .eq("razorpay_payment_id", razorpayPaymentId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingTopupError && !isMissingColumnError(existingTopupError)) {
+    throw existingTopupError;
+  }
+  if (existingTopup?.id) {
+    throw new Error("This wallet top-up has already been processed");
+  }
+
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const walletUpdate = await creditCustomerWalletBalance({
+    customerId,
+    amount: amountInRupees,
+  });
+
+  const paidAtIso = new Date().toISOString();
+  const payment = await createWalletLedgerEntry({
+    customerId,
+    dairyId: resolvedDairyId,
+    amount: amountInRupees,
+    method: "RAZORPAY",
+    description: `[WALLET_TOPUP_CUSTOMER] source=customer; order_id=${razorpayOrderId}; payment_id=${razorpayPaymentId}`,
+    paidAtIso,
+    extraPayload: {
+      razorpay_order_id: razorpayOrderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: razorpaySignature,
+    },
+  });
+
+  return {
+    success: true,
+    walletBalance: walletUpdate.walletBalance,
+    creditedAmount: walletUpdate.creditedAmount,
+    paymentId: payment?.id || null,
+  };
+};
+
+export const addAmountToCustomerWallet = async ({
+  customerId,
+  dairyId = null,
+  amount,
+  source = "SYSTEM",
+  method = "WALLET",
+  description = "",
+}) => {
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const walletUpdate = await creditCustomerWalletBalance({ customerId, amount });
+  const entry = await createWalletLedgerEntry({
+    customerId,
+    dairyId: resolvedDairyId,
+    amount: walletUpdate.creditedAmount,
+    method,
+    description:
+      description ||
+      `[WALLET_TOPUP] source=${String(source || "SYSTEM").toLowerCase()}; amount=${walletUpdate.creditedAmount}`,
+  });
+
+  return {
+    ...walletUpdate,
+    paymentId: entry?.id || null,
   };
 };
 

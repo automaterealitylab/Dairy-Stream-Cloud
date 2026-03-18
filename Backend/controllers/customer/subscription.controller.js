@@ -24,6 +24,7 @@ export const saveSubscription = async (req, res) => {
       startDate,
       address,
       paymentMethod,
+      deliveryDays,
       status,
       approvalStatus,
       assignedAgentId,
@@ -41,6 +42,7 @@ export const saveSubscription = async (req, res) => {
       start_date: startDate,
       address,
       payment_method: paymentMethod,
+      delivery_days: deliveryDays,
       status,
       approval_status: approvalStatus,
       assigned_agent_id:

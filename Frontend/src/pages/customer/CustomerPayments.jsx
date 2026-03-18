@@ -6,8 +6,10 @@ import {
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import {
   createCustomerPaymentOrder,
+  createCustomerWalletTopupOrder,
   fetchCustomerPayments,
   verifyCustomerPayment,
+  verifyCustomerWalletTopup,
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 
@@ -82,6 +84,8 @@ export default function Payments() {
   const [payingPaymentId, setPayingPaymentId] = useState(null);
   const [error,           setError]           = useState(null);
   const [showAll,         setShowAll]         = useState(false);
+  const [walletAmount,    setWalletAmount]    = useState("500");
+  const [walletTopupOpen, setWalletTopupOpen] = useState(false);
 
   // ── data ────────────────────────────────────────────────────────────────────
   const loadPayments = async () => {
@@ -158,6 +162,50 @@ export default function Payments() {
       checkout.open();
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Unable to start payment.");
+    } finally {
+      setPayingPaymentId(null);
+    }
+  };
+
+  const handleWalletTopup = async () => {
+    try {
+      const amount = Number(walletAmount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Enter a valid wallet top-up amount.");
+      }
+
+      setPayingPaymentId("__WALLET__");
+      setError(null);
+
+      if (!await loadRazorpay()) throw new Error("Could not load payment gateway.");
+
+      const orderPayload = await createCustomerWalletTopupOrder({ amount });
+
+      const checkout = new window.Razorpay({
+        key: orderPayload.keyId,
+        amount: orderPayload.order.amount,
+        currency: orderPayload.order.currency,
+        name: "Dairy Stream",
+        description: "Wallet Top-up",
+        order_id: orderPayload.order.id,
+        handler: async (res) => {
+          await verifyCustomerWalletTopup({
+            amount,
+            razorpay_order_id: res.razorpay_order_id,
+            razorpay_payment_id: res.razorpay_payment_id,
+            razorpay_signature: res.razorpay_signature,
+          });
+          await loadPayments();
+          setWalletTopupOpen(false);
+        },
+        theme: { color: "#111111" },
+      });
+      checkout.on("payment.failed", (r) =>
+        setError(r?.error?.description || "Wallet top-up failed. Please try again.")
+      );
+      checkout.open();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Unable to start wallet top-up.");
     } finally {
       setPayingPaymentId(null);
     }
@@ -254,7 +302,15 @@ export default function Payments() {
         </div>
 
         {/* ── Pay All CTA ── */}
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2 flex-wrap">
+          <button
+            onClick={() => setWalletTopupOpen(true)}
+            disabled={isBusy}
+            className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-800 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            <Wallet size={14} />
+            Add to Wallet
+          </button>
           <button
             onClick={() => handlePayNow(nextUnpaidPayment, { payAll: true })}
             disabled={isBusy || !nextUnpaidPayment || !hasDue}
@@ -268,6 +324,46 @@ export default function Payments() {
               : `Pay Now ${fmt(summary.monthlyDue)}`}
           </button>
         </div>
+
+        {walletTopupOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6">
+              <h4 className="text-xl font-bold text-gray-900">Add Money to Wallet</h4>
+              <p className="text-sm text-gray-500 mt-1">Top up instantly using UPI/cards/netbanking.</p>
+
+              <div className="mt-5">
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Amount</label>
+                <div className="mt-2 relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
+                  <input
+                    type="number"
+                    min="10"
+                    step="1"
+                    value={walletAmount}
+                    onChange={(e) => setWalletAmount(e.target.value)}
+                    className="w-full pl-8 pr-3 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-200"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={() => setWalletTopupOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleWalletTopup}
+                  disabled={payingPaymentId === "__WALLET__"}
+                  className="px-5 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 disabled:bg-gray-300"
+                >
+                  {payingPaymentId === "__WALLET__" ? "Opening checkout..." : "Continue"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Payment history ── */}
         <div className="bg-white rounded-2xl border border-gray-100">

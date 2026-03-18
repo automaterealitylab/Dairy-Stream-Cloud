@@ -24,12 +24,56 @@ const EMPTY_FORM = {
   startDate: '',
   address: '',
   paymentMethod: 'UPI',
+  deliveryDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'],
+};
+
+const DAY_OPTIONS = [
+  { key: 'MONDAY', label: 'Monday' },
+  { key: 'TUESDAY', label: 'Tuesday' },
+  { key: 'WEDNESDAY', label: 'Wednesday' },
+  { key: 'THURSDAY', label: 'Thursday' },
+  { key: 'FRIDAY', label: 'Friday' },
+  { key: 'SATURDAY', label: 'Saturday' },
+  { key: 'SUNDAY', label: 'Sunday' },
+];
+
+const normalizeDeliveryDays = (value) => {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value
+        .map((day) => String(day || '').trim().toUpperCase())
+        .filter(Boolean)
+    )];
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return [...new Set(
+          parsed
+            .map((day) => String(day || '').trim().toUpperCase())
+            .filter(Boolean)
+        )];
+      }
+    } catch {
+      return [...new Set(
+        value
+          .split(',')
+          .map((day) => day.trim().toUpperCase())
+          .filter(Boolean)
+      )];
+    }
+  }
+
+  return [];
 };
 
 // ✅ UI Mapper
 const toUiSubscription = (record) => {
   if (!record) return null;
   const slot = record.delivery_slot || 'Morning';
+  const resolvedDeliveryDays = normalizeDeliveryDays(record.delivery_days);
   return {
     dairyId: record.dairy_id ?? null,
     product: record.milk_type || 'Milk',
@@ -42,6 +86,10 @@ const toUiSubscription = (record) => {
     startDate: record.start_date || '',
     address: record.address || '',
     paymentMethod: record.payment_method || 'UPI',
+    deliveryDays:
+      resolvedDeliveryDays.length > 0
+        ? resolvedDeliveryDays
+        : DAY_OPTIONS.map((day) => day.key),
   };
 };
 
@@ -56,6 +104,7 @@ const toSavePayload = (model, overrides = {}) => {
     startDate: next.startDate || undefined,
     address: next.address || '',
     paymentMethod: next.paymentMethod || 'UPI',
+    deliveryDays: normalizeDeliveryDays(next.deliveryDays),
     status: (next.status || 'ACTIVE').toUpperCase(),
     approvalStatus: (next.approvalStatus || 'PENDING').toUpperCase(),
     assignedAgentId: next.assignedAgentId ?? null,
@@ -437,6 +486,43 @@ const Subscribe = () => {
                 onChange={(e) => setFormData({ ...formData, timeRange: e.target.value })}
               />
             </InputBlock>
+
+            <div className="md:col-span-2">
+              <InputBlock label="Delivery Days">
+                <div className="rounded-2xl border bg-gray-50 divide-y">
+                  {DAY_OPTIONS.map((day) => {
+                    const checked = Array.isArray(formData.deliveryDays)
+                      ? formData.deliveryDays.includes(day.key)
+                      : false;
+
+                    return (
+                      <label key={day.key} className="flex items-center justify-between px-4 py-3 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700">{day.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const current = Array.isArray(formData.deliveryDays)
+                              ? formData.deliveryDays
+                              : [];
+
+                            const nextDays = e.target.checked
+                              ? [...new Set([...current, day.key])]
+                              : current.filter((item) => item !== day.key);
+
+                            setFormData({
+                              ...formData,
+                              deliveryDays: nextDays,
+                            });
+                          }}
+                          className="h-5 w-5 accent-blue-600"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </InputBlock>
+            </div>
           </div>
           <ModalFooter
             onCancel={() => setShowUpdateModal(false)}

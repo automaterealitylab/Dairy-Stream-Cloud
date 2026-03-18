@@ -3,6 +3,15 @@ import { supabase } from "../../config/supabase.js";
 const SUBSCRIPTION_DELIVERY_MARKER = "[SUBSCRIPTION_DAILY]";
 const ONE_TIME_ORDER_MARKER = "[ONE_TIME_ORDER]";
 const SUBSCRIPTION_PAYMENT_MARKER = "[SUBSCRIPTION_DELIVERY_PAYMENT]";
+const WEEKDAY_KEYS = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+];
 
 const getLocalTodayIso = () => {
   const now = new Date();
@@ -23,6 +32,34 @@ const isDeliverableSubscription = (status, approvalStatus) =>
   String(approvalStatus || "APPROVED").trim().toUpperCase() === "APPROVED";
 
 const normalizeDeliveryStatus = (status) => String(status || "").trim().toUpperCase();
+
+const normalizeDeliveryDays = (value) => {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value
+        .map((item) => String(item || "").trim().toUpperCase())
+        .filter((item) => WEEKDAY_KEYS.includes(item))
+    )];
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim().toUpperCase())
+        .filter((item) => WEEKDAY_KEYS.includes(item))
+    )];
+  }
+
+  return [];
+};
+
+const getWeekdayForDate = (targetDate) => {
+  if (!isValidDateString(targetDate)) return null;
+  const dt = new Date(`${targetDate}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return WEEKDAY_KEYS[dt.getDay()] || null;
+};
 
 const isDeliveredStatus = (status) => {
   const value = normalizeDeliveryStatus(status);
@@ -72,7 +109,7 @@ const getLatestDeliverableSubscription = async (customerId) => {
   const { data, error } = await supabase
     .from("subscriptions")
     .select(
-      "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, updated_at, created_at"
+      "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, delivery_days, updated_at, created_at"
     )
     .eq("customer_id", customerId)
     .order("updated_at", { ascending: false })
@@ -168,6 +205,12 @@ const ensureDailyDeliveryForSubscription = async ({
 
   if (subscription?.start_date && String(subscription.start_date) > targetDate) {
     return { created: false, reason: "before_start_date" };
+  }
+
+  const targetWeekday = getWeekdayForDate(targetDate);
+  const selectedDays = normalizeDeliveryDays(subscription?.delivery_days);
+  if (selectedDays.length > 0 && (!targetWeekday || !selectedDays.includes(targetWeekday))) {
+    return { created: false, reason: "weekday_not_selected" };
   }
 
   const { data: existingRows, error: existingError } = await supabase
@@ -365,7 +408,7 @@ export const runDailySubscriptionAutomationForAllCustomers = async ({
   const { data: subscriptions, error } = await supabase
     .from("subscriptions")
     .select(
-      "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, updated_at, created_at"
+      "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, delivery_days, updated_at, created_at"
     )
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })

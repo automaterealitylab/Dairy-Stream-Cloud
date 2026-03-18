@@ -123,6 +123,16 @@ export const verifyCustomerPayment = async (payload) => {
   return data;
 };
 
+export const createCustomerWalletTopupOrder = async (payload) => {
+  const { data } = await client.post("/customer/payments/wallet/order", payload);
+  return data;
+};
+
+export const verifyCustomerWalletTopup = async (payload) => {
+  const { data } = await client.post("/customer/payments/wallet/verify", payload);
+  return data;
+};
+
 // 4. SUBSCRIPTION MANAGEMENT
 export const fetchCustomerSubscription = async () => {
   const { data } = await client.get("/customer/subscription");

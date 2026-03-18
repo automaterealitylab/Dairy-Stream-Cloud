@@ -222,6 +222,21 @@ export const updateAdminPaymentStatus = async (id, status) => {
   return data;
 };
 
+export const collectAdminOfflinePayment = async ({
+  customerId,
+  receivedAmount,
+  method = "CASH",
+  note = "",
+} = {}) => {
+  const { data } = await client.post("/admin/payments/offline-collect", {
+    customerId,
+    receivedAmount,
+    method,
+    note,
+  });
+  return data;
+};
+
 export const updateAdminFarmPlan = async (plan) => {
   const { data } = await client.patch("/admin/farm-plan", { plan });
   return data;

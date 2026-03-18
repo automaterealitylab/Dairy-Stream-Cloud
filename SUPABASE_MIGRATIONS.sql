@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS public.customers (
   default_milk_quantity_liters NUMERIC(10, 2) DEFAULT 1.0,
   default_extra_product VARCHAR(255) DEFAULT 'None',
   default_extra_product_quantity NUMERIC(10, 2) DEFAULT 0,
+  wallet_balance NUMERIC(12, 2) DEFAULT 0,
+  outstanding_balance NUMERIC(12, 2) DEFAULT 0,
   billing_cycle VARCHAR(50) DEFAULT 'Monthly',
   date_joined TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -107,6 +109,10 @@ ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS dairy_id BIGINT;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_customers_dairy_id ON public.customers(dairy_id);
 
 -- ============================================
@@ -123,6 +129,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   start_date DATE,
   address TEXT,
   payment_method VARCHAR(100),
+  delivery_days JSONB,
   status VARCHAR(50) DEFAULT 'ACTIVE',
   approval_status VARCHAR(50) DEFAULT 'APPROVED',
   assigned_agent_id BIGINT,
@@ -147,6 +154,8 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100);
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS delivery_days JSONB;
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE';
 ALTER TABLE public.subscriptions
