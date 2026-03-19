@@ -750,46 +750,48 @@ export default function DairyCustomerDashboard() {
         const orderId = response?.order?.id || null;
         const paymentId = getExtraOrderPaymentId(response);
 
-      if (!orderId || !paymentId) {
-        await rollbackCancelledExtraOrder({ orderId, paymentId });
-        setAddExtraError("Could not start payment. The extra order was not placed.");
-        return;
-      }
+        if (!orderId || !paymentId) {
+          await rollbackCancelledExtraOrder({ orderId, paymentId });
+          setAddExtraError("Could not start payment. The extra order was not placed.");
+          return;
+        }
 
-      let paymentResult = null;
-      try {
-        paymentResult = await processExtraOnlinePayment(paymentId, selectedAddExtraProduct.name);
-      } catch (paymentErr) {
-        if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
-          showToast("Payment received but verification failed. Check Payments.", "warning");
+        let paymentResult = null;
+        try {
+          paymentResult = await processExtraOnlinePayment(paymentId, selectedAddExtraProduct.name);
+        } catch (paymentErr) {
+          if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
+            showToast("Payment received but verification failed. Check Payments.", "warning");
+            setShowAddExtraModal(false);
+            navigate("/customer/dashboard/payments");
+            refreshDashboard().catch(() => {});
+            return;
+          }
+
+          await rollbackCancelledExtraOrder({ orderId, paymentId });
+          setAddExtraError(paymentErr?.message || "Payment cancelled. The extra order was not placed.");
+          return;
+        }
+
+        if (paymentResult?.paid) {
+          showToast("Extra order placed for tomorrow.", "success");
           setShowAddExtraModal(false);
-          navigate("/customer/dashboard/payments");
           refreshDashboard().catch(() => {});
           return;
         }
 
+        if (paymentResult?.dismissed || paymentResult?.failed) {
+          await rollbackCancelledExtraOrder({ orderId, paymentId });
+          setAddExtraError(
+            paymentResult?.reason || "Payment was cancelled. The extra order was not placed."
+          );
+          return;
+        }
+
         await rollbackCancelledExtraOrder({ orderId, paymentId });
-        setAddExtraError(paymentErr?.message || "Payment cancelled. The extra order was not placed.");
+        setAddExtraError("Payment was not completed. The extra order was not placed.");
         return;
       }
-
-      if (paymentResult?.paid) {
-        showToast("Extra order placed for tomorrow.", "success");
-        setShowAddExtraModal(false);
-        refreshDashboard().catch(() => {});
-        return;
-      }
-
-      if (paymentResult?.dismissed || paymentResult?.failed) {
-        await rollbackCancelledExtraOrder({ orderId, paymentId });
-        setAddExtraError(
-          paymentResult?.reason || "Payment was cancelled. The extra order was not placed."
-        );
-        return;
-      }
-
-      await rollbackCancelledExtraOrder({ orderId, paymentId });
-      setAddExtraError("Payment was not completed. The extra order was not placed.");
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || "Failed to place extra order.";
       if (!allowDuplicate && /already exists/i.test(message)) {
