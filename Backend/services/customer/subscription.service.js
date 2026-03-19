@@ -7,7 +7,11 @@ import { invalidateCustomerDashboardCache } from "./dashboardCache.service.js";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
-  return message.includes("column") && message.includes("does not exist");
+  return (
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("column")) ||
+    message.includes("schema cache")
+  );
 };
 
 const isSpecificMissingColumnError = (error, columnName) => {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
 import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { fetchPublicDairyById } from '../../api/public.api.js';
 import {
   fetchCustomerSubscription,
   getCachedCustomerSubscription,
@@ -39,6 +40,36 @@ const DAY_OPTIONS = [
   { key: 'SATURDAY', label: 'Saturday' },
   { key: 'SUNDAY', label: 'Sunday' },
 ];
+
+const isMilkLikeProduct = (item = {}) => {
+  const normalizedType = String(item.type || 'MILK').trim().toUpperCase();
+  const normalizedName = String(item.name || '').trim().toUpperCase();
+  return normalizedType.includes('MILK') || normalizedName.includes('MILK');
+};
+
+const normalizeSubscriptionProducts = (dairy = {}) => {
+  const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
+  if (explicitItems.length > 0) {
+    return explicitItems
+      .map((item) => ({
+        id: item.id || item.name,
+        name: String(item.name || '').trim(),
+        type: String(item.type || 'MILK').trim().toUpperCase(),
+        ratePerUnit: Number(item.ratePerUnit || 0),
+        stockQuantity: Number(item.stockQuantity || 0),
+      }))
+      .filter((item) => item.name && isMilkLikeProduct(item));
+  }
+
+  const legacyProducts = dairy?.products || {};
+  return Object.keys(legacyProducts).map((name) => ({
+    id: name,
+    name,
+    type: 'MILK',
+    ratePerUnit: Number(legacyProducts[name] || 0),
+    stockQuantity: Number.POSITIVE_INFINITY,
+  }));
+};
 
 const normalizeDeliveryDays = (value) => {
   if (Array.isArray(value)) {
@@ -131,6 +162,9 @@ const Subscribe = () => {
 
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState('');
 
   const [toast, setToast] = useState(null);
   const [closing, setClosing] = useState(false);
@@ -226,6 +260,50 @@ const Subscribe = () => {
       localStorage.removeItem("guest_dairy_name");
     }
   }, [loading, hasActivePlan]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAvailableProducts = async () => {
+      if (!showUpdateModal || !subscription?.dairyId) return;
+
+      setProductsLoading(true);
+      setProductsError('');
+      try {
+        const response = await fetchPublicDairyById(subscription.dairyId);
+        const dairy = response?.dairy || null;
+        const products = normalizeSubscriptionProducts(dairy);
+
+        if (cancelled) return;
+
+        setAvailableProducts(products);
+
+        if (products.length === 0) {
+          setProductsError('No milk products are available in this dairy right now.');
+          return;
+        }
+
+        const hasSelectedProduct = products.some((item) => item.name === formData.product);
+        if (!hasSelectedProduct) {
+          setFormData((prev) => ({ ...prev, product: products[0].name }));
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setAvailableProducts([]);
+        setProductsError(error?.message || 'Failed to load dairy products.');
+      } finally {
+        if (!cancelled) {
+          setProductsLoading(false);
+        }
+      }
+    };
+
+    loadAvailableProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showUpdateModal, subscription?.dairyId, formData.product]);
 
   const showToastMessage = (type, message) => {
     setToast({ type, message });
@@ -476,19 +554,32 @@ const Subscribe = () => {
             subtitle="Manage your milk delivery"
             onClose={() => setShowUpdateModal(false)}
           />
-          <div className="px-8 py-6 grid md:grid-cols-2 gap-5">
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            <div className="grid md:grid-cols-2 gap-5">
             <InputBlock label="Product">
-              <select
-                className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] p-3 outline-none focus:ring-2 focus:ring-[#D4B896]"
-                value={formData.product}
-                onChange={(e) => setFormData({ ...formData, product: e.target.value })}
-              >
-                <option>Buffalo Milk</option>
-                <option>Cow Milk</option>
-                <option>Full Cream</option>
-                <option>Toned</option>
-                <option>Double Toned</option>
-              </select>
+              <>
+                <select
+                  className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] p-3 outline-none focus:ring-2 focus:ring-[#D4B896] disabled:opacity-60"
+                  value={formData.product}
+                  onChange={(e) => setFormData({ ...formData, product: e.target.value })}
+                  disabled={productsLoading || availableProducts.length === 0}
+                >
+                  {productsLoading ? (
+                    <option>Loading products...</option>
+                  ) : availableProducts.length > 0 ? (
+                    availableProducts.map((item) => (
+                      <option key={item.id} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option>No milk products available</option>
+                  )}
+                </select>
+                {productsError && (
+                  <p className="mt-2 text-xs font-medium text-[#C0392B]">{productsError}</p>
+                )}
+              </>
             </InputBlock>
 
             <InputBlock label="Quantity (Liters)">
@@ -556,6 +647,7 @@ const Subscribe = () => {
                   })}
                 </div>
               </InputBlock>
+            </div>
             </div>
           </div>
           <ModalFooter
@@ -657,9 +749,11 @@ const ExploreOtherDairiesSection = ({ onExplore }) => (
 );
 
 const ModalWrapper = ({ children, small }) => (
-  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in">
-    <div className={`w-full animate-in zoom-in-95 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF7] shadow-2xl ${small ? 'max-w-md' : 'max-w-xl'}`}>
+  <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4 backdrop-blur-sm animate-in fade-in sm:p-6">
+    <div className="flex min-h-full items-center justify-center">
+      <div className={`flex w-full max-h-[90vh] flex-col overflow-hidden animate-in zoom-in-95 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF7] shadow-2xl ${small ? 'max-w-md' : 'max-w-xl'}`}>
       {children}
+      </div>
     </div>
   </div>
 );

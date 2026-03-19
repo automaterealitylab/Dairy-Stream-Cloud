@@ -112,16 +112,42 @@ function getDeliveryTypeLabel(delivery = {}) {
 function DeliveryRow({ item, muted = false }) {
   const cfg  = getCfg(item.status);
   const Icon = cfg.icon;
+  const hasIssue = Boolean(String(item?.customerIssue || '').trim());
+  const issueStatus = String(item?.issueStatus || '').toUpperCase();
+  const hasAdminAction = Boolean(String(item?.issueAdminAction || '').trim());
+  const Divider = () => <span className="mx-1 text-[#D8C8B2]">|</span>;
   return (
-    <div className={`flex items-center gap-4 border-b border-[#F2EDE4] px-6 py-4 transition-colors hover:bg-[#FBF7F0] last:border-none ${muted ? 'opacity-45' : ''}`}>
+    <div className={`flex items-start gap-4 border-b border-[#F2EDE4] px-6 py-4 transition-colors hover:bg-[#FBF7F0] last:border-none ${muted ? 'opacity-45' : ''}`}>
       <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${cfg.iconBg}`}>
         <Icon size={18} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={`truncate font-semibold ${muted ? 'text-sm text-[#8B7355]' : 'text-sm text-[#2C1A0E]'}`}>
-          {item.qty} {item.product}
+          {getDeliveryTypeLabel(item)} • {item.qty} {item.product}
         </p>
-        <p className="mt-0.5 text-xs text-[#A88763]">{cfg.sub(item)}</p>
+        <p className="mt-0.5 text-xs text-[#A88763]">
+          <span>{cfg.sub(item)}</span>
+          {hasIssue && <Divider />}
+          {hasIssue && (
+            <span className="font-medium text-rose-700">
+              Reported Issue: {item.customerIssue}
+            </span>
+          )}
+          {hasIssue && issueStatus === 'OPEN' && (
+            <>
+              <Divider />
+              <span className="font-medium text-amber-700">Pending resolution</span>
+            </>
+          )}
+          {hasAdminAction && (
+            <>
+              <Divider />
+              <span className="font-medium text-emerald-700">
+                Action Taken: {item.issueAdminAction}
+              </span>
+            </>
+          )}
+        </p>
       </div>
       <div className="text-right flex-shrink-0">
         <p className="mb-1 text-xs text-[#C4A882]">{item.date}</p>

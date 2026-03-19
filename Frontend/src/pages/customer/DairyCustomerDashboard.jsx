@@ -279,6 +279,9 @@ export default function DairyCustomerDashboard() {
   const [savingPause, setSavingPause] = useState(false);
   const [pendingSubscriptionStatus, setPendingSubscriptionStatus] = useState(null);
   const [toast, setToast] = useState(null);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueText, setIssueText] = useState("");
+  const [reportingIssue, setReportingIssue] = useState(false);
   const [showAddExtraModal, setShowAddExtraModal] = useState(false);
   const [addExtraLoading, setAddExtraLoading] = useState(false);
   const [addExtraSubmitting, setAddExtraSubmitting] = useState(false);
@@ -380,6 +383,11 @@ export default function DairyCustomerDashboard() {
   const hasIssue = Boolean(String(today?.customerIssue || "").trim());
   const issueStatus = String(today?.issueStatus || "").toUpperCase();
   const hasAdminAction = Boolean(String(today?.issueAdminAction || "").trim());
+  const reportId = Number(today?.deliveryId ?? today?.id);
+  const canReportIssue =
+    Number.isFinite(reportId) &&
+    reportId > 0 &&
+    !["NOT_SUBSCRIBED", "NOT_SCHEDULED"].includes(String(today?.status || "").toUpperCase());
   const pauseToggleLabel = savingPause
     ? pendingSubscriptionStatus === "PAUSED"
       ? "Pausing..."
@@ -433,11 +441,6 @@ export default function DairyCustomerDashboard() {
   const addExtraTotal = Number(
     (Number(selectedAddExtraProduct?.ratePerUnit || 0) * Number(addExtraForm.quantity || 0)).toFixed(2)
   );
-  const addExtraFooterSummary = selectedAddExtraProduct
-    ? `${formatMeasureValue(addExtraQuantity || 0)} ${selectedAddExtraUnitShort} ${
-        selectedAddExtraProduct.name
-      } \u2022 ${addExtraForm.slot} slot \u2022 ${nextExtraDeliveryLabel}`
-    : `Extra order for ${nextExtraDeliveryLabel} \u2022 ${addExtraForm.slot} slot`;
   const canSubmitAddExtraOrder =
     !addExtraLoading &&
     !addExtraSubmitting &&
@@ -1033,16 +1036,11 @@ export default function DairyCustomerDashboard() {
                   Track Agent
                 </button>
                 <button
-                  onClick={() => navigate("/customer/dashboard/deliveries")}
-                  disabled={
-                    !Number.isFinite(Number(today?.deliveryId ?? today?.id)) ||
-                    ["NOT_SUBSCRIBED", "NOT_SCHEDULED"].includes(
-                      String(today?.status || "").toUpperCase()
-                    )
-                  }
+                  onClick={openIssueModal}
+                  disabled={!canReportIssue || reportingIssue}
                   className="rounded-[14px] border border-[#F2D0C8]/70 bg-[#FDECEA] px-4 py-2.5 text-xs font-bold text-[#A33A2B] transition hover:bg-[#F8DDD6]"
                 >
-                  Report Issue
+                  {reportingIssue ? "Reporting..." : "Report Issue"}
                 </button>
               </div>
             </div>
@@ -1068,30 +1066,34 @@ export default function DairyCustomerDashboard() {
         )}
 
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4 lg:gap-5">
-          {ACTIONS.map(({ key, label, Icon, bg, text, border }) => (
-            <button
-              key={key}
-              onClick={() => handleAction(key)}
-              disabled={key === "pause" && !canTogglePause}
-              className={`rounded-[20px] border bg-[#FFFDF7] px-4 py-4 text-left transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)] disabled:cursor-not-allowed disabled:opacity-50 ${border}`}
-            >
-              <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[14px] ${bg} ${text}`}>
-                {key === "pause" && isPaused ? <PlayCircle size={20} /> : <Icon size={20} />}
-              </div>
-              <span className="text-sm font-bold text-[#2C1A0E]">
-                {key === "pause" ? pauseToggleLabel : label}
-              </span>
-              <p className="mt-1 text-xs text-[#B89970]">
-                {key === "pause"
-                  ? pauseToggleHelper
-                  : key === "add"
-                  ? "Choose extra products for tomorrow"
-                  : key === "deliveries"
-                  ? "Review delivery history"
-                  : "Open payment center"}
-              </p>
-            </button>
-          ))}
+          {ACTIONS.map((action) => {
+            const ActionIcon = action.Icon;
+
+            return (
+              <button
+                key={action.key}
+                onClick={() => handleAction(action.key)}
+                disabled={action.key === "pause" && !canTogglePause}
+                className={`rounded-[20px] border bg-[#FFFDF7] px-4 py-4 text-left transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)] disabled:cursor-not-allowed disabled:opacity-50 ${action.border}`}
+              >
+                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[14px] ${action.bg} ${action.text}`}>
+                  {action.key === "pause" && isPaused ? <PlayCircle size={20} /> : <ActionIcon size={20} />}
+                </div>
+                <span className="text-sm font-bold text-[#2C1A0E]">
+                  {action.key === "pause" ? pauseToggleLabel : action.label}
+                </span>
+                <p className="mt-1 text-xs text-[#B89970]">
+                  {action.key === "pause"
+                    ? pauseToggleHelper
+                    : action.key === "add"
+                    ? "Choose extra products for tomorrow"
+                    : action.key === "deliveries"
+                    ? "Review delivery history"
+                    : "Open payment center"}
+                </p>
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -1526,13 +1528,7 @@ export default function DairyCustomerDashboard() {
                     <button
                       type="button"
                       onClick={() => handleSubmitExtraOrder(false)}
-                      disabled={
-                        addExtraLoading ||
-                        addExtraSubmitting ||
-                        !selectedAddExtraProduct ||
-                        isAddExtraOutOfStock ||
-                        doesAddExtraExceedStock
-                      }
+                      disabled={!canSubmitAddExtraOrder}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:bg-[#D8C8B2] disabled:text-white/70"
                     >
                       {addExtraSubmitting ? (
@@ -1562,6 +1558,19 @@ export default function DairyCustomerDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {showIssueModal && (
+          <ReportIssueModal
+            issueText={issueText}
+            saving={reportingIssue}
+            onClose={() => {
+              if (reportingIssue) return;
+              setShowIssueModal(false);
+            }}
+            onChange={setIssueText}
+            onSubmit={submitIssue}
+          />
         )}
 
         {showAddExtraModal && showDuplicateExtraConfirm && (
