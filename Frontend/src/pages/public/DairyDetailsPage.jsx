@@ -23,26 +23,17 @@ import {
   saveCustomerSubscription,
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { buildCustomerAddress } from "../../utils/customerAddress.js";
 
-const buildAddressFromParts = (source = {}) => {
-  const directAddress = [
-    source.address,
-    source.fullAddress,
-    source.areaSectorLocality,
-  ].find((value) => typeof value === "string" && value.trim().length > 0);
-
-  if (directAddress) return directAddress.trim();
-
-  const parts = [
-    source.building_name || source.buildingName || "",
-    source.wing || "",
-    source.room_no || source.roomNo || "",
-  ]
-    .map((part) => String(part || "").trim())
-    .filter(Boolean);
-
-  return parts.join(", ");
-};
+const DAY_OPTIONS = [
+  { key: "MONDAY", label: "Mon" },
+  { key: "TUESDAY", label: "Tue" },
+  { key: "WEDNESDAY", label: "Wed" },
+  { key: "THURSDAY", label: "Thu" },
+  { key: "FRIDAY", label: "Fri" },
+  { key: "SATURDAY", label: "Sat" },
+  { key: "SUNDAY", label: "Sun" },
+];
 
 const normalizeProducts = (dairy = {}) => {
   const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
@@ -94,6 +85,7 @@ const DairyDetailsPage = () => {
     quantity: 1,
     slot: "Morning",
     startDate: new Date().toISOString().slice(0, 10),
+    deliveryDays: DAY_OPTIONS.map((day) => day.key),
   });
 
   useEffect(() => {
@@ -111,15 +103,23 @@ const DairyDetailsPage = () => {
           } catch {
             setExistingSubscription(null);
           }
+
+          try {
+            const profile = await fetchCustomerProfile();
+            setAddress(buildCustomerAddress(profile));
+          } catch {
+            const storedUser = localStorage.getItem("user");
+            if (storedUser) {
+              try {
+                const user = JSON.parse(storedUser);
+                setAddress(buildCustomerAddress(user?.user || user || {}));
+              } catch {
+                // ignore malformed localStorage
+              }
+            }
+          }
         } else {
           setExistingSubscription(null);
-        }
-        
-        // Load User Address from local storage
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          setAddress(user?.user?.address || user?.address || "");
         }
       } catch (err) {
         toast.error("Error loading dairy details");
@@ -191,6 +191,7 @@ const DairyDetailsPage = () => {
         quantity: Number(subscription.quantity),
         slot: subscription.slot,
         startDate: subscription.startDate,
+        deliveryDays: subscription.deliveryDays,
         address: address,
         paymentMethod: paymentMethod,
         pricePerLiter: currentPrice,
@@ -411,6 +412,30 @@ const handleContinueFromStep2 = () => {
                         <option>Morning</option>
                         <option>Evening</option>
                       </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold">Delivery Days</label>
+                    <div className="grid grid-cols-7 gap-2">
+                      {DAY_OPTIONS.map((day) => {
+                        const selected = subscription.deliveryDays.includes(day.key);
+                        return (
+                          <button
+                            key={day.key}
+                            type="button"
+                            onClick={() => {
+                              const next = selected
+                                ? subscription.deliveryDays.filter((item) => item !== day.key)
+                                : [...subscription.deliveryDays, day.key];
+                              setSubscription({ ...subscription, deliveryDays: next });
+                            }}
+                            className={`py-2 rounded-xl text-xs font-bold border ${selected ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200"}`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <button onClick={() => setStep(2)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all">Continue to Address</button>

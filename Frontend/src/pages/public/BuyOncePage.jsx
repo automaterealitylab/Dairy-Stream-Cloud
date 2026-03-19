@@ -7,10 +7,12 @@ import {
   cancelCustomerOneTimeOrder,
   createCustomerOneTimeOrder,
   createCustomerPaymentOrder,
+  fetchCustomerProfile,
   fetchCustomerSubscription,
   verifyCustomerPayment,
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { buildCustomerAddress } from "../../utils/customerAddress.js";
 
 const toDateInput = (dateValue = new Date()) => {
   const date = new Date(dateValue);
@@ -182,21 +184,29 @@ const BuyOncePage = () => {
           } catch {
             setHasSubscriptionForThisDairy(false);
           }
-        } else {
-          setHasSubscriptionForThisDairy(false);
-        }
 
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
           try {
-            const parsed = JSON.parse(storedUser);
-            const nextAddress = parsed?.user?.address || parsed?.address || "";
+            const profile = await fetchCustomerProfile();
+            const nextAddress = buildCustomerAddress(profile);
             if (nextAddress) {
               setForm((prev) => ({ ...prev, address: nextAddress }));
             }
           } catch {
-            // ignore malformed localStorage
+            const storedUser = localStorage.getItem("user");
+            if (storedUser) {
+              try {
+                const parsed = JSON.parse(storedUser);
+                const nextAddress = buildCustomerAddress(parsed?.user || parsed || {});
+                if (nextAddress) {
+                  setForm((prev) => ({ ...prev, address: nextAddress }));
+                }
+              } catch {
+                // ignore malformed localStorage
+              }
+            }
           }
+        } else {
+          setHasSubscriptionForThisDairy(false);
         }
       } catch {
         toast.error("Failed to load dairy details");

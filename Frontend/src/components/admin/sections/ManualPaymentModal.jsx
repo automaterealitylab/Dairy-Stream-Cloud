@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { IndianRupee, Check, Wallet } from 'lucide-react';
 
 const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
-  const [received, setReceived] = useState(delivery.amount_due || 0);
+  const totalBill = Number(delivery?.amount_due ?? delivery?.amount ?? 0);
+  const [received, setReceived] = useState(totalBill || 0);
   const [method, setMethod] = useState('CASH');
+  const [note, setNote] = useState('');
 
   // Logic: Negative means they paid EXTRA (Credit)
-  const balance = delivery.amount_due - received;
+  const numericReceived = Number(received || 0);
+  const balance = Number((totalBill - numericReceived).toFixed(2));
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -16,7 +19,7 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
         <div className="space-y-5">
           <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <span className="text-xs font-bold text-slate-400 uppercase">Total Bill</span>
-            <p className="text-2xl font-black text-slate-700">₹{delivery.amount_due}</p>
+            <p className="text-2xl font-black text-slate-700">₹{totalBill}</p>
           </div>
 
           <div>
@@ -28,6 +31,30 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
                 className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl font-black outline-none focus:ring-4 focus:ring-blue-100"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-black uppercase text-gray-400 ml-1">Payment Method</label>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              className="w-full mt-2 px-4 py-4 bg-gray-50 rounded-2xl font-black outline-none focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="CASH">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-black uppercase text-gray-400 ml-1">Note (optional)</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Receipt no / remark"
+              className="w-full mt-2 px-4 py-4 bg-gray-50 rounded-2xl font-bold outline-none focus:ring-4 focus:ring-blue-100"
+            />
           </div>
 
           {/* Balance / Credit Notification */}
@@ -44,7 +71,13 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} className="flex-1 py-4 font-bold text-gray-400">Cancel</button>
             <button 
-              onClick={() => onSave({ received, method, balance })} 
+              onClick={() => onSave({
+                received: numericReceived,
+                method,
+                balance,
+                note,
+              })}
+              disabled={!Number.isFinite(numericReceived) || numericReceived <= 0}
               className="flex-[2] bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2"
             >
               <Check size={18} /> Save Payment

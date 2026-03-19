@@ -32,6 +32,24 @@ const isActiveSubscriptionStatus = (status) => {
 
 const normalizeRouteValue = (value) => String(value || "").trim().toLowerCase();
 
+const WEEKDAY_KEYS = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+];
+
+const normalizeDeliveryDays = (value) => {
+  if (!Array.isArray(value)) return [];
+  const normalized = value
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter((item) => WEEKDAY_KEYS.includes(item));
+  return [...new Set(normalized)];
+};
+
 const findAutoAssignedAgentId = async ({ customerId, dairyId }) => {
   if (!customerId || !dairyId) return null;
 
@@ -233,6 +251,10 @@ export const upsertSubscription = async (customerId, payload) => {
     approval_status: normalizedApprovalStatus,
     assigned_agent_id: resolvedAssignedAgentId ?? null,
   };
+
+  if (payload.delivery_days !== undefined) {
+    body.delivery_days = normalizeDeliveryDays(payload.delivery_days);
+  }
 
   let data;
   let error;

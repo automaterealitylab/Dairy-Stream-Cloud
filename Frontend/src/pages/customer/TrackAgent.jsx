@@ -29,6 +29,13 @@ const getSafeStepIndex = (status) => {
   return index >= 0 ? index : 0;
 };
 
+const getDeliveryTypeLabel = (delivery = {}) => {
+  const normalizedType = String(delivery?.deliveryType || "").toUpperCase();
+  if (normalizedType === "ONE_TIME") return "One-time";
+  if (normalizedType === "SUBSCRIPTION") return "Subscription";
+  return delivery?.isOneTimeOrder ? "One-time" : "Subscription";
+};
+
 const TrackAgent = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -219,6 +226,10 @@ const TrackAgent = () => {
           <div className="flex justify-between items-center gap-4">
             <span className="text-[#8B7355]">Status</span>
             <span className="text-right font-bold text-[#2C1A0E]">{delivery.status || "-"}</span>
+          </div>
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-gray-600">Delivery Type</span>
+            <span className="font-bold text-right">{getDeliveryTypeLabel(delivery)}</span>
           </div>
         </div>
       </div>

@@ -9,6 +9,9 @@ import {
   patchAgentAvailability,
   fetchAgentSelfProfile,
   patchAssignedDeliveryStatus,
+  createAssignedDeliveryOnlineQr,
+  createAssignedDeliveryOnlineOrder,
+  verifyAssignedDeliveryOnlinePayment,
 } from "../controllers/agent/delivery.controller.js";
 import {
   updateAgentLocation,
@@ -27,6 +30,9 @@ router.get('/buildings', getUniqueBuildings);
 router.get("/dashboard", verifyAgent, fetchAgentDashboard);
 router.get("/deliveries/assigned", verifyAgent, fetchAssignedDeliveries);
 router.get("/deliveries/history", verifyAgent, fetchAgentHistory);
+router.post("/deliveries/:id/online-qr", verifyAgent, createAssignedDeliveryOnlineQr);
+router.post("/deliveries/:id/online-order", verifyAgent, createAssignedDeliveryOnlineOrder);
+router.post("/deliveries/:id/online-verify", verifyAgent, verifyAssignedDeliveryOnlinePayment);
 router.patch("/deliveries/:id/status", verifyAgent, patchAssignedDeliveryStatus);
 router.get("/profile", verifyAgent, fetchAgentSelfProfile);
 router.patch("/profile/availability", verifyAgent, patchAgentAvailability);

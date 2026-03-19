@@ -38,6 +38,9 @@ const DeliveryCard = ({ delivery, onStatusChange, onClick, onCompleteRequest }) 
           <div className="flex-1 cursor-pointer" onClick={() => onClick(delivery)}>
             <h4 className="font-semibold text-gray-800">{delivery.customerName}</h4>
             <p className="text-sm text-gray-600">{delivery.address}</p>
+            <p className="text-xs font-semibold text-blue-700 mt-1">
+              Type: {delivery.deliveryType || 'REGULAR'}
+            </p>
             <p className="text-sm text-gray-600 mt-1">
               Quantity: <span className="font-medium">{delivery.quantity}</span>
             </p>

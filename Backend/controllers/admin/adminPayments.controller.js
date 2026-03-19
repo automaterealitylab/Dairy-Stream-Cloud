@@ -46,3 +46,20 @@ export const changeFarmPlan = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const collectOfflinePayment = async (req, res) => {
+  try {
+    const { customerId, receivedAmount, method, note } = req.body || {};
+    const dairyId = req.admin.dairyId || null;
+    const result = await paymentService.collectCustomerOfflinePayment({
+      customerId: Number(customerId),
+      dairyId,
+      receivedAmount,
+      method,
+      note,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to record offline payment" });
+  }
+};

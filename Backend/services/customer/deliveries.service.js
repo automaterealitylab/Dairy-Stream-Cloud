@@ -30,6 +30,18 @@ const toPositiveId = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
+const buildCustomerAddress = (customer = {}) => {
+  const parts = [
+    customer?.building_name,
+    customer?.wing,
+    customer?.room_no,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return parts.join(", ");
+};
+
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
   return message.includes("column") && message.includes("does not exist");
@@ -74,6 +86,9 @@ const toSlotLabel = (slotKey) => {
 };
 
 const getSlotWindow = (slotKey) => SLOT_WINDOWS[String(slotKey || "").toUpperCase()] || null;
+
+const getDeliveryTypeLabel = (isOneTimeOrder) =>
+  isOneTimeOrder ? "ONE_TIME" : "SUBSCRIPTION";
 
 const parseOneTimeNotes = (notesValue) => {
   const notes = String(notesValue || "");
@@ -310,6 +325,7 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     parsedNotes.isOneTimeOrder && approvalStatus === "PENDING"
       ? "PENDING_APPROVAL"
       : normalizedStatus;
+  const deliveryType = getDeliveryTypeLabel(parsedNotes.isOneTimeOrder);
 
   return {
     id: String(row.id ?? `delivery-${index}`),
@@ -328,6 +344,7 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     paymentMethod: paymentMethod || "-",
     address: parsedNotes.address || null,
     isOneTimeOrder: parsedNotes.isOneTimeOrder,
+    deliveryType,
     customerIssue: parsedIssue.issue,
     issueReportedAt: parsedIssue.reportedAt,
     issueStatus: issueMeta.issueStatus,
@@ -390,6 +407,7 @@ const getTodayDeliveryFromRows = (
     paymentMethod: normalized.paymentMethod || null,
     address: normalized.address || null,
     isOneTimeOrder: Boolean(normalized.isOneTimeOrder),
+    deliveryType: normalized.deliveryType || getDeliveryTypeLabel(normalized.isOneTimeOrder),
     customerIssue: normalized.customerIssue || null,
     issueReportedAt: normalized.issueReportedAt || null,
     issueStatus: normalized.issueStatus || "NONE",
@@ -429,6 +447,7 @@ const getTodayDeliveryFallback = (subscription) => {
     paymentMethod: null,
     address: null,
     isOneTimeOrder: false,
+    deliveryType: "SUBSCRIPTION",
     customerIssue: null,
     issueReportedAt: null,
     issueStatus: "NONE",
@@ -619,6 +638,20 @@ const hasOpenSubscriptionForDairy = async ({ customerId, dairyId }) => {
   return (data || []).some((row) => hasOpenSubscriptionStatus(row?.status));
 };
 
+const getSavedCustomerAddress = async (customerId) => {
+  if (!customerId) return "";
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("building_name, wing, room_no")
+    .eq("id", customerId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return buildCustomerAddress(data);
+};
+
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
   await ensureCustomerSubscriptionDeliveryForDate({ customerId });
 
@@ -681,7 +714,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const allowDuplicate = toBoolean(payload?.allowDuplicate);
   const isExtraOrder = toBoolean(payload?.isExtraOrder);
   const paymentMethod = String(payload?.paymentMethod || "UPI").trim().toUpperCase();
-  const address = String(payload?.address || "").trim();
+  const inputAddress = String(payload?.address || "").trim();
   const slot = normalizeOneTimeSlot(payload?.slot);
   const pricePerLiterInput = toFiniteNumber(payload?.pricePerLiter ?? payload?.unitPrice);
 

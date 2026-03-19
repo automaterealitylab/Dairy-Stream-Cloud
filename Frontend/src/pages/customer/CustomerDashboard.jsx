@@ -449,6 +449,13 @@ const PostDeliveryDecisionCard = ({ dairyName, onSubscribe, onExplore }) => (
   </div>
 );
 
+const getDeliveryTypeLabel = (data = {}) => {
+  const normalizedType = String(data?.deliveryType || "").toUpperCase();
+  if (normalizedType === "ONE_TIME") return "One-time";
+  if (normalizedType === "SUBSCRIPTION") return "Subscription";
+  return data?.isOneTimeOrder ? "One-time" : "Subscription";
+};
+
 /* TODAY CARD */
 const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
   const isDelivered = data.status === "DELIVERED";
@@ -485,6 +492,9 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
           <div>
             <h3 className="text-base md:text-lg font-bold text-text-primary">{title}</h3>
             <p className="text-sm text-text-secondary mt-1">{data.quantity || "-"} • {data.product || "-"}</p>
+            <p className="text-xs text-text-muted mt-2">
+              Type: {getDeliveryTypeLabel(data)}
+            </p>
             {isApprovalPending && (
               <p className="text-xs text-indigo-700 mt-2 font-medium">
                 Your order is waiting for dairy admin approval.

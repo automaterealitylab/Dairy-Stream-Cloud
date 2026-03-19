@@ -14,9 +14,11 @@ import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import {
   createCustomerPaymentOrder,
+  createCustomerWalletTopupOrder,
   fetchCustomerPayments,
   getCachedCustomerPayments,
   verifyCustomerPayment,
+  verifyCustomerWalletTopup,
 } from "../../api/customer/customer.api.js";
 
 const headingFont = { fontFamily: "'Plus Jakarta Sans', sans-serif" };

@@ -35,6 +35,7 @@ import {
   deleteAdminAgentById,
 } from "../controllers/admin/adminagent.controller.js";
 import {
+  collectOfflinePayment,
   changeFarmPlan,
   fetchPageData,
   updateStatus,
@@ -128,6 +129,7 @@ router.post("/procurement", verifyAdmin, addProcurementLog); // Log new milk pur
 // ==========================================
 router.get("/payments", verifyAdmin, fetchPageData); // Fetch payment ledger data
 router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
+router.post("/payments/offline-collect", verifyAdmin, collectOfflinePayment); // Collect offline payment and add excess to wallet
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
 
 // ==========================================

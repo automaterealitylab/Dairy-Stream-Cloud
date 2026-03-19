@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
 import {
+  collectAdminOfflinePayment,
   fetchAdminPayments,
   updateAdminFarmPlan,
   updateAdminPaymentStatus,
@@ -65,6 +66,22 @@ export default function AdminPayments() {
       setEditingPayment(null);
     } catch (err) {
       toast.error("Failed to update status");
+    }
+  };
+
+  const handleOfflineCollect = async (payData) => {
+    try {
+      await collectAdminOfflinePayment({
+        customerId: activePaymentModal?.customerId,
+        receivedAmount: payData.received,
+        method: payData.method,
+        note: payData.note,
+      });
+      toast.success("Offline payment recorded");
+      setActivePaymentModal(null);
+      await loadPayments();
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "Failed to record offline payment");
     }
   };
 
@@ -236,7 +253,11 @@ export default function AdminPayments() {
 
       {/* COLLECT MODAL */}
       {activePaymentModal && (
-        <ManualPaymentModal delivery={activePaymentModal} onClose={() => setActivePaymentModal(null)} onSave={loadPayments} />
+        <ManualPaymentModal
+          delivery={activePaymentModal}
+          onClose={() => setActivePaymentModal(null)}
+          onSave={handleOfflineCollect}
+        />
       )}
     </div>
   );

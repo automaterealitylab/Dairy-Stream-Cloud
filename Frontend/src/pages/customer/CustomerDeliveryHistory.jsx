@@ -105,6 +105,29 @@ function toDeliveryViewState(data) {
 function DeliveryRow({ item, muted = false }) {
   const cfg  = getCfg(item.status);
   const Icon = cfg.icon;
+  const hasIssue = Boolean(String(item?.customerIssue || '').trim());
+  const issueStatus = String(item?.issueStatus || '').toUpperCase();
+  const hasAdminAction = Boolean(String(item?.issueAdminAction || '').trim());
+  const deliveryTypeLabel = getDeliveryTypeLabel(item);
+  const metaParts = [
+    <span key="delivery-meta">{cfg.sub(item)}</span>,
+    <span key="delivery-type">{deliveryTypeLabel}</span>,
+    hasIssue ? (
+      <span key="reported-issue" className="font-medium text-rose-700">
+        Reported Issue: {item.customerIssue}
+      </span>
+    ) : null,
+    hasIssue && issueStatus === 'OPEN' ? (
+      <span key="pending-issue" className="font-medium text-amber-700">
+        Status: Pending resolution
+      </span>
+    ) : null,
+    hasAdminAction ? (
+      <span key="admin-action" className="font-medium text-emerald-700">
+        Action Taken: {item.issueAdminAction}
+      </span>
+    ) : null,
+  ].filter(Boolean);
   return (
     <div className={`flex items-center gap-4 border-b border-[#F2EDE4] px-6 py-4 transition-colors hover:bg-[#FBF7F0] last:border-none ${muted ? 'opacity-45' : ''}`}>
       <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${cfg.iconBg}`}>
@@ -134,7 +157,7 @@ function CollapsedSummary({ items, onExpand }) {
     delivered ? `${delivered} delivered` : '',
     skipped   ? `${skipped} skipped`     : '',
     pending   ? `${pending} pending`     : '',
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(' Â· ');
 
   return (
     <button onClick={onExpand} className="w-full flex items-center justify-between px-6 py-3.5 text-left transition-colors hover:bg-[#FBF7F0]">
@@ -248,12 +271,35 @@ export default function Deliveries() {
   const todayStatus      = String(todayDelivery?.status || 'PENDING').toUpperCase();
   const todayCfg         = getCfg(todayStatus);
   const canTrack         = !!todayDelivery?.canTrackAgent;
+  const todayHasIssue    = Boolean(String(todayDelivery?.customerIssue || '').trim());
+  const todayIssueStatus = String(todayDelivery?.issueStatus || '').toUpperCase();
+  const todayHasAdminAction = Boolean(String(todayDelivery?.issueAdminAction || '').trim());
   const todayTimingLabel =
     todayStatus === 'DELIVERED'
       ? todayDelivery?.time ? `Delivered at ${todayDelivery.time}` : 'Delivered'
       : todayDelivery?.slotWindow  ? `Expected ${todayDelivery.slotWindow}`
       : todayDelivery?.slot && todayDelivery.slot !== '-' ? `${todayDelivery.slot} slot`
       : 'Expected today';
+  const todayMetaParts = [
+    <span key="today-meta">{todayTimingLabel}</span>,
+    <span key="today-type">{getDeliveryTypeLabel(todayDelivery)}</span>,
+    todayDelivery?.dairyName ? <span key="today-dairy">{todayDelivery.dairyName}</span> : null,
+    todayHasIssue ? (
+      <span key="today-issue" className="font-medium text-rose-700">
+        Reported Issue: {todayDelivery.customerIssue}
+      </span>
+    ) : null,
+    todayHasIssue && todayIssueStatus === 'OPEN' ? (
+      <span key="today-status" className="font-medium text-amber-700">
+        Status: Pending resolution
+      </span>
+    ) : null,
+    todayHasAdminAction ? (
+      <span key="today-action" className="font-medium text-emerald-700">
+        Action Taken: {todayDelivery.issueAdminAction}
+      </span>
+    ) : null,
+  ].filter(Boolean);
 
   const insightCards = [
     { label: insights.monthLabel ? `${insights.monthLabel} Deliveries` : 'Monthly', value: insights.monthlyDeliveryCount, color: 'text-[#4A7C2F]', iconBg: 'bg-[#EEF5E7] text-[#4A7C2F]', Icon: CalendarCheck2 },
@@ -264,7 +310,7 @@ export default function Deliveries() {
   return (
     <CustomerLayout>
       {/*
-        Single-column, full-width — matches the rest of the dashboard layout.
+        Single-column, full-width â€” matches the rest of the dashboard layout.
         No max-w constraint; CustomerLayout's own padding/max-w handles the outer bounds.
       */}
       <div className="space-y-8 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -289,7 +335,7 @@ export default function Deliveries() {
             className="inline-flex items-center gap-2 self-start rounded-[12px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2 text-xs font-semibold text-[#6B5B3E] transition hover:border-[#D97706] hover:text-[#B45309] disabled:opacity-40"
           >
             {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? 'Refreshingâ€¦' : 'Refresh'}
           </button>
         </div>
 
@@ -299,7 +345,7 @@ export default function Deliveries() {
           </div>
         )}
 
-        {/* ── Stat cards — always 3 columns ── */}
+        {/* â”€â”€ Stat cards â€” always 3 columns â”€â”€ */}
         {!loading && (
           <div className="mt-7 grid gap-5 sm:grid-cols-3">
             {insightCards.map(({ label, value, color, iconBg, Icon }) => (
@@ -319,7 +365,7 @@ export default function Deliveries() {
           </div>
         )}
 
-        {/* ── Today card — full width banner ── */}
+        {/* â”€â”€ Today card â€” full width banner â”€â”€ */}
         {todayDelivery && (
           <div className="relative mt-8 overflow-hidden rounded-[26px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_62%,#6B4F2A_100%)] p-7 sm:p-8">
             <MapPin className="absolute -right-4 -bottom-4 text-white/10" size={120} />
@@ -353,10 +399,13 @@ export default function Deliveries() {
                 </div>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-white/70">
                   <Clock size={11} className="flex-shrink-0" />
-                  {todayTimingLabel}
-                  {todayDelivery.dairyName && <span className="text-gray-300 mx-1">·</span>}
-                  {todayDelivery.dairyName && <span>{todayDelivery.dairyName}</span>}
-                </p>
+                  {todayMetaParts.map((part, index) => (
+                    <React.Fragment key={part.key || index}>
+                      {index > 0 && <span className="text-gray-300">|</span>}
+                      {part}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
               <button
                 onClick={() => navigate('/customer/dashboard/track/agent', { state: { delivery: todayDelivery } })}
@@ -370,7 +419,7 @@ export default function Deliveries() {
           </div>
         )}
 
-        {/* ── Recent deliveries ── */}
+        {/* â”€â”€ Recent deliveries â”€â”€ */}
         {loading ? (
           <div className="mt-8 flex flex-col items-center gap-3 rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] py-32">
             <Loader2 size={32} className="animate-spin text-[#B8641A]" />
@@ -415,3 +464,4 @@ export default function Deliveries() {
     </CustomerLayout>
   );
 }
+
