@@ -26,7 +26,6 @@ import {
   X,
   AlertCircle,
   Loader2,
-  MapPin,
 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -170,13 +169,6 @@ const isProductOutOfStock = (stockQuantity) => {
   return Number.isFinite(stock) && stock <= 0;
 };
 
-const formatProductStockLabel = (stockQuantity, unit) => {
-  const stock = Number(stockQuantity);
-  if (!Number.isFinite(stock)) return "Unlimited";
-  if (stock <= 0) return "Out of stock";
-  return `${formatMeasureValue(stock)} ${getProductUnitLabel(unit, { short: true })} available`;
-};
-
 const getStoredCustomerAddress = () => {
   const storedUser = localStorage.getItem("user");
   if (!storedUser) return "";
@@ -189,9 +181,21 @@ const getStoredCustomerAddress = () => {
   }
 };
 
-const normalizeAddExtraPaymentMethod = (value) => {
+const normalizeAddExtraPaymentOption = (value) => {
   const normalized = String(value || "").trim().toUpperCase();
-  return normalized === "COD" || normalized === "CASH" ? "COD" : "PAY_NOW";
+  if (["SUBSCRIPTION", "ADD_TO_SUBSCRIPTION", "MONTHLY_BILL"].includes(normalized)) {
+    return "ADD_TO_SUBSCRIPTION";
+  }
+  if (["COD", "CASH"].includes(normalized)) {
+    return "PAY_NOW_CASH";
+  }
+  return "PAY_NOW_ONLINE";
+};
+
+const getAddExtraOrderPaymentMethod = (option) => {
+  if (option === "ADD_TO_SUBSCRIPTION") return "MONTHLY_BILL";
+  if (option === "PAY_NOW_CASH") return "COD";
+  return "PAY_NOW";
 };
 
 const normalizeAddExtraSlot = (value) => {
@@ -259,6 +263,43 @@ const getTodayDeliveryMeta = (delivery = {}) => {
   };
 };
 
+const getPreferredExtraProductName = ({ subscription, tomorrow, today }) =>
+  String(
+    subscription?.milkType ||
+      tomorrow?.product ||
+      today?.product ||
+      ""
+  ).trim();
+
+const getPreferredExtraQuantity = ({ subscription, tomorrow, today }) => {
+  const rawQuantity = subscription?.quantity ?? tomorrow?.quantity ?? today?.quantity ?? 1;
+  const numericQuantity = Number.parseFloat(String(rawQuantity).replace(/[^0-9.]/g, ""));
+
+  if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+    return "1";
+  }
+
+  return formatMeasureValue(numericQuantity);
+};
+
+const getDailyDeliverySummary = ({ subscription, tomorrow, today }) => {
+  const scheduledQuantity = String(tomorrow?.quantity || today?.quantity || "").trim();
+  const scheduledProduct = String(tomorrow?.product || today?.product || "").trim();
+
+  if (scheduledQuantity && scheduledProduct) {
+    return `${scheduledQuantity} ${scheduledProduct}`;
+  }
+
+  const subscriptionProduct = String(subscription?.milkType || "").trim();
+  const subscriptionQuantity = getPreferredExtraQuantity({ subscription, tomorrow: null, today: null });
+
+  if (subscriptionProduct) {
+    return `${subscriptionQuantity}L ${subscriptionProduct}`;
+  }
+
+  return "1L Milk";
+};
+
 const toSubscriptionPayload = (subscription, nextStatus) => ({
   dairyId: subscription?.dairyId,
   milkType: subscription?.milkType || "Milk",
@@ -292,7 +333,7 @@ export default function DairyCustomerDashboard() {
   const [addExtraForm, setAddExtraForm] = useState({
     milkType: "",
     quantity: "1",
-    paymentMethod: "PAY_NOW",
+    paymentMethod: "PAY_NOW_ONLINE",
     address: "",
     slot: "Morning",
   });
@@ -417,10 +458,13 @@ export default function DairyCustomerDashboard() {
       year: "numeric",
     }
   );
+  const preferredExtraProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
+  const preferredExtraQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
   const selectedAddExtraProduct = useMemo(
     () => addExtraProducts.find((item) => item.name === addExtraForm.milkType) || null,
     [addExtraProducts, addExtraForm.milkType]
   );
+  const dailyDeliverySummary = getDailyDeliverySummary({ subscription, tomorrow, today });
   const addExtraQuantity = Number(addExtraForm.quantity || 0);
   const addExtraAvailableStock = useMemo(() => {
     if (!selectedAddExtraProduct) return 0;
@@ -585,15 +629,17 @@ export default function DairyCustomerDashboard() {
       String(subscription?.address || "").trim() && subscription?.address !== "-"
         ? String(subscription.address).trim()
         : getStoredCustomerAddress();
-    const preferredPaymentMethod = normalizeAddExtraPaymentMethod(subscription?.paymentMethod);
+    const preferredPaymentMethod = normalizeAddExtraPaymentOption(subscription?.paymentMethod);
     const preferredSlot = normalizeAddExtraSlot(subscription?.slot || tomorrow?.slot || "Morning");
+    const preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
+    const preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
 
     setAddExtraError("");
     setShowDuplicateExtraConfirm(false);
     setShowAddExtraModal(true);
     setAddExtraForm({
-      milkType: "",
-      quantity: "1",
+      milkType: preferredProductName,
+      quantity: preferredQuantity,
       paymentMethod: preferredPaymentMethod,
       address: preferredAddress,
       slot: preferredSlot,
@@ -601,13 +647,14 @@ export default function DairyCustomerDashboard() {
 
     if (String(addExtraDairy?.id || "") === String(linkedExtraDairyId) && addExtraProducts.length) {
       const defaultProduct =
+        addExtraProducts.find((item) => item.name === preferredProductName)?.name ||
         addExtraProducts.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
         addExtraProducts[0]?.name ||
         "";
       setAddExtraForm((prev) => ({
         ...prev,
         milkType: defaultProduct,
-        quantity: "1",
+        quantity: preferredQuantity,
         paymentMethod: preferredPaymentMethod,
         address: preferredAddress,
         slot: preferredSlot,
@@ -629,6 +676,7 @@ export default function DairyCustomerDashboard() {
       setAddExtraProducts(products);
 
       const defaultProduct =
+        products.find((item) => item.name === preferredProductName)?.name ||
         products.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
         products[0]?.name ||
         "";
@@ -636,7 +684,7 @@ export default function DairyCustomerDashboard() {
       setAddExtraForm((prev) => ({
         ...prev,
         milkType: defaultProduct,
-        quantity: "1",
+        quantity: preferredQuantity,
         paymentMethod: preferredPaymentMethod,
         address: preferredAddress,
         slot: preferredSlot,
@@ -689,7 +737,7 @@ export default function DairyCustomerDashboard() {
         quantity: addExtraQuantity,
         deliveryDate: nextExtraDeliveryDate,
         slot: addExtraForm.slot,
-        paymentMethod: addExtraForm.paymentMethod,
+        paymentMethod: getAddExtraOrderPaymentMethod(addExtraForm.paymentMethod),
         address: addExtraForm.address.trim(),
         pricePerLiter: Number(selectedAddExtraProduct.ratePerUnit || 0),
         isExtraOrder: true,
@@ -698,7 +746,7 @@ export default function DairyCustomerDashboard() {
 
       setShowDuplicateExtraConfirm(false);
 
-      if (addExtraForm.paymentMethod === "PAY_NOW") {
+      if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
         const orderId = response?.order?.id || null;
         const paymentId = getExtraOrderPaymentId(response);
 
@@ -1296,8 +1344,6 @@ export default function DairyCustomerDashboard() {
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm text-[#8B7355]">
                     Choose a product, set the quantity, and place it for {nextExtraDeliveryLabel}.
-                    The request will appear in your delivery history and the dairy owner&apos;s
-                    approval queue.
                   </p>
                 </div>
 
@@ -1340,7 +1386,7 @@ export default function DairyCustomerDashboard() {
                         </span>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {addExtraProducts.map((product) => {
                           const isSelected = addExtraForm.milkType === product.name;
                           const isDisabled = isProductOutOfStock(product.stockQuantity);
@@ -1356,7 +1402,7 @@ export default function DairyCustomerDashboard() {
                                   milkType: product.name,
                                 }))
                               }
-                              className={`rounded-[20px] border px-4 py-4 text-left transition ${
+                              className={`rounded-[18px] border px-4 py-3 text-left transition ${
                                 isDisabled
                                   ? "cursor-not-allowed border-[#F2EDE4] bg-[#FBF7F0] opacity-60"
                                   : isSelected
@@ -1366,8 +1412,8 @@ export default function DairyCustomerDashboard() {
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-base font-bold text-[#2C1A0E]">{product.name}</p>
-                                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#C4A882]">
+                                  <p className="text-[15px] font-bold leading-tight text-[#2C1A0E]">{product.name}</p>
+                                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C4A882]">
                                     {getProductUnitLabel(product.unit)}
                                   </p>
                                 </div>
@@ -1378,18 +1424,11 @@ export default function DairyCustomerDashboard() {
                                 )}
                               </div>
 
-                              <p className="mt-5 text-[28px] font-bold leading-none text-[#B8641A]">
+                              <p className="mt-3 text-[24px] font-bold leading-none text-[#B8641A]">
                                 Rs.{Number(product.ratePerUnit || 0).toFixed(2)}
                               </p>
-                              <p className="mt-1 text-xs text-[#8B7355]">
+                              <p className="mt-0.5 text-[11px] text-[#8B7355]">
                                 Per {getProductUnitLabel(product.unit, { lowercase: true })}
-                              </p>
-                              <p
-                                className={`mt-4 text-xs font-semibold ${
-                                  isDisabled ? "text-[#C0392B]" : "text-[#4A7C2F]"
-                                }`}
-                              >
-                                {formatProductStockLabel(product.stockQuantity, product.unit)}
                               </p>
                             </button>
                           );
@@ -1402,59 +1441,16 @@ export default function DairyCustomerDashboard() {
                 <div className="min-h-0 border-t border-[#F2EDE4] bg-[#FBF7F0] xl:border-l xl:border-t-0">
                   <div className="flex h-full min-h-0 flex-col">
                     <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-                    Order Summary
-                      </p>
-
-                  {addExtraError && (
-                    <div className="mt-4 rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm text-[#C0392B]">
-                      {addExtraError}
-                    </div>
-                  )}
-
-                  <div className="mt-4 rounded-[20px] border border-[#EDE8DF] bg-white p-4">
-                    {selectedAddExtraProduct ? (
-                      <>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#C4A882]">
-                              Selected Product
-                            </p>
-                            <p className="mt-2 text-lg font-bold text-[#2C1A0E]">
-                              {selectedAddExtraProduct.name}
-                            </p>
-                          </div>
-                          <span className="rounded-full bg-[#FFF4E2] px-3 py-1 text-xs font-bold text-[#B8641A]">
-                            Rs.{Number(selectedAddExtraProduct.ratePerUnit || 0).toFixed(2)}
-                          </span>
+                      {addExtraError && (
+                        <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm text-[#C0392B]">
+                          {addExtraError}
                         </div>
+                      )}
 
-                        <div className="mt-4 space-y-2 text-sm text-[#8B7355]">
-                          <p>
-                            Quantity unit:{" "}
-                            {getProductUnitLabel(selectedAddExtraProduct.unit, {
-                              lowercase: true,
-                            })}
-                          </p>
-                          <p>Delivery date: {nextExtraDeliveryLabel}</p>
-                          <p>Delivery slot: {addExtraForm.slot}</p>
-                          <p>
-                            Stock:{" "}
-                            {formatProductStockLabel(
-                              selectedAddExtraProduct.stockQuantity,
-                              selectedAddExtraProduct.unit
-                            )}
-                          </p>
+                      <div className="space-y-4">
+                        <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EC] px-4 py-3 text-sm font-medium text-[#8B7355]">
+                          Tomorrow delivery: Daily delivery ({dailyDeliverySummary}) +
                         </div>
-                      </>
-                    ) : (
-                      <div className="text-sm text-[#8B7355]">
-                        Select a product card to prepare your extra order.
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-5 space-y-4">
                     <div>
                       <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
                         Quantity ({selectedAddExtraUnitShort})
@@ -1472,34 +1468,28 @@ export default function DairyCustomerDashboard() {
                         }
                         className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
                       />
-                      {selectedAddExtraProduct && (
+                      {selectedAddExtraProduct && (isAddExtraOutOfStock || doesAddExtraExceedStock) && (
                         <p
-                          className={`mt-2 text-xs font-semibold ${
-                            isAddExtraOutOfStock || doesAddExtraExceedStock
-                              ? "text-[#C0392B]"
-                              : "text-[#4A7C2F]"
-                          }`}
+                          className="mt-2 text-xs font-semibold text-[#C0392B]"
                         >
                           {isAddExtraOutOfStock
                             ? `${selectedAddExtraProduct.name} is out of stock`
                             : doesAddExtraExceedStock
                             ? `Requested quantity is more than available ${selectedAddExtraUnitLower} stock`
-                            : `Available stock: ${formatProductStockLabel(
-                                selectedAddExtraProduct.stockQuantity,
-                                selectedAddExtraProduct.unit
-                              )}`}
+                            : ""}
                         </p>
                       )}
                     </div>
 
                     <div>
                       <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
-                        Payment Method
+                        Payment Option
                       </label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                         {[
-                          { id: "PAY_NOW", label: "Online" },
-                          { id: "COD", label: "Cash" },
+                          { id: "PAY_NOW_ONLINE", label: "Pay Now Online" },
+                          { id: "PAY_NOW_CASH", label: "Cash on Delivery" },
+                          { id: "ADD_TO_SUBSCRIPTION", label: "Add to Subscription Bill" },
                         ].map((method) => (
                           <button
                             key={method.id}
@@ -1510,7 +1500,7 @@ export default function DairyCustomerDashboard() {
                                 paymentMethod: method.id,
                               }))
                             }
-                            className={`rounded-[14px] border px-3 py-2.5 text-sm font-bold transition ${
+                            className={`flex min-h-[84px] items-center justify-center rounded-[14px] border px-3 py-2.5 text-center text-sm font-bold leading-6 transition ${
                               addExtraForm.paymentMethod === method.id
                                 ? "border-[#B8641A] bg-[#FFF4E2] text-[#B8641A]"
                                 : "border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
@@ -1520,45 +1510,27 @@ export default function DairyCustomerDashboard() {
                           </button>
                         ))}
                       </div>
+                      {addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && (
+                        <p className="mt-2 text-xs font-medium text-[#8B7355]">
+                          This extra order will be added to your subscription bill.
+                        </p>
+                      )}
                     </div>
 
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
-                        Delivery Address
-                      </label>
-                      <div className="relative">
-                        <MapPin
-                          size={14}
-                          className="pointer-events-none absolute left-4 top-4 text-[#C4A882]"
-                        />
-                        <textarea
-                          rows={4}
-                          value={addExtraForm.address}
-                          onChange={(event) =>
-                            setAddExtraForm((prev) => ({
-                              ...prev,
-                              address: event.target.value,
-                            }))
-                          }
-                          placeholder="Enter delivery address"
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-4 text-sm text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
-                        />
                       </div>
-                    </div>
-
-                  </div>
 
                   <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
-                    <div className="rounded-[18px] bg-[#2C2416] p-4 text-white">
+                    <div className="rounded-[18px] bg-[#2C2416] px-4 py-3 text-white">
+                      <p className="hidden">
+                        Tomorrow delivery: Daily delivery + {addExtraForm.quantity || "0"}{" "}
+                        {selectedAddExtraUnitShort} • {nextExtraDeliveryLabel} • {addExtraForm.slot} slot
+                      </p>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm text-white/70">Grand Total</span>
-                        <span className="text-[28px] font-bold leading-none">
+                        <span className="text-[24px] font-bold leading-none sm:text-[26px]">
                           Rs.{Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}
                         </span>
                       </div>
-                      <p className="mt-2 text-xs text-white/60">
-                        Extra order for {nextExtraDeliveryLabel} • {addExtraForm.slot} slot
-                      </p>
                     </div>
 
                     <button
@@ -1574,9 +1546,11 @@ export default function DairyCustomerDashboard() {
                       )}
                       {addExtraSubmitting
                         ? "Placing extra order..."
-                        : addExtraForm.paymentMethod === "PAY_NOW"
+                        : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
                         ? "Pay & Add Extra"
-                        : "Add Extra Order"}
+                        : addExtraForm.paymentMethod === "PAY_NOW_CASH"
+                        ? "Add Extra with Cash"
+                        : "Add to Subscription Bill"}
                     </button>
 
                     <button
