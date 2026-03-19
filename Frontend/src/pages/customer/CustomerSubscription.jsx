@@ -396,15 +396,15 @@ const Subscribe = () => {
 
   return (
     <CustomerLayout>
-      <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-        <div className="rounded-[30px] border border-[#EDE8DF] bg-[#F5F0E8] p-5 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:p-7 xl:p-9">
+      <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-4 sm:space-y-6 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <div className="rounded-[24px] border border-[#EDE8DF] bg-[#F5F0E8] p-4 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px] sm:p-7 xl:p-9">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
             Subscription Center
           </p>
-          <h2 className="mt-2 text-[32px] font-semibold text-[#2C1A0E] sm:text-[36px]" style={headingFont}>
+          <h2 className="mt-2 text-[26px] font-semibold leading-tight text-[#2C1A0E] sm:text-[36px]" style={headingFont}>
             My <span className="text-[#B8641A]">Subscription</span>
           </h2>
-          <p className="mt-2 text-sm text-[#8B7355]">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#8B7355]">
             Manage your daily milk plan, pause deliveries, or explore other dairies.
           </p>
 
@@ -424,7 +424,7 @@ const Subscribe = () => {
           <>
             {/* Status Card */}
             <div
-              className={`mt-8 w-full rounded-[26px] border p-5 shadow-sm transition hover:shadow-md sm:p-8 ${
+              className={`mt-6 w-full rounded-[22px] border p-4 shadow-sm transition hover:shadow-md sm:mt-8 sm:rounded-[26px] sm:p-8 ${
                 !subscription
                   ? 'bg-[#FBF7F0] border-[#E7DAC6]'
                   : subscription.status === 'ACTIVE'
@@ -434,15 +434,15 @@ const Subscribe = () => {
                   : 'bg-[#FDECEA] border-[#F2D0C8]'
               }`}
             >
-              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div>
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-[0.18em] text-[#A88763]">
                     {hasActivePlan ? `${subscription.status} PLAN` : 'NO ACTIVE PLAN'}
                   </p>
-                  <h3 className="mt-1 text-[26px] font-semibold text-[#2C1A0E] sm:text-[30px]" style={headingFont}>
+                  <h3 className="mt-1 break-words text-[22px] font-semibold leading-tight text-[#2C1A0E] sm:text-[30px]" style={headingFont}>
                     {hasActivePlan ? `${subscription.quantity} Liters ${subscription.product}` : 'No subscription yet'}
                   </h3>
-                  <p className="mt-1 text-sm text-[#8B7355]">
+                  <p className="mt-2 text-sm leading-6 text-[#8B7355]">
                     {hasActivePlan
                       ? `${subscription.slot} Slot - ${subscription.timeRange}`
                       : guestDairyId
@@ -466,11 +466,11 @@ const Subscribe = () => {
                 </div>
 
                 {hasActivePlan ? (
-                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <div className="grid gap-3 sm:flex sm:flex-row sm:flex-wrap">
                     <button
                       disabled={saving}
                       onClick={() => setShowUpdateModal(true)}
-                      className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#EDE8DF] bg-white px-5 py-2 text-sm font-medium text-[#B8641A] transition hover:bg-[#FFF8EC] disabled:opacity-50 sm:w-auto"
+                      className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#EDE8DF] bg-white px-5 py-2 text-sm font-medium text-[#B8641A] transition hover:bg-[#FFF8EC] disabled:opacity-50 sm:w-auto"
                     >
                       <Edit size={16} /> Update Plan
                     </button>
@@ -479,7 +479,7 @@ const Subscribe = () => {
                       <button
                         disabled={!canTogglePauseResume}
                         onClick={pause}
-                        className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#F0D1B2] bg-white px-5 py-2 text-sm font-medium text-[#C86A2B] transition hover:bg-[#FFF1E4] disabled:opacity-50 sm:w-auto"
+                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#F0D1B2] bg-white px-5 py-2 text-sm font-medium text-[#C86A2B] transition hover:bg-[#FFF1E4] disabled:opacity-50 sm:w-auto"
                       >
                         <PauseCircle size={16} /> Pause
                       </button>
@@ -487,7 +487,7 @@ const Subscribe = () => {
                       <button
                         disabled={!canTogglePauseResume}
                         onClick={resume}
-                        className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-white px-5 py-2 text-sm font-medium text-[#4A7C2F] transition hover:bg-[#EEF5E7] disabled:opacity-50 sm:w-auto"
+                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-white px-5 py-2 text-sm font-medium text-[#4A7C2F] transition hover:bg-[#EEF5E7] disabled:opacity-50 sm:w-auto"
                       >
                         <PlayCircle size={16} /> Resume
                       </button>
@@ -496,7 +496,7 @@ const Subscribe = () => {
                     <button
                       disabled={saving}
                       onClick={() => setShowCancelModal(true)}
-                      className="w-full rounded-[14px] border border-[#F2D0C8] bg-white px-5 py-2 text-sm font-medium text-[#C0392B] transition hover:bg-[#FDECEA] disabled:opacity-50 sm:w-auto"
+                      className="min-h-[46px] w-full rounded-[14px] border border-[#F2D0C8] bg-white px-5 py-2 text-sm font-medium text-[#C0392B] transition hover:bg-[#FDECEA] disabled:opacity-50 sm:w-auto"
                     >
                       {isApprovedSubscription ? 'Close Subscription' : 'Cancel Subscription'}
                     </button>
@@ -509,14 +509,14 @@ const Subscribe = () => {
                           state: { openSubscriptionModal: true, from: 'customer-subscriptions' },
                         })
                       }
-                      className="w-full rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313] sm:w-auto"
+                      className="min-h-[46px] w-full rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313] sm:w-auto"
                     >
                       Take Subscription for {guestDairyName || `Dairy #${guestDairyId}`}
                     </button>
                   ) : (
                     <button
                       onClick={() => navigate('/explore', { state: { from: 'customer-subscriptions' } })}
-                      className="w-full rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313] sm:w-auto"
+                      className="min-h-[46px] w-full rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313] sm:w-auto"
                     >
                       See Other Dairies
                     </button>
@@ -527,7 +527,7 @@ const Subscribe = () => {
 
             {/* Stats Grid */}
             {hasActivePlan && (
-              <div className="mt-8 grid gap-4 md:grid-cols-3 md:gap-7">
+              <div className="mt-6 grid gap-3 sm:mt-8 sm:gap-4 md:grid-cols-3 md:gap-7">
                 <StatCard icon={<Droplet size={24} />} label="Daily Quantity" value={`${subscription.quantity} Liters`} />
                 <StatCard icon={<Clock size={24} />} label="Delivery Slot" value={subscription.slot} />
                 <StatCard
@@ -538,7 +538,7 @@ const Subscribe = () => {
               </div>
             )}
 
-            <div className="mt-8">
+            <div className="mt-6 sm:mt-8">
               <ExploreOtherDairiesSection onExplore={() => navigate('/explore', { state: { from: 'customer-subscriptions' } })} />
             </div>
           </>
@@ -713,32 +713,34 @@ export default Subscribe;
 ====================================================== */
 
 const StatCard = ({ icon, label, value }) => (
-  <div className="flex items-center gap-4 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-5 shadow-sm transition hover:shadow-md sm:p-7">
-    <div className="rounded-[14px] bg-[#FFF4E2] p-3 text-[#B8641A]">{icon}</div>
-    <div>
-      <p className="text-xs uppercase tracking-[0.16em] text-[#C4A882]">{label}</p>
-      <p className="text-lg font-semibold text-[#2C1A0E]">{value}</p>
+  <div className="flex min-w-0 items-center gap-3 rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-sm transition hover:shadow-md sm:gap-4 sm:rounded-[22px] sm:p-7">
+    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF4E2] text-[#B8641A] sm:h-14 sm:w-14">
+      {icon}
+    </div>
+    <div className="min-w-0">
+      <p className="text-[11px] uppercase tracking-[0.16em] text-[#C4A882] sm:text-xs">{label}</p>
+      <p className="mt-1 break-words text-base font-semibold leading-snug text-[#2C1A0E] sm:text-lg">{value}</p>
     </div>
   </div>
 );
 
 const ExploreOtherDairiesSection = ({ onExplore }) => (
-  <section className="rounded-[24px] border border-[#EFD7B3] bg-[linear-gradient(135deg,#FFF8EC_0%,#FFF1E4_100%)] p-6 md:p-7">
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-      <div className="flex items-start gap-4">
-        <div className="rounded-[14px] border border-[#EFD7B3] bg-white p-3 text-[#B8641A]">
+  <section className="rounded-[22px] border border-[#EFD7B3] bg-[linear-gradient(135deg,#FFF8EC_0%,#FFF1E4_100%)] p-5 sm:rounded-[24px] sm:p-6 md:p-7">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] border border-[#EFD7B3] bg-white text-[#B8641A]">
           <Store size={22} />
         </div>
-        <div>
-          <h3 className="text-xl font-semibold text-[#2C1A0E]" style={headingFont}>Explore Other Dairies</h3>
-          <p className="mt-1 text-sm text-[#8B7355]">
+        <div className="min-w-0">
+          <h3 className="text-[24px] font-semibold leading-tight text-[#2C1A0E] sm:text-[28px]" style={headingFont}>Explore Other Dairies</h3>
+          <p className="mt-2 max-w-lg text-sm leading-6 text-[#8B7355]">
             Compare dairies, check plans, and switch to a better option anytime.
           </p>
         </div>
       </div>
       <button
         onClick={onExplore}
-        className="w-full rounded-[14px] bg-[#2C2416] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4A3820] md:w-auto"
+        className="min-h-[46px] w-full rounded-[14px] bg-[#2C2416] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4A3820] md:w-auto"
       >
         Browse Dairies
       </button>

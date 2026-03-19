@@ -79,6 +79,25 @@ const normalizeOneTimeSlot = (value) => {
   return slot;
 };
 
+const normalizeOneTimePaymentMethod = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized) return "PAY_NOW";
+  if (
+    normalized === "PAY_NOW" ||
+    normalized === "PAYNOW" ||
+    normalized === "ONLINE" ||
+    normalized === "ONLINE_PAYMENT" ||
+    normalized === "UPI" ||
+    normalized === "RAZORPAY"
+  ) {
+    return "PAY_NOW";
+  }
+  if (normalized === "COD" || normalized === "CASH" || normalized === "CASH_ON_DELIVERY") {
+    return "COD";
+  }
+  return normalized;
+};
+
 const toSlotLabel = (slotKey) => {
   if (slotKey === "MORNING") return "Morning";
   if (slotKey === "EVENING") return "Evening";
@@ -713,7 +732,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const deliveryDate = String(payload?.deliveryDate || "").trim();
   const allowDuplicate = toBoolean(payload?.allowDuplicate);
   const isExtraOrder = toBoolean(payload?.isExtraOrder);
-  const paymentMethod = String(payload?.paymentMethod || "UPI").trim().toUpperCase();
+  const paymentMethod = normalizeOneTimePaymentMethod(payload?.paymentMethod);
   const inputAddress = String(payload?.address || "").trim();
   const resolvedAddress = inputAddress || String(await getSavedCustomerAddress(customerId) || "").trim();
   const slot = normalizeOneTimeSlot(payload?.slot);
@@ -733,6 +752,9 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   }
   if (!VALID_ONE_TIME_SLOTS.has(slot)) {
     throw new Error("slot must be Morning or Evening");
+  }
+  if (paymentMethod !== "PAY_NOW") {
+    throw new Error("Online payment is required for one-time orders");
   }
   if (!resolvedAddress || resolvedAddress.length < 10) {
     throw new Error("Detailed delivery address is required");

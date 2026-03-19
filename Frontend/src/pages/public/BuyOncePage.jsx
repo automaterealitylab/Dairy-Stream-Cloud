@@ -430,7 +430,7 @@ const BuyOncePage = () => {
         quantity,
         deliveryDate: form.deliveryDate,
         slot: form.slot,
-        paymentMethod: form.paymentMethod,
+        paymentMethod: "PAY_NOW",
         address: form.address.trim(),
         pricePerLiter,
         isExtraOrder: isCustomerExtraFlow,
@@ -441,69 +441,62 @@ const BuyOncePage = () => {
       localStorage.setItem("guest_dairy_name", dairy.name);
       setShowDuplicateConfirm(false);
 
-      if (String(form.paymentMethod).toUpperCase() === "PAY_NOW") {
-        const orderId = response?.order?.id || null;
-        const paymentId = getOrderPaymentId(response);
-        if (!orderId || !paymentId) {
-          const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
-          if (rolledBack) {
-            toast.error("Could not start payment. Order was not placed.");
-          } else {
-            toast.error("Could not start payment. Please check Deliveries/Payments once.");
-          }
-          return;
+      const orderId = response?.order?.id || null;
+      const paymentId = getOrderPaymentId(response);
+      if (!orderId || !paymentId) {
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        if (rolledBack) {
+          toast.error("Could not start payment. Order was not placed.");
+        } else {
+          toast.error("Could not start payment. Please check Deliveries/Payments once.");
         }
+        return;
+      }
 
-        let paymentResult = null;
-        try {
-          paymentResult = await processOnlinePayment(paymentId);
-        } catch (paymentErr) {
-          if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
-            toast.error("Payment received but verification failed. Check Payments page.");
-            navigate("/customer/dashboard/payments", {
-              state: { from: "buy-once-created", orderId },
-            });
-            return;
-          }
-
-          const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
-          if (rolledBack) {
-            toast.error(paymentErr?.message || "Payment cancelled. Order not placed.");
-          } else {
-            toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
-          }
-          return;
-        }
-
-        if (paymentResult?.paid) {
-          toast.success("Payment successful. Order confirmed.");
-          navigate("/customer/dashboard/deliveries", {
+      let paymentResult = null;
+      try {
+        paymentResult = await processOnlinePayment(paymentId);
+      } catch (paymentErr) {
+        if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
+          toast.error("Payment received but verification failed. Check Payments page.");
+          navigate("/customer/dashboard/payments", {
             state: { from: "buy-once-created", orderId },
           });
           return;
         }
 
-        if (paymentResult?.dismissed || paymentResult?.failed) {
-          const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
-          if (rolledBack) {
-            toast.error("Payment cancelled. Order not placed.");
-          } else {
-            toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
-          }
-          return;
-        }
-
         const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
         if (rolledBack) {
-          toast.error("Payment not completed. Order not placed.");
+          toast.error(paymentErr?.message || "Payment cancelled. Order not placed.");
         } else {
-          toast.error("Payment not completed, but auto-cancel failed. Please contact support.");
+          toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
         }
-      } else {
-        toast.success("One-time order placed. Track status in Deliveries.");
+        return;
+      }
+
+      if (paymentResult?.paid) {
+        toast.success("Payment successful. Order confirmed.");
         navigate("/customer/dashboard/deliveries", {
-          state: { from: "buy-once-created", orderId: response?.order?.id || null },
+          state: { from: "buy-once-created", orderId },
         });
+        return;
+      }
+
+      if (paymentResult?.dismissed || paymentResult?.failed) {
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        if (rolledBack) {
+          toast.error("Payment cancelled. Order not placed.");
+        } else {
+          toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
+        }
+        return;
+      }
+
+      const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+      if (rolledBack) {
+        toast.error("Payment not completed. Order not placed.");
+      } else {
+        toast.error("Payment not completed, but auto-cancel failed. Please contact support.");
       }
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || "Failed to place one-time order";
@@ -703,19 +696,11 @@ const BuyOncePage = () => {
 
               <div className="space-y-3 mb-8">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
-                <div className="flex p-1 bg-slate-800 rounded-xl">
-                  <button
-                    onClick={() => setForm(p => ({...p, paymentMethod: "PAY_NOW"}))}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${form.paymentMethod === "PAY_NOW" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                  >
-                    Online
-                  </button>
-                  <button
-                    onClick={() => setForm(p => ({...p, paymentMethod: "COD"}))}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${form.paymentMethod === "COD" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                  >
-                    Cash
-                  </button>
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
+                  <p className="text-sm font-bold text-white">Online payment required</p>
+                  <p className="mt-1 text-xs text-slate-300">
+                    One-time deliveries are confirmed only after successful payment.
+                  </p>
                 </div>
               </div>
 
@@ -740,13 +725,9 @@ const BuyOncePage = () => {
                   ? "Processing..."
                   : hasSubscriptionForThisDairy && !isCustomerExtraFlow
                   ? "Unavailable For Active Subscribers"
-                  : isCustomerExtraFlow && form.paymentMethod === "PAY_NOW"
-                  ? "Pay & Add Extra"
                   : isCustomerExtraFlow
-                  ? "Add Extra Order"
-                  : form.paymentMethod === "PAY_NOW"
-                  ? "Pay & Place Order"
-                  : "Place Order (Cash on Delivery)"}
+                  ? "Pay & Add Extra"
+                  : "Pay & Place Order"}
               </button>
               {(isOutOfStock || exceedsStock) && (
                 <p className="mt-2 text-xs text-red-400 font-medium">

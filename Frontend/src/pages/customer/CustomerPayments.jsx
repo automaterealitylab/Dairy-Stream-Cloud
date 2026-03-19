@@ -45,6 +45,17 @@ const getAuthToken = () => {
 
 const fmt = (value) => `\u20B9${Number(value || 0).toFixed(2)}`;
 
+const formatPaymentMethodLabel = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized || normalized === "-") return "";
+  if (normalized === "PAY_NOW" || normalized === "RAZORPAY") return "Online";
+  if (normalized === "COD" || normalized === "CASH") return "Cash";
+  if (normalized === "UPI") return "UPI";
+  return normalized
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const formatDateLabel = (
   value,
   options = { day: "numeric", month: "short", year: "numeric" }
@@ -98,7 +109,7 @@ const statusCfg = (status) => {
 
   if (normalizedStatus === "PAID") {
     return {
-      pill: "bg-[#EBF7F1] text-[#1A7A4A]",
+      pill: "border border-[#D6EEDD] bg-[#F4FBF7] text-[#1A7A4A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]",
       dot: "bg-[#1A7A4A]",
       label: "Paid",
     };
@@ -106,14 +117,14 @@ const statusCfg = (status) => {
 
   if (normalizedStatus === "OVERDUE") {
     return {
-      pill: "bg-[#FEF2F2] text-[#C53030]",
+      pill: "border border-[#F4D1D1] bg-[#FFF5F5] text-[#C53030] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
       dot: "bg-[#C53030]",
       label: "Overdue",
     };
   }
 
   return {
-    pill: "bg-[#FFFBEB] text-[#B45309]",
+    pill: "border border-[#F3E1B8] bg-[#FFF9EE] text-[#B45309] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
     dot: "bg-[#B45309]",
     label: "Pending",
   };
@@ -446,30 +457,31 @@ export default function Payments() {
 
   return (
     <CustomerLayout>
-      <div className="w-full px-2 py-8 md:px-4 lg:py-10" style={bodyFont}>
-        <div className="rounded-[30px] border border-[#E5DCCF] bg-[#F5EFE6] p-5 shadow-[0_18px_60px_rgba(84,52,16,0.08)] sm:p-7 lg:p-9 xl:p-10">
-          <div className="space-y-6 lg:space-y-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
+      <div className="w-full px-0 py-4 sm:px-2 sm:py-6 md:px-4 lg:py-10" style={bodyFont}>
+        <div className="rounded-[24px] border border-[#E5DCCF] bg-[#F5EFE6] p-4 shadow-[0_18px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px] sm:p-7 lg:p-9 xl:p-10">
+          <div className="space-y-5 sm:space-y-6 lg:space-y-7">
+            <div>
+              <div className="flex items-start justify-between gap-3">
                 <h2
-                  className="text-[30px] font-semibold tracking-[-0.03em] text-[#2C1A0E] sm:text-[34px]"
+                  className="text-[26px] font-semibold leading-tight tracking-[-0.03em] text-[#2C1A0E] sm:text-[34px]"
                   style={headingFont}
                 >
                   My <span className="text-[#B8641A]">Payments</span>
                 </h2>
-                <p className="mt-1.5 text-sm text-[#B89970]">
-                  Track bills, wallet credits, and recent payments in one place.
-                </p>
+
+                <button
+                  onClick={() => loadPayments({ force: true })}
+                  disabled={loading}
+                  className="inline-flex h-9 flex-shrink-0 items-center justify-center gap-1.5 self-start rounded-[10px] border border-[#E5DCCF] bg-white px-3 text-xs font-semibold text-[#8B7355] transition hover:border-[#D8C5AA] hover:text-[#5C3D1E] disabled:opacity-50 sm:h-10 sm:px-3.5 sm:text-sm"
+                >
+                  {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  {loading ? "Refreshing..." : "Refresh"}
+                </button>
               </div>
 
-              <button
-                onClick={() => loadPayments({ force: true })}
-                disabled={loading}
-                className="inline-flex items-center gap-2 self-start rounded-[10px] border border-[#E5DCCF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D8C5AA] hover:text-[#5C3D1E] disabled:opacity-50"
-              >
-                {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                {loading ? "Refreshing..." : "Refresh"}
-              </button>
+              <p className="mt-1.5 max-w-xl text-sm leading-6 text-[#B89970]">
+                Track bills, wallet credits, and recent payments in one place.
+              </p>
             </div>
 
             {error && (
@@ -479,17 +491,17 @@ export default function Payments() {
               </div>
             )}
 
-            <section className="relative overflow-hidden rounded-[22px] bg-[#2C1A0E] px-5 py-6 sm:px-8 lg:px-9 lg:py-8">
+            <section className="relative overflow-hidden rounded-[20px] bg-[#2C1A0E] px-4 py-5 sm:rounded-[22px] sm:px-8 sm:py-6 lg:px-9 lg:py-8">
               <div className="absolute -right-8 -top-10 h-52 w-52 rounded-full bg-[rgba(184,100,26,0.15)]" />
               <div className="absolute bottom-[-52px] right-20 h-36 w-36 rounded-full bg-[rgba(245,200,122,0.08)]" />
 
-              <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
+              <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0 max-w-xl">
                   <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#F5C87A73]">
                     {heroLabel}
                   </p>
                   <h3
-                    className="mt-2 text-[36px] font-semibold leading-none tracking-[-0.04em] text-white sm:text-[52px]"
+                    className="mt-2 break-words text-[28px] font-semibold leading-none tracking-[-0.04em] text-white sm:text-[52px]"
                     style={headingFont}
                   >
                     {fmt(heroAmount)}
@@ -497,7 +509,7 @@ export default function Payments() {
 
                   <div className="mt-4">
                     <span
-                      className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold ${heroTagClasses}`}
+                      className={`inline-flex max-w-full flex-wrap items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold leading-5 ${heroTagClasses}`}
                     >
                       <Clock size={12} />
                       {billingSummaryHelper}
@@ -505,16 +517,18 @@ export default function Payments() {
                   </div>
                 </div>
 
-                <div className="flex flex-col items-start gap-4 lg:items-end">
-                  <div>
+                <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end sm:justify-between lg:w-auto lg:flex-col lg:items-end">
+                  <div className="min-w-0">
                     <p className="text-[11px] text-white/40 lg:text-right">Pay to</p>
-                    <p className="mt-1 text-sm font-bold text-white/85 lg:text-right">{payeeText}</p>
+                    <p className="mt-1 break-words text-sm font-bold leading-6 text-white/85 lg:max-w-[260px] lg:text-right">
+                      {payeeText}
+                    </p>
                   </div>
 
                   <button
                     onClick={() => handlePayNow(nextUnpaidPayment, { payAll: true })}
                     disabled={isBusy || !nextUnpaidPayment || !hasDue}
-                    className={`inline-flex w-full items-center justify-center gap-2 rounded-[10px] px-5 py-3 text-sm font-extrabold transition sm:w-auto ${payAllButtonClasses}`}
+                    className={`inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[10px] px-5 py-3 text-sm font-extrabold transition sm:w-auto lg:min-w-[200px] ${payAllButtonClasses}`}
                   >
                     {payingPaymentId === "__ALL__" ? (
                       <Loader2 size={15} className="animate-spin" />
@@ -529,89 +543,95 @@ export default function Payments() {
               </div>
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="flex flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-4">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#FDE9C9] text-[#B8641A]">
+            <section className="grid grid-cols-2 gap-3 [grid-auto-rows:1fr] xl:grid-cols-4">
+              <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
+                <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#FDE9C9] text-[#B8641A]">
                   <Wallet size={16} />
                 </div>
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882]">
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882] sm:text-[9px]">
                   Wallet Balance
                 </p>
                 <p
-                  className="mt-1.5 text-[26px] font-semibold leading-none tracking-[-0.04em] text-[#4A7C2F]"
+                  className="mt-1.5 break-words text-[18px] font-semibold leading-none tracking-[-0.04em] text-[#4A7C2F] sm:text-[26px]"
                   style={headingFont}
                 >
                   {fmt(summary.walletBalance)}
                 </p>
-                <p className="mt-1.5 text-[11px] text-[#B89970]">Available for payments</p>
+                <p className="mt-1.5 text-[10px] leading-4 text-[#B89970] sm:mt-2 sm:text-[11px] sm:leading-5">
+                  Available for payments
+                </p>
                 <button
                   type="button"
                   onClick={() => setWalletModalOpen(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 self-start rounded-[9px] border border-[#C0DD97] bg-[#EAF3DE] px-3 py-1.5 text-xs font-bold text-[#3B6D11] transition hover:bg-[#D9EDBE]"
+                  className="mt-auto inline-flex min-h-[34px] items-center gap-1.5 self-start rounded-[9px] border border-[#C0DD97] bg-[#EAF3DE] px-2.5 py-1.5 text-[10px] font-bold text-[#3B6D11] transition hover:bg-[#D9EDBE] sm:min-h-[40px] sm:px-3 sm:text-xs"
                 >
-                  <Plus size={13} />
+                  <Plus size={12} />
                   Add Money
                 </button>
               </div>
 
-              <div className="rounded-[16px] border border-[#EDE8DF] bg-white p-4">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#FDECEA] text-[#C0392B]">
+              <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
+                <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#FDECEA] text-[#C0392B]">
                   <CreditCard size={16} />
                 </div>
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882]">
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882] sm:text-[9px]">
                   Pending + Overdue
                 </p>
                 <p
-                  className="mt-1.5 text-[26px] font-semibold leading-none tracking-[-0.04em] text-[#C0392B]"
+                  className="mt-1.5 break-words text-[18px] font-semibold leading-none tracking-[-0.04em] text-[#C0392B] sm:text-[26px]"
                   style={headingFont}
                 >
                   {fmt(summary.monthlyDue)}
                 </p>
-                <p className="mt-1.5 text-[11px] text-[#B89970]">All outstanding bills</p>
+                <p className="mt-1.5 text-[10px] leading-4 text-[#B89970] sm:mt-2 sm:text-[11px] sm:leading-5">
+                  All outstanding bills
+                </p>
               </div>
 
-              <div className="rounded-[16px] border border-[#EDE8DF] bg-white p-4">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#EBF7F1] text-[#1A7A4A]">
+              <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
+                <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#EBF7F1] text-[#1A7A4A]">
                   <RefreshCw size={16} />
                 </div>
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882]">
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882] sm:text-[9px]">
                   Subscription Bill
                 </p>
                 <p
-                  className="mt-1.5 text-[26px] font-semibold leading-none tracking-[-0.04em] text-[#1A7A4A]"
+                  className="mt-1.5 break-words text-[18px] font-semibold leading-none tracking-[-0.04em] text-[#1A7A4A] sm:text-[26px]"
                   style={headingFont}
                 >
                   {fmt(summary.payableTillDate)}
                 </p>
-                <p className="mt-1.5 text-[11px] leading-5 text-[#B89970]">
+                <p className="mt-1.5 text-[10px] leading-4 text-[#B89970] sm:mt-2 sm:text-[11px] sm:leading-5">
                   {hasRunningSubscriptionBill
                     ? "Running total from delivered subscription items"
                     : "Starts building as subscription deliveries are completed"}
                 </p>
-                <p className="mt-2.5 text-[11px] font-semibold text-[#8B7355]">
+                <p className="mt-auto pt-2.5 text-[10px] font-semibold leading-4 text-[#8B7355] sm:pt-3 sm:text-[11px] sm:leading-5">
                   Payable by {subscriptionDueDateLabel}
                 </p>
               </div>
 
-              <div className="rounded-[16px] border border-[#EDE8DF] bg-white p-4">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#E8F4E0] text-[#4A7C2F]">
+              <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
+                <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#E8F4E0] text-[#4A7C2F]">
                   <CalendarDays size={16} />
                 </div>
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882]">
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.16em] text-[#C4A882] sm:text-[9px]">
                   Next Bill Date
                 </p>
                 <p
-                  className="mt-1.5 text-[26px] font-semibold leading-none tracking-[-0.04em] text-[#B8641A]"
+                  className="mt-1.5 break-words text-[18px] font-semibold leading-none tracking-[-0.04em] text-[#B8641A] sm:text-[26px]"
                   style={headingFont}
                 >
                   {nextBillDateLabel}
                 </p>
-                <p className="mt-1.5 text-[11px] text-[#B89970]">{nextBillHint}</p>
+                <p className="mt-auto pt-2.5 text-[10px] leading-4 text-[#B89970] sm:pt-3 sm:text-[11px] sm:leading-5">
+                  {nextBillHint}
+                </p>
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-[18px] border border-[#EDE8DF] bg-white">
-              <div className="flex flex-col gap-3 border-b border-[#F2EDE4] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <section className="overflow-hidden rounded-[16px] border border-[#EDE8DF] bg-white sm:rounded-[18px]">
+              <div className="flex flex-col gap-3 border-b border-[#F2EDE4] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
                 <div>
                   <h4 className="text-base font-extrabold text-[#2C1A0E]">Recent Payments</h4>
                   <p className="mt-1 text-xs text-[#B89970]">
@@ -687,15 +707,31 @@ export default function Payments() {
                     const cfg = statusCfg(payment.status);
                     const typeCfg = paymentTypeCfg(payment.title);
                     const { Icon } = typeCfg;
-                    const isUnpaid = ["PENDING", "OVERDUE"].includes(
-                      String(payment.status || "").toUpperCase()
-                    );
+                    const normalizedStatus = String(payment.status || "").toUpperCase();
+                    const isUnpaid = ["PENDING", "OVERDUE"].includes(normalizedStatus);
+                    const isPaid = normalizedStatus === "PAID";
                     const { title, subtitle } = parseTitle(payment.title || "");
                     const paymentDateLabel = formatDateLabel(payment.date) || payment.date || "-";
+                    const paymentMethodLabel = formatPaymentMethodLabel(payment.method);
+                    const subtitleHasPaymentDate =
+                      subtitle && paymentDateLabel && paymentDateLabel !== "-"
+                        ? subtitle.includes(paymentDateLabel)
+                        : false;
+                    const paymentStatusMeta = isUnpaid
+                      ? payment.dueDate
+                        ? dueText(
+                            Math.round(
+                              (new Date(payment.dueDate).getTime() - new Date().getTime()) /
+                                (1000 * 60 * 60 * 24)
+                            )
+                          )
+                        : "Due date not set"
+                      : paymentMethodLabel
+                      ? `${paymentMethodLabel} payment`
+                      : "Recorded payment";
                     const mobileMeta = [
-                      subtitle,
-                      paymentDateLabel,
-                      payment.method && payment.method !== "-" ? payment.method : "",
+                      !subtitleHasPaymentDate && paymentDateLabel !== "-" ? paymentDateLabel : "",
+                      !isPaid ? paymentMethodLabel : "",
                     ]
                       .filter(Boolean)
                       .join(" \u2022 ");
@@ -705,74 +741,132 @@ export default function Payments() {
                         key={payment.id}
                         className="border-t border-[#F2EDE4] first:border-t-0 md:first:border-t-0"
                       >
-                        <div className="grid gap-4 px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,2.2fr)_minmax(120px,0.95fr)_minmax(130px,0.95fr)_minmax(170px,1fr)] md:items-center">
-                          <div className="flex min-w-0 items-start gap-3">
-                            <div
-                              className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] ${typeCfg.iconBg}`}
-                            >
-                              <Icon size={17} />
-                            </div>
-
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-bold text-[#2C1A0E]">{title}</p>
-                              <p className="mt-1 text-xs leading-5 text-[#B89970] md:hidden">
-                                {mobileMeta || "Payment details will appear here."}
-                              </p>
-                              <p className="mt-1 hidden truncate text-xs text-[#B89970] md:block">
-                                {subtitle || "Monthly dairy billing"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="hidden md:block">
-                            <p className="text-sm font-semibold text-[#5C3D1E]">{paymentDateLabel}</p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2 md:flex-col md:items-start md:gap-1">
-                            <span
-                              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold ${cfg.pill}`}
-                            >
-                              <span className={`inline-block h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                              {cfg.label}
-                            </span>
-                            {isUnpaid && payment.dueDate ? (
-                              <p className="text-xs text-[#B89970]">
-                                {dueText(
-                                  Math.round(
-                                    (new Date(payment.dueDate).getTime() - new Date().getTime()) /
-                                      (1000 * 60 * 60 * 24)
-                                  )
-                                )}
-                              </p>
-                            ) : (
-                              <p className="text-xs text-[#B89970]">
-                                {payment.method && payment.method !== "-" ? payment.method : "Recorded payment"}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex flex-col items-start gap-2 md:items-end">
-                            <p
-                              className="text-[22px] font-semibold leading-none tracking-[-0.03em] text-[#2C1A0E]"
-                              style={headingFont}
-                            >
-                              {fmt(payment.amount)}
-                            </p>
-
-                            {isUnpaid && (
-                              <button
-                                onClick={() => handlePayNow(payment)}
-                                disabled={isBusy}
-                                className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#2C1A0E] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
+                        <div className="px-3 py-3 sm:px-6 sm:py-4">
+                          <div className="md:hidden">
+                            <div className="flex min-w-0 items-start gap-2">
+                              <div
+                                className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] ${typeCfg.iconBg}`}
                               >
-                                {payingPaymentId === payment.id ? (
-                                  <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                  <CreditCard size={12} />
-                                )}
-                                {payingPaymentId === payment.id ? "Opening..." : "Pay Bill"}
-                              </button>
-                            )}
+                                <Icon size={15} />
+                              </div>
+
+                              <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <p className="min-w-0 flex-1 break-words text-[12px] font-bold leading-[1.35] text-[#2C1A0E]">
+                                    {title}
+                                  </p>
+                                  {subtitle ? (
+                                    <p className="mt-0.5 break-words text-[10px] leading-4 text-[#B89970]">
+                                      {subtitle}
+                                    </p>
+                                  ) : null}
+                                  {mobileMeta ? (
+                                    <p className="mt-0.5 text-[10px] leading-4 text-[#B89970]">
+                                      {mobileMeta}
+                                    </p>
+                                  ) : !subtitle ? (
+                                    <p className="mt-0.5 text-[10px] leading-4 text-[#B89970]">
+                                      Payment details will appear here.
+                                    </p>
+                                  ) : null}
+
+                                  <div className="mt-1 flex flex-nowrap items-center gap-1.5 px-3 py-1">
+                                    <p className="truncate text-[10px] font-medium leading-none text-[#7B654B]">
+                                      {paymentStatusMeta}
+                                    </p>
+                                    <span
+                                      className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold leading-none ${cfg.pill}`}
+                                    >
+                                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                                      {cfg.label}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                                  <p
+                                    className="whitespace-nowrap pt-0.5 text-[15px] font-semibold leading-none tracking-[-0.03em] text-[#2C1A0E]"
+                                    style={headingFont}
+                                  >
+                                    {fmt(payment.amount)}
+                                  </p>
+
+                                  {isUnpaid && (
+                                    <button
+                                      onClick={() => handlePayNow(payment)}
+                                      disabled={isBusy}
+                                      className="inline-flex min-h-[30px] items-center gap-1 rounded-[9px] bg-[#2C1A0E] px-2.5 py-1.5 text-[10px] font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
+                                    >
+                                      {payingPaymentId === payment.id ? (
+                                        <Loader2 size={10} className="animate-spin" />
+                                      ) : (
+                                        <CreditCard size={10} />
+                                      )}
+                                      {payingPaymentId === payment.id ? "Opening..." : "Pay Bill"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="hidden md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(120px,0.95fr)_minmax(130px,0.95fr)_minmax(170px,1fr)] md:items-center md:gap-4">
+                            <div className="flex min-w-0 items-start gap-3">
+                              <div
+                                className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] ${typeCfg.iconBg}`}
+                              >
+                                <Icon size={17} />
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-[#2C1A0E]">{title}</p>
+                                <p className="mt-1 truncate text-xs text-[#B89970]">
+                                  {subtitle || "Monthly dairy billing"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-semibold text-[#5C3D1E]">{paymentDateLabel}</p>
+                            </div>
+
+                            <div className="px-3 py-2.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-xs font-medium text-[#7B654B]">
+                                  {paymentStatusMeta}
+                                </p>
+                                <span
+                                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold ${cfg.pill}`}
+                                >
+                                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                                  {cfg.label}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-start gap-2 md:items-end">
+                              <p
+                                className="text-[22px] font-semibold leading-none tracking-[-0.03em] text-[#2C1A0E]"
+                                style={headingFont}
+                              >
+                                {fmt(payment.amount)}
+                              </p>
+
+                              {isUnpaid && (
+                                <button
+                                  onClick={() => handlePayNow(payment)}
+                                  disabled={isBusy}
+                                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#2C1A0E] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
+                                >
+                                  {payingPaymentId === payment.id ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <CreditCard size={12} />
+                                  )}
+                                  {payingPaymentId === payment.id ? "Opening..." : "Pay Bill"}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

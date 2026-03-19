@@ -105,6 +105,18 @@ export const parseDeliveryBillingMeta = (notesValue) => {
   };
 };
 
+const isInstantOneTimePaymentMethod = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return (
+    normalized === "PAY_NOW" ||
+    normalized === "PAYNOW" ||
+    normalized === "ONLINE" ||
+    normalized === "ONLINE_PAYMENT" ||
+    normalized === "UPI" ||
+    normalized === "RAZORPAY"
+  );
+};
+
 export const appendDeliveryBillingMeta = (notesValue, { paymentMethod, unitPrice } = {}) => {
   const notes = String(notesValue || "").trim();
   const hasPayment = /payment=/i.test(notes);
@@ -543,21 +555,28 @@ export const ensureBuyOnceInvoiceForDeliveredOrder = async (delivery) => {
       : Number.isFinite(existingAmount) && existingAmount > 0
       ? existingAmount
       : 0;
-  const paymentMethod = parseDeliveryBillingMeta(notes).paymentMethod || "COD";
+  const paymentMethod = parseDeliveryBillingMeta(notes).paymentMethod || null;
+  const shouldAutoMarkPaid = isInstantOneTimePaymentMethod(paymentMethod);
   const description = `${ONE_TIME_PAYMENT_MARKER} delivery_id=${delivery.id}; product=${
     delivery.milk_type || "Milk"
   }; qty=${Number(delivery.quantity_liters || 0)}; date=${delivery.delivery_date || getLocalTodayIso()}`.slice(0, 300);
 
   if (existingPayment?.id) {
     const nextStatus =
-      String(existingPayment.status || "").toUpperCase() === "PAID" ? "PAID" : "PENDING";
+      String(existingPayment.status || "").toUpperCase() === "PAID" || shouldAutoMarkPaid
+        ? "PAID"
+        : "PENDING";
 
     const { data: updatedPayment, error: updateError } = await supabase
       .from("payments")
       .update({
         amount,
         status: nextStatus,
-        method: String(existingPayment.method || paymentMethod).trim().toUpperCase(),
+        method: String(
+          existingPayment.method || paymentMethod || (shouldAutoMarkPaid ? "PAY_NOW" : "COD")
+        )
+          .trim()
+          .toUpperCase(),
         description,
         due_date: delivery.delivery_date || getLocalTodayIso(),
         updated_at: new Date().toISOString(),
@@ -577,8 +596,10 @@ export const ensureBuyOnceInvoiceForDeliveredOrder = async (delivery) => {
       customer_id: delivery.customer_id,
       dairy_id: delivery.dairy_id,
       amount,
-      status: "PENDING",
-      method: String(paymentMethod || "COD").trim().toUpperCase(),
+      status: shouldAutoMarkPaid ? "PAID" : "PENDING",
+      method: String(paymentMethod || (shouldAutoMarkPaid ? "PAY_NOW" : "COD"))
+        .trim()
+        .toUpperCase(),
       description,
       due_date: delivery.delivery_date || getLocalTodayIso(),
     })

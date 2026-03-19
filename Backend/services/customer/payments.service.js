@@ -257,14 +257,14 @@ const isDeliveredSubscriptionPaymentRow = (row, deliveryStatusById) => {
 
 const isVisibleCustomerPaymentRow = (row, deliveryStatusById) => {
   if (isWalletTopupPaymentRow(row)) return true;
-  if (isOneTimePaymentRow(row)) return true;
+  if (isOneTimePaymentRow(row)) return normalizeStatus(row?.status) === "PAID";
   if (isMonthlyBillPaymentRow(row)) return true;
   return false;
 };
 
 const isBillableCustomerPaymentRow = (row, deliveryStatusById) => {
   if (isWalletTopupPaymentRow(row)) return false;
-  if (isOneTimePaymentRow(row)) return true;
+  if (isOneTimePaymentRow(row)) return false;
   if (isMonthlyBillPaymentRow(row)) return true;
   return false;
 };

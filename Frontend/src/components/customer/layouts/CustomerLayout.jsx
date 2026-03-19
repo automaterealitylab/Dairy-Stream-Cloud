@@ -250,13 +250,13 @@ const CustomerLayout = ({ children }) => {
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-[1480px] px-3 pb-5 pt-2 sm:px-5 sm:pb-5 sm:pt-3 md:px-6 md:py-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
+        <div className="mx-auto w-full max-w-[1480px] px-2 pb-5 pt-2 sm:px-5 sm:pb-5 sm:pt-3 md:px-6 md:py-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
           {children}
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#EDE8DF] bg-[rgba(255,253,248,0.98)] px-2 py-2 shadow-[0_-10px_30px_rgba(100,72,35,0.08)] backdrop-blur md:hidden">
-        <div className="grid grid-cols-6 gap-1">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#EDE8DF] bg-[rgba(255,253,248,0.98)] px-1.5 py-2 shadow-[0_-10px_30px_rgba(100,72,35,0.08)] backdrop-blur md:hidden">
+        <div className="grid grid-cols-6 gap-0.5">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.path);
             const Icon = item.icon;
@@ -267,14 +267,14 @@ const CustomerLayout = ({ children }) => {
                 onClick={() => navigate(item.path)}
                 onMouseEnter={() => warmRoute(item)}
                 onFocus={() => warmRoute(item)}
-                className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[14px] px-1 py-2 transition ${
+                className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-[12px] px-0.5 py-2 transition ${
                   active
                     ? "bg-[#FDE9C9] text-[#B8641A]"
                     : "text-[#B89970] hover:bg-[#FDF6EC] hover:text-[#8B7355]"
                 }`}
               >
                 <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                <span className="text-center text-[9px] font-semibold leading-tight">
+                <span className="text-center text-[8px] font-semibold leading-tight sm:text-[9px]">
                   {item.mobileLabel || item.label}
                 </span>
               </button>
