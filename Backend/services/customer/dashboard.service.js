@@ -2,10 +2,10 @@ import { supabase } from "../../config/supabase.js";
 import { getSubscriptionByCustomerId } from "./subscription.service.js";
 import { getTodayDeliverySnapshot } from "./deliveries.service.js";
 import { getCustomerPaymentsData } from "./payments.service.js";
-import { getCustomerPaymentsData } from "./payments.service.js";
-
-const DASHBOARD_CACHE_TTL_MS = 10 * 1000;
-const dashboardCache = new Map();
+import {
+  getCachedCustomerDashboardPayload,
+  setCachedCustomerDashboardPayload,
+} from "./dashboardCache.service.js";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
@@ -216,9 +216,9 @@ const getUpcomingScheduledDelivery = async (customerId) => {
 
 export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
   const cacheKey = `${customerId}:${dairyId ?? "none"}`;
-  const cached = dashboardCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < DASHBOARD_CACHE_TTL_MS) {
-    return cached.payload;
+  const cached = getCachedCustomerDashboardPayload(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   const { data: customer, error: customerError } = await supabase
@@ -252,7 +252,6 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
   const { todayDelivery } = await getTodayDeliverySnapshot(customerId, { subscription });
   const upcomingDeliveryAlert = await getUpcomingScheduledDelivery(customerId);
   const oneTimeOrders = await getRecentOneTimeOrders(customerId);
-  const paymentsData = await getCustomerPaymentsData(customerId);
   const paymentsData = await getCustomerPaymentsData(customerId, linkedDairyId);
 
   const legacyDairyName =
@@ -272,6 +271,7 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
       name: customer.customer_name || customer.name || "Customer",
       email: customer.email || "-",
       phone: customer.phone_number || customer.phone || "-",
+      dairyId: linkedDairyId ?? null,
       dairy: resolvedDairyName || "Not assigned",
       dairyName: resolvedDairyName || "Not assigned",
       memberOfDairy: resolvedDairyName || "Not assigned",
@@ -302,13 +302,6 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
         paymentsData?.summary?.dueInDays === null || paymentsData?.summary?.dueInDays === undefined
           ? null
           : Number(paymentsData.summary.dueInDays),
-      monthlyDue: Number(paymentsData?.summary?.monthlyDue || 0),
-      walletBalance: Number(paymentsData?.summary?.walletBalance || 0),
-      dueInDays:
-        paymentsData?.summary?.dueInDays === null ||
-        paymentsData?.summary?.dueInDays === undefined
-          ? null
-          : Number(paymentsData.summary.dueInDays),
     },
     alerts: {
       upcomingDelivery: upcomingDeliveryAlert,
@@ -316,6 +309,6 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
     oneTimeOrders,
   };
 
-  dashboardCache.set(cacheKey, { payload, at: Date.now() });
+  setCachedCustomerDashboardPayload(cacheKey, payload);
   return payload;
 };

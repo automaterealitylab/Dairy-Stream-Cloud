@@ -26,6 +26,9 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(next) ? next : fallback;
 };
 
+const extractPaymentAmount = (row) =>
+  toNumber(row?.amount ?? row?.total_amount ?? row?.total ?? row?.bill_amount ?? 0, 0);
+
 export const getLocalTodayIso = () => {
   const now = new Date();
   const y = now.getFullYear();
@@ -276,18 +279,23 @@ export const syncCustomerMonthlyBills = async (customerId) => {
     }
   }
 
-  const monthlyBillRows = (paymentRows || []).filter((row) => parseMonthlyBillMeta(row?.description).isMonthlyBill);
+  const monthlyBillRows = (paymentRows || []).filter(
+    (row) => parseMonthlyBillMeta(row?.description).isMonthlyBill
+  );
   const existingByKey = new Map();
   for (const row of monthlyBillRows) {
     const meta = parseMonthlyBillMeta(row?.description);
     if (!meta.monthKey || !row?.dairy_id) continue;
-    existingByKey.set(`${row.dairy_id}:${meta.monthKey}`, row);
+    const groupKey = `${row.dairy_id}:${meta.monthKey}`;
+    if (!existingByKey.has(groupKey)) {
+      existingByKey.set(groupKey, []);
+    }
+    existingByKey.get(groupKey).push(row);
   }
 
   let synced = 0;
 
   for (const group of groups.values()) {
-    if (!shouldCloseMonth(group.monthKey, group.monthRows, todayIso)) continue;
     if (!group.deliveredRows.length) continue;
 
     let totalAmount = 0;
@@ -314,21 +322,31 @@ export const syncCustomerMonthlyBills = async (customerId) => {
       subscriptionCount,
     });
 
-    const existing = existingByKey.get(`${group.dairyId}:${group.monthKey}`) || null;
-    if (existing?.id) {
-      if (String(existing.status || "").toUpperCase() === "PAID") continue;
+    const monthPayments = existingByKey.get(`${group.dairyId}:${group.monthKey}`) || [];
+    const paidAmount = monthPayments.reduce((sum, row) => {
+      const status = String(row?.status || "PENDING").toUpperCase();
+      return status === "PAID" ? sum + extractPaymentAmount(row) : sum;
+    }, 0);
+    const existingOpenRow =
+      monthPayments.find((row) => String(row?.status || "PENDING").toUpperCase() !== "PAID") ||
+      null;
+    const remainingAmount = Number(Math.max(0, totalAmount - paidAmount).toFixed(2));
+
+    if (remainingAmount <= 0) continue;
+
+    if (existingOpenRow?.id) {
 
       const { error: updateError } = await supabase
         .from("payments")
         .update({
-          amount: totalAmount,
+          amount: remainingAmount,
           status: dueDate && dueDate < todayIso ? "OVERDUE" : "PENDING",
           method: String(paymentMethod || "UPI").trim().toUpperCase(),
           description,
           due_date: dueDate,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", existing.id)
+        .eq("id", existingOpenRow.id)
         .eq("customer_id", customerId);
 
       if (updateError) throw updateError;
@@ -339,7 +357,7 @@ export const syncCustomerMonthlyBills = async (customerId) => {
     const { error: insertError } = await supabase.from("payments").insert({
       customer_id: customerId,
       dairy_id: group.dairyId,
-      amount: totalAmount,
+      amount: remainingAmount,
       status: dueDate && dueDate < todayIso ? "OVERDUE" : "PENDING",
       method: String(paymentMethod || "UPI").trim().toUpperCase(),
       description,

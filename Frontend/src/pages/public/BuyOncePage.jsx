@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock3, MapPin, ShoppingBag, CheckCircle2, CreditCard } from "lucide-react";
 import toast from "react-hot-toast";
 import { fetchPublicDairyById } from "../../api/public.api.js";
@@ -27,6 +27,12 @@ const getDefaultBuyOnceDate = () => {
   if (now <= eveningCutoff) return toDateInput(now);
 
   const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return toDateInput(tomorrow);
+};
+
+const getTomorrowBuyOnceDate = () => {
+  const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   return toDateInput(tomorrow);
 };
@@ -126,6 +132,12 @@ const hasOpenSubscriptionStatus = (status) => {
 const BuyOncePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isCustomerExtraFlow = location.state?.from === "customer-add-extra";
+  const nextDayDeliveryDate =
+    typeof location.state?.deliveryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(location.state.deliveryDate)
+      ? location.state.deliveryDate
+      : getTomorrowBuyOnceDate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
@@ -134,11 +146,20 @@ const BuyOncePage = () => {
   const [form, setForm] = useState({
     milkType: "",
     quantity: 1,
-    deliveryDate: getDefaultBuyOnceDate(),
+    deliveryDate: isCustomerExtraFlow ? nextDayDeliveryDate : getDefaultBuyOnceDate(),
     slot: "Morning",
     paymentMethod: "PAY_NOW",
     address: "",
   });
+
+  useEffect(() => {
+    if (!isCustomerExtraFlow) return;
+
+    setForm((prev) => ({
+      ...prev,
+      deliveryDate: nextDayDeliveryDate,
+    }));
+  }, [isCustomerExtraFlow, nextDayDeliveryDate]);
 
   useEffect(() => {
     const load = async () => {
@@ -244,7 +265,19 @@ const BuyOncePage = () => {
   }, [hasAvailableSlot, form.deliveryDate]);
 
   const redirectToLogin = () => {
-    navigate("/", { state: { postLoginRedirect: `/buy-once/${id}` } });
+    navigate("/", {
+      state: {
+        postLoginRedirect: `/buy-once/${id}`,
+        postLoginState: isCustomerExtraFlow
+          ? {
+              from: "customer-add-extra",
+              dairyId: location.state?.dairyId || id,
+              dairyName: location.state?.dairyName || "",
+              deliveryDate: nextDayDeliveryDate,
+            }
+          : null,
+      },
+    });
   };
 
   const loadRazorpayCheckoutScript = () =>
@@ -347,8 +380,14 @@ const BuyOncePage = () => {
       toast.error("No product selected");
       return;
     }
-    if (hasSubscriptionForThisDairy) {
+    if (hasSubscriptionForThisDairy && !isCustomerExtraFlow) {
       toast.error("You already have an active subscription with this dairy.");
+      return;
+    }
+
+    if (isCustomerExtraFlow && form.deliveryDate !== nextDayDeliveryDate) {
+      toast.error("Extra products can only be ordered for tomorrow's delivery.");
+      setForm((prev) => ({ ...prev, deliveryDate: nextDayDeliveryDate }));
       return;
     }
 
@@ -384,6 +423,7 @@ const BuyOncePage = () => {
         paymentMethod: form.paymentMethod,
         address: form.address.trim(),
         pricePerLiter,
+        isExtraOrder: isCustomerExtraFlow,
         allowDuplicate,
       });
 
@@ -476,16 +516,23 @@ const BuyOncePage = () => {
       <div className="bg-white border-b sticky top-0 z-30 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-slate-100 transition-colors">
+            <button
+              onClick={() => navigate(isCustomerExtraFlow ? "/customer/dashboard" : -1)}
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors"
+            >
               <ArrowLeft size={20} className="text-slate-600" />
             </button>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">Instant Order</h1>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">
+                {isCustomerExtraFlow ? "Add Extra For Tomorrow" : "Instant Order"}
+              </h1>
               <p className="text-xs text-blue-600 font-medium">{dairy?.name}</p>
             </div>
           </div>
           <div className="hidden md:block">
-             <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Step 1 of 1: Checkout</span>
+             <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+               {isCustomerExtraFlow ? "Next-Day Extra Order" : "Step 1 of 1: Checkout"}
+             </span>
           </div>
         </div>
       </div>
@@ -493,9 +540,18 @@ const BuyOncePage = () => {
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="flex-1 space-y-6">
-            {hasSubscriptionForThisDairy && (
+            {hasSubscriptionForThisDairy && !isCustomerExtraFlow && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800">
                 You already have an active subscription with {dairy.name}. One-time delivery is not available for this dairy.
+              </div>
+            )}
+
+            {isCustomerExtraFlow && (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+                <p className="font-semibold">Add extra products for tomorrow&apos;s delivery.</p>
+                <p className="mt-1 text-xs text-blue-700">
+                  Your request will appear in your delivery history and in the dairy owner&apos;s approval queue.
+                </p>
               </div>
             )}
 
@@ -557,12 +613,23 @@ const BuyOncePage = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase ml-1">Date</label>
-                    <input
-                      type="date" min={toDateInput(new Date())}
-                      value={form.deliveryDate}
-                      onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-semibold outline-none focus:border-blue-500 transition-all"
-                    />
+                    {isCustomerExtraFlow ? (
+                      <div className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-900">
+                        {new Date(`${nextDayDeliveryDate}T00:00:00`).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}{" "}
+                        • Next day delivery
+                      </div>
+                    ) : (
+                      <input
+                        type="date" min={toDateInput(new Date())}
+                        value={form.deliveryDate}
+                        onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-semibold outline-none focus:border-blue-500 transition-all"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -656,13 +723,17 @@ const BuyOncePage = () => {
 
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={submitting || hasSubscriptionForThisDairy || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
+                disabled={submitting || (hasSubscriptionForThisDairy && !isCustomerExtraFlow) || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all transform active:scale-[0.98] disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
               >
                 {submitting
                   ? "Processing..."
-                  : hasSubscriptionForThisDairy
+                  : hasSubscriptionForThisDairy && !isCustomerExtraFlow
                   ? "Unavailable For Active Subscribers"
+                  : isCustomerExtraFlow && form.paymentMethod === "PAY_NOW"
+                  ? "Pay & Add Extra"
+                  : isCustomerExtraFlow
+                  ? "Add Extra Order"
                   : form.paymentMethod === "PAY_NOW"
                   ? "Pay & Place Order"
                   : "Place Order (Cash on Delivery)"}

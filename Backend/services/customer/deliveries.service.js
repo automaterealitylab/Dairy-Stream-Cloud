@@ -12,6 +12,14 @@ const SLOT_WINDOWS = {
 const isValidDateString = (value) =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const getLocalDateInput = (dateValue = new Date()) => {
+  const date = new Date(dateValue);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const toFiniteNumber = (value, fallback = NaN) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -671,6 +679,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const quantity = toFiniteNumber(payload?.quantity);
   const deliveryDate = String(payload?.deliveryDate || "").trim();
   const allowDuplicate = toBoolean(payload?.allowDuplicate);
+  const isExtraOrder = toBoolean(payload?.isExtraOrder);
   const paymentMethod = String(payload?.paymentMethod || "UPI").trim().toUpperCase();
   const address = String(payload?.address || "").trim();
   const slot = normalizeOneTimeSlot(payload?.slot);
@@ -694,9 +703,18 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   if (!address || address.length < 10) {
     throw new Error("Detailed delivery address is required");
   }
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = getLocalDateInput();
   if (deliveryDate < todayIso) {
     throw new Error("Cannot place one-time order for a past date");
+  }
+  if (isExtraOrder) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextDayIso = getLocalDateInput(tomorrow);
+
+    if (deliveryDate !== nextDayIso) {
+      throw new Error("Extra orders are available only for next-day delivery");
+    }
   }
 
   const { data: dairy, error: dairyError } = await supabase
@@ -713,7 +731,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
     customerId,
     dairyId,
   });
-  if (hasSubscriptionInSameDairy) {
+  if (hasSubscriptionInSameDairy && !isExtraOrder) {
     throw new Error(
       "You already have an active subscription with this dairy. One-time delivery is not available."
     );

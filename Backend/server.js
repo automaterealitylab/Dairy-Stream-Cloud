@@ -1,11 +1,8 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import Razorpay from "razorpay";
 import cron from "node-cron";
-
-// 1. Load Environment Variables
-dotenv.config();
+import "./config/loadEnv.js";
 
 // 2. Import Configuration & Routes
 // ✅ Points to your root config.js
@@ -43,8 +40,8 @@ app.get("/", (req, res) => {
 // Database connection check
 app.get("/supabase-health", async (req, res) => {
   try {
-    // We query the 'users' table (or any active table) just to test connection
-    const { data, error } = await supabase.from("users").select("id").limit(1);
+    // Query a known table so the health check reflects real connectivity.
+    const { data, error } = await supabase.from("customers").select("id").limit(1);
     
     if (error) throw error;
     

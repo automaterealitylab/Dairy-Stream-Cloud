@@ -1,8 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
-import dotenv from "dotenv";
+import "./loadEnv.js";
 
 // ✅ This MUST be called before cloudinary.config
-dotenv.config(); 
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

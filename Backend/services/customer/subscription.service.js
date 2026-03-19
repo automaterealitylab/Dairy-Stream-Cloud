@@ -3,6 +3,7 @@ import {
   ensureCustomerSubscriptionDeliveryForDate,
 } from "./subscription.automation.service.js";
 import { getUnpaidDeliveredSubscriptionMonthlySummary } from "./monthlyBilling.service.js";
+import { invalidateCustomerDashboardCache } from "./dashboardCache.service.js";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
@@ -304,6 +305,7 @@ export const upsertSubscription = async (customerId, payload) => {
     await ensureCustomerSubscriptionDeliveryForDate({ customerId });
   }
 
+  invalidateCustomerDashboardCache(customerId);
   return data;
 };
 
@@ -356,5 +358,6 @@ export const clearSubscriptionByCustomerId = async (customerId) => {
     dairyId: null,
   });
 
+  invalidateCustomerDashboardCache(customerId);
   return { deleted: deletedRows.length };
 };

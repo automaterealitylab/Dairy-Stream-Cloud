@@ -5,38 +5,48 @@ import {
   RefreshCw, Loader2, MapPin, CheckCircle, XCircle,
   Clock, ChevronDown, ChevronUp, CalendarCheck2, CalendarX2, CirclePlus,
 } from 'lucide-react';
-import { fetchCustomerDeliveries } from '../../api/customer/customer.api';
+import {
+  fetchCustomerDeliveries,
+  getCachedCustomerDeliveries,
+} from '../../api/customer/customer.api';
 
 const PREVIEW = 7;
+const headingFont = { fontFamily: "'Lora', serif" };
+const EMPTY_INSIGHTS = {
+  monthLabel: '',
+  monthlyDeliveryCount: 0,
+  skippedDays: 0,
+  extraOrders: 0,
+};
 
 const STATUS_CFG = {
   DELIVERED: {
     icon: CheckCircle,
-    iconBg: 'bg-emerald-50 text-emerald-600',
-    badge: 'bg-emerald-50 text-emerald-700',
+    iconBg: 'bg-[#EEF5E7] text-[#4A7C2F]',
+    badge: 'bg-[#EEF5E7] text-[#4A7C2F]',
     label: 'Delivered',
     sub: (item) => (item.time ? `Dropped at ${item.time}` : 'Delivered'),
   },
   SKIPPED: {
     icon: XCircle,
-    iconBg: 'bg-red-50 text-red-500',
-    badge: 'bg-red-50 text-red-600',
+    iconBg: 'bg-[#FDECEA] text-[#C0392B]',
+    badge: 'bg-[#FDECEA] text-[#C0392B]',
     label: 'Skipped',
     sub: () => 'Not delivered',
   },
   PENDING: {
     icon: Clock,
-    iconBg: 'bg-amber-50 text-amber-500',
-    badge: 'bg-amber-50 text-amber-600',
+    iconBg: 'bg-[#FFF1E4] text-[#B8641A]',
+    badge: 'bg-[#FFF1E4] text-[#B8641A]',
     label: 'Pending',
     sub: () => 'Partner not assigned',
   },
   PENDING_APPROVAL: {
     icon: Clock,
-    iconBg: 'bg-amber-50 text-amber-500',
-    badge: 'bg-amber-50 text-amber-600',
-    label: 'Pending',
-    sub: () => 'Partner not assigned',
+    iconBg: 'bg-[#FFF1E4] text-[#B8641A]',
+    badge: 'bg-[#FFF1E4] text-[#B8641A]',
+    label: 'Approval Pending',
+    sub: () => 'Waiting for dairy approval',
   },
 };
 
@@ -79,22 +89,35 @@ function buildGroups(deliveries, view) {
   return Array.from(map.values());
 }
 
+function toDeliveryViewState(data) {
+  return {
+    deliveries: Array.isArray(data?.deliveries) ? data.deliveries : [],
+    todayDelivery: data?.todayDelivery || null,
+    insights: {
+      monthLabel: data?.insights?.monthLabel || '',
+      monthlyDeliveryCount: Number(data?.insights?.monthlyDeliveryCount || 0),
+      skippedDays: Number(data?.insights?.skippedDays || 0),
+      extraOrders: Number(data?.insights?.extraOrders || 0),
+    },
+  };
+}
+
 function DeliveryRow({ item, muted = false }) {
   const cfg  = getCfg(item.status);
   const Icon = cfg.icon;
   return (
-    <div className={`flex items-center gap-4 px-6 py-4 border-b border-gray-50 last:border-none transition-colors hover:bg-gray-50/60 ${muted ? 'opacity-40' : ''}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.iconBg}`}>
+    <div className={`flex items-center gap-4 border-b border-[#F2EDE4] px-6 py-4 transition-colors hover:bg-[#FBF7F0] last:border-none ${muted ? 'opacity-45' : ''}`}>
+      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${cfg.iconBg}`}>
         <Icon size={18} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold truncate ${muted ? 'text-sm text-gray-500' : 'text-sm text-gray-900'}`}>
+        <p className={`truncate font-semibold ${muted ? 'text-sm text-[#8B7355]' : 'text-sm text-[#2C1A0E]'}`}>
           {item.qty} {item.product}
         </p>
-        <p className="text-xs text-gray-400 mt-0.5">{cfg.sub(item)}</p>
+        <p className="mt-0.5 text-xs text-[#A88763]">{cfg.sub(item)}</p>
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="text-xs text-gray-300 mb-1">{item.date}</p>
+        <p className="mb-1 text-xs text-[#C4A882]">{item.date}</p>
         <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${cfg.badge}`}>
           {cfg.label}
         </span>
@@ -114,16 +137,16 @@ function CollapsedSummary({ items, onExpand }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <button onClick={onExpand} className="w-full flex items-center justify-between px-6 py-3.5 text-left hover:bg-gray-50/60 transition-colors">
+    <button onClick={onExpand} className="w-full flex items-center justify-between px-6 py-3.5 text-left transition-colors hover:bg-[#FBF7F0]">
       <div className="flex items-center gap-2">
         <div className="flex gap-1.5">
-          {delivered > 0 && <span className="w-2 h-2 rounded-full bg-emerald-400" />}
-          {skipped   > 0 && <span className="w-2 h-2 rounded-full bg-red-400" />}
-          {pending   > 0 && <span className="w-2 h-2 rounded-full bg-amber-400" />}
+          {delivered > 0 && <span className="h-2 w-2 rounded-full bg-[#4A7C2F]" />}
+          {skipped   > 0 && <span className="h-2 w-2 rounded-full bg-[#C0392B]" />}
+          {pending   > 0 && <span className="h-2 w-2 rounded-full bg-[#B8641A]" />}
         </div>
-        <span className="text-xs text-gray-400">{parts}</span>
+        <span className="text-xs text-[#8B7355]">{parts}</span>
       </div>
-      <span className="flex items-center gap-1 text-xs font-semibold text-gray-300">
+      <span className="flex items-center gap-1 text-xs font-semibold text-[#C4A882]">
         Show all <ChevronDown size={13} />
       </span>
     </button>
@@ -136,10 +159,10 @@ function GroupBlock({ group, isFirst }) {
   const { label, items } = group;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-3">
-      <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-50">
-        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{label}</span>
-        <span className="text-[10px] text-gray-200">{items.length} deliveries</span>
+    <div className="mb-5 overflow-hidden rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7]">
+      <div className="flex items-center justify-between border-b border-[#F2EDE4] px-6 py-3.5">
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">{label}</span>
+        <span className="text-[10px] text-[#C4A882]">{items.length} deliveries</span>
       </div>
       {isFirst ? (
         <>
@@ -149,14 +172,14 @@ function GroupBlock({ group, isFirst }) {
           {items.length > PREVIEW && (
             <button
               onClick={() => setShowMore((p) => !p)}
-              className="w-full flex items-center justify-between px-6 py-3.5 border-t border-gray-50 hover:bg-gray-50/60 transition-colors"
+              className="w-full flex items-center justify-between border-t border-[#F2EDE4] px-6 py-3.5 transition-colors hover:bg-[#FBF7F0]"
             >
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-[#8B7355]">
                 {showMore ? 'Hide extra rows' : `${items.length - PREVIEW} more deliveries`}
               </span>
               {showMore
-                ? <ChevronUp size={14} className="text-gray-300" />
-                : <ChevronDown size={14} className="text-gray-300" />}
+                ? <ChevronUp size={14} className="text-[#C4A882]" />
+                : <ChevronDown size={14} className="text-[#C4A882]" />}
             </button>
           )}
         </>
@@ -165,10 +188,10 @@ function GroupBlock({ group, isFirst }) {
           {items.map((item, i) => <DeliveryRow key={item.id ?? i} item={item} muted />)}
           <button
             onClick={() => setIsExpanded(false)}
-            className="w-full flex items-center justify-between px-6 py-3.5 border-t border-gray-50 hover:bg-gray-50/60 transition-colors"
+            className="w-full flex items-center justify-between border-t border-[#F2EDE4] px-6 py-3.5 transition-colors hover:bg-[#FBF7F0]"
           >
-            <span className="text-xs text-gray-400">Collapse</span>
-            <ChevronUp size={14} className="text-gray-300" />
+            <span className="text-xs text-[#8B7355]">Collapse</span>
+            <ChevronUp size={14} className="text-[#C4A882]" />
           </button>
         </>
       ) : (
@@ -180,29 +203,39 @@ function GroupBlock({ group, isFirst }) {
 
 export default function Deliveries() {
   const navigate = useNavigate();
-  const [deliveries,    setDeliveries] = useState([]);
-  const [todayDelivery, setToday]      = useState(null);
-  const [insights,      setInsights]   = useState({
-    monthLabel: '', monthlyDeliveryCount: 0, skippedDays: 0, extraOrders: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const cachedDeliveries = getCachedCustomerDeliveries();
+  const initialDeliveryState = toDeliveryViewState(cachedDeliveries);
+  const [deliveries, setDeliveries] = useState(initialDeliveryState.deliveries);
+  const [todayDelivery, setToday] = useState(initialDeliveryState.todayDelivery);
+  const [insights, setInsights] = useState(initialDeliveryState.insights);
+  const [loading, setLoading] = useState(() => !cachedDeliveries);
   const [error,   setError]   = useState(null);
   const [view,    setView]    = useState('week');
 
-  const load = async () => {
-    setLoading(true); setError(null);
+  const applyDeliveryState = (data) => {
+    const nextState = toDeliveryViewState(data);
+    setDeliveries(nextState.deliveries);
+    setToday(nextState.todayDelivery);
+    setInsights(nextState.insights);
+  };
+
+  const load = async ({ force = false, showSpinner = force || !getCachedCustomerDeliveries() } = {}) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
+    setError(null);
     try {
-      const data = await fetchCustomerDeliveries();
-      setDeliveries(Array.isArray(data?.deliveries) ? data.deliveries : []);
-      setToday(data?.todayDelivery || null);
-      setInsights({
-        monthLabel:           data?.insights?.monthLabel || '',
-        monthlyDeliveryCount: Number(data?.insights?.monthlyDeliveryCount || 0),
-        skippedDays:          Number(data?.insights?.skippedDays || 0),
-        extraOrders:          Number(data?.insights?.extraOrders || 0),
-      });
+      const data = await fetchCustomerDeliveries({ force });
+      applyDeliveryState(data);
     } catch (err) {
       setError(err?.message || 'Could not load deliveries.');
+      const hasVisibleDeliveryState = deliveries.length > 0 || Boolean(todayDelivery);
+
+      if (!hasVisibleDeliveryState) {
+        setDeliveries([]);
+        setToday(null);
+        setInsights(EMPTY_INSIGHTS);
+      }
     } finally {
       setLoading(false);
     }
@@ -223,9 +256,9 @@ export default function Deliveries() {
       : 'Expected today';
 
   const insightCards = [
-    { label: insights.monthLabel ? `${insights.monthLabel} Deliveries` : 'Monthly', value: insights.monthlyDeliveryCount, color: 'text-emerald-600', iconBg: 'bg-emerald-50 text-emerald-500', Icon: CalendarCheck2 },
-    { label: 'Skipped Days',  value: insights.skippedDays,  color: 'text-red-500',  iconBg: 'bg-red-50 text-red-400',   Icon: CalendarX2 },
-    { label: 'Extra Orders',  value: insights.extraOrders,  color: 'text-blue-600', iconBg: 'bg-blue-50 text-blue-500', Icon: CirclePlus },
+    { label: insights.monthLabel ? `${insights.monthLabel} Deliveries` : 'Monthly', value: insights.monthlyDeliveryCount, color: 'text-[#4A7C2F]', iconBg: 'bg-[#EEF5E7] text-[#4A7C2F]', Icon: CalendarCheck2 },
+    { label: 'Skipped Days',  value: insights.skippedDays,  color: 'text-[#C0392B]',  iconBg: 'bg-[#FDECEA] text-[#C0392B]',   Icon: CalendarX2 },
+    { label: 'Extra Orders',  value: insights.extraOrders,  color: 'text-[#B8641A]', iconBg: 'bg-[#FFF1E4] text-[#B8641A]', Icon: CirclePlus },
   ];
 
   return (
@@ -234,17 +267,26 @@ export default function Deliveries() {
         Single-column, full-width — matches the rest of the dashboard layout.
         No max-w constraint; CustomerLayout's own padding/max-w handles the outer bounds.
       */}
-      <div className="w-full px-6 py-8 space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div className="space-y-8 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Delivery History
-          </h1>
+        <div className="rounded-[30px] border border-[#EDE8DF] bg-[#F5F0E8] p-5 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:p-7 xl:p-9">
+          <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+              Delivery Overview
+            </p>
+            <h1 className="mt-2 text-[32px] font-semibold text-[#2C1A0E] sm:text-[36px]" style={headingFont}>
+              Delivery <span className="text-[#B8641A]">History</span>
+            </h1>
+            <p className="mt-2 text-sm text-[#8B7355]">
+              Review completed drops, skipped days, and today&apos;s delivery status.
+            </p>
+          </div>
           <button
-            onClick={load}
+            onClick={() => load({ force: true })}
             disabled={loading}
-            className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-800 hover:border-gray-300 transition disabled:opacity-40"
+            className="inline-flex items-center gap-2 self-start rounded-[12px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2 text-xs font-semibold text-[#6B5B3E] transition hover:border-[#D97706] hover:text-[#B45309] disabled:opacity-40"
           >
             {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             {loading ? 'Refreshing…' : 'Refresh'}
@@ -252,24 +294,24 @@ export default function Deliveries() {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-100">
+          <div className="mt-6 rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3.5 text-sm text-[#C0392B]">
             {error}
           </div>
         )}
 
         {/* ── Stat cards — always 3 columns ── */}
         {!loading && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="mt-7 grid gap-5 sm:grid-cols-3">
             {insightCards.map(({ label, value, color, iconBg, Icon }) => (
               <div
                 key={label}
-                className="bg-white border border-gray-100 rounded-2xl p-5 flex justify-between items-end hover:-translate-y-0.5 transition-transform"
+                className="flex items-end justify-between rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7] p-5 transition-transform hover:-translate-y-0.5"
               >
                 <div>
-                  <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">{label}</p>
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">{label}</p>
                   <p className={`text-4xl font-extrabold leading-none tracking-tight ${color}`}>{value}</p>
                 </div>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-[12px] ${iconBg}`}>
                   <Icon size={18} />
                 </div>
               </div>
@@ -279,14 +321,14 @@ export default function Deliveries() {
 
         {/* ── Today card — full width banner ── */}
         {todayDelivery && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 relative overflow-hidden">
-            <MapPin className="absolute -right-4 -bottom-4 text-gray-100" size={120} />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-3">
+          <div className="relative mt-8 overflow-hidden rounded-[26px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_62%,#6B4F2A_100%)] p-7 sm:p-8">
+            <MapPin className="absolute -right-4 -bottom-4 text-white/10" size={120} />
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#F3D4A6]">
               Today's Delivery
             </p>
-            <div className="flex items-center justify-between gap-6 relative">
+            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex-1 min-w-0">
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                <h3 className="mb-3 text-[28px] font-semibold text-white" style={headingFont}>
                   {todayDelivery.quantity} {todayDelivery.product}
                 </h3>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -294,22 +336,22 @@ export default function Deliveries() {
                     {todayDelivery.status}
                   </span>
                   {todayDelivery.isOneTimeOrder && (
-                    <span className="text-[10px] font-bold uppercase tracking-wide px-3 py-1 rounded-full bg-indigo-50 text-indigo-600">
+                    <span className="rounded-full bg-[#F6F0FF] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#7C4DAB]">
                       One-time
                     </span>
                   )}
                   {todayDelivery.slot && todayDelivery.slot !== '-' && (
-                    <span className="text-[10px] font-semibold px-3 py-1 rounded-full bg-gray-50 text-gray-500">
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold text-white/70">
                       {todayDelivery.slot}
                     </span>
                   )}
                   {todayDelivery.paymentMethod && todayDelivery.paymentMethod !== '-' && (
-                    <span className="text-[10px] font-semibold px-3 py-1 rounded-full bg-gray-50 text-gray-500">
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold text-white/70">
                       {todayDelivery.paymentMethod}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 flex items-center gap-1.5 mt-1">
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-white/70">
                   <Clock size={11} className="flex-shrink-0" />
                   {todayTimingLabel}
                   {todayDelivery.dairyName && <span className="text-gray-300 mx-1">·</span>}
@@ -319,7 +361,7 @@ export default function Deliveries() {
               <button
                 onClick={() => navigate('/customer/dashboard/track/agent', { state: { delivery: todayDelivery } })}
                 disabled={!canTrack}
-                className="flex-shrink-0 flex items-center gap-2 bg-gray-900 text-white px-6 py-3.5 rounded-2xl text-sm font-bold hover:bg-gray-700 transition active:scale-95 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                className="flex flex-shrink-0 items-center gap-2 rounded-[16px] bg-[#FFF4E2] px-6 py-3.5 text-sm font-bold text-[#B8641A] transition hover:bg-[#FDE9C9] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
               >
                 <MapPin size={16} />
                 Track Agent
@@ -330,30 +372,30 @@ export default function Deliveries() {
 
         {/* ── Recent deliveries ── */}
         {loading ? (
-          <div className="bg-white rounded-2xl border border-gray-100 py-32 flex flex-col items-center gap-3">
-            <Loader2 size={32} className="animate-spin text-blue-500" />
+          <div className="mt-8 flex flex-col items-center gap-3 rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] py-32">
+            <Loader2 size={32} className="animate-spin text-[#B8641A]" />
             <p className="text-xs font-bold text-gray-300 uppercase tracking-widest">Loading…</p>
           </div>
         ) : deliveries.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-20 text-center">
-            <p className="text-sm text-gray-400">No delivery records yet.</p>
+          <div className="mt-8 rounded-[24px] border border-dashed border-[#E7DAC6] bg-[#FFFDF7] py-20 text-center">
+            <p className="text-sm text-[#8B7355]">No delivery records yet.</p>
           </div>
         ) : (
           <>
             {/* Section header + week/month toggle */}
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-gray-300 uppercase tracking-widest">
-                Recent Deliveries
-              </p>
-              <div className="flex bg-white border border-gray-100 rounded-xl p-1 gap-1">
-                {['week', 'month'].map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${
-                      view === v ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'
-                    }`}
-                  >
+              <div className="mt-8 flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+                  Recent Deliveries
+                </p>
+                <div className="flex gap-1 rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] p-1">
+                  {['week', 'month'].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setView(v)}
+                      className={`rounded-[10px] px-4 py-1.5 text-xs font-semibold capitalize transition-all ${
+                        view === v ? 'bg-[#2C2416] text-white' : 'text-[#8B7355] hover:text-[#5C3D1E]'
+                      }`}
+                    >
                     {v}
                   </button>
                 ))}
@@ -368,7 +410,7 @@ export default function Deliveries() {
             </div>
           </>
         )}
-
+        </div>
       </div>
     </CustomerLayout>
   );

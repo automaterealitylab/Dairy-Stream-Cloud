@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
@@ -10,15 +10,68 @@ import {
   LogOut,
   MapPin
 } from "lucide-react";
+import {
+  prefetchCustomerDashboard,
+  prefetchCustomerDeliveries,
+  prefetchCustomerPayments,
+  prefetchCustomerProfile,
+  prefetchCustomerSubscription,
+} from "../../../api/customer/customer.api.js";
+
+const shellFont = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
+const brandFont = { fontFamily: "'Lora', serif" };
+
+const preloadDashboardPage = () => import("../../../pages/customer/DairyCustomerDashboard.jsx");
+const preloadDeliveriesPage = () => import("../../../pages/customer/CustomerDeliveryHistory.jsx");
+const preloadSubscriptionPage = () => import("../../../pages/customer/CustomerSubscription.jsx");
+const preloadPaymentsPage = () => import("../../../pages/customer/CustomerPayments.jsx");
+const preloadTrackAgentPage = () => import("../../../pages/customer/TrackAgent.jsx");
+const preloadProfilePage = () => import("../../../pages/customer/CustomerProfile.jsx");
 
 /* ================= NAV CONFIG (SINGLE SOURCE) ================= */
 const NAV_ITEMS = [
-  { icon: Home, label: "Home", path: "/customer/dashboard" },
-  { icon: Calendar, label: "Deliveries", path: "/customer/dashboard/deliveries" },
-  { icon: ShoppingBag, label: "My Subscription", path: "/customer/dashboard/subscriptions" },
-  { icon: CreditCard, label: "Payments", path: "/customer/dashboard/payments" },
-   { icon:MapPin, label: "Track Agent", path: "/customer/dashboard/track/agent" },
-  { icon: User, label: "Profile", path: "/customer/dashboard/profile" },
+  {
+    icon: Home,
+    label: "Home",
+    path: "/customer/dashboard",
+    preload: preloadDashboardPage,
+    prefetchData: [prefetchCustomerDashboard],
+  },
+  {
+    icon: Calendar,
+    label: "Deliveries",
+    path: "/customer/dashboard/deliveries",
+    preload: preloadDeliveriesPage,
+    prefetchData: [prefetchCustomerDeliveries],
+  },
+  {
+    icon: ShoppingBag,
+    label: "My Subscription",
+    path: "/customer/dashboard/subscriptions",
+    preload: preloadSubscriptionPage,
+    prefetchData: [prefetchCustomerSubscription],
+  },
+  {
+    icon: CreditCard,
+    label: "Payments",
+    path: "/customer/dashboard/payments",
+    preload: preloadPaymentsPage,
+    prefetchData: [prefetchCustomerPayments],
+  },
+  {
+    icon: MapPin,
+    label: "Track Agent",
+    path: "/customer/dashboard/track/agent",
+    preload: preloadTrackAgentPage,
+    prefetchData: [prefetchCustomerDeliveries],
+  },
+  {
+    icon: User,
+    label: "Profile",
+    path: "/customer/dashboard/profile",
+    preload: preloadProfilePage,
+    prefetchData: [prefetchCustomerProfile, prefetchCustomerDashboard],
+  },
 ];
 const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 
@@ -27,6 +80,63 @@ const CustomerLayout = ({ children }) => {
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path;
+  const warmRouteChunk = (item) => {
+    item?.preload?.().catch(() => {
+      // Ignore prefetch failures and allow navigation to request the chunk normally.
+    });
+  };
+  const warmRouteData = (item) => {
+    item?.prefetchData?.forEach((job) => {
+      job?.();
+    });
+  };
+  const warmRoute = (item) => {
+    warmRouteChunk(item);
+    warmRouteData(item);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    let cancelled = false;
+    const timerIds = [];
+
+    const preloadSiblingRoutes = () => {
+      NAV_ITEMS.forEach((item, index) => {
+        if (item.path === location.pathname) return;
+
+        const timerId = window.setTimeout(() => {
+          if (!cancelled) {
+            warmRoute(item);
+          }
+        }, index * 180);
+
+        timerIds.push(timerId);
+      });
+    };
+
+    let idleId = null;
+    let timeoutId = null;
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(preloadSiblingRoutes, { timeout: 1500 });
+    } else {
+      timeoutId = window.setTimeout(preloadSiblingRoutes, 1200);
+    }
+
+    return () => {
+      cancelled = true;
+      timerIds.forEach((timerId) => window.clearTimeout(timerId));
+
+      if (idleId !== null) {
+        window.cancelIdleCallback?.(idleId);
+      }
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -35,17 +145,112 @@ const CustomerLayout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* ================= DESKTOP SIDEBAR ================= */}
-      <aside className="hidden md:flex flex-col w-64 bg-surface border-r border-border h-screen fixed">
-        {/* Logo */}
-        <div className="p-6 border-b border-border">
-          <h1 className="text-xl font-bold text-brand">DairyStream</h1>
-          <p className="text-xs text-text-muted mt-1">Customer Dashboard</p>
+    <div className="flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={shellFont}>
+      <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-[#EDE8DF] bg-white/95 backdrop-blur md:flex">
+        <div className="border-b border-[#F2EDE4] px-6 py-7">
+          <h1 className="text-[26px] text-[#B8641A]" style={brandFont}>
+            DairyStream
+          </h1>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+            Customer Portal
+          </p>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-5">
+          <p className="px-6 pb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882]">
+            Menu
+          </p>
+          {NAV_ITEMS.slice(0, 4).map((item) => {
+            const active = isActive(item.path);
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.label}
+                onClick={() => navigate(item.path)}
+                onMouseEnter={() => warmRoute(item)}
+                onFocus={() => warmRoute(item)}
+                className={`relative flex w-full items-center gap-3 px-6 py-3 text-left text-sm transition ${
+                  active
+                    ? "bg-[#FDE9C9] font-bold text-[#B8641A]"
+                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+                }`}
+              >
+                {active && (
+                  <span className="absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-[#B8641A]" />
+                )}
+                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+                {item.label}
+              </button>
+            );
+          })}
+
+          <p className="px-6 pb-2 pt-6 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882]">
+            Support
+          </p>
+          {NAV_ITEMS.slice(4).map((item) => {
+            const active = isActive(item.path);
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.label}
+                onClick={() => navigate(item.path)}
+                onMouseEnter={() => warmRoute(item)}
+                onFocus={() => warmRoute(item)}
+                className={`relative flex w-full items-center gap-3 px-6 py-3 text-left text-sm transition ${
+                  active
+                    ? "bg-[#FDE9C9] font-bold text-[#B8641A]"
+                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+                }`}
+              >
+                {active && (
+                  <span className="absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-[#B8641A]" />
+                )}
+                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto border-t border-[#F2EDE4] px-6 py-5">
+          
+
+          <button
+            onClick={handleLogout}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#EDE8DF] px-4 py-2.5 text-sm font-semibold text-[#B89970] transition hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B]"
+          >
+            <LogOut size={16} />
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 pb-24 md:ml-64 md:pb-0">
+        <header className="sticky top-0 z-20 border-b border-[#EDE8DF] bg-[rgba(255,253,248,0.96)] px-4 py-3 backdrop-blur md:hidden">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl text-[#B8641A]" style={brandFont}>
+                DairyStream
+              </h1>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#C4A882]">
+                Customer Portal
+              </p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355]">
+              <Bell size={18} />
+            </div>
+          </div>
+        </header>
+
+        <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-5 md:px-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
+          {children}
+        </div>
+      </main>
+
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#EDE8DF] bg-[rgba(255,253,248,0.98)] px-3 py-2 shadow-[0_-10px_30px_rgba(100,72,35,0.08)] backdrop-blur md:hidden">
+        <div className="grid grid-cols-6 gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.path);
             const Icon = item.icon;
@@ -54,74 +259,20 @@ const CustomerLayout = ({ children }) => {
               <button
                 key={item.label}
                 onClick={() => navigate(item.path)}
-                className={`
-                  flex items-center gap-3 w-full px-4 py-3 rounded-xl
-                  text-sm font-medium transition
-                  ${
-                    active
-                      ? "bg-brand-soft text-brand"
-                      : "text-text-secondary hover:bg-background"
-                  }
-                `}
+                onMouseEnter={() => warmRoute(item)}
+                onFocus={() => warmRoute(item)}
+                className={`flex flex-col items-center justify-center gap-1 rounded-[14px] px-1 py-2 transition ${
+                  active
+                    ? "bg-[#FDE9C9] text-[#B8641A]"
+                    : "text-[#B89970] hover:bg-[#FDF6EC] hover:text-[#8B7355]"
+                }`}
               >
-                <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-                {item.label}
+                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+                <span className="text-[10px] font-semibold leading-tight">{item.label}</span>
               </button>
             );
           })}
-        </nav>
-
-        {/* Logout */}
-        <div className="p-4 border-t border-border">
-          <button
-            onClick={handleLogout}
-            className="
-              flex items-center gap-3 w-full px-4 py-3
-              text-red-500 rounded-xl text-sm font-medium
-              hover:bg-red-50 transition
-            "
-          >
-            <LogOut size={20} />
-            Logout
-          </button>
         </div>
-      </aside>
-
-      {/* ================= MAIN CONTENT ================= */}
-      <main className="flex-1 md:ml-64 pb-20 md:pb-0">
-        {/* Mobile Header */}
-        <header className="md:hidden sticky top-0 z-20 bg-surface border-b border-border px-4 py-3 flex justify-between items-center">
-          <h1 className="font-semibold text-text-primary">DairyStream</h1>
-          <Bell size={20} className="text-text-secondary" />
-        </header>
-
-        {/* Page Content */}
-        <div className="p-4 md:p-8 max-w-5xl mx-auto">
-          {children}
-        </div>
-      </main>
-
-      {/* ================= MOBILE BOTTOM NAV ================= */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border px-4 py-2 flex justify-between z-30 shadow-lg">
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(item.path);
-          const Icon = item.icon;
-
-          return (
-            <button
-              key={item.label}
-              onClick={() => navigate(item.path)}
-              className={`
-                flex flex-col items-center justify-center gap-1
-                w-full py-2 rounded-lg transition
-                ${active ? "text-brand" : "text-text-muted"}
-              `}
-            >
-              <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-              <span className="text-[11px] font-medium">{item.label}</span>
-            </button>
-          );
-        })}
       </div>
     </div>
   );

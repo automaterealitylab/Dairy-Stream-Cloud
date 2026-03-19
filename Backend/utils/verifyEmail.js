@@ -1,8 +1,7 @@
 import axios from "axios";
-import dotenv from "dotenv";
+import "../config/loadEnv.js";
 
 // Load env vars (Just in case this file is run standalone)
-dotenv.config();
 
 const verifyEmail = async (email) => {
     // If no API key is set, skip verification (Dev mode safety)

@@ -1,6 +1,12 @@
 import { supabase } from "../../config/supabase.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import {
+  getCurrentMonthSuccessfulSubscriptionDue,
+  getLocalTodayIso,
+  parseMonthlyBillMeta,
+  syncCustomerMonthlyBills,
+} from "./monthlyBilling.service.js";
 
 const PAYMENT_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
 const MEMBERSHIP_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
@@ -47,6 +53,22 @@ const normalizeStatus = (status) => {
   return "PENDING";
 };
 
+const isMonthlyBillPaymentRow = (row) => {
+  const monthMeta = parseMonthlyBillMeta(row?.description);
+  if (monthMeta.isMonthlyBill) return true;
+
+  if (row?.billing_month || row?.month) return true;
+
+  const description = String(row?.description || "");
+  if (!description) return false;
+
+  if (/\b(one[_ -]?time|wallet)\b/i.test(description)) {
+    return false;
+  }
+
+  return /\b(monthly bill|milk bill)\b/i.test(description);
+};
+
 const extractPaymentAmount = (row) =>
   toNumber(row?.amount ?? row?.total_amount ?? row?.total ?? row?.bill_amount ?? 0, 0);
 
@@ -69,6 +91,16 @@ const diffDaysFromToday = (value) => {
   const a = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const b = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
   return Math.ceil((b - a) / (1000 * 60 * 60 * 24));
+};
+
+const normalizeMonthKey = (value) => {
+  const monthKey = String(value || "").trim();
+  return /^\d{4}-\d{2}$/.test(monthKey) ? monthKey : null;
+};
+
+const getPaymentMonthKey = (row) => {
+  const monthMeta = parseMonthlyBillMeta(row?.description);
+  return normalizeMonthKey(monthMeta.monthKey || row?.billing_month || row?.month);
 };
 
 const getCustomerWalletBalance = async (customerId) => {
@@ -156,8 +188,9 @@ const mapPaymentRow = (row, index) => {
   const amount = extractPaymentAmount(row);
   const status = normalizeStatus(row.status);
   const dateSource = row.payment_date || row.date || row.created_at || row.updated_at;
+  const monthKey = getPaymentMonthKey(row);
   const monthMeta = parseMonthlyBillMeta(row.description);
-  const monthLabel = row.billing_month || row.month || monthMeta.monthKey || null;
+  const monthLabel = row.billing_month || row.month || monthKey || null;
   const title = monthMeta.isMonthlyBill
     ? `${monthLabel ? `${monthLabel} Monthly Bill` : "Monthly Bill"}`
     : row.title || row.description || "Payment";
@@ -170,6 +203,7 @@ const mapPaymentRow = (row, index) => {
     status,
     method: row.method || row.payment_method || "-",
     dueDate: row.due_date || row.dueDate || null,
+    monthKey,
   };
 };
 
@@ -458,6 +492,7 @@ const updatePaymentsWithFallbacks = async ({
 };
 
 export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyId = null, payAll = false }) => {
+  await syncCustomerMonthlyBills(customerId);
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
 
   if (payAll) {
@@ -638,7 +673,9 @@ export const verifyCustomerPayment = async ({
 };
 
 export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
-  const [walletBalance, paymentRows] = await Promise.all([
+  await syncCustomerMonthlyBills(customerId);
+  const [{ payableTillDate }, walletBalance, paymentRows] = await Promise.all([
+    getCurrentMonthSuccessfulSubscriptionDue(customerId),
     getCustomerWalletBalance(customerId),
     fetchPaymentsRows(customerId, dairyId),
   ]);
@@ -658,6 +695,16 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     (sum, item) => sum + toNumber(item.amount, 0),
     0
   );
+  const currentMonthKey = String(getLocalTodayIso()).slice(0, 7);
+  const historicalPendingAndOverdue = pendingCandidates.reduce((sum, item) => {
+    return item.monthKey === currentMonthKey ? sum : sum + toNumber(item.amount, 0);
+  }, 0);
+  const currentMonthPendingAndOverdue = pendingCandidates.reduce((sum, item) => {
+    return item.monthKey === currentMonthKey ? sum + toNumber(item.amount, 0) : sum;
+  }, 0);
+  const liveBillingSummaryAmount =
+    historicalPendingAndOverdue +
+    Math.max(currentMonthPendingAndOverdue, toNumber(payableTillDate, 0));
   const nearestDueInDays = pendingCandidates.reduce((nearest, item) => {
     const days = diffDaysFromToday(item.dueDate);
     if (days === null) return nearest;
@@ -670,6 +717,7 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
       monthlyDue: totalPendingAndOverdue,
       walletBalance: toNumber(walletBalance, 0),
       payableTillDate: toNumber(payableTillDate, 0),
+      billingSummaryAmount: Number(liveBillingSummaryAmount.toFixed(2)),
       dueInDays: nearestDueInDays,
       beneficiary,
     },

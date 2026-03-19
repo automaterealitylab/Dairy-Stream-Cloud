@@ -1,5 +1,8 @@
 import { supabase } from "../../config/supabase.js";
-import { ensureBuyOnceInvoiceForDeliveredOrder } from "../customer/monthlyBilling.service.js";
+import {
+  ensureBuyOnceInvoiceForDeliveredOrder,
+  syncCustomerMonthlyBills,
+} from "../customer/monthlyBilling.service.js";
 
 const isValidDateString = (value) =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -582,6 +585,7 @@ export const updateAgentDeliveryStatus = async ({
       notes: updated.notes,
       updated_at: updated.updated_at,
     });
+    await syncCustomerMonthlyBills(existing.customer_id);
   }
 
   return {

@@ -4,10 +4,13 @@ import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X } from 'lucide-
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   fetchCustomerSubscription,
+  getCachedCustomerSubscription,
   saveCustomerSubscription,
   clearCustomerSubscription,
 } from '../../api/customer/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
+
+const headingFont = { fontFamily: "'Lora', serif" };
 
 /* ======================================================
    HELPERS & CONSTANTS
@@ -68,11 +71,13 @@ const toSavePayload = (model, overrides = {}) => {
 const Subscribe = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const cachedSubscriptionData = getCachedCustomerSubscription();
+  const initialSubscription = toUiSubscription(cachedSubscriptionData?.subscription);
 
-  const [subscription, setSubscription] = useState(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [subscription, setSubscription] = useState(initialSubscription);
+  const [formData, setFormData] = useState(initialSubscription || EMPTY_FORM);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedSubscriptionData);
   const [saving, setSaving] = useState(false);
 
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -109,24 +114,41 @@ const Subscribe = () => {
   // 1. Initial Data Fetch
   // -----------------------------------------
   useEffect(() => {
+    let cancelled = false;
+
     const fetchData = async () => {
       try {
+        if (!getCachedCustomerSubscription()) {
+          setLoading(true);
+        }
         // ✅ Token is handled by client.js Interceptor automatically
         const data = await fetchCustomerSubscription();
         const mapped = toUiSubscription(data?.subscription);
 
-        setSubscription(mapped);
-        setFormData(mapped || EMPTY_FORM);
+        if (!cancelled) {
+          setSubscription(mapped);
+          setFormData(mapped || EMPTY_FORM);
+        }
       } catch (error) {
         console.error('Subscription fetch error:', error.message);
-        setSubscription(null);
-        setFormData(EMPTY_FORM);
+        if (!cancelled) {
+          if (!subscription) {
+            setSubscription(null);
+            setFormData(EMPTY_FORM);
+          }
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // -----------------------------------------
@@ -247,18 +269,27 @@ const Subscribe = () => {
 
   return (
     <CustomerLayout>
-      <div className="space-y-10 w-full animate-in fade-in slide-in-from-bottom-4">
-        <h2 className="text-2xl font-bold text-gray-900">My Subscription</h2>
+      <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <div className="rounded-[30px] border border-[#EDE8DF] bg-[#F5F0E8] p-5 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:p-7 xl:p-9">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+            Subscription Center
+          </p>
+          <h2 className="mt-2 text-[32px] font-semibold text-[#2C1A0E] sm:text-[36px]" style={headingFont}>
+            My <span className="text-[#B8641A]">Subscription</span>
+          </h2>
+          <p className="mt-2 text-sm text-[#8B7355]">
+            Manage your daily milk plan, pause deliveries, or explore other dairies.
+          </p>
 
         {loading ? (
-          <div className="space-y-6">
+          <div className="mt-8 space-y-8">
             <LoadingIndicator className="py-6" message="Loading subscription..." />
-            <div className="space-y-6 animate-pulse">
-              <div className="h-32 bg-gray-200 rounded-2xl"></div>
+            <div className="space-y-8 animate-pulse">
+              <div className="h-32 rounded-[24px] bg-[#EADFCC]"></div>
               <div className="grid md:grid-cols-3 gap-6">
-                <div className="h-24 bg-gray-200 rounded-2xl"></div>
-                <div className="h-24 bg-gray-200 rounded-2xl"></div>
-                <div className="h-24 bg-gray-200 rounded-2xl"></div>
+                <div className="h-24 rounded-[20px] bg-[#EADFCC]"></div>
+                <div className="h-24 rounded-[20px] bg-[#EADFCC]"></div>
+                <div className="h-24 rounded-[20px] bg-[#EADFCC]"></div>
               </div>
             </div>
           </div>
@@ -266,25 +297,25 @@ const Subscribe = () => {
           <>
             {/* Status Card */}
             <div
-              className={`w-full rounded-2xl p-8 shadow-sm border transition hover:shadow-md ${
+              className={`mt-8 w-full rounded-[26px] border p-8 shadow-sm transition hover:shadow-md ${
                 !subscription
-                  ? 'bg-gray-50 border-gray-200'
+                  ? 'bg-[#FBF7F0] border-[#E7DAC6]'
                   : subscription.status === 'ACTIVE'
-                  ? 'bg-green-50 border-green-100'
+                  ? 'bg-[#EEF5E7] border-[#DDE8D1]'
                   : subscription.status === 'PAUSED'
-                  ? 'bg-yellow-50 border-yellow-100'
-                  : 'bg-red-50 border-red-100'
+                  ? 'bg-[#FFF1E4] border-[#F0D1B2]'
+                  : 'bg-[#FDECEA] border-[#F2D0C8]'
               }`}
             >
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
+              <div className="flex flex-col gap-7 md:flex-row md:justify-between md:items-center">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[#A88763]">
                     {hasActivePlan ? `${subscription.status} PLAN` : 'NO ACTIVE PLAN'}
                   </p>
-                  <h3 className="text-2xl font-semibold text-gray-900 mt-1">
+                  <h3 className="mt-1 text-[30px] font-semibold text-[#2C1A0E]" style={headingFont}>
                     {hasActivePlan ? `${subscription.quantity} Liters ${subscription.product}` : 'No subscription yet'}
                   </h3>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="mt-1 text-sm text-[#8B7355]">
                     {hasActivePlan
                       ? `${subscription.slot} Slot - ${subscription.timeRange}`
                       : guestDairyId
@@ -294,12 +325,12 @@ const Subscribe = () => {
                   {hasActivePlan && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {isApprovalPending && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                        <span className="rounded-full border border-[#F0D1B2] bg-[#FFF1E4] px-2.5 py-1 text-[11px] font-semibold text-[#B8641A]">
                           Subscription approval pending
                         </span>
                       )}
                       {isPartnerAssignmentPending && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                        <span className="rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-2.5 py-1 text-[11px] font-semibold text-[#8C5A1A]">
                           Delivery partner assignment pending
                         </span>
                       )}
@@ -312,7 +343,7 @@ const Subscribe = () => {
                     <button
                       disabled={saving}
                       onClick={() => setShowUpdateModal(true)}
-                      className="px-5 py-2 rounded-xl bg-white border text-blue-600 hover:bg-blue-50 flex items-center gap-2 text-sm font-medium disabled:opacity-50"
+                      className="flex items-center gap-2 rounded-[14px] border border-[#EDE8DF] bg-white px-5 py-2 text-sm font-medium text-[#B8641A] transition hover:bg-[#FFF8EC] disabled:opacity-50"
                     >
                       <Edit size={16} /> Update Plan
                     </button>
@@ -321,7 +352,7 @@ const Subscribe = () => {
                       <button
                         disabled={!canTogglePauseResume}
                         onClick={pause}
-                        className="px-5 py-2 rounded-xl bg-white border text-orange-600 hover:bg-orange-50 flex items-center gap-2 text-sm font-medium disabled:opacity-50"
+                        className="flex items-center gap-2 rounded-[14px] border border-[#F0D1B2] bg-white px-5 py-2 text-sm font-medium text-[#C86A2B] transition hover:bg-[#FFF1E4] disabled:opacity-50"
                       >
                         <PauseCircle size={16} /> Pause
                       </button>
@@ -329,7 +360,7 @@ const Subscribe = () => {
                       <button
                         disabled={!canTogglePauseResume}
                         onClick={resume}
-                        className="px-5 py-2 rounded-xl bg-white border text-green-600 hover:bg-green-50 flex items-center gap-2 text-sm font-medium disabled:opacity-50"
+                        className="flex items-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-white px-5 py-2 text-sm font-medium text-[#4A7C2F] transition hover:bg-[#EEF5E7] disabled:opacity-50"
                       >
                         <PlayCircle size={16} /> Resume
                       </button>
@@ -338,7 +369,7 @@ const Subscribe = () => {
                     <button
                       disabled={saving}
                       onClick={() => setShowCancelModal(true)}
-                      className="px-5 py-2 rounded-xl bg-white border text-red-600 hover:bg-red-50 text-sm font-medium disabled:opacity-50"
+                      className="rounded-[14px] border border-[#F2D0C8] bg-white px-5 py-2 text-sm font-medium text-[#C0392B] transition hover:bg-[#FDECEA] disabled:opacity-50"
                     >
                       {isApprovedSubscription ? 'Close Subscription' : 'Cancel Subscription'}
                     </button>
@@ -351,14 +382,14 @@ const Subscribe = () => {
                           state: { openSubscriptionModal: true, from: 'customer-subscriptions' },
                         })
                       }
-                      className="px-5 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+                      className="rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313]"
                     >
                       Take Subscription for {guestDairyName || `Dairy #${guestDairyId}`}
                     </button>
                   ) : (
                     <button
                       onClick={() => navigate('/explore', { state: { from: 'customer-subscriptions' } })}
-                      className="px-5 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+                      className="rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313]"
                     >
                       See Other Dairies
                     </button>
@@ -369,7 +400,7 @@ const Subscribe = () => {
 
             {/* Stats Grid */}
             {hasActivePlan && (
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="mt-8 grid gap-7 md:grid-cols-3">
                 <StatCard icon={<Droplet size={24} />} label="Daily Quantity" value={`${subscription.quantity} Liters`} />
                 <StatCard icon={<Clock size={24} />} label="Delivery Slot" value={subscription.slot} />
                 <StatCard
@@ -380,9 +411,12 @@ const Subscribe = () => {
               </div>
             )}
 
-            <ExploreOtherDairiesSection onExplore={() => navigate('/explore', { state: { from: 'customer-subscriptions' } })} />
+            <div className="mt-8">
+              <ExploreOtherDairiesSection onExplore={() => navigate('/explore', { state: { from: 'customer-subscriptions' } })} />
+            </div>
           </>
         )}
+        </div>
       </div>
 
       {/* Update Modal */}
@@ -396,7 +430,7 @@ const Subscribe = () => {
           <div className="px-8 py-6 grid md:grid-cols-2 gap-5">
             <InputBlock label="Product">
               <select
-                className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] p-3 outline-none focus:ring-2 focus:ring-[#D4B896]"
                 value={formData.product}
                 onChange={(e) => setFormData({ ...formData, product: e.target.value })}
               >
@@ -413,7 +447,7 @@ const Subscribe = () => {
                 type="number"
                 step="0.5"
                 min="0.5"
-                className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] p-3 outline-none focus:ring-2 focus:ring-[#D4B896]"
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
               />
@@ -421,7 +455,7 @@ const Subscribe = () => {
 
             <InputBlock label="Delivery Slot">
               <select
-                className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] p-3 outline-none focus:ring-2 focus:ring-[#D4B896]"
                 value={formData.slot}
                 onChange={(e) => setFormData({ ...formData, slot: e.target.value })}
               >
@@ -432,7 +466,7 @@ const Subscribe = () => {
 
             <InputBlock label="Time Range">
               <input
-                className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] p-3 outline-none focus:ring-2 focus:ring-[#D4B896]"
                 value={formData.timeRange}
                 onChange={(e) => setFormData({ ...formData, timeRange: e.target.value })}
               />
@@ -450,10 +484,10 @@ const Subscribe = () => {
       {showCancelModal && (
         <ModalWrapper small>
           <div className="p-8">
-            <h3 className="text-2xl font-semibold text-gray-900">
+            <h3 className="text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
               {isApprovedSubscription ? 'Close Subscription?' : 'Cancel Subscription?'}
             </h3>
-            <p className="text-gray-600 mt-3">
+            <p className="mt-3 text-[#8B7355]">
               {isApprovedSubscription
                 ? 'Are you sure you want to close your subscription? This will stop deliveries immediately.'
                 : 'Are you sure you want to cancel your subscription? Your subscription is still pending approval, so cancelling will simply remove the pending request.'}
@@ -461,14 +495,14 @@ const Subscribe = () => {
             <div className="flex justify-end gap-4 mt-8">
               <button
                 onClick={() => setShowCancelModal(false)}
-                className="px-6 py-2 rounded-xl border hover:bg-gray-50"
+                className="rounded-[14px] border border-[#EDE8DF] px-6 py-2 transition hover:bg-[#FBF7F0]"
               >
                 Keep It
               </button>
               <button
                 onClick={cancelSubscription}
                 disabled={closing}
-                className="px-6 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 flex items-center gap-2 disabled:bg-red-400"
+                className="flex items-center gap-2 rounded-[14px] bg-[#C0392B] px-6 py-2 text-white transition hover:bg-[#A63125] disabled:bg-[#D48B84]"
               >
                 {closing && <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
                 {closing
@@ -484,8 +518,8 @@ const Subscribe = () => {
       {toast && (
         <div className="fixed top-6 right-6 z-50 animate-slide-in">
           <div
-            className={`relative overflow-hidden rounded-2xl shadow-lg px-6 py-4 text-white min-w-[260px] ${
-              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            className={`relative min-w-[260px] overflow-hidden rounded-[18px] px-6 py-4 text-white shadow-lg ${
+              toast.type === 'success' ? 'bg-[#4A7C2F]' : 'bg-[#C0392B]'
             }`}
           >
             <p className="font-medium">{toast.message}</p>
@@ -503,32 +537,32 @@ export default Subscribe;
 ====================================================== */
 
 const StatCard = ({ icon, label, value }) => (
-  <div className="bg-white rounded-2xl p-7 shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition">
-    <div className="bg-blue-50 p-3 rounded-xl text-blue-600">{icon}</div>
+  <div className="flex items-center gap-4 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-7 shadow-sm transition hover:shadow-md">
+    <div className="rounded-[14px] bg-[#FFF4E2] p-3 text-[#B8641A]">{icon}</div>
     <div>
-      <p className="text-xs text-gray-400 uppercase">{label}</p>
-      <p className="text-lg font-semibold text-gray-900">{value}</p>
+      <p className="text-xs uppercase tracking-[0.16em] text-[#C4A882]">{label}</p>
+      <p className="text-lg font-semibold text-[#2C1A0E]">{value}</p>
     </div>
   </div>
 );
 
 const ExploreOtherDairiesSection = ({ onExplore }) => (
-  <section className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 md:p-7">
+  <section className="rounded-[24px] border border-[#EFD7B3] bg-[linear-gradient(135deg,#FFF8EC_0%,#FFF1E4_100%)] p-6 md:p-7">
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
       <div className="flex items-start gap-4">
-        <div className="p-3 rounded-xl bg-white text-blue-600 border border-blue-100">
+        <div className="rounded-[14px] border border-[#EFD7B3] bg-white p-3 text-[#B8641A]">
           <Store size={22} />
         </div>
         <div>
-          <h3 className="text-xl font-semibold text-gray-900">Explore Other Dairies</h3>
-          <p className="text-sm text-gray-600 mt-1">
+          <h3 className="text-xl font-semibold text-[#2C1A0E]" style={headingFont}>Explore Other Dairies</h3>
+          <p className="mt-1 text-sm text-[#8B7355]">
             Compare dairies, check plans, and switch to a better option anytime.
           </p>
         </div>
       </div>
       <button
         onClick={onExplore}
-        className="px-5 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium whitespace-nowrap"
+        className="whitespace-nowrap rounded-[14px] bg-[#2C2416] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4A3820]"
       >
         Browse Dairies
       </button>
@@ -538,30 +572,30 @@ const ExploreOtherDairiesSection = ({ onExplore }) => (
 
 const ModalWrapper = ({ children, small }) => (
   <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in">
-    <div className={`bg-white rounded-3xl shadow-2xl w-full animate-in zoom-in-95 ${small ? 'max-w-md' : 'max-w-xl'}`}>
+    <div className={`w-full animate-in zoom-in-95 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF7] shadow-2xl ${small ? 'max-w-md' : 'max-w-xl'}`}>
       {children}
     </div>
   </div>
 );
 
 const ModalHeader = ({ title, subtitle, onClose }) => (
-  <div className="px-8 py-6 flex justify-between items-center border-b">
+  <div className="flex items-center justify-between border-b border-[#F2EDE4] px-8 py-6">
     <div>
-      <h3 className="text-2xl font-semibold">{title}</h3>
-      <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+      <h3 className="text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>{title}</h3>
+      <p className="mt-1 text-sm text-[#8B7355]">{subtitle}</p>
     </div>
-    <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100">
-      <X size={22} className="text-gray-400" />
+    <button onClick={onClose} className="rounded-full p-2 transition hover:bg-[#FBF7F0]">
+      <X size={22} className="text-[#A88763]" />
     </button>
   </div>
 );
 
 const ModalFooter = ({ onCancel, onConfirm, confirmText }) => (
-  <div className="px-8 py-6 border-t flex justify-end gap-4">
-    <button onClick={onCancel} className="px-6 py-2 rounded-xl border hover:bg-gray-50">
+  <div className="flex justify-end gap-4 border-t border-[#F2EDE4] px-8 py-6">
+    <button onClick={onCancel} className="rounded-[14px] border border-[#EDE8DF] px-6 py-2 transition hover:bg-[#FBF7F0]">
       Cancel
     </button>
-    <button onClick={onConfirm} className="px-8 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+    <button onClick={onConfirm} className="rounded-[14px] bg-[#B8641A] px-8 py-2 text-white transition hover:bg-[#9F5313]">
       {confirmText}
     </button>
   </div>
@@ -569,7 +603,7 @@ const ModalFooter = ({ onCancel, onConfirm, confirmText }) => (
 
 const InputBlock = ({ label, children }) => (
   <div className="space-y-1">
-    <label className="text-sm font-medium text-gray-600">{label}</label>
+    <label className="text-sm font-medium text-[#8B7355]">{label}</label>
     {children}
   </div>
 );
