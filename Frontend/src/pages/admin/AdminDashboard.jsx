@@ -77,7 +77,7 @@ const loadDashboard = useCallback(async (force = false) => {
 }, []);
 
   useEffect(() => {
-    loadDashboard();
+    loadDashboard(true);
   }, [loadDashboard]);
 
   // Handlers
