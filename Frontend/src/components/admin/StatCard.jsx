@@ -1,10 +1,13 @@
+import { adminHeadingFont, adminShellFont } from "./adminTheme";
+
 export default function StatCard({ label, value, color }) {
   return (
     <div
-      className={`rounded-2xl p-6 shadow-sm text-center animate-fade-up ${color}`}
+      className={`animate-fade-up rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 text-left shadow-[0_18px_45px_rgba(92,61,30,0.08)] ${color || ""}`}
+      style={adminShellFont}
     >
-      <p className="text-sm opacity-70 mb-1">{label}</p>
-      <h2 className="text-2xl font-semibold">{value}</h2>
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">{label}</p>
+      <h2 className="text-3xl text-[#2C1A0E]" style={adminHeadingFont}>{value}</h2>
     </div>
   );
 }

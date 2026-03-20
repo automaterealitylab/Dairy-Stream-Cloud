@@ -5,6 +5,7 @@ import { TrendingUp, Users, CheckCircle, XCircle, Zap, Calendar, Target, Award, 
 // Layout Components
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 const AdminPerformance = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,36 +46,36 @@ const AdminPerformance = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-[#FAFAF7]" style={adminShellFont}>
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin text-blue-600" size={40} />
-          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Analyzing Metrics...</p>
+          <Loader2 className="animate-spin text-[#B8641A]" size={40} />
+          <p className="text-xs font-bold uppercase tracking-widest text-[#8B7355]">Analyzing Metrics...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar title="Performance Analytics" onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="lg:ml-64 px-4 sm:px-8 lg:px-12 py-10 pb-32">
+      <main className="px-4 py-10 pb-32 sm:px-8 lg:ml-64 lg:px-12">
         
         {/* HEADER AREA */}
         <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Agent Intelligence</h1>
-            <p className="text-slate-500 font-medium text-sm">Real-time delivery efficiency and reliability scores.</p>
+            <h1 className="text-4xl tracking-tight text-[#2C1A0E]" style={adminHeadingFont}>Agent Intelligence</h1>
+            <p className="text-sm font-medium text-[#8B7355]">Real-time delivery efficiency and reliability scores.</p>
           </div>
           
-          <div className="flex bg-slate-100 p-1.5 rounded-[20px] border border-slate-200">
+          <div className="flex rounded-[20px] border border-[#E5D9C7] bg-[#FFFDF8] p-1.5">
             {['7days', '30days', 'month'].map((range) => (
               <button 
                 key={range}
                 onClick={() => setDateRange(range)}
-                className={`px-6 py-2.5 text-[10px] font-black rounded-[14px] transition-all uppercase tracking-widest ${
-                  dateRange === range ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                className={`rounded-[14px] px-6 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                  dateRange === range ? "bg-[#FDE9C9] text-[#B8641A] shadow-sm" : "text-[#B89970] hover:text-[#8B7355]"
                 }`}
               >
                 {range}

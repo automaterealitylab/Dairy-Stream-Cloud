@@ -8,6 +8,7 @@ import {
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 const defaultForm = {
   name: "",
@@ -135,27 +136,27 @@ export default function AdminProducts() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar adminName="Products" onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8">
+      <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Products & Stock</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Products & Stock</h1>
+            <p className="mt-1 text-sm text-[#8B7355]">
               Add milk, dahi, paneer and track available stock for customer orders.
             </p>
           </div>
-          <div className="text-sm text-gray-600 bg-white border px-4 py-2 rounded-xl">
-            Total SKUs: <span className="font-semibold text-gray-900">{products.length}</span> | Total Stock:{" "}
-            <span className="font-semibold text-gray-900">{totalStock.toFixed(2)}</span>
+          <div className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2 text-sm text-[#8B7355]">
+            Total SKUs: <span className="font-semibold text-[#2C1A0E]">{products.length}</span> | Total Stock:{" "}
+            <span className="font-semibold text-[#2C1A0E]">{totalStock.toFixed(2)}</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <section className="xl:col-span-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <section className="xl:col-span-1 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+            <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>
               {editingId ? "Edit Product" : "Add Product"}
             </h2>
             <form onSubmit={handleSubmit} className="mt-4 space-y-3">
@@ -211,7 +212,7 @@ export default function AdminProducts() {
                   required
                 />
               </div>
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <label className="inline-flex items-center gap-2 text-sm text-[#6F4A27]">
                 <input
                   type="checkbox"
                   checked={form.isActive}
@@ -236,8 +237,8 @@ export default function AdminProducts() {
             </form>
           </section>
 
-          <section className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm">
-            <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <section className="xl:col-span-2 rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+            <div className="flex flex-col gap-3 border-b border-[#F2EDE4] p-5 sm:flex-row sm:items-center sm:justify-between">
               <input
                 className="pro-input max-w-sm"
                 placeholder="Search by name or type"
@@ -249,11 +250,11 @@ export default function AdminProducts() {
             {loading ? (
               <LoadingIndicator className="py-10" message="Loading products..." />
             ) : products.length === 0 ? (
-              <div className="px-6 py-10 text-gray-500">No products yet. Add your first product.</div>
+              <div className="px-6 py-10 text-[#8B7355]">No products yet. Add your first product.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <thead className="bg-[#FFFDF8] text-xs uppercase text-[#C4A882]">
                     <tr>
                       <th className="px-5 py-3">Name</th>
                       <th className="px-5 py-3">Type</th>

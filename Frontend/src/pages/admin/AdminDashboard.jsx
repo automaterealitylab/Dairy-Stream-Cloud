@@ -16,6 +16,7 @@ import ProcurementTracker from "../../components/admin/sections/ProcurementTrack
 import CustomerRiskIndicator from "../../components/admin/sections/CustomerRiskIndicator";
 import BulkDeliveryActions from "../../components/admin/sections/BulkDeliveryActions";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
+import { adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminDashboard() {
   const [error, setError] = useState(null);
@@ -107,11 +108,11 @@ const loadDashboard = useCallback(async (force = false) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar adminName={data?.dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8 pb-32">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         {!uiReady ? (
           <AdminDashboardSkeleton />
         ) : (

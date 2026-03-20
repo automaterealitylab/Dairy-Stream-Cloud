@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
 const menuItems = [
   {
@@ -82,23 +83,26 @@ export default function AdminSidebar({ open, onClose }) {
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 w-64
-          bg-white border-r
+          border-r border-[#EDE8DF] bg-white/95 backdrop-blur
           flex flex-col
           transform transition-transform duration-300 ease-out
           ${open ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
         `}
+        style={adminShellFont}
       >
         {/* Brand */}
-        <div className="px-6 py-6 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="border-b border-[#F2EDE4] px-6 py-7">
+          <h2 className="text-[26px] text-[#B8641A]" style={adminHeadingFont}>
             DairyStream
           </h2>
-          <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+            Admin Portal
+          </p>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 space-y-1 px-3 py-5">
           {menuItems.map((item) => (
             <NavLink
               key={item.label}
@@ -107,12 +111,12 @@ export default function AdminSidebar({ open, onClose }) {
               className={({ isActive }) =>
                 `
                 relative group flex items-center gap-4
-                px-4 py-2.5 rounded-lg text-sm font-medium
+                px-4 py-3 rounded-xl text-sm font-semibold
                 transition-all
                 ${
                   isActive
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    ? "bg-[#FDE9C9] text-[#B8641A]"
+                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
                 }
               `
               }
@@ -122,14 +126,14 @@ export default function AdminSidebar({ open, onClose }) {
                 className={`
                   absolute left-0 top-1/2 -translate-y-1/2
                   h-6 w-1 rounded-full
-                  bg-blue-600
+                  bg-[#B8641A]
                   transition-opacity
                   opacity-0 group-[.active]:opacity-100
                 `}
               />
 
               {/* Icon */}
-              <span className="text-gray-400 group-hover:text-gray-600 group-[.active]:text-blue-600">
+              <span className="text-[#B89970] group-hover:text-[#8B7355] group-[.active]:text-[#B8641A]">
                 {item.icon}
               </span>
 
@@ -139,7 +143,7 @@ export default function AdminSidebar({ open, onClose }) {
         </nav>
 
         {/* Logout */}
-        <div className="px-6 py-4 border-t">
+        <div className="border-t border-[#F2EDE4] px-6 py-5">
           <button
             onClick={() => {
               localStorage.removeItem("adminToken");
@@ -148,11 +152,11 @@ export default function AdminSidebar({ open, onClose }) {
             }}
             className="
               w-full flex items-center justify-center gap-2
-              bg-red-500 hover:bg-red-600
-              text-white text-sm font-semibold
-              py-2.5 rounded-lg
+              rounded-[12px] border border-[#EDE8DF] bg-white py-2.5
+              text-sm font-semibold text-[#B89970]
+              hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B]
               transition
-              focus:outline-none focus:ring-2 focus:ring-red-300
+              focus:outline-none focus:ring-2 focus:ring-[#E8C6A2]
             "
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5">

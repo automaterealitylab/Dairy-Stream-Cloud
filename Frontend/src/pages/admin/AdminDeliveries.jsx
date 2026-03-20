@@ -12,6 +12,7 @@ import {
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 // --- Utilities & Constants ---
 const statusStyles = {
@@ -389,7 +390,7 @@ export default function AdminDeliveries() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <main className="flex-1 lg:ml-64 w-full transition-all duration-300">
@@ -397,10 +398,10 @@ export default function AdminDeliveries() {
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
           {/* Page Header */}
-          <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Delivery Management</h1>
-              <p className="text-slate-500 text-sm">Organize and monitor distribution runs.</p>
+              <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Delivery Management</h1>
+              <p className="text-sm text-[#8B7355]">Organize and monitor distribution runs.</p>
             </div>
             
             {/* KPI Cards */}
@@ -412,8 +413,8 @@ export default function AdminDeliveries() {
                 { label: "Failed", val: stats.failed, color: "text-red-600" },
                 { label: "Approval Pending", val: stats.pendingApproval, color: "text-indigo-600" }
               ].map((item) => (
-                <div key={item.label} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm min-w-[100px]">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
+                <div key={item.label} className="min-w-[100px] rounded-xl border border-[#EDE8DF] bg-white/95 p-3 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#C4A882]">{item.label}</p>
                   <p className={`text-xl font-bold ${item.color}`}>{item.val}</p>
                 </div>
               ))}
@@ -421,17 +422,17 @@ export default function AdminDeliveries() {
           </div>
 
           {/* Scheduling Section */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-            <div className="flex bg-slate-50/50 border-b border-slate-200">
+          <section className="mb-8 overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+            <div className="flex border-b border-[#F2EDE4] bg-[#FFFDF8]">
               <button 
                 onClick={() => setActiveTab("bulk")}
-                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "bulk" ? "text-blue-600 border-b-2 border-blue-600 bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "bulk" ? "border-b-2 border-[#B8641A] bg-white text-[#B8641A]" : "text-[#8B7355] hover:bg-[#FDF6EC]"}`}
               >
                 Bulk Distribution Run
               </button>
               <button 
                 onClick={() => setActiveTab("single")}
-                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "single" ? "text-blue-600 border-b-2 border-blue-600 bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "single" ? "border-b-2 border-[#B8641A] bg-white text-[#B8641A]" : "text-[#8B7355] hover:bg-[#FDF6EC]"}`}
               >
                 Single Exception
               </button>
@@ -538,8 +539,8 @@ export default function AdminDeliveries() {
           </section>
 
           {/* Delivery Log Section */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30">
+          <div className="overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+            <div className="flex flex-col items-center justify-between gap-4 border-b border-[#F2EDE4] bg-[#FFFDF8] p-4 lg:flex-row">
               <div className="relative w-full lg:w-96">
                 <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
                 <input 

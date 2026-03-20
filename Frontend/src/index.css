@@ -12,8 +12,8 @@ body,
   min-height: 100%;
 }
 .pro-input {
-  @apply w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-2 mt-1
-  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition;
+  @apply mt-1 w-full rounded-xl border border-[#E5D9C7] bg-[#FFFDF8] px-4 py-2 text-[#2C1A0E]
+  focus:outline-none focus:ring-2 focus:ring-[#C98A42] focus:bg-white transition;
 }
 
 @layer components {
@@ -46,15 +46,15 @@ body,
   }
 
   .pro-btn-primary {
-    @apply rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-xl bg-[#B8641A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#9E5415] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .pro-btn-dark {
-    @apply rounded-xl bg-text-primary px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-xl bg-[#2C1A0E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4A311D] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .pro-btn-outline {
-    @apply rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-xl border border-[#E5D9C7] bg-white px-4 py-2 text-sm font-semibold text-[#8B7355] transition hover:bg-[#FDF6EC] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .pro-feedback-success {

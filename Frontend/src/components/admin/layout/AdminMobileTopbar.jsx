@@ -1,13 +1,20 @@
+import { adminHeadingFont, adminShellFont } from "../adminTheme";
+
 export default function AdminMobileTopbar({ adminName, onMenu }) {
   return (
-    <div className="lg:hidden sticky top-0 z-30 bg-white border-b px-4 py-3 flex justify-between items-center">
-      <button onClick={onMenu} className="text-xl">☰</button>
+    <div
+      className="sticky top-0 z-30 flex items-center justify-between border-b border-[#EDE8DF] bg-[rgba(255,253,248,0.96)] px-4 py-3 backdrop-blur lg:hidden"
+      style={adminShellFont}
+    >
+      <button onClick={onMenu} className="text-xl text-[#8B7355]">
+        Menu
+      </button>
 
-      <span className="font-semibold text-blue-600">
+      <span className="text-lg text-[#B8641A]" style={adminHeadingFont}>
         DairyStream
       </span>
 
-      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-medium">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-sm font-semibold text-[#8B7355]">
         {adminName?.charAt(0) || "A"}
       </div>
     </div>

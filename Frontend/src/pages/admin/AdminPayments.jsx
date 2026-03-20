@@ -14,6 +14,7 @@ import {
   updateAdminFarmPlan,
   updateAdminPaymentStatus,
 } from "../../api/admin.api.js";
+import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminPayments() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -92,15 +93,15 @@ export default function AdminPayments() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar title="Payments & Billing" onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8">
+      <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
         
         {/* SECTION 1: STATS */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-blue-900 to-blue-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+          <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] p-6 text-white shadow-lg">
             <div className="absolute top-0 right-0 p-4 opacity-10"><CreditCard size={120} /></div>
             <div className="relative z-10">
               <div className="flex justify-between items-start">
@@ -124,16 +125,16 @@ export default function AdminPayments() {
           </div>
 
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-              <div className="p-3 bg-green-50 text-green-600 rounded-xl"><DollarSign size={28} /></div>
+            <div className="flex items-center gap-4 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+              <div className="rounded-xl bg-[#F4F7ED] p-3 text-[#6F8C45]"><DollarSign size={28} /></div>
               <div>
                 <p className="text-sm text-gray-500 font-medium">Total Revenue</p>
                 <h3 className="text-2xl font-bold text-gray-900">₹{revenue.toLocaleString()}</h3>
                 {revenue > 0 && <p className="text-xs text-green-600 flex items-center mt-1 font-bold"><TrendingUp size={12} className="mr-1" /> Stable Growth</p>}
               </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-              <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><Wallet size={28} /></div>
+            <div className="flex items-center gap-4 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+              <div className="rounded-xl bg-[#FFF1E5] p-3 text-[#C26D2C]"><Wallet size={28} /></div>
               <div>
                 <p className="text-sm text-gray-500 font-medium">Pending Dues</p>
                 <h3 className="text-2xl font-bold text-gray-900">₹{payments.filter(p => p.status !== "PAID").reduce((s, p) => s + Number(p.amount || 0), 0).toLocaleString()}</h3>
@@ -144,19 +145,19 @@ export default function AdminPayments() {
         </div>
 
         {/* SECTION 2: TABLE */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h3 className="font-bold text-gray-900 text-lg">Customer Transactions</h3>
+        <div className="overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+          <div className="flex flex-col justify-between gap-4 border-b border-[#F2EDE4] px-6 py-5 sm:flex-row sm:items-center">
+            <h3 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Customer Transactions</h3>
             <div className="flex gap-2">
               {["ALL", "PAID", "PENDING", "OVERDUE"].map((s) => (
-                <button key={s} onClick={() => setFilter(s)} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${filter === s ? "bg-blue-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{s}</button>
+                <button key={s} onClick={() => setFilter(s)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${filter === s ? "bg-[#B8641A] text-white shadow-sm" : "bg-[#FDF6EC] text-[#8B7355] hover:bg-[#F7E8D3]"}`}>{s}</button>
               ))}
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-gray-50/50 text-gray-500 text-[10px] font-black uppercase tracking-wider border-b">
+              <thead className="border-b border-[#F2EDE4] bg-[#FFFDF8] text-[10px] font-black uppercase tracking-wider text-[#C4A882]">
                 <tr>
                   <th className="px-6 py-4">Customer</th>
                   <th className="px-6 py-4">Date</th>

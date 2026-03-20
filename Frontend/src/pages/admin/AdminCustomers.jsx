@@ -28,6 +28,7 @@ import AddCustomerSubscriptionModal from "../../components/customer/AddCustomerS
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
 import InvoicePreviewModal from "../../components/admin/sections/InvoicePreviewModal.jsx";
+import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 export default function AdminCustomers() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -185,34 +186,34 @@ export default function AdminCustomers() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar
         title="Customers"
         onMenu={() => setSidebarOpen(true)}
       />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8">
+      <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
         <header className="mb-8 flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-black text-gray-900">Customers</h1>
-            <p className="text-gray-500 font-bold">
+            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Customers</h1>
+            <p className="font-bold text-[#8B7355]">
               Billing & Subscription Management
             </p>
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all"
+            className="rounded-2xl bg-[#B8641A] px-6 py-3 font-black text-white shadow-lg transition-all hover:bg-[#9E5415]"
           >
             + Add Customer
           </button>
         </header>
 
-        <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b flex flex-col md:flex-row gap-4 justify-between items-center">
+        <div className="overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+          <div className="flex flex-col items-center justify-between gap-4 border-b border-[#F2EDE4] p-6 md:flex-row">
             <div className="relative w-full md:w-96">
               <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-[#B89970]"
                 size={18}
               />
               <input
@@ -222,22 +223,22 @@ export default function AdminCustomers() {
                   setPage(1);
                 }}
                 placeholder="Search name or phone..."
-                className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl border-none font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-[#E5D9C7] bg-[#FFFDF8] py-3 pl-12 pr-4 font-bold outline-none focus:ring-2 focus:ring-[#C98A42]"
               />
             </div>
-            <div className="text-xs font-black text-gray-400 uppercase tracking-widest">
-              Total Customers: <span className="text-blue-600">{total}</span>
+            <div className="text-xs font-black uppercase tracking-widest text-[#C4A882]">
+              Total Customers: <span className="text-[#B8641A]">{total}</span>
             </div>
           </div>
 
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-[#F5EFE6]">
             {loading ? (
               <LoadingIndicator className="py-20" />
             ) : (
               customers.map((c) => (
                 <div
                   key={c.id}
-                  className="p-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-gray-50/50 transition-all gap-6"
+                  className="flex flex-col justify-between gap-6 p-6 transition-all hover:bg-[#FFFDF8] md:flex-row md:items-center"
                 >
                   <div className="flex-1">
                     <h4 className="text-lg font-black text-gray-800">
@@ -247,7 +248,7 @@ export default function AdminCustomers() {
                       {c.phone_number}
                     </p>
                     {c.assignedSubscriptionAgentName && (
-                      <p className="text-[10px] text-blue-600 font-black uppercase mt-1">
+                      <p className="mt-1 text-[10px] font-black uppercase text-[#B8641A]">
                         Partner: {c.assignedSubscriptionAgentName}
                       </p>
                     )}
@@ -270,7 +271,7 @@ export default function AdminCustomers() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setInvoiceTarget(c)}
-                        className="p-2.5 bg-gray-50 text-gray-400 rounded-xl hover:text-gray-900 border border-gray-100"
+                        className="rounded-xl border border-[#EDE8DF] bg-[#FFFDF8] p-2.5 text-[#B89970] hover:text-[#2C1A0E]"
                         title="Bill"
                       >
                         <FileText size={18} />
@@ -284,7 +285,7 @@ export default function AdminCustomers() {
                             amount_due: c.outstanding_balance || 0,
                           })
                         }
-                        className="bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-xl font-black text-[10px] hover:bg-emerald-600 hover:text-white transition-all"
+                        className="rounded-xl bg-[#F4F7ED] px-4 py-2.5 text-[10px] font-black text-[#5C7A35] transition-all hover:bg-[#6F8C45] hover:text-white"
                       >
                         ₹ RECORD
                       </button>
@@ -293,14 +294,14 @@ export default function AdminCustomers() {
                       "PENDING" ? (
                         <button
                           onClick={() => handleApproveSubscription(c)}
-                          className="bg-amber-600 text-white px-4 py-2.5 rounded-xl font-black text-[10px]"
+                          className="rounded-xl bg-[#C26D2C] px-4 py-2.5 text-[10px] font-black text-white"
                         >
                           APPROVE
                         </button>
                       ) : (
                         <button
                           onClick={() => openAssignModal(c)}
-                          className="bg-blue-50 text-blue-600 px-4 py-2.5 rounded-xl font-black text-[10px] hover:bg-blue-600 hover:text-white transition-all"
+                          className="rounded-xl bg-[#FDF6EC] px-4 py-2.5 text-[10px] font-black text-[#B8641A] transition-all hover:bg-[#B8641A] hover:text-white"
                         >
                           PARTNER
                         </button>
@@ -308,7 +309,7 @@ export default function AdminCustomers() {
 
                       <button
                         onClick={() => setSelectedCustomer(c.id)}
-                        className="px-4 py-2.5 font-black text-gray-400 text-[10px] uppercase hover:text-blue-600"
+                        className="px-4 py-2.5 text-[10px] font-black uppercase text-[#B89970] hover:text-[#B8641A]"
                       >
                         View
                       </button>
