@@ -57,7 +57,10 @@ const STATUS_CFG = {
     iconBg: 'bg-[#FFF1E4] text-[#B8641A]',
     badge: 'bg-[#FFF1E4] text-[#B8641A]',
     label: 'Pending',
-    sub: () => 'Partner not assigned',
+    sub: (item) =>
+      String(item?.deliveryType || '').toUpperCase() === 'SUBSCRIPTION'
+        ? 'Scheduled for delivery'
+        : 'Awaiting delivery',
   },
   PENDING_APPROVAL: {
     icon: Clock,

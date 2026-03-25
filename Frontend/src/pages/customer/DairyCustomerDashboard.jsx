@@ -216,7 +216,7 @@ const getTomorrowExtraStatusClasses = (status) => {
 
 const getTodayDeliveryMeta = (delivery = {}) => {
   const status = String(delivery?.status || "").toUpperCase();
-  const hasAgent = Boolean(delivery?.agent?.name);
+  const hasAgent = Boolean(delivery?.agent?.name || delivery?.agentId);
 
   if (status === "DELIVERED") {
     return {
@@ -933,6 +933,16 @@ export default function DairyCustomerDashboard() {
     }
   };
 
+  const openIssueModal = () => {
+    if (!canReportIssue) {
+      showToast("No valid delivery found to report.", "error");
+      return;
+    }
+
+    setIssueText("");
+    setShowIssueModal(true);
+  };
+
   const submitIssue = async () => {
     const trimmedIssue = String(issueText || "").trim();
 
@@ -1129,7 +1139,7 @@ export default function DairyCustomerDashboard() {
                     Track Agent
                   </button>
                   <button
-                    onClick={() => navigate("/customer/dashboard/deliveries")}
+                    onClick={openIssueModal}
                     disabled={
                       !Number.isFinite(Number(today?.deliveryId ?? today?.id)) ||
                       ["NOT_SUBSCRIBED", "NOT_SCHEDULED", "CANCELLED"].includes(
@@ -1144,18 +1154,18 @@ export default function DairyCustomerDashboard() {
 
                 {hasIssue && (
                   <div className="grid gap-2">
-                    <div className="relative rounded-[14px] border border-rose-100 bg-rose-50 px-3 py-2 sm:rounded-[16px]">
+                    <div className="relative rounded-[12px] border border-rose-100 bg-rose-50 px-3 py-1.5 sm:rounded-[14px]">
                       <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-rose-400 sm:text-[9px] sm:tracking-[0.16em]">
                         Reported Issue
                       </p>
-                      <p className="mt-0.5 text-[11px] font-medium leading-4 text-rose-700 sm:text-xs">
+                      <p className="mt-0.5 text-[11px] font-medium leading-3.5 text-rose-700 sm:text-xs">
                         {today.customerIssue}
                       </p>
                     </div>
 
                     {(hasAdminAction || issueStatus === "OPEN") && (
                       <div
-                        className={`relative rounded-[14px] border px-3 py-2 sm:rounded-[16px] ${
+                        className={`relative rounded-[12px] border px-3 py-1.5 sm:rounded-[14px] ${
                           hasAdminAction
                             ? "border-emerald-100 bg-emerald-50"
                             : "border-amber-100 bg-amber-50"
@@ -1169,7 +1179,7 @@ export default function DairyCustomerDashboard() {
                           {hasAdminAction ? "Action Taken" : "Issue Status"}
                         </p>
                         <p
-                          className={`mt-0.5 text-[11px] font-medium leading-4 sm:text-xs ${
+                          className={`mt-0.5 text-[11px] font-medium leading-3.5 sm:text-xs ${
                             hasAdminAction ? "text-emerald-700" : "text-amber-700"
                           }`}
                         >

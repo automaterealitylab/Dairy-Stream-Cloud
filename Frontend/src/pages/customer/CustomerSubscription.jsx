@@ -6,12 +6,15 @@ import { fetchPublicDairyById } from '../../api/public.api.js';
 import {
   fetchCustomerSubscription,
   getCachedCustomerSubscription,
+  fetchCustomerPayments,
+  getCachedCustomerPayments,
   saveCustomerSubscription,
   clearCustomerSubscription,
 } from '../../api/customer/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
 
 const headingFont = { fontFamily: "'Lora', serif" };
+const fmtCurrency = (amount) => `Rs.${Number(amount || 0).toFixed(2)}`;
 
 /* ======================================================
    HELPERS & CONSTANTS
@@ -152,6 +155,7 @@ const Subscribe = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const cachedSubscriptionData = getCachedCustomerSubscription();
+  const cachedPaymentsData = getCachedCustomerPayments();
   const initialSubscription = toUiSubscription(cachedSubscriptionData?.subscription);
 
   const [subscription, setSubscription] = useState(initialSubscription);
@@ -165,9 +169,23 @@ const Subscribe = () => {
   const [availableProducts, setAvailableProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
+  const [paymentsSummary, setPaymentsSummary] = useState({
+    monthlyDue: Number(cachedPaymentsData?.summary?.monthlyDue || 0),
+    payableTillDate: Number(cachedPaymentsData?.summary?.payableTillDate || 0),
+    billingSummaryAmount: Number(
+      cachedPaymentsData?.summary?.billingSummaryAmount ??
+        cachedPaymentsData?.summary?.monthlyDue ??
+        cachedPaymentsData?.summary?.payableTillDate ??
+        0
+    ),
+  });
 
   const [toast, setToast] = useState(null);
   const [closing, setClosing] = useState(false);
+  const [pendingDuesModal, setPendingDuesModal] = useState({
+    open: false,
+    message: '',
+  });
 
   const locationGuestDairyId = location.state?.guestDairyId ?? null;
   const locationGuestDairyName = location.state?.guestDairyName ?? "";
@@ -192,6 +210,14 @@ const Subscribe = () => {
     isApprovedSubscription &&
     Boolean(subscription?.assignedAgentId) &&
     !saving;
+  const closeSubscriptionDueAmount = Number(
+    Math.max(
+      Number(paymentsSummary?.billingSummaryAmount || 0),
+      Number(paymentsSummary?.monthlyDue || 0),
+      Number(paymentsSummary?.payableTillDate || 0)
+    ).toFixed(2)
+  );
+  const hasPendingCloseDue = closeSubscriptionDueAmount > 0;
 
   // -----------------------------------------
   // 1. Initial Data Fetch
@@ -228,6 +254,36 @@ const Subscribe = () => {
     };
 
     fetchData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchPayments = async () => {
+      try {
+        const data = await fetchCustomerPayments();
+        if (cancelled) return;
+
+        setPaymentsSummary({
+          monthlyDue: Number(data?.summary?.monthlyDue || 0),
+          payableTillDate: Number(data?.summary?.payableTillDate || 0),
+          billingSummaryAmount: Number(
+            data?.summary?.billingSummaryAmount ??
+              data?.summary?.monthlyDue ??
+              data?.summary?.payableTillDate ??
+              0
+          ),
+        });
+      } catch {
+        if (cancelled) return;
+      }
+    };
+
+    fetchPayments();
 
     return () => {
       cancelled = true;
@@ -388,7 +444,23 @@ const Subscribe = () => {
       showToastMessage('success', 'Subscription removed successfully');
       setTimeout(() => navigate('/explore', { state: { from: 'customer-subscriptions' } }), 900);
     } catch (err) {
-      showToastMessage('error', err?.message || 'Failed to close subscription');
+      const message = err?.message || 'Failed to close subscription';
+      const normalizedMessage = String(message).toLowerCase();
+
+      if (
+        normalizedMessage.includes('pending monthly subscription dues') ||
+        normalizedMessage.includes('clear all pending') ||
+        normalizedMessage.includes('running subscription bill') ||
+        normalizedMessage.includes('current unpaid due')
+      ) {
+        setShowCancelModal(false);
+        setPendingDuesModal({
+          open: true,
+          message,
+        });
+      } else {
+        showToastMessage('error', message);
+      }
     } finally {
       setClosing(false);
     }
@@ -664,7 +736,9 @@ const Subscribe = () => {
             </h3>
             <p className="mt-3 text-[#8B7355]">
               {isApprovedSubscription
-                ? 'Are you sure you want to close your subscription? This will stop deliveries immediately.'
+                ? hasPendingCloseDue
+                  ? `Pending dues found: ${fmtCurrency(closeSubscriptionDueAmount)}. Please pay this amount first, then close the subscription.`
+                  : 'No dues are pending. You can close your subscription now.'
                 : 'Are you sure you want to cancel your subscription? Your subscription is still pending approval, so cancelling will simply remove the pending request.'}
             </p>
             <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -675,14 +749,56 @@ const Subscribe = () => {
                 Keep It
               </button>
               <button
-                onClick={cancelSubscription}
+                onClick={
+                  isApprovedSubscription && hasPendingCloseDue
+                    ? () => {
+                        setShowCancelModal(false);
+                        navigate('/customer/dashboard/payments');
+                      }
+                    : cancelSubscription
+                }
                 disabled={closing}
                 className="flex items-center gap-2 rounded-[14px] bg-[#C0392B] px-6 py-2 text-white transition hover:bg-[#A63125] disabled:bg-[#D48B84]"
               >
                 {closing && <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
                 {closing
                   ? (isApprovedSubscription ? 'Closing...' : 'Cancelling...')
+                  : isApprovedSubscription && hasPendingCloseDue
+                  ? `Pay ${fmtCurrency(closeSubscriptionDueAmount)} and Close Subscription`
                   : (isApprovedSubscription ? 'Yes, Close Subscription' : 'Yes, Cancel Subscription')}
+              </button>
+            </div>
+          </div>
+        </ModalWrapper>
+      )}
+
+      {pendingDuesModal.open && (
+        <ModalWrapper small>
+          <div className="p-5 sm:p-8">
+            <h3 className="text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
+              Pay Subscription Bill First
+            </h3>
+            <p className="mt-3 text-[#8B7355]">
+              {pendingDuesModal.message ||
+                'Please clear your running subscription bill before closing this subscription.'}
+            </p>
+            <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => setPendingDuesModal({ open: false, message: '' })}
+                className="rounded-[14px] border border-[#EDE8DF] px-6 py-2 transition hover:bg-[#FBF7F0]"
+              >
+                Keep Subscription
+              </button>
+              <button
+                onClick={() => {
+                  setPendingDuesModal({ open: false, message: '' });
+                  navigate('/customer/dashboard/payments');
+                }}
+                className="rounded-[14px] bg-[#B8641A] px-6 py-2 text-white transition hover:bg-[#9F5313]"
+              >
+                {hasPendingCloseDue
+                  ? `Pay ${fmtCurrency(closeSubscriptionDueAmount)} and Close Subscription`
+                  : 'Go To Payments'}
               </button>
             </div>
           </div>

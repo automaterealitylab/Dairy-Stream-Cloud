@@ -110,9 +110,25 @@ const runSubscriptionAutomation = async () => {
 runSubscriptionAutomation();
 setInterval(runSubscriptionAutomation, 60 * 60 * 1000);
 
+const getLocalDateInput = (dateValue = new Date()) => {
+  const date = new Date(dateValue);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getPreviousLocalDateInput = (dateValue = new Date()) => {
+  const date = new Date(dateValue);
+  date.setDate(date.getDate() - 1);
+  return getLocalDateInput(date);
+};
+
 const runSubscriptionAutoFail = async () => {
   try {
-    const result = await autoFailPendingSubscriptionDeliveriesForDate();
+    const result = await autoFailPendingSubscriptionDeliveriesForDate({
+      targetDate: getPreviousLocalDateInput(),
+    });
     console.log(
       `[AUTO_FAIL_SUBSCRIPTION] date=${result.date} failed=${result.failedCount}`
     );
@@ -132,7 +148,7 @@ const runMonthEndSubscriptionBilling = async () => {
   }
 };
 
-cron.schedule("58 23 * * *", runSubscriptionAutoFail, {
+cron.schedule("0 0 * * *", runSubscriptionAutoFail, {
   timezone: "Asia/Kolkata",
 });
 

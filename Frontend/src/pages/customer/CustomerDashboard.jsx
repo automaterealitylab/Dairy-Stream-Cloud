@@ -462,7 +462,8 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
   const isPending = data.status === "PENDING";
   const isApprovalPending = data.status === "PENDING_APPROVAL";
   const isFailed = data.status === "FAILED";
-  const isPartnerUnassigned = isPending && !data?.agent?.name;
+  const hasAssignedPartner = Boolean(data?.agent?.name || data?.agentId);
+  const isPartnerUnassigned = isPending && !hasAssignedPartner;
   const reportId = Number(data?.deliveryId ?? data?.id);
   const canReportIssue = Number.isFinite(reportId) && reportId > 0;
   const issueStatus = String(data?.issueStatus || "").toUpperCase();
@@ -507,6 +508,8 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
             )}
             {data?.agent?.name ? (
               <p className="text-xs text-text-muted mt-2">Agent: {data.agent.name} ({data.agent.phone || "-"})</p>
+            ) : hasAssignedPartner ? (
+              <p className="text-xs text-text-muted mt-2">Delivery partner assigned.</p>
             ) : (
               <p className="text-xs text-text-muted mt-2">Delivery partner not assigned yet.</p>
             )}

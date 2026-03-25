@@ -2,7 +2,10 @@ import { supabase } from "../../config/supabase.js";
 import {
   ensureCustomerSubscriptionDeliveryForDate,
 } from "./subscription.automation.service.js";
-import { getUnpaidDeliveredSubscriptionMonthlySummary } from "./monthlyBilling.service.js";
+import {
+  getCurrentMonthSuccessfulSubscriptionDue,
+  getUnpaidDeliveredSubscriptionMonthlySummary,
+} from "./monthlyBilling.service.js";
 import { invalidateCustomerDashboardCache } from "./dashboardCache.service.js";
 
 const isMissingColumnError = (error) => {
@@ -355,10 +358,23 @@ export const upsertSubscription = async (customerId, payload) => {
 };
 
 export const clearSubscriptionByCustomerId = async (customerId) => {
-  const unpaidSummary = await getUnpaidDeliveredSubscriptionMonthlySummary(customerId);
+  const [unpaidSummary, currentMonthDue] = await Promise.all([
+    getUnpaidDeliveredSubscriptionMonthlySummary(customerId),
+    getCurrentMonthSuccessfulSubscriptionDue(customerId),
+  ]);
+
+  const runningDueAmount = Number(currentMonthDue?.payableTillDate || 0);
   if (unpaidSummary.unpaidCount > 0) {
     const error = new Error(
       `Please clear all pending monthly subscription dues before closing. Unpaid delivered entries: ${unpaidSummary.unpaidCount}`
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (runningDueAmount > 0) {
+    const error = new Error(
+      `Please pay your running subscription bill before closing. Current unpaid due: Rs.${runningDueAmount.toFixed(2)}`
     );
     error.statusCode = 400;
     throw error;
