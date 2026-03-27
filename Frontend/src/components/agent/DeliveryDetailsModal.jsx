@@ -4,6 +4,11 @@ import { X, Package, MapPin, Phone, User, Building2 } from 'lucide-react';
 const DeliveryDetailsModal = ({ delivery, onClose }) => {
   if (!delivery) return null;
 
+  const requiresPaymentCollection =
+    Boolean(delivery?.requiresPaymentCollection) && String(delivery?.status || '').toUpperCase() === 'PENDING';
+  const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
+  const amountDue = Number(delivery?.amountDue || 0);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -43,6 +48,25 @@ const DeliveryDetailsModal = ({ delivery, onClose }) => {
               <div>
                 <p className="text-sm text-gray-600">Delivery Type</p>
                 <p className="font-semibold text-gray-800">{delivery.deliveryType || 'REGULAR'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Package className="text-blue-600 mt-1" size={20} />
+              <div>
+                <p className="text-sm text-gray-600">Payment</p>
+                {requiresPaymentCollection ? (
+                  <>
+                    <p className="font-semibold text-amber-700">Collection Required</p>
+                    <p className="text-sm text-gray-700 mt-1">
+                      Collect {amountDue > 0 ? `Rs ${amountDue.toFixed(2)}` : 'due amount'} via Cash or Online while completing delivery.
+                    </p>
+                  </>
+                ) : paymentCollectionMethod ? (
+                  <p className="font-semibold text-green-700">Collected via {paymentCollectionMethod}</p>
+                ) : (
+                  <p className="font-semibold text-gray-800">No collection required</p>
+                )}
               </div>
             </div>
 
