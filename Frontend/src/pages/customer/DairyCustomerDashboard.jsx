@@ -1050,7 +1050,7 @@ export default function DairyCustomerDashboard() {
           </div>
 
         {today && (
-          <div className="relative mt-5 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-7 sm:rounded-[28px] sm:p-7">
+          <div className="relative mt-3 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-4 sm:rounded-[28px] sm:p-7">
             <div
               className={`pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ${
                 todayMeta.tone === "success"

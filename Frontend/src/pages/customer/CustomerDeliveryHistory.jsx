@@ -528,18 +528,18 @@ export default function Deliveries() {
           )}
 
           {!loading && (
-            <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-7 sm:gap-5">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-4">
               {insightCards.map((card) => {
                 const InsightIcon = card.Icon;
 
                 return (
                   <div
                     key={card.label}
-                    className="relative flex min-h-[124px] flex-col justify-between overflow-hidden rounded-[18px] border border-[#EDE8DF] bg-white p-3 transition-transform hover:-translate-y-0.5 sm:min-h-0 sm:rounded-[20px] sm:p-5"
+                    className="relative flex flex-col overflow-hidden rounded-[18px] border border-[#EDE8DF] bg-white p-3 transition-transform hover:-translate-y-0.5 sm:rounded-[20px] sm:p-4"
                   >
                     <div className="pr-9 sm:pr-10">
                       <div>
-                        <p className="mb-1.5 max-w-[72px] text-[8px] font-bold uppercase leading-3.5 tracking-[0.14em] text-[#C4A882] sm:max-w-none sm:text-[10px] sm:leading-4 sm:tracking-[0.18em]">
+                        <p className="mb-1 max-w-[72px] text-[8px] font-bold uppercase leading-3.5 tracking-[0.14em] text-[#C4A882] sm:max-w-none sm:text-[10px] sm:leading-4 sm:tracking-[0.18em]">
                           {card.label}
                         </p>
                         <p className={`text-[25px] font-extrabold leading-none tracking-tight sm:text-4xl ${card.color}`}>
