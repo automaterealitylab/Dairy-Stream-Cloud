@@ -475,6 +475,14 @@ export const getCurrentMonthSuccessfulSubscriptionDue = async (customerId) => {
   const rateCache = new Map();
   const subscriptionPaymentAmountByDeliveryId =
     buildSubscriptionPaymentAmountByDeliveryId(paymentRows);
+  const paidCurrentMonthBills = (paymentRows || []).reduce((sum, row) => {
+    const meta = parseMonthlyBillMeta(row?.description);
+    const status = String(row?.status || "PENDING").toUpperCase();
+    if (!meta.isMonthlyBill || meta.monthKey !== currentMonthKey || status !== "PAID") {
+      return sum;
+    }
+    return sum + extractPaymentAmount(row);
+  }, 0);
 
   let total = 0;
   for (const delivery of deliveries) {
@@ -491,7 +499,7 @@ export const getCurrentMonthSuccessfulSubscriptionDue = async (customerId) => {
   }
 
   return {
-    payableTillDate: Number(total.toFixed(2)),
+    payableTillDate: Number(Math.max(0, total - paidCurrentMonthBills).toFixed(2)),
   };
 };
 

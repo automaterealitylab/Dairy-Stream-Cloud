@@ -2,6 +2,7 @@ import { supabase } from "../../config/supabase.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import {
+  MONTHLY_BILL_MARKER,
   getCurrentMonthSuccessfulSubscriptionDue,
   getLocalTodayIso,
   parseMonthlyBillMeta,
@@ -305,6 +306,11 @@ const normalizePaymentId = (value) => {
   const asNumber = Number(value);
   return Number.isFinite(asNumber) ? asNumber : value;
 };
+
+const getCurrentMonthKey = () => String(getLocalTodayIso()).slice(0, 7);
+
+const buildCurrentMonthBillDescription = (monthKey) =>
+  `${MONTHLY_BILL_MARKER} month=${monthKey}; deliveries=0; subscription=0`.slice(0, 300);
 
 const getCustomerById = async (customerId) => {
   const { data, error } = await supabase
@@ -730,23 +736,29 @@ export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyI
       customerId,
       resolvedDairyId
     );
-    if (!pendingPayments.length) {
+    const runningDueData = await getCurrentMonthSuccessfulSubscriptionDue(customerId);
+    const runningDueAmount = Number(runningDueData?.payableTillDate || 0);
+    const currentMonthKey = getCurrentMonthKey();
+    const historicalPendingAmount = pendingPayments.reduce((sum, row) => {
+      return getPaymentMonthKey(row) === currentMonthKey ? sum : sum + extractPaymentAmount(row);
+    }, 0);
+    const currentMonthPendingAmount = pendingPayments.reduce((sum, row) => {
+      return getPaymentMonthKey(row) === currentMonthKey ? sum + extractPaymentAmount(row) : sum;
+    }, 0);
+    const amountInRupees =
+      historicalPendingAmount + Math.max(currentMonthPendingAmount, runningDueAmount);
+    const effectiveDairyId = pendingPayments[0]?.dairy_id || resolvedDairyId;
+
+    if (!pendingPayments.length && runningDueAmount <= 0) {
       throw new Error("No pending payment found");
     }
 
-    const amountInRupees = pendingPayments.reduce(
-      (sum, row) => sum + extractPaymentAmount(row),
-      0
-    );
     if (amountInRupees <= 0) {
       throw new Error("Payment amount must be greater than zero");
     }
 
-    const firstPending = pendingPayments[0];
     const razorpay = getRazorpayClient();
-    const beneficiary = await getDairyBankDetails(
-      firstPending?.dairy_id || resolvedDairyId
-    );
+    const beneficiary = await getDairyBankDetails(effectiveDairyId);
     const order = await razorpay.orders.create({
       amount: Math.round(amountInRupees * 100),
       currency: "INR",
@@ -754,7 +766,8 @@ export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyI
       notes: {
         customer_id: String(customerId),
         payment_mode: "ALL",
-        dairy_id: String(firstPending?.dairy_id ?? resolvedDairyId ?? ""),
+        dairy_id: String(effectiveDairyId ?? ""),
+        month: getCurrentMonthKey(),
       },
     });
 
@@ -859,20 +872,89 @@ export const verifyCustomerPayment = async ({
       customerId,
       resolvedDairyId
     );
+    const currentMonthKey = getCurrentMonthKey();
 
-    if (!pendingPayments.length || !customerColumn) {
+    if (pendingPayments.length && customerColumn) {
+      for (const row of pendingPayments) {
+        await updatePaymentsWithFallbacks({
+          customerColumn,
+          customerId,
+          dairyId: resolvedDairyId,
+          paymentId: row.id,
+          payloadVariants,
+        });
+      }
+    }
+
+    const runningDueData = await getCurrentMonthSuccessfulSubscriptionDue(customerId);
+    const runningDueAmount = Number(runningDueData?.payableTillDate || 0);
+    const hasCurrentMonthPendingBill = pendingPayments.some(
+      (row) => getPaymentMonthKey(row) === currentMonthKey
+    );
+
+    if (runningDueAmount > 0 && !hasCurrentMonthPendingBill) {
+      const description = buildCurrentMonthBillDescription(currentMonthKey);
+      const paidRowPayload = {
+        customer_id: customerId,
+        dairy_id: resolvedDairyId,
+        amount: Number(runningDueAmount.toFixed(2)),
+        status: "PAID",
+        method: "RAZORPAY",
+        description,
+        due_date: getLocalTodayIso(),
+        paid_at: paidAtIso,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_signature: razorpaySignature,
+      };
+
+      const payloadVariantsForInsert = [
+        paidRowPayload,
+        {
+          ...paidRowPayload,
+          method: undefined,
+          payment_method: "RAZORPAY",
+          paid_at: undefined,
+          payment_date: paidAtIso,
+        },
+        {
+          customer_id: customerId,
+          dairy_id: resolvedDairyId,
+          amount: Number(runningDueAmount.toFixed(2)),
+          status: "PAID",
+          description,
+          due_date: getLocalTodayIso(),
+        },
+      ];
+
+      let lastMissingColumnError = null;
+      let inserted = false;
+      for (const variant of payloadVariantsForInsert) {
+        const cleanPayload = Object.fromEntries(
+          Object.entries(variant).filter(([, value]) => value !== undefined)
+        );
+        const { error } = await supabase.from("payments").insert(cleanPayload);
+        if (!error) {
+          inserted = true;
+          break;
+        }
+        if (isMissingColumnError(error)) {
+          lastMissingColumnError = error;
+          continue;
+        }
+        throw error;
+      }
+
+      if (!inserted && lastMissingColumnError) {
+        throw lastMissingColumnError;
+      }
+    }
+
+    if (!pendingPayments.length && runningDueAmount <= 0) {
       throw new Error("No pending payment found");
     }
 
-    for (const row of pendingPayments) {
-      await updatePaymentsWithFallbacks({
-        customerColumn,
-        customerId,
-        dairyId: resolvedDairyId,
-        paymentId: row.id,
-        payloadVariants,
-      });
-    }
+    await syncCustomerMonthlyBills(customerId);
 
     return {
       success: true,

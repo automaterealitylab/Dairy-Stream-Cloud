@@ -8,6 +8,8 @@ import {
   getCachedCustomerSubscription,
   fetchCustomerPayments,
   getCachedCustomerPayments,
+  createCustomerPaymentOrder,
+  verifyCustomerPayment,
   saveCustomerSubscription,
   clearCustomerSubscription,
 } from '../../api/customer/customer.api.js';
@@ -182,6 +184,7 @@ const Subscribe = () => {
 
   const [toast, setToast] = useState(null);
   const [closing, setClosing] = useState(false);
+  const [payingCloseDue, setPayingCloseDue] = useState(false);
   const [pendingDuesModal, setPendingDuesModal] = useState({
     open: false,
     message: '',
@@ -366,6 +369,43 @@ const Subscribe = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const loadRazorpay = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(true), { once: true });
+        existingScript.addEventListener('error', () => resolve(false), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+  const refreshPaymentsSummary = async () => {
+    const data = await fetchCustomerPayments({ force: true });
+    setPaymentsSummary({
+      monthlyDue: Number(data?.summary?.monthlyDue || 0),
+      payableTillDate: Number(data?.summary?.payableTillDate || 0),
+      billingSummaryAmount: Number(
+        data?.summary?.billingSummaryAmount ??
+          data?.summary?.monthlyDue ??
+          data?.summary?.payableTillDate ??
+          0
+      ),
+    });
+    return data;
+  };
+
+  useEffect(() => {
+    loadRazorpay().catch(() => false);
+  }, []);
+
   // -----------------------------------------
   // 3. Update Plan Logic
   // -----------------------------------------
@@ -463,6 +503,71 @@ const Subscribe = () => {
       }
     } finally {
       setClosing(false);
+    }
+  };
+
+  const handlePayDuesAndClose = async () => {
+    try {
+      if (!hasPendingCloseDue) {
+        await cancelSubscription();
+        return;
+      }
+
+      setPayingCloseDue(true);
+      if (!(await loadRazorpay())) {
+        throw new Error('Could not load payment gateway.');
+      }
+
+      const orderPayload = await createCustomerPaymentOrder({ payAll: true });
+      const checkout = new window.Razorpay({
+        key: orderPayload.keyId,
+        amount: orderPayload.order.amount,
+        currency: orderPayload.order.currency,
+        name: 'Dairy Stream',
+        description: 'Subscription bill payment',
+        order_id: orderPayload.order.id,
+        handler: async (res) => {
+          try {
+            await verifyCustomerPayment({
+              payAll: true,
+              razorpay_order_id: res.razorpay_order_id,
+              razorpay_payment_id: res.razorpay_payment_id,
+              razorpay_signature: res.razorpay_signature,
+            });
+
+            await refreshPaymentsSummary();
+            setPendingDuesModal({ open: false, message: '' });
+            await cancelSubscription();
+          } catch (err) {
+            showToastMessage('error', err?.message || 'Payment succeeded, but closing subscription failed.');
+          } finally {
+            setPayingCloseDue(false);
+          }
+        },
+        theme: { color: '#2C1A0E' },
+        modal: {
+          ondismiss: () => {
+            setPayingCloseDue(false);
+            showToastMessage(
+              'error',
+              'Payment cancelled. Subscription not closed. Daily delivery will continue as per plan.'
+            );
+          },
+        },
+      });
+
+      checkout.on('payment.failed', (res) => {
+        setPayingCloseDue(false);
+        showToastMessage(
+          'error',
+          res?.error?.description || 'Payment cancelled. Subscription not closed. Daily delivery will continue as per plan.'
+        );
+      });
+
+      checkout.open();
+    } catch (err) {
+      setPayingCloseDue(false);
+      showToastMessage('error', err?.message || 'Unable to start payment.');
     }
   };
 
@@ -751,18 +856,17 @@ const Subscribe = () => {
               <button
                 onClick={
                   isApprovedSubscription && hasPendingCloseDue
-                    ? () => {
-                        setShowCancelModal(false);
-                        navigate('/customer/dashboard/payments');
-                      }
+                    ? handlePayDuesAndClose
                     : cancelSubscription
                 }
-                disabled={closing}
+                disabled={closing || payingCloseDue}
                 className="flex items-center gap-2 rounded-[14px] bg-[#C0392B] px-6 py-2 text-white transition hover:bg-[#A63125] disabled:bg-[#D48B84]"
               >
-                {closing && <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
+                {(closing || payingCloseDue) && <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
                 {closing
                   ? (isApprovedSubscription ? 'Closing...' : 'Cancelling...')
+                  : payingCloseDue
+                  ? 'Opening Razorpay...'
                   : isApprovedSubscription && hasPendingCloseDue
                   ? `Pay ${fmtCurrency(closeSubscriptionDueAmount)} and Close Subscription`
                   : (isApprovedSubscription ? 'Yes, Close Subscription' : 'Yes, Cancel Subscription')}
@@ -790,13 +894,13 @@ const Subscribe = () => {
                 Keep Subscription
               </button>
               <button
-                onClick={() => {
-                  setPendingDuesModal({ open: false, message: '' });
-                  navigate('/customer/dashboard/payments');
-                }}
-                className="rounded-[14px] bg-[#B8641A] px-6 py-2 text-white transition hover:bg-[#9F5313]"
+                onClick={handlePayDuesAndClose}
+                disabled={payingCloseDue || closing}
+                className="rounded-[14px] bg-[#B8641A] px-6 py-2 text-white transition hover:bg-[#9F5313] disabled:bg-[#D8A678]"
               >
-                {hasPendingCloseDue
+                {payingCloseDue
+                  ? 'Opening Razorpay...'
+                  : hasPendingCloseDue
                   ? `Pay ${fmtCurrency(closeSubscriptionDueAmount)} and Close Subscription`
                   : 'Go To Payments'}
               </button>
