@@ -1,310 +1,1776 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
+import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
+import {
+  cancelCustomerOneTimeOrder,
+  createCustomerOneTimeOrder,
+  createCustomerPaymentOrder,
+  fetchCustomerDashboard,
+  reportCustomerDeliveryIssue,
+  saveCustomerSubscription,
+  verifyCustomerPayment,
+} from "../../api/customer/customer.api.js";
+import { fetchPublicDairyById } from "../../api/public.api.js";
+import {
+  PlusCircle,
+  PauseCircle,
+  PlayCircle,
+  Truck,
+  CreditCard,
+  CheckCircle,
+  Clock,
+  User,
+  ChevronRight,
+  X,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 
-const DairyCustomerDashboard = () => {
-  const [showNotification, setShowNotification] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
-  const [statusMessage, setStatusMessage] = useState({ text: 'Plan is active.', color: 'text-success', opacity: 'opacity-0' });
-  const [paymentStatus, setPaymentStatus] = useState({
-    text: 'PENDING (₹1200)',
-    bgColor: 'bg-danger',
-    textColor: 'text-white',
-    badgeColor: 'bg-danger-subtle text-danger-emphasis'
+const headingFont = { fontFamily: "'Lora', serif" };
+
+const ACTIONS = [
+  {
+    key: "add",
+    label: "Add Extra",
+    Icon: PlusCircle,
+    bg: "bg-[#FFF4E2]",
+    text: "text-[#B8641A]",
+    border: "border-[#EFD7B3]",
+    route: null,
+  },
+  {
+    key: "pause",
+    label: "Pause",
+    Icon: PauseCircle,
+    bg: "bg-[#FFF1E4]",
+    text: "text-[#C86A2B]",
+    border: "border-[#F0D1B2]",
+    route: null,
+  },
+  {
+    key: "deliveries",
+    label: "Deliveries",
+    Icon: Truck,
+    bg: "bg-[#EEF5E7]",
+    text: "text-[#4A7C2F]",
+    border: "border-[#DDE8D1]",
+    route: "/customer/dashboard/deliveries",
+  },
+  {
+    key: "pay",
+    label: "Pay Bill",
+    Icon: CreditCard,
+    bg: "bg-[#FDECEA]",
+    text: "text-[#C0392B]",
+    border: "border-[#F2D0C8]",
+    route: "/customer/dashboard/payments",
+  },
+];
+
+const getBillingDueText = (dueInDays) => {
+  if (dueInDays === null || dueInDays === undefined) return "Due date not set";
+  if (dueInDays < 0) return `Overdue by ${Math.abs(dueInDays)} days`;
+  if (dueInDays === 0) return "Due today";
+  return `Due in ${dueInDays} days`;
+};
+
+const getDateInputValue = (dateValue = new Date()) => {
+  const date = new Date(dateValue);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getTomorrowDateInput = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return getDateInputValue(tomorrow);
+};
+
+const normalizeProducts = (dairy = {}) => {
+  const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
+  if (explicitItems.length > 0) {
+    return explicitItems
+      .map((item) => ({
+        id: item.id || item.name,
+        name: String(item.name || "").trim(),
+        ratePerUnit: Number(item.ratePerUnit || 0),
+        stockQuantity: Number(item.stockQuantity || 0),
+        unit: item.unit || "LITER",
+      }))
+      .filter((item) => item.name && item.ratePerUnit > 0);
+  }
+
+  const legacyProducts = dairy?.products || {};
+  return Object.keys(legacyProducts).map((name) => ({
+    id: name,
+    name,
+    ratePerUnit: Number(legacyProducts[name] || 0),
+    stockQuantity: Number.POSITIVE_INFINITY,
+    unit: "LITER",
+  }));
+};
+
+const normalizeProductUnit = (unit) => {
+  const normalized = String(unit || "").trim().toUpperCase();
+  if (!normalized) return "UNIT";
+  if (["L", "LTR", "LITER", "LITRE", "LITERS", "LITRES"].includes(normalized)) {
+    return "LITER";
+  }
+  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(normalized)) {
+    return "KG";
+  }
+  return normalized;
+};
+
+const getProductUnitLabel = (unit, { short = false, lowercase = false } = {}) => {
+  const normalized = normalizeProductUnit(unit);
+
+  let label = normalized;
+  if (normalized === "LITER") {
+    label = short ? "L" : "Liter";
+  } else if (normalized === "KG") {
+    label = short ? "kg" : "KG";
+  }
+
+  return lowercase ? label.toLowerCase() : label;
+};
+
+const getProductQuantityStep = (unit) => {
+  const normalized = normalizeProductUnit(unit);
+  if (normalized === "KG") return "0.25";
+  if (normalized === "LITER") return "0.5";
+  return "1";
+};
+
+const formatMeasureValue = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0";
+  if (Number.isInteger(numeric)) return String(numeric);
+  return numeric.toFixed(2).replace(/\.?0+$/, "");
+};
+
+const isProductOutOfStock = (stockQuantity) => {
+  const stock = Number(stockQuantity);
+  return Number.isFinite(stock) && stock <= 0;
+};
+
+const getStoredCustomerAddress = () => {
+  const storedUser = localStorage.getItem("user");
+  if (!storedUser) return "";
+
+  try {
+    const parsed = JSON.parse(storedUser);
+    return String(parsed?.user?.address || parsed?.address || "").trim();
+  } catch {
+    return "";
+  }
+};
+
+const normalizeAddExtraPaymentOption = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (["SUBSCRIPTION", "ADD_TO_SUBSCRIPTION", "MONTHLY_BILL"].includes(normalized)) {
+    return "ADD_TO_SUBSCRIPTION";
+  }
+  if (["COD", "CASH"].includes(normalized)) {
+    return "PAY_NOW_CASH";
+  }
+  return "PAY_NOW_ONLINE";
+};
+
+const getAddExtraOrderPaymentMethod = (option) => {
+  if (option === "ADD_TO_SUBSCRIPTION") return "MONTHLY_BILL";
+  if (option === "PAY_NOW_CASH") return "COD";
+  return "PAY_NOW";
+};
+
+const normalizeAddExtraSlot = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (normalized.startsWith("EVE")) return "Evening";
+  return "Morning";
+};
+
+const formatTomorrowExtraStatus = (status) => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "PENDING_APPROVAL") return "Approval Pending";
+  if (normalized === "PENDING") return "Scheduled";
+  if (normalized === "DELIVERED") return "Delivered";
+  if (normalized === "FAILED") return "Failed";
+  if (normalized === "SKIPPED") return "Skipped";
+  if (normalized === "CANCELLED") return "Cancelled";
+  return "Scheduled";
+};
+
+const getTomorrowExtraStatusClasses = (status) => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "DELIVERED") return "bg-[#EEF5E7] text-[#4A7C2F]";
+  if (normalized === "FAILED" || normalized === "CANCELLED") {
+    return "bg-[#FDECEA] text-[#C0392B]";
+  }
+  if (normalized === "PENDING_APPROVAL") return "bg-[#FFF1E4] text-[#C86A2B]";
+  return "bg-[#FFF4E2] text-[#B8641A]";
+};
+
+const getTodayDeliveryMeta = (delivery = {}) => {
+  const status = String(delivery?.status || "").toUpperCase();
+  const hasAgent = Boolean(delivery?.agent?.name || delivery?.agentId);
+
+  if (status === "DELIVERED") {
+    return {
+      title: "Delivered Successfully",
+      tone: "success",
+      helperText: "Your order was delivered successfully.",
+    };
+  }
+
+  if (status === "PENDING_APPROVAL") {
+    return {
+      title: "Approval Pending",
+      tone: "approval",
+      helperText: "Your one-time order is waiting for dairy admin approval.",
+    };
+  }
+
+  if (status === "CANCELLED") {
+    return {
+      title: "Order Cancelled",
+      tone: "failed",
+      helperText: "This one-time order was cancelled and remains in your history.",
+    };
+  }
+
+  if (status === "FAILED") {
+    return {
+      title: "Delivery Failed",
+      tone: "failed",
+      helperText: "This delivery could not be completed today.",
+    };
+  }
+
+  if (status === "NOT_SUBSCRIBED") {
+    return {
+      title: "No Delivery Scheduled Today",
+      tone: "idle",
+      helperText: "Start a subscription or place a one-time order to get a delivery.",
+    };
+  }
+
+  if (status === "NOT_SCHEDULED") {
+    return {
+      title: "No Delivery Scheduled Today",
+      tone: "idle",
+      helperText: "Your subscription is active, but there is no delivery planned for today.",
+    };
+  }
+
+  if (status === "PENDING" && !hasAgent) {
+    return {
+      title: "Delivery Partner Not Assigned",
+      tone: "pending",
+      helperText: "We are assigning a delivery partner for your order.",
+    };
+  }
+
+  return {
+    title: "Delivery Pending",
+    tone: "pending",
+    helperText: "Your order is scheduled and awaiting delivery.",
+  };
+};
+
+const getPreferredExtraProductName = ({ subscription, tomorrow, today }) =>
+  String(
+    subscription?.milkType ||
+      tomorrow?.product ||
+      today?.product ||
+      ""
+  ).trim();
+
+const getPreferredExtraQuantity = ({ subscription, tomorrow, today }) => {
+  const rawQuantity = subscription?.quantity ?? tomorrow?.quantity ?? today?.quantity ?? 1;
+  const numericQuantity = Number.parseFloat(String(rawQuantity).replace(/[^0-9.]/g, ""));
+
+  if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+    return "1";
+  }
+
+  return formatMeasureValue(numericQuantity);
+};
+
+const getDailyDeliverySummary = ({ subscription, tomorrow, today }) => {
+  const scheduledQuantity = String(tomorrow?.quantity || today?.quantity || "").trim();
+  const scheduledProduct = String(tomorrow?.product || today?.product || "").trim();
+
+  if (scheduledQuantity && scheduledProduct) {
+    return `${scheduledQuantity} ${scheduledProduct}`;
+  }
+
+  const subscriptionProduct = String(subscription?.milkType || "").trim();
+  const subscriptionQuantity = getPreferredExtraQuantity({ subscription, tomorrow: null, today: null });
+
+  if (subscriptionProduct) {
+    return `${subscriptionQuantity}L ${subscriptionProduct}`;
+  }
+
+  return "1L Milk";
+};
+
+const toSubscriptionPayload = (subscription, nextStatus) => ({
+  dairyId: subscription?.dairyId,
+  milkType: subscription?.milkType || "Milk",
+  quantity: Number(subscription?.quantity || 1),
+  slot: subscription?.slot || "Morning",
+  startDate: subscription?.startDate || undefined,
+  address: subscription?.address || "",
+  paymentMethod: subscription?.paymentMethod || "UPI",
+  status: nextStatus,
+});
+
+export default function DairyCustomerDashboard() {
+  const navigate = useNavigate();
+  const { data, loading, error } = useCustomerDashboard();
+
+  const [dashboardData, setDashboardData] = useState(null);
+  const [savingPause, setSavingPause] = useState(false);
+  const [pendingSubscriptionStatus, setPendingSubscriptionStatus] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueText, setIssueText] = useState("");
+  const [reportingIssue, setReportingIssue] = useState(false);
+  const [showAddExtraModal, setShowAddExtraModal] = useState(false);
+  const [addExtraLoading, setAddExtraLoading] = useState(false);
+  const [addExtraSubmitting, setAddExtraSubmitting] = useState(false);
+  const [addExtraError, setAddExtraError] = useState("");
+  const [addExtraDairy, setAddExtraDairy] = useState(null);
+  const [addExtraProducts, setAddExtraProducts] = useState([]);
+  const [showDuplicateExtraConfirm, setShowDuplicateExtraConfirm] = useState(false);
+  const [addExtraForm, setAddExtraForm] = useState({
+    milkType: "",
+    quantity: "1",
+    paymentMethod: "PAY_NOW_ONLINE",
+    address: "",
+    slot: "Morning",
   });
+  const toastTimeoutRef = useRef(null);
 
-  
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setPaymentStatus({
-        text: 'PENDING (₹1200)',
-        bgColor: 'bg-danger',
-        textColor: 'text-white',
-        badgeColor: 'bg-danger-subtle text-danger-emphasis'
-      });
-    }, 500);
+    if (data) {
+      setDashboardData(data);
+    }
+  }, [data]);
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    if (loading) return undefined;
+
+    let cancelled = false;
+
+    const refreshDashboard = async () => {
+      try {
+        const fresh = await fetchCustomerDashboard({ force: true });
+        if (!cancelled) {
+          setDashboardData(fresh);
+        }
+      } catch {
+        // Ignore refresh failures and keep current dashboard visible.
+      }
+    };
+
+    const interval = window.setInterval(refreshDashboard, 30000);
+    const handleFocus = () => {
+      refreshDashboard();
+    };
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [loading]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        window.clearTimeout(toastTimeoutRef.current);
+      }
+    };
   }, []);
 
-  const handleToggleSubscription = (action) => {
-    let newMessage = '';
-    let newColor = '';
-    let newIsPaused = isPaused;
+  const resolvedData = dashboardData || data;
+  const customer = resolvedData?.customer || {};
+  const today = resolvedData?.todayDelivery || null;
+  const tomorrow = resolvedData?.tomorrowDelivery || null;
+  const billing = resolvedData?.billing || {};
+  const subscription = resolvedData?.subscription || null;
+  const oneTimeOrders = Array.isArray(resolvedData?.oneTimeOrders) ? resolvedData.oneTimeOrders : [];
 
-    if (action === 'pause') {
-      if (isPaused) {
-        // Un-Pause
-        newMessage = 'Subscription Resumed! Enjoy your daily delivery.';
-        newColor = 'text-success';
-        newIsPaused = false;
-      } else {
-        // Pause
-        newMessage = 'Subscription Paused Successfully! Click Un-Pause to resume.';
-        newColor = 'text-danger';
-        newIsPaused = true;
-      }
-    } else if (action === 'modify') {
-      newMessage = 'Redirecting to plan modification page...';
-      newColor = 'text-primary';
-      newIsPaused = false;
-    }
-
-    setIsPaused(newIsPaused);
-    setStatusMessage({ text: newMessage, color: newColor, opacity: 'opacity-100' });
-
-    setTimeout(() => {
-      setStatusMessage(prev => ({ ...prev, opacity: 'opacity-0' }));
-    }, 3000);
-  };
-
-  // --- Reusable Card Component ---
-  const Card = ({ title, icon, children, titleColor = 'text-secondary', className = '' }) => (
-    <div className={`card shadow-sm border-0 rounded-3 ${className}`}>
-      <div className="card-body">
-        <h2 className={`card-title fs-4 ${titleColor} mb-3 d-flex align-items-center`}>
-          {icon}
-          {title}
-        </h2>
-        {children}
-      </div>
-    </div>
-  );
-
-  // --- Data for the Orders Table ---
-  const dailyOrders = [
-    { date: 'Oct 05, 2025', type: 'Cow Milk (Full Cream)', qty: '1.0', status: 'Delivered' },
-    { date: 'Oct 04, 2025', type: 'Toned Milk', qty: '0.5', status: 'Delivered' },
-    { date: 'Oct 03, 2025', type: 'Not Subscribed', qty: '0.0', status: 'Paused' },
-    { date: 'Oct 02, 2025', type: 'Cow Milk (Full Cream)', qty: '1.0', status: 'Delivered' },
+  const customerName = customer?.name || "Customer";
+  const dairyName = customer?.dairy || customer?.dairyName || "Not assigned";
+  const fallbackGuestDairyId = localStorage.getItem("guest_dairy_id");
+  const fallbackGuestDairyName = localStorage.getItem("guest_dairy_name");
+  const linkedExtraDairyId =
+    subscription?.dairyId ||
+    customer?.dairyId ||
+    oneTimeOrders[0]?.dairyId ||
+    fallbackGuestDairyId ||
+    null;
+  const linkedExtraDairyName =
+    subscription?.dairyName ||
+    customer?.dairyName ||
+    oneTimeOrders[0]?.dairyName ||
+    fallbackGuestDairyName ||
+    dairyName;
+  const actualSubscriptionStatus = String(subscription?.status || "").toUpperCase();
+  const effectiveSubscriptionStatus = pendingSubscriptionStatus || actualSubscriptionStatus;
+  const isPaused = effectiveSubscriptionStatus === "PAUSED";
+  const canTogglePause = Boolean(subscription?.dairyId) && !savingPause;
+  const hasSubscription = Boolean(subscription?.dairyId);
+  const canAddExtraToSubscriptionBill =
+    Boolean(subscription?.dairyId) &&
+    linkedExtraDairyId != null &&
+    String(subscription.dairyId) === String(linkedExtraDairyId);
+  const addExtraPaymentOptions = [
+    { id: "PAY_NOW_ONLINE", label: "Pay Now Online" },
+    { id: "PAY_NOW_CASH", label: "Cash on Delivery" },
+    ...(canAddExtraToSubscriptionBill
+      ? [{ id: "ADD_TO_SUBSCRIPTION", label: "Add to Subscription Bill" }]
+      : []),
   ];
+  const todayMeta = getTodayDeliveryMeta(today);
+  const hasIssue = Boolean(String(today?.customerIssue || "").trim());
+  const issueStatus = String(today?.issueStatus || "").toUpperCase();
+  const hasAdminAction = Boolean(String(today?.issueAdminAction || "").trim());
+  const reportId = Number(today?.deliveryId ?? today?.id);
+  const canReportIssue =
+    Number.isFinite(reportId) &&
+    reportId > 0 &&
+    !["NOT_SUBSCRIBED", "NOT_SCHEDULED"].includes(String(today?.status || "").toUpperCase());
+  const pauseToggleLabel = savingPause
+    ? pendingSubscriptionStatus === "PAUSED"
+      ? "Pausing..."
+      : pendingSubscriptionStatus === "ACTIVE"
+      ? "Resuming..."
+      : isPaused
+      ? "Resume"
+      : "Pause"
+    : isPaused
+    ? "Resume"
+    : "Pause";
+  const pauseToggleHelper = savingPause
+    ? pendingSubscriptionStatus === "PAUSED"
+      ? "Updating your plan status"
+      : pendingSubscriptionStatus === "ACTIVE"
+      ? "Restarting daily deliveries"
+      : "Updating your plan status"
+    : isPaused
+    ? "Restart daily deliveries"
+    : "Temporarily stop deliveries";
+  const nextExtraDeliveryDate = getTomorrowDateInput();
+  const tomorrowExtraOrders = Array.isArray(tomorrow?.extraOrders) ? tomorrow.extraOrders : [];
+  const hasTomorrowExtras = tomorrowExtraOrders.length > 0;
+  const showTomorrowCard = Boolean(hasSubscription || hasTomorrowExtras);
+  const tomorrowTitle = hasSubscription
+    ? `${tomorrow?.quantity || "-"} ${subscription?.milkType || "Milk"}`
+    : "Extra orders for tomorrow";
+  const tomorrowSubtitle = hasSubscription
+    ? `${tomorrow?.slot || "-"} slot`
+    : `${tomorrowExtraOrders.length} extra ${tomorrowExtraOrders.length === 1 ? "item" : "items"} added`;
 
-  // Helper to determine status style
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'Delivered':
-        return 'bg-success-subtle text-success-emphasis'; // Success badge
-      case 'Paused':
-      case 'Not Subscribed':
-        return 'bg-warning-subtle text-warning-emphasis'; // Warning badge
-      default:
-        return 'bg-light text-secondary';
+  useEffect(() => {
+    if (canAddExtraToSubscriptionBill || addExtraForm.paymentMethod !== "ADD_TO_SUBSCRIPTION") {
+      return;
+    }
+
+    setAddExtraForm((prev) =>
+      prev.paymentMethod === "ADD_TO_SUBSCRIPTION"
+        ? {
+            ...prev,
+            paymentMethod: "PAY_NOW_ONLINE",
+          }
+        : prev
+    );
+  }, [addExtraForm.paymentMethod, canAddExtraToSubscriptionBill]);
+  const nextExtraDeliveryLabel = new Date(`${nextExtraDeliveryDate}T00:00:00`).toLocaleDateString(
+    "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
+  );
+  const preferredExtraProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
+  const preferredExtraQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
+  const selectedAddExtraProduct = useMemo(
+    () => addExtraProducts.find((item) => item.name === addExtraForm.milkType) || null,
+    [addExtraProducts, addExtraForm.milkType]
+  );
+  const dailyDeliverySummary = getDailyDeliverySummary({ subscription, tomorrow, today });
+  const addExtraQuantity = Number(addExtraForm.quantity || 0);
+  const addExtraAvailableStock = useMemo(() => {
+    if (!selectedAddExtraProduct) return 0;
+    const stock = Number(selectedAddExtraProduct.stockQuantity);
+    return Number.isFinite(stock) ? stock : Number.POSITIVE_INFINITY;
+  }, [selectedAddExtraProduct]);
+  const isAddExtraStockLimited = Number.isFinite(addExtraAvailableStock);
+  const isAddExtraOutOfStock = isAddExtraStockLimited && addExtraAvailableStock <= 0;
+  const doesAddExtraExceedStock =
+    isAddExtraStockLimited && addExtraQuantity > addExtraAvailableStock;
+  const selectedAddExtraUnitShort = getProductUnitLabel(selectedAddExtraProduct?.unit, {
+    short: true,
+  });
+  const selectedAddExtraUnitLower = getProductUnitLabel(selectedAddExtraProduct?.unit, {
+    lowercase: true,
+  });
+  const selectedAddExtraQuantityStep = getProductQuantityStep(selectedAddExtraProduct?.unit);
+  const addExtraTotal = Number(
+    (Number(selectedAddExtraProduct?.ratePerUnit || 0) * Number(addExtraForm.quantity || 0)).toFixed(2)
+  );
+  const canSubmitAddExtraOrder =
+    !addExtraLoading &&
+    !addExtraSubmitting &&
+    Boolean(selectedAddExtraProduct) &&
+    !isAddExtraOutOfStock &&
+    !doesAddExtraExceedStock;
+
+  useEffect(() => {
+    if (!subscription?.dairyId) {
+      setPendingSubscriptionStatus(null);
+      return;
+    }
+
+    if (
+      pendingSubscriptionStatus &&
+      actualSubscriptionStatus &&
+      pendingSubscriptionStatus === actualSubscriptionStatus
+    ) {
+      setPendingSubscriptionStatus(null);
+    }
+  }, [subscription?.dairyId, pendingSubscriptionStatus, actualSubscriptionStatus]);
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    if (toastTimeoutRef.current) {
+      window.clearTimeout(toastTimeoutRef.current);
+    }
+    toastTimeoutRef.current = window.setTimeout(() => setToast(null), 3000);
+  };
+
+  const refreshDashboard = async () => {
+    const fresh = await fetchCustomerDashboard({ force: true });
+    setDashboardData(fresh);
+  };
+
+  const loadRazorpayCheckoutScript = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+  const getExtraOrderPaymentId = (response) =>
+    response?.payment?.id ||
+    response?.paymentId ||
+    response?.order?.payment_id ||
+    response?.order?.paymentId ||
+    response?.order?.payment?.id ||
+    null;
+
+  const rollbackCancelledExtraOrder = async ({ orderId, paymentId }) => {
+    if (!orderId || !paymentId) return false;
+
+    try {
+      await cancelCustomerOneTimeOrder({ orderId, paymentId, removeFromHistory: true });
+      return true;
+    } catch {
+      return false;
     }
   };
+
+  const processExtraOnlinePayment = async (paymentId, description) => {
+    if (!paymentId) {
+      throw new Error("Payment reference missing for online payment");
+    }
+
+    const scriptLoaded = await loadRazorpayCheckoutScript();
+    if (!scriptLoaded) {
+      throw new Error("Failed to load payment checkout");
+    }
+
+    const orderPayload = await createCustomerPaymentOrder({ paymentId });
+
+    return new Promise((resolve, reject) => {
+      const checkout = new window.Razorpay({
+        key: orderPayload.keyId,
+        amount: orderPayload.order.amount,
+        currency: orderPayload.order.currency,
+        name: "Dairy Stream",
+        description: description || orderPayload.payment?.title || "Extra dairy order",
+        order_id: orderPayload.order.id,
+        handler: async (response) => {
+          try {
+            await verifyCustomerPayment({
+              paymentId,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            resolve({ paid: true });
+          } catch (err) {
+            const verificationError = new Error(
+              err?.response?.data?.message || err?.message || "Payment verification failed"
+            );
+            verificationError.code = "PAYMENT_VERIFY_FAILED";
+            reject(verificationError);
+          }
+        },
+        modal: {
+          ondismiss: () => resolve({ paid: false, dismissed: true }),
+        },
+        theme: { color: "#B8641A" },
+      });
+
+      checkout.on("payment.failed", (failedResponse) => {
+        resolve({
+          paid: false,
+          failed: true,
+          reason: failedResponse?.error?.description || "Payment failed",
+        });
+      });
+
+      checkout.open();
+    });
+  };
+
+  const closeAddExtraModal = () => {
+    if (addExtraSubmitting) return;
+    setShowAddExtraModal(false);
+    setAddExtraError("");
+    setShowDuplicateExtraConfirm(false);
+  };
+
+  const handleAddExtra = async () => {
+    if (!linkedExtraDairyId) {
+      showToast("No dairy is linked to your account yet.", "error");
+      return;
+    }
+
+    const preferredAddress =
+      String(subscription?.address || "").trim() && subscription?.address !== "-"
+        ? String(subscription.address).trim()
+        : getStoredCustomerAddress();
+    const preferredPaymentMethod = canAddExtraToSubscriptionBill
+      ? normalizeAddExtraPaymentOption(subscription?.paymentMethod)
+      : "PAY_NOW_ONLINE";
+    const preferredSlot = normalizeAddExtraSlot(subscription?.slot || tomorrow?.slot || "Morning");
+    const preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
+    const preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
+
+    setAddExtraError("");
+    setShowDuplicateExtraConfirm(false);
+    setShowAddExtraModal(true);
+    setAddExtraForm({
+      milkType: preferredProductName,
+      quantity: preferredQuantity,
+      paymentMethod: preferredPaymentMethod,
+      address: preferredAddress,
+      slot: preferredSlot,
+    });
+
+    if (String(addExtraDairy?.id || "") === String(linkedExtraDairyId) && addExtraProducts.length) {
+      const defaultProduct =
+        addExtraProducts.find((item) => item.name === preferredProductName)?.name ||
+        addExtraProducts.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
+        addExtraProducts[0]?.name ||
+        "";
+      setAddExtraForm((prev) => ({
+        ...prev,
+        milkType: defaultProduct,
+        quantity: preferredQuantity,
+        paymentMethod: preferredPaymentMethod,
+        address: preferredAddress,
+        slot: preferredSlot,
+      }));
+      return;
+    }
+
+    setAddExtraLoading(true);
+    try {
+      const response = await fetchPublicDairyById(linkedExtraDairyId);
+      const dairy = response?.dairy || null;
+      const products = normalizeProducts(dairy);
+      const resolvedDairy = {
+        id: dairy?.id || linkedExtraDairyId,
+        name: dairy?.dairy_name || dairy?.name || linkedExtraDairyName || "Dairy",
+      };
+
+      setAddExtraDairy(resolvedDairy);
+      setAddExtraProducts(products);
+
+      const defaultProduct =
+        products.find((item) => item.name === preferredProductName)?.name ||
+        products.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
+        products[0]?.name ||
+        "";
+
+      setAddExtraForm((prev) => ({
+        ...prev,
+        milkType: defaultProduct,
+        quantity: preferredQuantity,
+        paymentMethod: preferredPaymentMethod,
+        address: preferredAddress,
+        slot: preferredSlot,
+      }));
+
+      if (!products.length) {
+        setAddExtraError("No products are available in this dairy right now.");
+      }
+    } catch (err) {
+      setAddExtraDairy({
+        id: linkedExtraDairyId,
+        name: linkedExtraDairyName || "Dairy",
+      });
+      setAddExtraProducts([]);
+      setAddExtraError(err?.message || "Failed to load dairy products.");
+    } finally {
+      setAddExtraLoading(false);
+    }
+  };
+
+  const handleSubmitExtraOrder = async (allowDuplicate = false) => {
+    if (!linkedExtraDairyId) {
+      setAddExtraError("No dairy is linked to your account.");
+      return;
+    }
+    if (!selectedAddExtraProduct) {
+      setAddExtraError("Please select a product.");
+      return;
+    }
+    if (!Number.isFinite(addExtraQuantity) || addExtraQuantity <= 0) {
+      setAddExtraError("Quantity must be greater than zero.");
+      return;
+    }
+    if (doesAddExtraExceedStock) {
+      setAddExtraError(`Only ${addExtraAvailableStock} available for ${selectedAddExtraProduct.name}.`);
+      return;
+    }
+    if (!String(addExtraForm.address || "").trim() || String(addExtraForm.address || "").trim().length < 10) {
+      setAddExtraError("Please enter a detailed delivery address.");
+      return;
+    }
+    if (addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && !canAddExtraToSubscriptionBill) {
+      setAddExtraError(
+        "Add to Subscription Bill is available only when you have an active subscription with this dairy."
+      );
+      return;
+    }
+
+    setAddExtraSubmitting(true);
+    setAddExtraError("");
+
+    try {
+      const response = await createCustomerOneTimeOrder({
+        dairyId: linkedExtraDairyId,
+        milkType: selectedAddExtraProduct.name,
+        quantity: addExtraQuantity,
+        deliveryDate: nextExtraDeliveryDate,
+        slot: addExtraForm.slot,
+        paymentMethod: getAddExtraOrderPaymentMethod(addExtraForm.paymentMethod),
+        address: addExtraForm.address.trim(),
+        pricePerLiter: Number(selectedAddExtraProduct.ratePerUnit || 0),
+        isExtraOrder: true,
+        allowDuplicate,
+      });
+
+      setShowDuplicateExtraConfirm(false);
+
+      if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
+        const orderId = response?.order?.id || null;
+        const paymentId = getExtraOrderPaymentId(response);
+
+        if (!orderId || !paymentId) {
+          await rollbackCancelledExtraOrder({ orderId, paymentId });
+          setAddExtraError("Could not start payment. The extra order was not placed.");
+          return;
+        }
+
+        let paymentResult = null;
+        try {
+          paymentResult = await processExtraOnlinePayment(paymentId, selectedAddExtraProduct.name);
+        } catch (paymentErr) {
+          if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
+            showToast("Payment received but verification failed. Check Payments.", "warning");
+            setShowAddExtraModal(false);
+            navigate("/customer/dashboard/payments");
+            refreshDashboard().catch(() => {});
+            return;
+          }
+
+          await rollbackCancelledExtraOrder({ orderId, paymentId });
+          setAddExtraError(paymentErr?.message || "Payment cancelled. The extra order was not placed.");
+          return;
+        }
+
+        if (paymentResult?.paid) {
+          showToast("Extra order placed for tomorrow.", "success");
+          setShowAddExtraModal(false);
+          refreshDashboard().catch(() => {});
+          return;
+        }
+
+        if (paymentResult?.dismissed || paymentResult?.failed) {
+          await rollbackCancelledExtraOrder({ orderId, paymentId });
+          setAddExtraError(
+            paymentResult?.reason || "Payment was cancelled. The extra order was not placed."
+          );
+          return;
+        }
+
+        await rollbackCancelledExtraOrder({ orderId, paymentId });
+        setAddExtraError("Payment was not completed. The extra order was not placed.");
+        return;
+      }
+
+      showToast(
+        addExtraForm.paymentMethod === "PAY_NOW_CASH"
+          ? "Extra order placed for tomorrow. You can pay cash on delivery."
+          : "Extra order placed for tomorrow. It will be added to your subscription bill.",
+        "success"
+      );
+      setShowAddExtraModal(false);
+      refreshDashboard().catch(() => {});
+      return;
+    } catch (err) {
+      const message = err?.response?.data?.message || err?.message || "Failed to place extra order.";
+      if (!allowDuplicate && /already exists/i.test(message)) {
+        setShowDuplicateExtraConfirm(true);
+        return;
+      }
+      setAddExtraError(message);
+    } finally {
+      setAddExtraSubmitting(false);
+    }
+  };
+
+  const syncLocalSubscriptionStatus = (nextStatus) => {
+    setDashboardData((prev) => {
+      const source = prev || data;
+      if (!source?.subscription) return prev || source || null;
+
+      return {
+        ...source,
+        subscription: {
+          ...source.subscription,
+          status: nextStatus,
+        },
+      };
+    });
+  };
+
+  const handlePauseResume = async () => {
+    if (!subscription?.dairyId) {
+      showToast("No active subscription found.", "error");
+      return;
+    }
+
+    const previousStatus = String(subscription?.status || "ACTIVE").toUpperCase();
+    const nextStatus = isPaused ? "ACTIVE" : "PAUSED";
+    setPendingSubscriptionStatus(nextStatus);
+    setSavingPause(true);
+
+    // Reflect the new state immediately on the home page, then confirm with the server.
+    syncLocalSubscriptionStatus(nextStatus);
+
+    try {
+      const result = await saveCustomerSubscription(toSubscriptionPayload(subscription, nextStatus));
+      const resolvedStatus = String(result?.subscription?.status || nextStatus).toUpperCase();
+      setPendingSubscriptionStatus(resolvedStatus);
+      syncLocalSubscriptionStatus(resolvedStatus);
+      showToast(
+        resolvedStatus === "ACTIVE" ? "Subscription resumed!" : "Subscription paused.",
+        resolvedStatus === "ACTIVE" ? "success" : "warning"
+      );
+      refreshDashboard().catch(() => {
+        // Keep the optimistic status if the follow-up refresh fails temporarily.
+      });
+    } catch (err) {
+      setPendingSubscriptionStatus(previousStatus);
+      syncLocalSubscriptionStatus(previousStatus);
+      showToast(err?.message || "Failed to update subscription status.", "error");
+    } finally {
+      setSavingPause(false);
+    }
+  };
+
+  const handleAction = (key) => {
+    if (key === "add") {
+      handleAddExtra();
+      return;
+    }
+
+    if (key === "pause") {
+      handlePauseResume();
+      return;
+    }
+
+    const action = ACTIONS.find((item) => item.key === key);
+    if (action?.route) {
+      navigate(action.route);
+    }
+  };
+
+  const openIssueModal = () => {
+    if (!canReportIssue) {
+      showToast("No valid delivery found to report.", "error");
+      return;
+    }
+
+    setIssueText("");
+    setShowIssueModal(true);
+  };
+
+  const submitIssue = async () => {
+    const trimmedIssue = String(issueText || "").trim();
+
+    if (!canReportIssue) {
+      showToast("No valid delivery found to report.", "error");
+      return;
+    }
+
+    if (trimmedIssue.length < 5) {
+      showToast("Please enter at least 5 characters.", "error");
+      return;
+    }
+
+    setReportingIssue(true);
+    try {
+      await reportCustomerDeliveryIssue({ deliveryId: reportId, issue: trimmedIssue });
+      await refreshDashboard();
+      setShowIssueModal(false);
+      setIssueText("");
+      showToast("Issue reported successfully.", "success");
+    } catch (err) {
+      showToast(err?.message || "Failed to report issue.", "error");
+    } finally {
+      setReportingIssue(false);
+    }
+  };
+
+  if (loading && !resolvedData) {
+    return (
+      <CustomerLayout>
+        <LoadingIndicator className="py-20" message="Loading your dashboard..." />
+      </CustomerLayout>
+    );
+  }
+
+  if (error && !resolvedData) {
+    return (
+      <CustomerLayout>
+        <div className="py-20 text-center text-red-500">{error}</div>
+      </CustomerLayout>
+    );
+  }
 
   return (
-    <div className="bg-light min-vh-100 p-3 p-sm-4 p-lg-5">
-      {/* Header Section */}
-      <header className="mb-4">
-        <h1 className="fs-2 fw-bold text-primary">My Dairy Dashboard</h1>
-        <p className="text-secondary mt-1">Welcome back, Anya Sharma. Manage your daily subscription.</p>
-      </header>
-
-      {/* Notifications Banner */}
-      {showNotification && (
-        <div
-          className="alert alert-warning border-start border-5 border-warning p-4 rounded-3 shadow-sm mb-4 d-flex justify-content-between align-items-center"
-          role="alert"
-        >
-          <div className="d-flex align-items-center">
-            {/* Bootstrap uses icons or custom SVGs. Using a generic icon for illustration */}
-            <svg className="bi me-3" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
-            </svg>
-            <p className="mb-0 fw-medium">Special Offer: Get 10% cashback on next month's prepaid subscription!</p>
+    <CustomerLayout>
+      <div className="space-y-5 lg:space-y-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        {toast && (
+          <div
+            className={`fixed inset-x-3 top-4 z-50 flex items-center gap-2 rounded-[18px] border px-4 py-3 text-sm font-semibold shadow-[0_16px_40px_rgba(84,52,16,0.14)] transition-all sm:left-auto sm:right-5 sm:top-5 sm:max-w-md ${
+              toast.type === "success"
+                ? "border-[#CFE4C2] bg-[#EEF5E7] text-[#4A7C2F]"
+                : toast.type === "warning"
+                ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#B8641A]"
+                : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
+            }`}
+          >
+            {toast.type === "success" ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+            {toast.msg}
           </div>
-          <button onClick={() => setShowNotification(false)} className="btn-close" aria-label="Close"></button>
-        </div>
-      )}
+        )}
 
-      {/* Main Grid Layout */}
-      <div className="row g-4">
-
-        {/* Column 1 & 2: Main Info */}
-        <div className="col-lg-8">
-          <div className="d-flex flex-column gap-4">
-
-            {/* 1. Customer Profile Card */}
-            <Card
-              title="Customer Profile"
-              titleColor="text-primary"
-              icon={<svg className="bi me-2" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M11 6a3 3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path fillRule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/></svg>}
-            >
-              <div className="row g-3 text-secondary">
-                <div className="col-sm-6"><p className="mb-0"><strong>Name:</strong> Anya Sharma</p></div>
-                <div className="col-sm-6"><p className="mb-0"><strong>ID:</strong> DAIRY-C-4589</p></div>
-                <div className="col-12"><p className="mb-0"><strong>Address:</strong> A-201, Green Meadows Society, Pune, 411001</p></div>
-                <div className="col-12"><p className="mb-0"><strong>Preferred Delivery Time:</strong> <span className="text-success fw-medium">6:00 AM - 6:30 AM</span></p></div>
-              </div>
-            </Card>
-
-            {/* 2. Daily Milk Orders Table/List */}
-            <Card
-              title="Daily Milk Orders (Last 7 Days)"
-              titleColor="text-primary"
-              icon={<svg className="bi me-2" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M7.708 1.528a.125.125 0 0 1 .584 0l7.265 6.054a.125.125 0 0 1 .052.126.125.125 0 0 1-.092.093l-1.574.314V14.5a.5.5 0 0 1-.5.5H.824a.5.5 0 0 1-.5-.5V8.118L.38 7.708a.125.125 0 0 1 .158-.04l7.265-6.054zM8 3.298 14.5 8.71 14.5 14.5h-13L1.5 8.71 8 3.298z"/></svg>}
-            >
-
-              {/* Desktop/Tablet View (hidden on mobile) */}
-              <div className="d-none d-md-block table-responsive">
-                <table className="table table-hover mb-0">
-                  <thead className="table-light">
-                    <tr>
-                      <th scope="col">Date</th>
-                      <th scope="col">Type</th>
-                      <th scope="col">Qty (L)</th>
-                      <th scope="col">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dailyOrders.map((order, index) => (
-                      <tr key={index}>
-                        <td>{order.date}</td>
-                        <td>{order.type}</td>
-                        <td className="fw-medium">{order.qty}</td>
-                        <td>
-                          <span className={`badge rounded-pill ${getStatusStyle(order.status)}`}>
-                            {order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <div className="rounded-[24px] border-0 bg-transparent p-0 shadow-none sm:rounded-[30px] sm:bg-[#F5F0E8] sm:p-5 sm:shadow-[0_20px_60px_rgba(84,52,16,0.08)] xl:p-6">
+          <div className="rounded-[26px] border-0 bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-4 shadow-[0_10px_24px_rgba(84,52,16,0.04)] sm:p-6 xl:p-7">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,320px)] xl:items-start xl:gap-5">
+              <div className="min-w-0 max-w-3xl">
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+                  Customer Overview
+                </p>
+                <h1
+                  className="mt-2 text-[26px] font-semibold leading-[1.08] text-[#2C1A0E] sm:text-[38px] xl:text-[35px]"
+                  style={headingFont}
+                >
+                  {greeting}, <span className="text-[#B8641A]">{customerName}</span>
+                </h1>
+                <p className="mt-2 text-sm text-[#8B7355]">
+                  Member of{" "}
+                  <span className="font-bold text-[#5C3D1E]">{dairyName}</span>
+                </p>
               </div>
 
-              {/* Mobile View (hidden on desktop/tablet) */}
-              <div className="d-md-none">
-                <div className="list-group list-group-flush">
-                  {dailyOrders.slice(0, 3).map((order, index) => (
-                    <div key={`mobile-${index}`} className="list-group-item bg-light p-3 my-2 rounded-3 border">
-                      <div className="d-flex justify-content-between py-1 border-bottom">
-                          <span className="text-secondary">Date:</span> <span className="fw-medium">{order.date.split(',')[0]}</span>
-                      </div>
-                      <div className="d-flex justify-content-between py-1 border-bottom">
-                          <span className="text-secondary">Type:</span> <span className="fw-medium">{order.type.includes('Milk') ? order.type.split(' ')[0] + ' Milk' : order.type}</span>
-                      </div>
-                      <div className="d-flex justify-content-between py-1 border-bottom">
-                          <span className="text-secondary">Qty:</span> <span className="fw-medium">{order.qty} L</span>
-                      </div>
-                      <div className="d-flex justify-content-between py-1">
-                          <span className="text-secondary">Status:</span> 
-                          <span className={`badge rounded-pill ${getStatusStyle(order.status)}`}>{order.status}</span>
-                      </div>
+              <div className="w-full rounded-[18px] border border-[#E7DDCF] bg-white/90 px-4 py-3.5 backdrop-blur-sm xl:justify-self-end xl:py-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">
+                  Plan Status
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${
+                      !subscription
+                        ? "bg-[#F5F0E8] text-[#8B7355]"
+                        : isPaused
+                        ? "bg-[#FFF1E4] text-[#C86A2B]"
+                        : "bg-[#EEF5E7] text-[#4A7C2F]"
+                    }`}
+                  >
+                    {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
+                  </span>
+                  <span className="text-xs font-medium text-[#8B7355]">
+                    {subscription
+                      ? `${subscription.quantity || "-"} L ${subscription.milkType || "Milk"}`
+                      : "No active subscription"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {today && (
+          <div className="relative mt-3 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-4 sm:rounded-[28px] sm:p-7">
+            <div
+              className={`pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ${
+                todayMeta.tone === "success"
+                  ? "bg-[radial-gradient(circle_at_top_right,rgba(238,245,231,0.16),transparent_40%)]"
+                  : todayMeta.tone === "approval"
+                  ? "bg-[radial-gradient(circle_at_top_right,rgba(246,240,255,0.18),transparent_40%)]"
+                  : todayMeta.tone === "failed"
+                  ? "bg-[radial-gradient(circle_at_top_right,rgba(253,236,234,0.16),transparent_40%)]"
+                  : todayMeta.tone === "idle"
+                  ? "bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.09),transparent_40%)]"
+                  : "bg-[radial-gradient(circle_at_top_right,rgba(255,241,228,0.18),transparent_40%)]"
+              }`}
+            />
+            <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/5" />
+            <div className="absolute -bottom-14 left-7 h-36 w-36 rounded-full bg-[#D28A40]/10" />
+
+            <p className="relative mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/50 sm:mb-4">
+              Today&apos;s Delivery
+            </p>
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] ${
+                      todayMeta.tone === "success"
+                        ? "bg-[#EEF5E7] text-[#4A7C2F]"
+                        : todayMeta.tone === "approval"
+                        ? "bg-[#F6F0FF] text-[#7C4DAB]"
+                        : todayMeta.tone === "failed"
+                        ? "bg-[#FDECEA] text-[#C0392B]"
+                        : todayMeta.tone === "idle"
+                        ? "bg-white/10 text-white/80"
+                        : "bg-[#FFF1E4] text-[#D98A2B]"
+                    }`}
+                  >
+                    {todayMeta.tone === "success" ? (
+                      <CheckCircle size={22} />
+                    ) : (
+                      <AlertCircle size={22} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="mb-1 text-[22px] font-semibold leading-tight text-white sm:text-[28px]" style={headingFont}>
+                      {todayMeta.title}
+                    </h3>
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-sm font-semibold text-white/80">
+                        {today.quantity || "-"} - {today.product || "Milk"}
+                      </p>
+                      <p className="text-sm font-medium leading-6 text-white/85">
+                        {todayMeta.helperText}
+                      </p>
                     </div>
-                  ))}
+                  </div>
                 </div>
-                <button className="btn btn-link mt-3 text-decoration-none text-primary fw-medium">View Full History &rarr;</button>
+
+                <div className="mt-3 flex flex-col gap-1.5">
+                  {today?.agent?.name && (
+                    <p className="flex items-center gap-1.5 text-xs text-white/70">
+                      <User size={11} />
+                      Agent: {today.agent.name} {today.agent.phone ? `(${today.agent.phone})` : ""}
+                    </p>
+                  )}
+                  {today.time && todayMeta.tone === "success" && (
+                    <p className="flex items-center gap-1.5 text-xs text-white/70">
+                      <Clock size={11} />
+                      Dropped at Doorstep - {today.time}
+                    </p>
+                  )}
+                </div>
               </div>
-            </Card>
+              <div className="flex w-full flex-col gap-2 self-start lg:w-auto lg:min-w-[250px]">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() =>
+                      navigate("/customer/dashboard/track/agent", { state: { delivery: today } })
+                    }
+                    disabled={
+                      !today?.canTrackAgent ||
+                      ["NOT_SUBSCRIBED", "NOT_SCHEDULED", "PENDING_APPROVAL", "FAILED", "CANCELLED"].includes(
+                        String(today?.status || "").toUpperCase()
+                      )
+                    }
+                    className="w-full rounded-[13px] border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    Track Agent
+                  </button>
+                  <button
+                    onClick={openIssueModal}
+                    disabled={
+                      !Number.isFinite(Number(today?.deliveryId ?? today?.id)) ||
+                      ["NOT_SUBSCRIBED", "NOT_SCHEDULED", "CANCELLED"].includes(
+                        String(today?.status || "").toUpperCase()
+                      )
+                    }
+                    className="w-full rounded-[13px] border border-[#F2D0C8]/70 bg-[#FDECEA] px-3 py-2.5 text-xs font-bold text-[#A33A2B] transition hover:bg-[#F8DDD6]"
+                  >
+                    {reportingIssue ? "Reporting..." : "Report Issue"}
+                  </button>
+                </div>
+
+                {hasIssue && (
+                  <div className="grid gap-2">
+                    <div className="relative rounded-[12px] border border-rose-100 bg-rose-50 px-3 py-1.5 sm:rounded-[14px]">
+                      <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-rose-400 sm:text-[9px] sm:tracking-[0.16em]">
+                        Reported Issue
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium leading-3.5 text-rose-700 sm:text-xs">
+                        {today.customerIssue}
+                      </p>
+                    </div>
+
+                    {(hasAdminAction || issueStatus === "OPEN") && (
+                      <div
+                        className={`relative rounded-[12px] border px-3 py-1.5 sm:rounded-[14px] ${
+                          hasAdminAction
+                            ? "border-emerald-100 bg-emerald-50"
+                            : "border-amber-100 bg-amber-50"
+                        }`}
+                      >
+                        <p
+                          className={`text-[8px] font-bold uppercase tracking-[0.14em] sm:text-[9px] sm:tracking-[0.16em] ${
+                            hasAdminAction ? "text-emerald-500" : "text-amber-500"
+                          }`}
+                        >
+                          {hasAdminAction ? "Action Taken" : "Issue Status"}
+                        </p>
+                        <p
+                          className={`mt-0.5 text-[11px] font-medium leading-3.5 sm:text-xs ${
+                            hasAdminAction ? "text-emerald-700" : "text-amber-700"
+                          }`}
+                        >
+                          {hasAdminAction ? today.issueAdminAction : "Pending resolution"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+        )}
+
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-7 md:grid-cols-4 lg:gap-4">
+          {ACTIONS.map((action) => {
+            const { key, label, bg, text, border } = action;
+            const ActionIcon = action.Icon;
+
+            return (
+              <button
+                key={key}
+                onClick={() => handleAction(key)}
+                disabled={key === "pause" && !canTogglePause}
+                className={`rounded-[18px] border bg-[#FFFDF7] px-3.5 py-4 text-left transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 ${border}`}
+              >
+                <div className={`mb-2.5 flex h-10 w-10 items-center justify-center rounded-[13px] ${bg} ${text} sm:h-11 sm:w-11`}>
+                  {key === "pause" && isPaused ? <PlayCircle size={18} /> : <ActionIcon size={18} />}
+                </div>
+                <span className="text-[13px] font-bold text-[#2C1A0E] sm:text-sm">
+                  {key === "pause" ? pauseToggleLabel : label}
+                </span>
+                <p className="mt-1 text-[11px] leading-5 text-[#B89970] sm:text-xs">
+                  {key === "pause"
+                    ? pauseToggleHelper
+                    : key === "add"
+                    ? "Choose extra products for tomorrow"
+                    : key === "deliveries"
+                    ? "Review delivery history"
+                    : "Open payment center"}
+                </p>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Column 3: Summary, Payment, Subscription */}
-        <div className="col-lg-4">
-          <div className="d-flex flex-column gap-4">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:mt-7 lg:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
+          <div className="space-y-4 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 sm:space-y-5 sm:p-6">
+            {showTomorrowCard ? (
+              <div>
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+                  Tomorrow
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#FFF4E2] text-[#B8641A] sm:h-11 sm:w-11">
+                      {hasSubscription ? <Truck size={18} /> : <PlusCircle size={18} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-bold text-[#2C1A0E]">{tomorrowTitle}</p>
+                      <p className="mt-0.5 text-sm text-[#8B7355]">{tomorrowSubtitle}</p>
 
-            {/* 3. Payment Info Card */}
-            <Card
-              title="Payment Status"
-              titleColor="text-primary"
-              icon={<svg className="bi me-2" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M12.643 1.252A6.71 6.71 0 0 1 15 8c0 4.288-3.473 7.76-7.76 7.76A7.76 7.76 0 0 1 .24 8a7.76 7.76 0 0 1 7.76-7.76c.49 0 .973.045 1.442.133l2.844-.099zM8 2.001c3.197 0 5.799 2.602 5.799 5.799S11.197 13.599 8 13.599 2.201 10.997 2.201 7.799 4.803 2.001 8 2.001zm0 2.25a3.55 3.55 0 1 0 0 7.1 3.55 3.55 0 0 0 0-7.1z"/></svg>}
-            >
-              <div className="row g-2">
-                <div className="col-12">
-                  <p className="d-flex justify-content-between align-items-center mb-1 text-secondary">
-                    <strong>Current Status:</strong>
-                    <span
-                      id="payment-status"
-                      className={`badge rounded-pill fw-bold ${paymentStatus.badgeColor} transition-colors duration-300`}
+                      {hasTomorrowExtras && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {tomorrowExtraOrders.map((order) => (
+                            <div
+                              key={order.id}
+                              className="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-[#F2EDE4] bg-[#FBF7F0] px-2.5 py-1.5"
+                            >
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#FFF4E2] text-xs font-bold leading-none text-[#B8641A]">
+                                +
+                              </span>
+                              <span className="text-xs font-bold text-[#5C3D1E]">
+                                {order.quantity || "-"} {order.product || "Milk"}
+                              </span>
+                              <span
+                                className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${getTomorrowExtraStatusClasses(
+                                  order.status
+                                )}`}
+                              >
+                                {formatTomorrowExtraStatus(order.status)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {hasSubscription && (
+                    <button
+                      onClick={() => navigate("/customer/dashboard/subscriptions")}
+                      className="w-full rounded-[12px] border border-[#EDE8DF] bg-white px-3 py-2 text-xs font-bold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] sm:w-auto"
                     >
-                      {paymentStatus.text}
-                    </span>
-                  </p>
+                      Edit
+                    </button>
+                  )}
                 </div>
-                <div className="col-12"><p className="mb-1 text-secondary"><strong>Last Payment:</strong> Sep 30, 2025</p></div>
-                <div className="col-12"><p className="mb-3 text-secondary"><strong>Mode:</strong> UPI (Auto-Pay Enabled)</p></div>
               </div>
-              <button className="btn btn-success w-100 fw-semibold shadow-sm">
-                Pay Now
-              </button>
-            </Card>
+            ) : (
+              <div>
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+                  Tomorrow
+                </p>
+                <div className="rounded-[16px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0] px-4 py-4.5">
+                  <p className="text-sm font-bold text-[#5C3D1E]">No active subscription</p>
+                  <p className="mt-1 text-xs text-[#A88763]">
+                    Subscribe to schedule your next delivery automatically.
+                  </p>
+                  <button
+                    onClick={() => navigate("/customer/dashboard/subscriptions")}
+                    className="mt-3 inline-flex items-center rounded-[12px] bg-[#B8641A] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#9F5313]"
+                  >
+                    Start Subscription
+                  </button>
+                </div>
+              </div>
+            )}
 
-            {/* 4. Monthly Summary Card */}
-            <Card
-  title="Monthly Summary (Sep 2025)"
-  titleColor="text-primary"
-  icon={<svg className="bi me-2" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M11 2a1 1 0 0 0-1 1v1h2V3a1 1 0 0 0-1-1z"/><path d="M12 1a2 2 0 0 0-2 2v1H4V3a2 2 0 0 0-2-2H1a1 1 0 0 0 0 2h1v1h12V3h1a1 1 0 0 0 0-2h-1zM2 5V4h12v1H2zm13 1v9a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6h14z"/></svg>}
->
-  {/* Add d-flex to the row and ensure item heights are managed */}
-  <div className="row text-center g-3 align-items-stretch"> 
-    
-    {/* Total Litres */}
-    <div className="col-4">
-      <div className="p-3 rounded-2 border border-primary-subtle bg-info-subtle h-100 d-flex flex-column justify-content-center">
-        <p className="fs-4 fw-bold text-primary mb-0">30.5</p>
-        <p className="text-muted text-uppercase mt-1 mb-0 small">Total Litres</p>
-      </div>
-    </div>
-    
-    {/* Total Amount */}
-    <div className="col-4">
-      <div className="p-3 rounded-2 border border-primary-subtle bg-info-subtle h-100 d-flex flex-column justify-content-center">
-        <p className="fs-4 fw-bold text-primary mb-0">₹1450</p>
-        <p className="text-muted text-uppercase mt-1 mb-0 small">Total Amount</p>
-      </div>
-    </div>
-    
-    {/* Missed Days */}
-    <div className="col-4">
-      <div className="p-3 rounded-2 border border-danger-subtle bg-danger-subtle h-100 d-flex flex-column justify-content-center">
-        <p className="fs-4 fw-bold text-danger mb-0">2</p>
-        <p className="text-muted text-uppercase mt-1 mb-0 small">Missed Days</p>
-      </div>
-    </div>
-  </div>
-</Card>
-
-            {/* 5. Subscription Plan Card */}
-            <Card
-              title="Subscription Plan"
-              titleColor="text-primary"
-              icon={<svg className="bi me-2" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zM4.5 4a.5.5 0 0 1 .5.5v3h6v-3a.5.5 0 0 1 1 0v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-3.5a.5.5 0 0 1 .5-.5z"/></svg>}
-            >
-              <p className="fs-5 fw-medium text-secondary">Cow Milk (Full Cream) - 1.0 L Daily</p>
-              <p className="text-muted small mt-1">Next Renewal Date: Nov 1, 2025</p>
-
-              <div className="d-flex gap-3 mt-4">
-                <button
-                  id="pause-btn"
-                  onClick={() => handleToggleSubscription('pause')}
-                  className={`btn flex-fill fw-semibold ${
-                    isPaused
-                      ? 'btn-outline-success'
-                      : 'btn-outline-danger'
+            <div className="border-t border-[#F2EDE4] pt-4">
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+                Subscription
+              </p>
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-sm font-semibold leading-6 text-[#5C3D1E]">
+                  {subscription
+                    ? `${subscription.milkType || "Milk"} - ${subscription.quantity || "-"} L Daily`
+                    : "No active subscription"}
+                </p>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${
+                    !subscription
+                      ? "bg-[#F5F0E8] text-[#8B7355]"
+                      : isPaused
+                      ? "bg-[#FFF1E4] text-[#C86A2B]"
+                      : "bg-[#EEF5E7] text-[#4A7C2F]"
                   }`}
                 >
-                  {isPaused ? 'Un-Pause Deliveries' : 'Pause Deliveries'}
+                  {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
+                </span>
+              </div>
+              <p className="mb-4 text-xs text-[#A88763]">
+                Start date: {subscription?.startDate || "Not available"}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handlePauseResume}
+                  disabled={!canTogglePause}
+                  className={`flex-1 rounded-[14px] border py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isPaused
+                      ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F] hover:bg-[#E3EED8]"
+                      : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B] hover:bg-[#F8DDD6]"
+                  }`}
+                >
+                  {pauseToggleLabel}
                 </button>
                 <button
-                  id="renew-btn"
-                  onClick={() => handleToggleSubscription('modify')}
-                  className="btn btn-primary flex-fill fw-semibold shadow-sm"
+                  onClick={() => navigate("/customer/dashboard/subscriptions")}
+                  className="flex-1 rounded-[14px] border border-[#EFD7B3] bg-[#FFF4E2] py-2.5 text-xs font-bold text-[#B8641A] transition hover:bg-[#FCE8CB]"
                 >
                   Modify Plan
                 </button>
               </div>
-              <p
-                id="sub-status-message"
-                className={`text-center mt-3 small fw-medium transition-opacity duration-300 ${statusMessage.color} ${statusMessage.opacity}`}
-              >
-                {statusMessage.text}
-              </p>
-            </Card>
-
+            </div>
           </div>
+
+          <div className="rounded-[22px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#FFFDF7_0%,#FBF7F0_100%)] p-4 sm:p-6">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+              Billing Summary
+            </p>
+            <div className="mb-1">
+              <span className="text-[34px] font-semibold tracking-tight text-[#2C1A0E] sm:text-4xl" style={headingFont}>
+                Rs.{billing.monthlyDue ?? 0}
+              </span>
+            </div>
+            {billing.dueInDays != null && (
+              <p className="mb-4 inline-flex rounded-full bg-[#FDECEA] px-3 py-1 text-xs font-semibold text-[#C0392B]">
+                {getBillingDueText(billing.dueInDays)}
+              </p>
+            )}
+            <div className="mb-4 space-y-0">
+              {[
+                { label: "Wallet Balance", value: `Rs.${billing.walletBalance ?? 0}` },
+                { label: "Last Payment", value: "Not available" },
+                { label: "Payment Mode", value: subscription?.paymentMethod || "UPI" },
+                { label: "Status", value: billing.monthlyDue > 0 ? "Pending" : "Clear", highlight: true },
+              ].map(({ label, value, highlight }) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 border-b border-[#F2EDE4] py-2.5 last:border-none"
+                >
+                  <span className="text-xs text-[#8B7355]">{label}</span>
+                  <span className={`text-xs font-semibold ${highlight ? "text-[#B8641A]" : "text-[#5C3D1E]"}`}>
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => navigate("/customer/dashboard/payments")}
+              className="mb-2 w-full rounded-[14px] bg-[#2C2416] py-2.5 text-sm font-bold text-white transition hover:bg-[#4A3820]"
+            >
+              Pay Now
+            </button>
+            <button
+              onClick={() => navigate("/customer/dashboard/payments")}
+              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-[#EDE8DF] bg-white py-2.5 text-xs font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+            >
+              View Full Invoice <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-[18px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm text-[#C0392B]">
+            {error}
+          </div>
+        )}
+
+        {showAddExtraModal && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2416]/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+            <div className="flex h-[100svh] max-h-[100svh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-[#E7DAC6] bg-[#FFFDF7] shadow-[0_28px_80px_rgba(44,26,14,0.28)] sm:max-h-[92vh] sm:rounded-[28px]">
+              <div className="flex items-start justify-between gap-4 border-b border-[#F2EDE4] px-4 py-4 sm:px-7 sm:py-5">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+                    Next-Day Extra Order
+                  </p>
+                  <h3
+                    className="mt-2 text-[24px] font-semibold leading-tight text-[#2C1A0E] sm:text-[28px]"
+                    style={headingFont}
+                  >
+                    Add Products From{" "}
+                    <span className="text-[#B8641A]">
+                      {addExtraDairy?.name || linkedExtraDairyName || "Your Dairy"}
+                    </span>
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm text-[#8B7355]">
+                    Choose a product, set the quantity, and place it for {nextExtraDeliveryLabel}.
+                  </p>
+                </div>
+
+                <button
+                  onClick={closeAddExtraModal}
+                  disabled={addExtraSubmitting}
+                  className="rounded-full border border-[#EDE8DF] bg-white p-2 text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 grid xl:grid-cols-[minmax(0,1.35fr)_360px]">
+                <div className="min-h-0 overflow-y-auto p-4 sm:p-7">
+                  {addExtraLoading ? (
+                    <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0]">
+                      <Loader2 size={28} className="animate-spin text-[#B8641A]" />
+                      <p className="text-sm font-semibold text-[#8B7355]">
+                        Loading dairy products...
+                      </p>
+                    </div>
+                  ) : !addExtraProducts.length ? (
+                    <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0] px-6 text-center">
+                      <PlusCircle size={28} className="text-[#C4A882]" />
+                      <p className="text-base font-semibold text-[#5C3D1E]">
+                        No products available right now
+                      </p>
+                      <p className="max-w-md text-sm text-[#8B7355]">
+                        Ask the dairy owner to add products in the catalog, then try again.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-5 flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#FFF4E2] px-3 py-1 text-xs font-bold text-[#B8641A]">
+                          Delivery: {nextExtraDeliveryLabel}
+                        </span>
+                        <span className="rounded-full bg-[#F5F0E8] px-3 py-1 text-xs font-bold text-[#8B7355]">
+                          {addExtraForm.slot} slot
+                        </span>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {addExtraProducts.map((product) => {
+                          const isSelected = addExtraForm.milkType === product.name;
+                          const isDisabled = isProductOutOfStock(product.stockQuantity);
+
+                          return (
+                            <button
+                              key={product.id}
+                              type="button"
+                              disabled={isDisabled}
+                              onClick={() =>
+                                setAddExtraForm((prev) => ({
+                                  ...prev,
+                                  milkType: product.name,
+                                }))
+                              }
+                              className={`rounded-[18px] border px-4 py-3 text-left transition ${
+                                isDisabled
+                                  ? "cursor-not-allowed border-[#F2EDE4] bg-[#FBF7F0] opacity-60"
+                                  : isSelected
+                                  ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_16px_30px_rgba(184,100,26,0.12)]"
+                                  : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[15px] font-bold leading-tight text-[#2C1A0E]">{product.name}</p>
+                                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C4A882]">
+                                    {getProductUnitLabel(product.unit)}
+                                  </p>
+                                </div>
+                                {isSelected && (
+                                  <span className="rounded-full bg-[#B8641A] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
+                                    Selected
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="mt-3 text-[24px] font-bold leading-none text-[#B8641A]">
+                                Rs.{Number(product.ratePerUnit || 0).toFixed(2)}
+                              </p>
+                              <p className="mt-0.5 text-[11px] text-[#8B7355]">
+                                Per {getProductUnitLabel(product.unit, { lowercase: true })}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="min-h-0 border-t border-[#F2EDE4] bg-[#FBF7F0] xl:border-l xl:border-t-0">
+                  <div className="flex h-full min-h-0 flex-col">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7">
+                      {addExtraError && (
+                        <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm text-[#C0392B]">
+                          {addExtraError}
+                        </div>
+                      )}
+
+                      <div className="space-y-4">
+                        <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EC] px-4 py-3 text-sm font-medium text-[#8B7355]">
+                          Tomorrow delivery: Daily delivery ({dailyDeliverySummary}) +
+                        </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
+                        Quantity ({selectedAddExtraUnitShort})
+                      </label>
+                      <input
+                        type="number"
+                        min={selectedAddExtraQuantityStep}
+                        step={selectedAddExtraQuantityStep}
+                        value={addExtraForm.quantity}
+                        onChange={(event) =>
+                          setAddExtraForm((prev) => ({
+                            ...prev,
+                            quantity: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
+                      />
+                      {selectedAddExtraProduct && (isAddExtraOutOfStock || doesAddExtraExceedStock) && (
+                        <p
+                          className="mt-2 text-xs font-semibold text-[#C0392B]"
+                        >
+                          {isAddExtraOutOfStock
+                            ? `${selectedAddExtraProduct.name} is out of stock`
+                            : doesAddExtraExceedStock
+                            ? `Requested quantity is more than available ${selectedAddExtraUnitLower} stock`
+                            : ""}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
+                        Payment Option
+                      </label>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        {addExtraPaymentOptions.map((method) => (
+                          <button
+                            key={method.id}
+                            type="button"
+                            onClick={() =>
+                              setAddExtraForm((prev) => ({
+                                ...prev,
+                                paymentMethod: method.id,
+                              }))
+                            }
+                            className={`flex min-h-[84px] items-center justify-center rounded-[14px] border px-3 py-2.5 text-center text-sm font-bold leading-6 transition ${
+                              addExtraForm.paymentMethod === method.id
+                                ? "border-[#B8641A] bg-[#FFF4E2] text-[#B8641A]"
+                                : "border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
+                            }`}
+                          >
+                            {method.label}
+                          </button>
+                        ))}
+                      </div>
+                      {!canAddExtraToSubscriptionBill && (
+                        <p className="mt-2 text-xs font-medium text-[#8B7355]">
+                          Add to Subscription Bill is available only for customers with an active subscription in this dairy.
+                        </p>
+                      )}
+                      {addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && (
+                        <p className="mt-2 text-xs font-medium text-[#8B7355]">
+                          This extra order will be added to your subscription bill.
+                        </p>
+                      )}
+                    </div>
+
+                      </div>
+
+                  <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
+                    <div className="rounded-[18px] bg-[#2C2416] px-4 py-3 text-white">
+                      <p className="hidden">
+                        Tomorrow delivery: Daily delivery + {addExtraForm.quantity || "0"}{" "}
+                        {selectedAddExtraUnitShort} • {nextExtraDeliveryLabel} • {addExtraForm.slot} slot
+                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-white/70">Grand Total</span>
+                        <span className="text-[24px] font-bold leading-none sm:text-[26px]">
+                          Rs.{Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitExtraOrder(false)}
+                      disabled={!canSubmitAddExtraOrder}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:bg-[#D8C8B2] disabled:text-white/70"
+                    >
+                      {addExtraSubmitting ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <PlusCircle size={15} />
+                      )}
+                      {addExtraSubmitting
+                        ? "Placing extra order..."
+                        : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
+                        ? "Pay & Add Extra"
+                        : addExtraForm.paymentMethod === "PAY_NOW_CASH"
+                        ? "Add Extra with Cash"
+                        : "Add to Subscription Bill"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={closeAddExtraModal}
+                      disabled={addExtraSubmitting}
+                      className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showIssueModal && (
+          <ReportIssueModal
+            issueText={issueText}
+            saving={reportingIssue}
+            onClose={() => {
+              if (reportingIssue) return;
+              setShowIssueModal(false);
+            }}
+            onChange={setIssueText}
+            onSubmit={submitIssue}
+          />
+        )}
+
+        {showAddExtraModal && showDuplicateExtraConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/20 px-4 pb-4 sm:items-center sm:pb-0">
+            <div className="w-full max-w-md rounded-[24px] border border-[#E7DAC6] bg-[#FFFDF7] p-5 shadow-[0_24px_60px_rgba(44,26,14,0.28)] sm:p-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+                Duplicate Order
+              </p>
+              <h4 className="mt-2 text-xl font-semibold text-[#2C1A0E]" style={headingFont}>
+                Same product already added for tomorrow
+              </h4>
+              <p className="mt-2 text-sm text-[#8B7355]">
+                Do you want to place another extra order for the same product and date?
+              </p>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setShowDuplicateExtraConfirm(false)}
+                  className="flex-1 rounded-[14px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={addExtraSubmitting}
+                  onClick={() => handleSubmitExtraOrder(true)}
+                  className="flex-1 rounded-[14px] bg-[#B8641A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:bg-[#D8C8B2]"
+                >
+                  {addExtraSubmitting ? "Ordering..." : "Order Again"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      </div>
+    </CustomerLayout>
+  );
+}
+
+function ReportIssueModal({ issueText, saving, onClose, onChange, onSubmit }) {
+  const presets = [
+    "Milk packet damaged",
+    "Quantity mismatch",
+    "Delivery not received",
+    "Late delivery",
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 px-4 pb-4 sm:items-center sm:pb-0">
+      <div className="w-full max-w-lg rounded-t-[28px] border border-gray-200 bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-red-400">
+              Delivery Support
+            </p>
+            <h3 className="mt-2 text-xl font-bold text-gray-900">
+              Report a delivery issue
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Mention missing items, damaged packets, delay, wrong quantity, or any delivery problem.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {presets.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onChange(preset)}
+              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-2 block text-sm font-semibold text-gray-700">
+            Describe the issue
+          </label>
+          <textarea
+            rows={5}
+            value={issueText}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Example: I received only 1 packet instead of 2, and one packet was leaking."
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-red-300 focus:bg-white"
+          />
+          <p className="mt-2 text-xs text-gray-400">Minimum 5 characters.</p>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={saving}
+            className="rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Submitting..." : "Submit Issue"}
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default DairyCustomerDashboard;
+}

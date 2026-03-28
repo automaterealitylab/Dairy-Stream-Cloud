@@ -6,9 +6,6 @@ import "./index.css";
 import App from "./App.jsx";
 import { AuthProvider } from "./hooks/useAuth.jsx";
 import debugAdmin from "./utils/adminDebug.js";
-import { applyTheme, getStoredTheme } from "./utils/theme.js";
-
-applyTheme(getStoredTheme());
 
 // Expose debug utility globally for development
 window.__debugAdmin = debugAdmin;

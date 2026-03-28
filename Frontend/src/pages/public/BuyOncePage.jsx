@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock3, MapPin, ShoppingBag, CheckCircle2, CreditCard } from "lucide-react";
 import toast from "react-hot-toast";
 import { fetchPublicDairyById } from "../../api/public.api.js";
@@ -7,9 +7,12 @@ import {
   cancelCustomerOneTimeOrder,
   createCustomerOneTimeOrder,
   createCustomerPaymentOrder,
+  fetchCustomerProfile,
+  fetchCustomerSubscription,
   verifyCustomerPayment,
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { buildCustomerAddress } from "../../utils/customerAddress.js";
 
 const toDateInput = (dateValue = new Date()) => {
   const date = new Date(dateValue);
@@ -26,6 +29,12 @@ const getDefaultBuyOnceDate = () => {
   if (now <= eveningCutoff) return toDateInput(now);
 
   const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return toDateInput(tomorrow);
+};
+
+const getTomorrowBuyOnceDate = () => {
+  const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   return toDateInput(tomorrow);
 };
@@ -117,21 +126,42 @@ const formatProductStockLabel = (stockQuantity) => {
   return String(stock);
 };
 
+const hasOpenSubscriptionStatus = (status) => {
+  const value = String(status || "ACTIVE").trim().toUpperCase();
+  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
 const BuyOncePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isCustomerExtraFlow = location.state?.from === "customer-add-extra";
+  const nextDayDeliveryDate =
+    typeof location.state?.deliveryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(location.state.deliveryDate)
+      ? location.state.deliveryDate
+      : getTomorrowBuyOnceDate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [dairyRaw, setDairyRaw] = useState(null);
+  const [hasSubscriptionForThisDairy, setHasSubscriptionForThisDairy] = useState(false);
   const [form, setForm] = useState({
     milkType: "",
     quantity: 1,
-    deliveryDate: getDefaultBuyOnceDate(),
+    deliveryDate: isCustomerExtraFlow ? nextDayDeliveryDate : getDefaultBuyOnceDate(),
     slot: "Morning",
     paymentMethod: "PAY_NOW",
     address: "",
   });
+
+  useEffect(() => {
+    if (!isCustomerExtraFlow) return;
+
+    setForm((prev) => ({
+      ...prev,
+      deliveryDate: nextDayDeliveryDate,
+    }));
+  }, [isCustomerExtraFlow, nextDayDeliveryDate]);
 
   useEffect(() => {
     const load = async () => {
@@ -141,17 +171,42 @@ const BuyOncePage = () => {
         const dairy = res?.dairy || null;
         setDairyRaw(dairy);
 
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
+        const token = localStorage.getItem("token");
+        if (token) {
           try {
-            const parsed = JSON.parse(storedUser);
-            const nextAddress = parsed?.user?.address || parsed?.address || "";
+            const subRes = await fetchCustomerSubscription();
+            const activeSubscription = subRes?.subscription || null;
+            const isBlocked =
+              activeSubscription &&
+              hasOpenSubscriptionStatus(activeSubscription.status) &&
+              String(activeSubscription.dairy_id) === String(id);
+            setHasSubscriptionForThisDairy(Boolean(isBlocked));
+          } catch {
+            setHasSubscriptionForThisDairy(false);
+          }
+
+          try {
+            const profile = await fetchCustomerProfile();
+            const nextAddress = buildCustomerAddress(profile);
             if (nextAddress) {
               setForm((prev) => ({ ...prev, address: nextAddress }));
             }
           } catch {
-            // ignore malformed localStorage
+            const storedUser = localStorage.getItem("user");
+            if (storedUser) {
+              try {
+                const parsed = JSON.parse(storedUser);
+                const nextAddress = buildCustomerAddress(parsed?.user || parsed || {});
+                if (nextAddress) {
+                  setForm((prev) => ({ ...prev, address: nextAddress }));
+                }
+              } catch {
+                // ignore malformed localStorage
+              }
+            }
           }
+        } else {
+          setHasSubscriptionForThisDairy(false);
         }
       } catch {
         toast.error("Failed to load dairy details");
@@ -220,7 +275,19 @@ const BuyOncePage = () => {
   }, [hasAvailableSlot, form.deliveryDate]);
 
   const redirectToLogin = () => {
-    navigate("/", { state: { postLoginRedirect: `/buy-once/${id}` } });
+    navigate("/", {
+      state: {
+        postLoginRedirect: `/buy-once/${id}`,
+        postLoginState: isCustomerExtraFlow
+          ? {
+              from: "customer-add-extra",
+              dairyId: location.state?.dairyId || id,
+              dairyName: location.state?.dairyName || "",
+              deliveryDate: nextDayDeliveryDate,
+            }
+          : null,
+      },
+    });
   };
 
   const loadRazorpayCheckoutScript = () =>
@@ -303,7 +370,7 @@ const BuyOncePage = () => {
     if (!orderId || !paymentId) return false;
 
     try {
-      await cancelCustomerOneTimeOrder({ orderId, paymentId });
+      await cancelCustomerOneTimeOrder({ orderId, paymentId, removeFromHistory: true });
       return true;
     } catch (err) {
       console.error("Failed to rollback cancelled one-time order:", err);
@@ -321,6 +388,16 @@ const BuyOncePage = () => {
 
     if (!selectedProduct) {
       toast.error("No product selected");
+      return;
+    }
+    if (hasSubscriptionForThisDairy && !isCustomerExtraFlow) {
+      toast.error("You already have an active subscription with this dairy.");
+      return;
+    }
+
+    if (isCustomerExtraFlow && form.deliveryDate !== nextDayDeliveryDate) {
+      toast.error("Extra products can only be ordered for tomorrow's delivery.");
+      setForm((prev) => ({ ...prev, deliveryDate: nextDayDeliveryDate }));
       return;
     }
 
@@ -353,9 +430,10 @@ const BuyOncePage = () => {
         quantity,
         deliveryDate: form.deliveryDate,
         slot: form.slot,
-        paymentMethod: form.paymentMethod,
+        paymentMethod: "PAY_NOW",
         address: form.address.trim(),
         pricePerLiter,
+        isExtraOrder: isCustomerExtraFlow,
         allowDuplicate,
       });
 
@@ -363,69 +441,62 @@ const BuyOncePage = () => {
       localStorage.setItem("guest_dairy_name", dairy.name);
       setShowDuplicateConfirm(false);
 
-      if (String(form.paymentMethod).toUpperCase() === "PAY_NOW") {
-        const orderId = response?.order?.id || null;
-        const paymentId = getOrderPaymentId(response);
-        if (!orderId || !paymentId) {
-          const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
-          if (rolledBack) {
-            toast.error("Could not start payment. Order was not placed.");
-          } else {
-            toast.error("Could not start payment. Please check Deliveries/Payments once.");
-          }
-          return;
+      const orderId = response?.order?.id || null;
+      const paymentId = getOrderPaymentId(response);
+      if (!orderId || !paymentId) {
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        if (rolledBack) {
+          toast.error("Could not start payment. Order was not placed.");
+        } else {
+          toast.error("Could not start payment. Please check Deliveries/Payments once.");
         }
+        return;
+      }
 
-        let paymentResult = null;
-        try {
-          paymentResult = await processOnlinePayment(paymentId);
-        } catch (paymentErr) {
-          if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
-            toast.error("Payment received but verification failed. Check Payments page.");
-            navigate("/customer/dashboard/payments", {
-              state: { from: "buy-once-created", orderId },
-            });
-            return;
-          }
-
-          const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
-          if (rolledBack) {
-            toast.error(paymentErr?.message || "Payment cancelled. Order not placed.");
-          } else {
-            toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
-          }
-          return;
-        }
-
-        if (paymentResult?.paid) {
-          toast.success("Payment successful. Order confirmed.");
-          navigate("/customer/dashboard/deliveries", {
+      let paymentResult = null;
+      try {
+        paymentResult = await processOnlinePayment(paymentId);
+      } catch (paymentErr) {
+        if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
+          toast.error("Payment received but verification failed. Check Payments page.");
+          navigate("/customer/dashboard/payments", {
             state: { from: "buy-once-created", orderId },
           });
           return;
         }
 
-        if (paymentResult?.dismissed || paymentResult?.failed) {
-          const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
-          if (rolledBack) {
-            toast.error("Payment cancelled. Order not placed.");
-          } else {
-            toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
-          }
-          return;
-        }
-
         const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
         if (rolledBack) {
-          toast.error("Payment not completed. Order not placed.");
+          toast.error(paymentErr?.message || "Payment cancelled. Order not placed.");
         } else {
-          toast.error("Payment not completed, but auto-cancel failed. Please contact support.");
+          toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
         }
-      } else {
-        toast.success("One-time order placed. Track status in Deliveries.");
+        return;
+      }
+
+      if (paymentResult?.paid) {
+        toast.success("Payment successful. Order confirmed.");
         navigate("/customer/dashboard/deliveries", {
-          state: { from: "buy-once-created", orderId: response?.order?.id || null },
+          state: { from: "buy-once-created", orderId },
         });
+        return;
+      }
+
+      if (paymentResult?.dismissed || paymentResult?.failed) {
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        if (rolledBack) {
+          toast.error("Payment cancelled. Order not placed.");
+        } else {
+          toast.error("Payment cancelled, but auto-cancel failed. Please contact support.");
+        }
+        return;
+      }
+
+      const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+      if (rolledBack) {
+        toast.error("Payment not completed. Order not placed.");
+      } else {
+        toast.error("Payment not completed, but auto-cancel failed. Please contact support.");
       }
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || "Failed to place one-time order";
@@ -448,16 +519,23 @@ const BuyOncePage = () => {
       <div className="bg-white border-b sticky top-0 z-30 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-slate-100 transition-colors">
+            <button
+              onClick={() => navigate(isCustomerExtraFlow ? "/customer/dashboard" : -1)}
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors"
+            >
               <ArrowLeft size={20} className="text-slate-600" />
             </button>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">Instant Order</h1>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">
+                {isCustomerExtraFlow ? "Add Extra For Tomorrow" : "Instant Order"}
+              </h1>
               <p className="text-xs text-blue-600 font-medium">{dairy?.name}</p>
             </div>
           </div>
           <div className="hidden md:block">
-             <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Step 1 of 1: Checkout</span>
+             <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+               {isCustomerExtraFlow ? "Next-Day Extra Order" : "Step 1 of 1: Checkout"}
+             </span>
           </div>
         </div>
       </div>
@@ -465,6 +543,21 @@ const BuyOncePage = () => {
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="flex-1 space-y-6">
+            {hasSubscriptionForThisDairy && !isCustomerExtraFlow && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800">
+                You already have an active subscription with {dairy.name}. One-time delivery is not available for this dairy.
+              </div>
+            )}
+
+            {isCustomerExtraFlow && (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+                <p className="font-semibold">Add extra products for tomorrow&apos;s delivery.</p>
+                <p className="mt-1 text-xs text-blue-700">
+                  Your request will appear in your delivery history and in the dairy owner&apos;s approval queue.
+                </p>
+              </div>
+            )}
+
             <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center gap-2">
                 <ShoppingBag size={18} className="text-blue-600" />
@@ -523,12 +616,23 @@ const BuyOncePage = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase ml-1">Date</label>
-                    <input
-                      type="date" min={toDateInput(new Date())}
-                      value={form.deliveryDate}
-                      onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-semibold outline-none focus:border-blue-500 transition-all"
-                    />
+                    {isCustomerExtraFlow ? (
+                      <div className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-900">
+                        {new Date(`${nextDayDeliveryDate}T00:00:00`).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}{" "}
+                        • Next day delivery
+                      </div>
+                    ) : (
+                      <input
+                        type="date" min={toDateInput(new Date())}
+                        value={form.deliveryDate}
+                        onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-semibold outline-none focus:border-blue-500 transition-all"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -592,19 +696,11 @@ const BuyOncePage = () => {
 
               <div className="space-y-3 mb-8">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
-                <div className="flex p-1 bg-slate-800 rounded-xl">
-                  <button
-                    onClick={() => setForm(p => ({...p, paymentMethod: "PAY_NOW"}))}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${form.paymentMethod === "PAY_NOW" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                  >
-                    Online
-                  </button>
-                  <button
-                    onClick={() => setForm(p => ({...p, paymentMethod: "COD"}))}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${form.paymentMethod === "COD" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                  >
-                    Cash
-                  </button>
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
+                  <p className="text-sm font-bold text-white">Online payment required</p>
+                  <p className="mt-1 text-xs text-slate-300">
+                    One-time deliveries are confirmed only after successful payment.
+                  </p>
                 </div>
               </div>
 
@@ -622,14 +718,16 @@ const BuyOncePage = () => {
 
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={submitting || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
+                disabled={submitting || (hasSubscriptionForThisDairy && !isCustomerExtraFlow) || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all transform active:scale-[0.98] disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
               >
                 {submitting
                   ? "Processing..."
-                  : form.paymentMethod === "PAY_NOW"
-                  ? "Pay & Place Order"
-                  : "Place Order (Cash on Delivery)"}
+                  : hasSubscriptionForThisDairy && !isCustomerExtraFlow
+                  ? "Unavailable For Active Subscribers"
+                  : isCustomerExtraFlow
+                  ? "Pay & Add Extra"
+                  : "Pay & Place Order"}
               </button>
               {(isOutOfStock || exceedsStock) && (
                 <p className="mt-2 text-xs text-red-400 font-medium">

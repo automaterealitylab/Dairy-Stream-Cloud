@@ -24,8 +24,10 @@ export const saveSubscription = async (req, res) => {
       startDate,
       address,
       paymentMethod,
+      deliveryDays,
       status,
       approvalStatus,
+      assignedAgentId,
     } = req.body;
 
     if (!dairyId) {
@@ -40,8 +42,13 @@ export const saveSubscription = async (req, res) => {
       start_date: startDate,
       address,
       payment_method: paymentMethod,
+      delivery_days: deliveryDays,
       status,
       approval_status: approvalStatus,
+      assigned_agent_id:
+        assignedAgentId === undefined || assignedAgentId === null || assignedAgentId === ""
+          ? undefined
+          : Number(assignedAgentId),
     });
 
     res.json({ subscription });

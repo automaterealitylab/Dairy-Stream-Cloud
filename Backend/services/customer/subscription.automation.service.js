@@ -1,8 +1,21 @@
 import { supabase } from "../../config/supabase.js";
+import { appendDeliveryBillingMeta } from "./monthlyBilling.service.js";
 
 const SUBSCRIPTION_DELIVERY_MARKER = "[SUBSCRIPTION_DAILY]";
 const ONE_TIME_ORDER_MARKER = "[ONE_TIME_ORDER]";
 const SUBSCRIPTION_PAYMENT_MARKER = "[SUBSCRIPTION_DELIVERY_PAYMENT]";
+const SUBSCRIPTION_SELECT_BASE =
+  "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, updated_at, created_at";
+const SUBSCRIPTION_SELECT_WITH_DELIVERY_DAYS = `${SUBSCRIPTION_SELECT_BASE}, delivery_days`;
+const WEEKDAY_KEYS = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+];
 
 const getLocalTodayIso = () => {
   const now = new Date();
@@ -24,9 +37,69 @@ const isDeliverableSubscription = (status, approvalStatus) =>
 
 const normalizeDeliveryStatus = (status) => String(status || "").trim().toUpperCase();
 
+const normalizeDeliveryDays = (value) => {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value
+        .map((item) => String(item || "").trim().toUpperCase())
+        .filter((item) => WEEKDAY_KEYS.includes(item))
+    )];
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim().toUpperCase())
+        .filter((item) => WEEKDAY_KEYS.includes(item))
+    )];
+  }
+
+  return [];
+};
+
+const getWeekdayForDate = (targetDate) => {
+  if (!isValidDateString(targetDate)) return null;
+  const dt = new Date(`${targetDate}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return WEEKDAY_KEYS[dt.getDay()] || null;
+};
+
 const isDeliveredStatus = (status) => {
   const value = normalizeDeliveryStatus(status);
   return value === "DELIVERED" || value === "COMPLETED";
+};
+
+const isMissingColumnError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("column")) ||
+    message.includes("schema cache")
+  );
+};
+
+const selectSubscriptionsWithSchemaFallback = async (buildQuery) => {
+  let result = await buildQuery(SUBSCRIPTION_SELECT_WITH_DELIVERY_DAYS);
+
+  if (result.error && isMissingColumnError(result.error)) {
+    result = await buildQuery(SUBSCRIPTION_SELECT_BASE);
+  }
+
+  if (result.error) throw result.error;
+  return Array.isArray(result.data) ? result.data : [];
+};
+
+const appendAutoFailNote = (notesValue, reason = "Delivery auto-failed at end of day") => {
+  const notes = String(notesValue || "").trim();
+  const lines = notes
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("[AUTO_FAILED]:"));
+
+  lines.push(`[AUTO_FAILED]: ${reason}`);
+  return lines.join("\n");
 };
 
 const parseDeliveryIdFromPaymentDescription = (description) => {
@@ -37,19 +110,36 @@ const parseDeliveryIdFromPaymentDescription = (description) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
-const getLatestDeliverableSubscription = async (customerId) => {
-  const { data, error } = await supabase
-    .from("subscriptions")
-    .select(
-      "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, updated_at, created_at"
-    )
-    .eq("customer_id", customerId)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(20);
+const syncExistingSubscriptionDeliveryAgent = async ({ deliveryId, assignedAgentId }) => {
+  const parsedDeliveryId = Number(deliveryId);
+  const parsedAgentId = Number(assignedAgentId);
+
+  if (!Number.isFinite(parsedDeliveryId) || parsedDeliveryId <= 0) return;
+  if (!Number.isFinite(parsedAgentId) || parsedAgentId <= 0) return;
+
+  const { error } = await supabase
+    .from("deliveries")
+    .update({
+      agent_id: parsedAgentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsedDeliveryId)
+    .is("agent_id", null);
 
   if (error) throw error;
-  const rows = Array.isArray(data) ? data : [];
+};
+
+const getLatestDeliverableSubscription = async (customerId) => {
+  const rows = await selectSubscriptionsWithSchemaFallback((selectClause) =>
+    supabase
+      .from("subscriptions")
+      .select(selectClause)
+      .eq("customer_id", customerId)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(20)
+  );
+
   return rows.find((row) => isDeliverableSubscription(row?.status, row?.approval_status)) || null;
 };
 
@@ -75,6 +165,44 @@ const getProductRateForSubscription = async ({ dairyId, milkType }) => {
 
   const rate = Number(data?.rate_per_unit);
   return Number.isFinite(rate) && rate >= 0 ? rate : null;
+};
+
+const ensureSubscriptionDeliveryBillingMeta = async ({ delivery, paymentMethod }) => {
+  if (!delivery?.id) {
+    return { delivery, updated: false };
+  }
+
+  const unitPrice = await getProductRateForSubscription({
+    dairyId: delivery?.dairy_id,
+    milkType: delivery?.milk_type || "Milk",
+  });
+  const nextNotes = appendDeliveryBillingMeta(delivery?.notes, {
+    paymentMethod,
+    unitPrice,
+  });
+  const currentNotes = String(delivery?.notes || "").trim();
+
+  if (nextNotes === currentNotes) {
+    return { delivery, updated: false };
+  }
+
+  const { error } = await supabase
+    .from("deliveries")
+    .update({
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", delivery.id);
+
+  if (error) throw error;
+
+  return {
+    delivery: {
+      ...delivery,
+      notes: nextNotes,
+    },
+    updated: true,
+  };
 };
 
 const ensurePaymentForDelivery = async ({ customerId, dairyId, delivery, paymentMethod }) => {
@@ -139,9 +267,15 @@ const ensureDailyDeliveryForSubscription = async ({
     return { created: false, reason: "before_start_date" };
   }
 
+  const targetWeekday = getWeekdayForDate(targetDate);
+  const selectedDays = normalizeDeliveryDays(subscription?.delivery_days);
+  if (selectedDays.length > 0 && (!targetWeekday || !selectedDays.includes(targetWeekday))) {
+    return { created: false, reason: "weekday_not_selected" };
+  }
+
   const { data: existingRows, error: existingError } = await supabase
     .from("deliveries")
-    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes")
+    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes, agent_id")
     .eq("customer_id", customerId)
     .eq("dairy_id", subscription.dairy_id)
     .eq("delivery_date", targetDate)
@@ -155,18 +289,31 @@ const ensureDailyDeliveryForSubscription = async ({
   });
 
   if (existing) {
-    await ensurePaymentForDelivery({
-      customerId,
-      dairyId: subscription.dairy_id,
+    if (!existing?.agent_id && subscription?.assigned_agent_id) {
+      await syncExistingSubscriptionDeliveryAgent({
+        deliveryId: existing.id,
+        assignedAgentId: subscription.assigned_agent_id,
+      });
+    }
+
+    await ensureSubscriptionDeliveryBillingMeta({
       delivery: existing,
       paymentMethod: subscription.payment_method,
     });
     return { created: false, reason: "already_exists", deliveryId: existing.id };
   }
 
-  const deliveryNotes = `${SUBSCRIPTION_DELIVERY_MARKER} subscription_id=${
+  const baseDeliveryNotes = `${SUBSCRIPTION_DELIVERY_MARKER} subscription_id=${
     subscription.id
   }; slot=${subscription.delivery_slot || "-"}`.slice(0, 500);
+  const unitPrice = await getProductRateForSubscription({
+    dairyId: subscription.dairy_id,
+    milkType: subscription.milk_type || "Milk",
+  });
+  const deliveryNotes = appendDeliveryBillingMeta(baseDeliveryNotes, {
+    paymentMethod: subscription.payment_method,
+    unitPrice,
+  });
 
   const { data: createdDelivery, error: createDeliveryError } = await supabase
     .from("deliveries")
@@ -181,18 +328,11 @@ const ensureDailyDeliveryForSubscription = async ({
       approval_status: "APPROVED",
       notes: deliveryNotes,
     })
-    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes")
+    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes, agent_id")
     .maybeSingle();
 
   if (createDeliveryError) throw createDeliveryError;
   if (!createdDelivery) return { created: false, reason: "insert_failed" };
-
-  await ensurePaymentForDelivery({
-    customerId,
-    dairyId: subscription.dairy_id,
-    delivery: createdDelivery,
-    paymentMethod: subscription.payment_method,
-  });
 
   return { created: true, deliveryId: createdDelivery.id };
 };
@@ -256,13 +396,11 @@ export const ensureDeliveredSubscriptionPaymentsForCustomer = async (customerId)
 
   let ensured = 0;
   for (const delivery of candidateRows) {
-    const payment = await ensurePaymentForDelivery({
-      customerId,
-      dairyId: delivery.dairy_id,
+    const { updated } = await ensureSubscriptionDeliveryBillingMeta({
       delivery,
       paymentMethod: paymentMethodByDairy.get(delivery.dairy_id) || "UPI",
     });
-    if (payment?.id) ensured += 1;
+    if (updated) ensured += 1;
   }
 
   return { ensured };
@@ -324,16 +462,14 @@ export const runDailySubscriptionAutomationForAllCustomers = async ({
     return { date: targetDate, createdCount: 0, skippedCount: 0 };
   }
 
-  const { data: subscriptions, error } = await supabase
-    .from("subscriptions")
-    .select(
-      "id, customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, payment_method, updated_at, created_at"
-    )
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(5000);
-
-  if (error) throw error;
+  const subscriptions = await selectSubscriptionsWithSchemaFallback((selectClause) =>
+    supabase
+      .from("subscriptions")
+      .select(selectClause)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(5000)
+  );
 
   const latestByCustomer = new Map();
   for (const row of subscriptions || []) {
@@ -362,4 +498,48 @@ export const runDailySubscriptionAutomationForAllCustomers = async ({
   }
 
   return { date: targetDate, createdCount, skippedCount };
+};
+
+export const autoFailPendingSubscriptionDeliveriesForDate = async ({
+  targetDate = getLocalTodayIso(),
+} = {}) => {
+  if (!isValidDateString(targetDate)) {
+    return { date: targetDate, failedCount: 0 };
+  }
+
+  const { data: deliveries, error } = await supabase
+    .from("deliveries")
+    .select("id, notes, status, delivery_date")
+    .eq("delivery_date", targetDate)
+    .eq("status", "PENDING")
+    .limit(5000);
+
+  if (error) throw error;
+
+  const subscriptionRows = (deliveries || []).filter((row) => {
+    const notes = String(row?.notes || "");
+    return !notes.includes(ONE_TIME_ORDER_MARKER);
+  });
+
+  if (!subscriptionRows.length) {
+    return { date: targetDate, failedCount: 0 };
+  }
+
+  let failedCount = 0;
+  for (const row of subscriptionRows) {
+    const { error: updateError } = await supabase
+      .from("deliveries")
+      .update({
+        status: "FAILED",
+        notes: appendAutoFailNote(row?.notes),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("status", "PENDING");
+
+    if (updateError) throw updateError;
+    failedCount += 1;
+  }
+
+  return { date: targetDate, failedCount };
 };

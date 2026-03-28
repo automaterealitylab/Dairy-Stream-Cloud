@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   brandSchema,
   locationSchema,
@@ -219,7 +219,22 @@ async (pos) => {
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 flex flex-col items-center">
-      <StepperHeader currentStep={currentStep} />
+      <div className="sticky top-0 z-30 w-full flex justify-center bg-slate-50/95 backdrop-blur pb-4">
+        <div className="w-full max-w-5xl pt-4">
+          <div className="mb-4 flex justify-start">
+            <button
+              type="button"
+              onClick={() => navigate("/", { replace: true })}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <ArrowLeft size={16} />
+              Back to Login
+            </button>
+          </div>
+
+          <StepperHeader currentStep={currentStep} />
+        </div>
+      </div>
 
       <div className="bg-white w-full max-w-5xl rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
         {currentStep === 1 && (
@@ -262,10 +277,16 @@ async (pos) => {
 
         <div className="p-8 bg-gray-50 flex justify-between border-t border-gray-100">
           <button
-            onClick={() => setCurrentStep((s) => s - 1)}
-            className={`${currentStep === 1 ? "invisible" : ""} font-bold text-gray-400`}
+            onClick={() => {
+              if (currentStep === 1) {
+                navigate("/", { replace: true });
+                return;
+              }
+              setCurrentStep((s) => s - 1);
+            }}
+            className="font-bold text-gray-400"
           >
-            Back
+            {currentStep === 1 ? "Back to Login" : "Back"}
           </button>
 
           <button

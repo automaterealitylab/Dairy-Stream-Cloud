@@ -35,6 +35,7 @@ import {
   deleteAdminAgentById,
 } from "../controllers/admin/adminagent.controller.js";
 import {
+  collectOfflinePayment,
   changeFarmPlan,
   collectManualPayment,
   fetchPageData,
@@ -61,12 +62,15 @@ import {
 } from "../controllers/admin/agentEarnings.controller.js";
 import { 
   addProcurementLog, 
-  fetchProcurementLogs 
+  fetchProcurementLogs,
+  updateProcurementLog,
 } from "../controllers/admin/procurement.controller.js";
 
 import { 
   addSupplier, 
-  fetchSuppliers 
+  fetchSuppliers,
+  deactivateSupplier,
+  updateSupplier,
 } from "../controllers/suppliers/supplier.controller.js";
 
 // ==========================================
@@ -123,6 +127,7 @@ router.post("/deliveries/approve-all", verifyAdmin, approveAllAdminDeliveries); 
 // ==========================================
 router.get("/procurement", verifyAdmin, fetchProcurementLogs); // View milk purchase history
 router.post("/procurement", verifyAdmin, addProcurementLog); // Log new milk purchase from supplier
+router.put("/procurement/:id", verifyAdmin, updateProcurementLog); // Correct an existing purchase entry
 
 // ==========================================
 // 7. PAYMENTS & BILLING
@@ -166,5 +171,7 @@ router.get("/buildings", verifyAdmin, getUniqueBuildings); // Fetch list of serv
 // ==========================================
 router.get("/suppliers", verifyAdmin, fetchSuppliers); // Fetch all active suppliers
 router.post("/suppliers", verifyAdmin, addSupplier); // Register a new supplier
+router.put("/suppliers/:id", verifyAdmin, updateSupplier); // Edit supplier details
+router.delete("/suppliers/:id", verifyAdmin, deactivateSupplier); // Deactivate supplier from active use
 
 export default router;

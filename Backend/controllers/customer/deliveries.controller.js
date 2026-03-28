@@ -23,7 +23,7 @@ export const createOneTimeOrder = async (req, res) => {
     res.status(201).json(payload);
   } catch (err) {
     const message = err?.message || "Failed to place one-time order";
-    const isValidationError = /required|must|cannot|not found|already exists|past date|slot|address/i.test(
+    const isValidationError = /required|must|cannot|not found|already exists|past date|slot|address|subscription|stock|available/i.test(
       message
     );
     const status = isValidationError ? 400 : 500;

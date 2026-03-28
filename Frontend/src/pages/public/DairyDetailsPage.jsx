@@ -23,26 +23,17 @@ import {
   saveCustomerSubscription,
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { buildCustomerAddress } from "../../utils/customerAddress.js";
 
-const buildAddressFromParts = (source = {}) => {
-  const directAddress = [
-    source.address,
-    source.fullAddress,
-    source.areaSectorLocality,
-  ].find((value) => typeof value === "string" && value.trim().length > 0);
-
-  if (directAddress) return directAddress.trim();
-
-  const parts = [
-    source.building_name || source.buildingName || "",
-    source.wing || "",
-    source.room_no || source.roomNo || "",
-  ]
-    .map((part) => String(part || "").trim())
-    .filter(Boolean);
-
-  return parts.join(", ");
-};
+const DAY_OPTIONS = [
+  { key: "MONDAY", label: "Mon" },
+  { key: "TUESDAY", label: "Tue" },
+  { key: "WEDNESDAY", label: "Wed" },
+  { key: "THURSDAY", label: "Thu" },
+  { key: "FRIDAY", label: "Fri" },
+  { key: "SATURDAY", label: "Sat" },
+  { key: "SUNDAY", label: "Sun" },
+];
 
 const normalizeProducts = (dairy = {}) => {
   const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
@@ -51,11 +42,12 @@ const normalizeProducts = (dairy = {}) => {
       .map((item) => ({
         id: item.id || item.name,
         name: String(item.name || "").trim(),
+        type: String(item.type || "MILK").trim().toUpperCase(),
         ratePerUnit: Number(item.ratePerUnit || 0),
         stockQuantity: Number(item.stockQuantity || 0),
         unit: item.unit || "LITER",
       }))
-      .filter((item) => item.name && item.ratePerUnit > 0);
+      .filter((item) => item.type === "MILK" && item.name && item.ratePerUnit > 0);
   }
 
   const legacy = dairy?.products || {
@@ -68,6 +60,7 @@ const normalizeProducts = (dairy = {}) => {
   return Object.keys(legacy).map((name) => ({
     id: name,
     name,
+    type: "MILK",
     ratePerUnit: Number(legacy[name] || 0),
     stockQuantity: Number.POSITIVE_INFINITY,
     unit: "LITER",
@@ -94,6 +87,7 @@ const DairyDetailsPage = () => {
     quantity: 1,
     slot: "Morning",
     startDate: new Date().toISOString().slice(0, 10),
+    deliveryDays: DAY_OPTIONS.map((day) => day.key),
   });
 
   useEffect(() => {
@@ -111,15 +105,23 @@ const DairyDetailsPage = () => {
           } catch {
             setExistingSubscription(null);
           }
+
+          try {
+            const profile = await fetchCustomerProfile();
+            setAddress(buildCustomerAddress(profile));
+          } catch {
+            const storedUser = localStorage.getItem("user");
+            if (storedUser) {
+              try {
+                const user = JSON.parse(storedUser);
+                setAddress(buildCustomerAddress(user?.user || user || {}));
+              } catch {
+                // ignore malformed localStorage
+              }
+            }
+          }
         } else {
           setExistingSubscription(null);
-        }
-        
-        // Load User Address from local storage
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          setAddress(user?.user?.address || user?.address || "");
         }
       } catch (err) {
         toast.error("Error loading dairy details");
@@ -191,6 +193,7 @@ const DairyDetailsPage = () => {
         quantity: Number(subscription.quantity),
         slot: subscription.slot,
         startDate: subscription.startDate,
+        deliveryDays: subscription.deliveryDays,
         address: address,
         paymentMethod: paymentMethod,
         pricePerLiter: currentPrice,
@@ -233,6 +236,10 @@ const handleContinueFromStep2 = () => {
       toast.error("You already have an active subscription. Close it first.");
       return;
     }
+    if (!dairy?.productItems?.length) {
+      toast.error("No milk variants available for subscription right now.");
+      return;
+    }
     setStep(1);
     setShowSubscribe(true);
   };
@@ -242,6 +249,10 @@ const handleContinueFromStep2 = () => {
     if (!token) {
       toast.error("Login to place a one-time order first");
       redirectToLogin(`/buy-once/${id}`);
+      return;
+    }
+    if (isSubscribedToThis && hasActiveSubscription) {
+      toast.error("You already have an active subscription with this dairy.");
       return;
     }
     navigate(`/buy-once/${id}`);
@@ -312,9 +323,17 @@ const handleContinueFromStep2 = () => {
                 </button>
                 <button
                   onClick={handleBuyOnceClick}
-                  className="w-full bg-white text-slate-900 py-4 rounded-[20px] font-bold border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                  disabled={isSubscribedToThis && hasActiveSubscription}
+                  className={`w-full py-4 rounded-[20px] font-bold border transition-all flex items-center justify-center gap-2 ${
+                    isSubscribedToThis && hasActiveSubscription
+                      ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                      : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+                  }`}
                 >
-                  <Calendar size={18} /> Buy Once
+                  <Calendar size={18} />
+                  {isSubscribedToThis && hasActiveSubscription
+                    ? "Buy Once Unavailable"
+                    : "Buy Once"}
                 </button>
               </div>
             ) : (
@@ -342,30 +361,31 @@ const handleContinueFromStep2 = () => {
       </div>
 
       {showSubscribe && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-xl rounded-[40px] overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300">
-            <div className="p-8 border-b flex justify-between items-center bg-slate-50/50">
-              <div>
-                <h2 className="text-xl font-bold">Setup Subscription</h2>
-                <div className="flex gap-1.5 mt-2">
-                  {[1, 2, 3, 4].map(s => (
-                    <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${step >= s ? 'w-8 bg-blue-600' : 'w-2 bg-slate-200'}`} />
-                  ))}
+        <div className="fixed inset-0 z-[100] overflow-hidden bg-slate-900/60 p-3 backdrop-blur-md animate-in fade-in duration-300 sm:p-4">
+          <div className="flex min-h-full items-start justify-center py-4 sm:items-center sm:py-6">
+            <div className="relative flex max-h-[calc(100vh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl animate-in zoom-in-95 duration-300 sm:max-h-[calc(100vh-2rem)] sm:rounded-[40px]">
+              <div className="px-5 py-3 border-b flex justify-between items-center bg-slate-50/50 sm:px-8 sm:py-4">
+                <div>
+                  <h2 className="text-xl font-bold">Setup Subscription</h2>
+                  <div className="flex gap-1.5 mt-2">
+                    {[1, 2, 3, 4].map(s => (
+                      <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${step >= s ? 'w-8 bg-blue-600' : 'w-2 bg-slate-200'}`} />
+                    ))}
+                  </div>
                 </div>
+                <button onClick={() => setShowSubscribe(false)} className="p-2 hover:bg-white rounded-full border shadow-sm">
+                  <X size={20} />
+                </button>
               </div>
-              <button onClick={() => setShowSubscribe(false)} className="p-2 hover:bg-white rounded-full border shadow-sm">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-8">
+              <div className={`${step === 1 ? "overflow-visible" : "overflow-y-auto"} px-5 py-4 sm:px-8 sm:py-5`}>
               {step === 1 && (
-                <div className="space-y-6">
-                  <div className="space-y-3">
+                <div className="space-y-4">
+                  <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                      <Layers size={16} /> Select Variant
+                      <Layers size={16} /> Select Milk Type
                     </label>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="max-h-72 overflow-y-auto pr-1">
+                      <div className="grid grid-cols-1 gap-3">
                       {dairy.productItems.map((item) => (
                         <button
                           key={item.id}
@@ -376,29 +396,54 @@ const handleContinueFromStep2 = () => {
                           <span className="text-blue-600 font-black">Rs {item.ratePerUnit}/{item.unit}</span>
                         </button>
                       ))}
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold">Daily Qty (L)</label>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold">Daily Qty (L)</label>
                       <input
                         type="number"
                         step="0.5"
-                        className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg bg-slate-50 px-3 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500"
                         value={subscription.quantity}
                         onChange={(e) => setSubscription({ ...subscription, quantity: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold">Time Slot</label>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold">Time Slot</label>
                       <select
-                        className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none"
+                        className="w-full rounded-lg bg-slate-50 px-3 py-2.5 text-sm border-none outline-none"
                         value={subscription.slot}
                         onChange={(e) => setSubscription({ ...subscription, slot: e.target.value })}
                       >
                         <option>Morning</option>
                         <option>Evening</option>
                       </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold">Delivery Days</label>
+                    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+                      {DAY_OPTIONS.map((day) => {
+                        const selected = subscription.deliveryDays.includes(day.key);
+                        return (
+                          <button
+                            key={day.key}
+                            type="button"
+                            onClick={() => {
+                              const next = selected
+                                ? subscription.deliveryDays.filter((item) => item !== day.key)
+                                : [...subscription.deliveryDays, day.key];
+                              setSubscription({ ...subscription, deliveryDays: next });
+                            }}
+                            className={`rounded-lg py-1.5 text-xs font-bold border ${selected ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200"}`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <button onClick={() => setStep(2)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all">Continue to Address</button>
@@ -428,7 +473,7 @@ const handleContinueFromStep2 = () => {
       )}
     </div>
 
-    <div className="flex gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row">
       <button onClick={() => setStep(1)} className="flex-1 py-4 font-bold text-slate-500">
         Back
       </button>
@@ -479,13 +524,23 @@ const handleContinueFromStep2 = () => {
       </div>
     </div>
 
-    <button 
-      disabled={saving}
-      onClick={handleConfirmSubscription} 
-      className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold"
-    >
-      {saving ? "Processing..." : "Confirm Subscription"}
-    </button>
+    <div className="flex flex-col gap-3 sm:flex-row">
+      <button
+        type="button"
+        onClick={() => setStep(2)}
+        disabled={saving}
+        className="flex-1 py-3.5 font-bold text-slate-500 disabled:text-slate-300"
+      >
+        Back
+      </button>
+      <button 
+        disabled={saving}
+        onClick={handleConfirmSubscription} 
+        className="flex-[2] bg-blue-600 text-white py-3.5 rounded-xl font-bold disabled:bg-slate-300"
+      >
+        {saving ? "Processing..." : "Confirm Subscription"}
+      </button>
+    </div>
   </div>
 )}
 
@@ -505,6 +560,7 @@ const handleContinueFromStep2 = () => {
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>

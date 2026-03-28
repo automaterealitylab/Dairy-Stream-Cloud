@@ -2,6 +2,10 @@ import React from 'react';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 
 const DeliveryCard = ({ delivery, onStatusChange, onClick, onCompleteRequest }) => {
+  const requiresPaymentCollection =
+    Boolean(delivery?.requiresPaymentCollection) && String(delivery?.status || '').toUpperCase() === 'PENDING';
+  const collectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
+
   const getStatusColor = () => {
     switch (delivery.status) {
       case 'COMPLETED':
@@ -38,9 +42,25 @@ const DeliveryCard = ({ delivery, onStatusChange, onClick, onCompleteRequest }) 
           <div className="flex-1 cursor-pointer" onClick={() => onClick(delivery)}>
             <h4 className="font-semibold text-gray-800">{delivery.customerName}</h4>
             <p className="text-sm text-gray-600">{delivery.address}</p>
+            <p className="text-xs font-semibold text-blue-700 mt-1">
+              Type: {delivery.deliveryType || 'REGULAR'}
+            </p>
             <p className="text-sm text-gray-600 mt-1">
               Quantity: <span className="font-medium">{delivery.quantity}</span>
             </p>
+            {requiresPaymentCollection && (
+              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1">
+                <p className="text-xs font-semibold text-amber-800">Payment Required</p>
+                <p className="text-xs text-amber-700">
+                  Collect payment ({delivery.amountDue ? `Rs ${Number(delivery.amountDue).toFixed(2)}` : 'amount due'}) via Cash or Online and mark it while completing.
+                </p>
+              </div>
+            )}
+            {String(delivery?.status || '').toUpperCase() === 'COMPLETED' && collectionMethod && (
+              <p className="text-xs font-semibold text-green-700 mt-2">
+                Payment Collected: {collectionMethod}
+              </p>
+            )}
             {delivery.buildingName && (
               <p className="text-xs text-blue-700 mt-1">
                 Route Group: {delivery.buildingName}
@@ -75,7 +95,7 @@ const DeliveryCard = ({ delivery, onStatusChange, onClick, onCompleteRequest }) 
             }`}
           >
             <CheckCircle size={18} />
-            Complete
+            {requiresPaymentCollection ? 'Collect & Complete' : 'Complete'}
           </button>
 
           <button

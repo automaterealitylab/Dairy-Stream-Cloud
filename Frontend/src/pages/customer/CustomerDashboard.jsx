@@ -22,6 +22,8 @@ import {
   X,
 } from "lucide-react";
 
+const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
+
 const CustomerDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,6 +46,10 @@ const CustomerDashboard = () => {
   useEffect(() => {
     if (data) setDashboardData(data);
   }, [data]);
+
+  useEffect(() => {
+    sessionStorage.setItem(DASHBOARD_VISITED_FLAG, "true");
+  }, []);
 
   useEffect(() => {
     const incomingState = location.state;
@@ -443,12 +449,21 @@ const PostDeliveryDecisionCard = ({ dairyName, onSubscribe, onExplore }) => (
   </div>
 );
 
+const getDeliveryTypeLabel = (data = {}) => {
+  const normalizedType = String(data?.deliveryType || "").toUpperCase();
+  if (normalizedType === "ONE_TIME") return "One-time";
+  if (normalizedType === "SUBSCRIPTION") return "Subscription";
+  return data?.isOneTimeOrder ? "One-time" : "Subscription";
+};
+
 /* TODAY CARD */
 const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
   const isDelivered = data.status === "DELIVERED";
   const isPending = data.status === "PENDING";
   const isApprovalPending = data.status === "PENDING_APPROVAL";
-  const isPartnerUnassigned = isPending && !data?.agent?.name;
+  const isFailed = data.status === "FAILED";
+  const hasAssignedPartner = Boolean(data?.agent?.name || data?.agentId);
+  const isPartnerUnassigned = isPending && !hasAssignedPartner;
   const reportId = Number(data?.deliveryId ?? data?.id);
   const canReportIssue = Number.isFinite(reportId) && reportId > 0;
   const issueStatus = String(data?.issueStatus || "").toUpperCase();
@@ -459,6 +474,8 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
     ? "Delivered Successfully"
     : isApprovalPending
     ? "Approval Pending"
+    : isFailed
+    ? "Delivery Failed"
     : isPartnerUnassigned
     ? "Delivery Partner Not Assigned"
     : isPending
@@ -466,23 +483,33 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
     : "No Delivery Scheduled Today";
 
   return (
-    <div className={`p-4 md:p-6 rounded-card border ${isDelivered ? "bg-success-soft border-border" : isApprovalPending ? "bg-indigo-50 border-indigo-200" : isPending ? "bg-brand-soft border-border" : "bg-gray-50 border-border"}`}>
+    <div className={`p-4 md:p-6 rounded-card border ${isDelivered ? "bg-success-soft border-border" : isApprovalPending ? "bg-indigo-50 border-indigo-200" : isFailed ? "bg-red-50 border-red-200" : isPending ? "bg-brand-soft border-border" : "bg-gray-50 border-border"}`}>
       <h3 className="text-xs sm:text-sm font-semibold text-text-muted uppercase mb-4">Today's Delivery</h3>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex gap-4">
-          <div className={`p-3 rounded-full ${isDelivered ? "bg-success text-white" : isApprovalPending ? "bg-indigo-600 text-white" : isPending ? "bg-brand text-white" : "bg-gray-300 text-gray-700"}`}>
+          <div className={`p-3 rounded-full ${isDelivered ? "bg-success text-white" : isApprovalPending ? "bg-indigo-600 text-white" : isFailed ? "bg-red-600 text-white" : isPending ? "bg-brand text-white" : "bg-gray-300 text-gray-700"}`}>
             {isDelivered ? <CheckCircle size={22} /> : <AlertCircle size={22} />}
           </div>
           <div>
             <h3 className="text-base md:text-lg font-bold text-text-primary">{title}</h3>
             <p className="text-sm text-text-secondary mt-1">{data.quantity || "-"} • {data.product || "-"}</p>
+            <p className="text-xs text-text-muted mt-2">
+              Type: {getDeliveryTypeLabel(data)}
+            </p>
             {isApprovalPending && (
               <p className="text-xs text-indigo-700 mt-2 font-medium">
                 Your order is waiting for dairy admin approval.
               </p>
             )}
+            {isFailed && (
+              <p className="text-xs text-red-700 mt-2 font-medium">
+                This delivery was auto-marked failed at the end of day.
+              </p>
+            )}
             {data?.agent?.name ? (
               <p className="text-xs text-text-muted mt-2">Agent: {data.agent.name} ({data.agent.phone || "-"})</p>
+            ) : hasAssignedPartner ? (
+              <p className="text-xs text-text-muted mt-2">Delivery partner assigned.</p>
             ) : (
               <p className="text-xs text-text-muted mt-2">Delivery partner not assigned yet.</p>
             )}
@@ -510,7 +537,7 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
         <div className="flex items-center gap-3 self-start">
           <button
             onClick={() => navigate("/customer/dashboard/track/agent", { state: { delivery: data } })}
-            disabled={isApprovalPending}
+            disabled={isApprovalPending || !data?.canTrackAgent}
             className="text-xs font-semibold text-brand border border-border px-3 py-1.5 rounded-lg hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Track Agent

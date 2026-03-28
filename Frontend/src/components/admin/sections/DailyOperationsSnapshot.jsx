@@ -1,105 +1,106 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Milk, Truck, IndianRupee, AlertCircle, PackageCheck, Droplets } from 'lucide-react';
+import React from "react";
+import { motion } from "framer-motion";
+import { Milk, IndianRupee, AlertCircle, PackageCheck, Droplets } from "lucide-react";
+import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
 const DailyOperationsSnapshot = ({ stats = {} }) => {
-  // 1. Get the values from props [cite: 65, 72]
   const needed = stats?.total_milk || 0;
-  const procured = stats?.procured_milk || 0; 
-  
-  // 2. Calculate the difference [cite: 86]
+  const procured = stats?.procured_milk || 0;
   const diff = procured - needed;
   const isShortage = needed > procured;
-  
-  // 3. Calculate Progress for the bar
   const progressPercent = needed > 0 ? Math.min((procured / needed) * 100, 100) : 0;
 
   const cards = [
-    { 
-      label: "Milk Needed", 
-      value: `${needed}L`, 
-      icon: Milk, 
-      color: "text-blue-600", 
-      bg: "bg-blue-50",
-      desc: "Customer Demand"
+    {
+      label: "Milk Needed",
+      value: `${needed}L`,
+      icon: Milk,
+      color: "text-[#B8641A]",
+      bg: "bg-[#FDF6EC]",
+      desc: "Customer Demand",
     },
-    { 
-      label: "Milk Procured", 
-      value: `${procured}L`, 
-      icon: PackageCheck, 
-      color: "text-indigo-600", 
-      bg: "bg-indigo-50",
-      desc: "In Stock"
+    {
+      label: "Milk Procured",
+      value: `${procured}L`,
+      icon: PackageCheck,
+      color: "text-[#6F4A27]",
+      bg: "bg-[#F8F2E8]",
+      desc: "In Stock",
     },
-    { 
-      label: "Cash Collected", 
-      value: `₹${stats?.collected || 0}`, 
-      icon: IndianRupee, 
-      color: "text-green-600", 
-      bg: "bg-green-50",
-      desc: "Today's Revenue"
+    {
+      label: "Cash Collected",
+      value: `Rs ${stats?.collected || 0}`,
+      icon: IndianRupee,
+      color: "text-[#6F8C45]",
+      bg: "bg-[#F4F7ED]",
+      desc: "Today's Revenue",
     },
-    { 
-      label: isShortage ? "Milk Shortage" : "Milk Wastage", 
-      value: `${Math.abs(diff).toFixed(1)}L`, 
-      icon: Droplets, 
-      color: isShortage ? "text-orange-600" : "text-rose-600", 
-      bg: isShortage ? "bg-orange-50" : "bg-rose-50",
-      desc: isShortage ? "Buy More Milk" : "Unused Stock" 
+    {
+      label: isShortage ? "Milk Shortage" : "Milk Wastage",
+      value: `${Math.abs(diff).toFixed(1)}L`,
+      icon: Droplets,
+      color: isShortage ? "text-[#C26D2C]" : "text-[#A85734]",
+      bg: isShortage ? "bg-[#FFF1E5]" : "bg-[#FBEDEA]",
+      desc: isShortage ? "Buy More Milk" : "Unused Stock",
     },
   ];
 
   return (
-    <div className="space-y-4 mb-8">
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="mb-8 space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card, i) => (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }} 
-            animate={{ opacity: 1, y: 0 }} 
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            key={i} 
-            className={`bg-white p-5 rounded-[28px] border shadow-sm flex items-center gap-4 hover:shadow-md transition-all ${
-              card.label === "Milk Shortage" && diff !== 0 ? "border-orange-200 ring-1 ring-orange-50" : "border-gray-100"
+            className={`flex items-center gap-4 rounded-[28px] border bg-white/95 p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)] transition-all hover:-translate-y-0.5 ${
+              card.label === "Milk Shortage" && diff !== 0 ? "border-[#E9C194] ring-1 ring-[#FFF1E5]" : "border-[#EDE8DF]"
             }`}
+            style={adminShellFont}
           >
-            <div className={`h-12 w-12 ${card.bg} ${card.color} rounded-2xl flex items-center justify-center shrink-0`}>
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${card.bg} ${card.color}`}>
               <card.icon size={22} />
             </div>
             <div className="overflow-hidden">
-              <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest truncate">{card.label}</p>
-              <h3 className="text-xl font-black text-gray-900 leading-tight">{card.value}</h3>
-              <p className="text-[9px] font-bold text-gray-400 uppercase italic mt-0.5">{card.desc}</p>
+              <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#C4A882]">{card.label}</p>
+              <h3 className="text-3xl leading-tight text-[#2C1A0E]" style={adminHeadingFont}>
+                {card.value}
+              </h3>
+              <p className="mt-0.5 text-[9px] font-bold uppercase italic text-[#8B7355]">{card.desc}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* Operational Efficiency Bar [cite: 125, 126] */}
-      <motion.div 
-        initial={{ opacity: 0 }} 
+      <motion.div
+        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-white px-6 py-4 rounded-[24px] border border-gray-100 shadow-sm flex flex-wrap items-center justify-between gap-4"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-[#EDE8DF] bg-white/95 px-6 py-4 shadow-[0_18px_45px_rgba(92,61,30,0.08)]"
+        style={adminShellFont}
       >
         <div className="flex items-center gap-2">
-          <AlertCircle size={16} className="text-blue-500" />
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-tighter">
-            Inventory Level: <span className="text-blue-600">{progressPercent.toFixed(0)}% Fulfilled</span>
+          <AlertCircle size={16} className="text-[#B8641A]" />
+          <span className="text-xs font-bold uppercase tracking-tighter text-[#8B7355]">
+            Inventory Level: <span className="text-[#B8641A]">{progressPercent.toFixed(0)}% Fulfilled</span>
           </span>
         </div>
 
-        {/* Progress Bar */}
-        <div className="flex-1 min-w-[150px] max-w-xs h-2 bg-gray-100 rounded-full overflow-hidden mx-4">
-           <div 
-             className={`h-full transition-all duration-700 ${progressPercent < 100 ? 'bg-orange-500' : 'bg-blue-600'}`} 
-             style={{ width: `${progressPercent}%` }}
-           />
+        <div className="mx-4 h-2 min-w-[150px] max-w-xs flex-1 overflow-hidden rounded-full bg-[#F2EDE4]">
+          <div
+            className={`h-full transition-all duration-700 ${progressPercent < 100 ? "bg-[#C26D2C]" : "bg-[#B8641A]"}`}
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
 
-        <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-           <span>Pending: <span className="text-gray-900">{stats?.pending || 0}</span></span>
-           <span className="h-3 w-[1px] bg-gray-200" />
-           <span>Failed: <span className="text-red-500">{stats?.failed || 0}</span></span>
+        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-[#B89970]">
+          <span>
+            Pending: <span className="text-[#2C1A0E]">{stats?.pending || 0}</span>
+          </span>
+          <span className="h-3 w-[1px] bg-[#E5D9C7]" />
+          <span>
+            Failed: <span className="text-[#A85734]">{stats?.failed || 0}</span>
+          </span>
         </div>
       </motion.div>
     </div>

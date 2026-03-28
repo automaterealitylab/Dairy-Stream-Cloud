@@ -22,8 +22,10 @@ import {
 } from "../controllers/customer/deliveries.controller.js";
 import {
   createPaymentOrder,
+  createWalletTopupOrder,
   getPayments,
   verifyPayment,
+  verifyWalletTopup,
 } from "../controllers/customer/payments.controller.js";
 import {
   getSubscription,
@@ -75,6 +77,8 @@ router.post("/orders/one-time/cancel", authenticate, cancelOneTimeOrder);
 router.get("/payments", authenticate, getPayments);
 router.post("/payments/order", authenticate, createPaymentOrder);
 router.post("/payments/verify", authenticate, verifyPayment);
+router.post("/payments/wallet/order", authenticate, createWalletTopupOrder);
+router.post("/payments/wallet/verify", authenticate, verifyWalletTopup);
 
 router.get("/subscription", authenticate, getSubscription);
 router.post("/subscription", authenticate, saveSubscription);

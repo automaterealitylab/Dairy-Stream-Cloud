@@ -1,0 +1,436 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import { Landmark, Boxes, IndianRupee, PackageSearch, X, ArrowUpRight } from "lucide-react";
+import {
+  addProcurementLog,
+  fetchAdminDashboard,
+  fetchAdminSuppliers,
+  fetchProcurementLogs,
+  getCachedAdminDashboard,
+  updateProcurementLog,
+} from "../../api/admin.api";
+import AdminSidebar from "../../components/admin/layout/AdminSidebar";
+import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import ProcurementTracker from "../../components/admin/sections/ProcurementTracker";
+import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 0,
+    style: "currency",
+    currency: "INR",
+  }).format(Number(value || 0));
+
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatQuantity = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "-";
+  return Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(1);
+};
+
+const getLocalDateKey = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+export default function AdminProcurement() {
+  const cachedDashboard = useMemo(() => getCachedAdminDashboard(), []);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedProductKey, setSelectedProductKey] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [dashboardMeta, setDashboardMeta] = useState(() => ({
+    dairyName: cachedDashboard?.dairyName || null,
+    suppliers: cachedDashboard?.suppliers || [],
+    stats: cachedDashboard?.stats || {},
+  }));
+  const [procurementLogs, setProcurementLogs] = useState([]);
+  const navigate = useNavigate();
+  const todayKey = useMemo(() => getLocalDateKey(new Date()), []);
+
+  const adminName = useMemo(() => {
+    try {
+      const adminUserStr = localStorage.getItem("adminUser");
+      return adminUserStr ? JSON.parse(adminUserStr)?.name : "Admin";
+    } catch {
+      return "Admin";
+    }
+  }, []);
+
+  const loadProcurementData = useCallback(async (force = false) => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const [dashboardRes, procurementRes, suppliersRes] = await Promise.all([
+        fetchAdminDashboard({ forceRefresh: force }),
+        fetchProcurementLogs(),
+        fetchAdminSuppliers(),
+      ]);
+
+      setDashboardMeta({
+        dairyName: dashboardRes?.dairyName || null,
+        suppliers: suppliersRes,
+        stats: dashboardRes?.stats || {},
+      });
+      setProcurementLogs(procurementRes);
+    } catch (err) {
+      setError(err?.message || "Failed to load procurement data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setSelectedDate(todayKey);
+  }, [todayKey]);
+
+  useEffect(() => {
+    loadProcurementData();
+  }, [loadProcurementData]);
+
+  const handleSaveProcurement = async (logData, editingLogId = null) => {
+    try {
+      if (editingLogId) {
+        await updateProcurementLog(editingLogId, logData);
+        toast.success("Entry updated successfully!");
+      } else {
+        await addProcurementLog(logData);
+        toast.success("Log added successfully!");
+      }
+      await loadProcurementData(true);
+    } catch (err) {
+      toast.error(editingLogId ? "Failed to update entry" : "Failed to add log");
+    }
+  };
+
+  const selectedDateKey = selectedDate || todayKey;
+  const filteredProcurementLogs = useMemo(
+    () => procurementLogs.filter((row) => getLocalDateKey(row.created_at) === selectedDateKey),
+    [procurementLogs, selectedDateKey]
+  );
+
+  const totalSpend = filteredProcurementLogs.reduce(
+    (sum, row) => sum + Number(row.total_cost ?? Number(row.quantity || 0) * Number(row.rate_per_unit || row.rate_per_liter || 0)),
+    0
+  );
+  const totalEntries = filteredProcurementLogs.length;
+  const uniqueItemsCount = new Set(
+    filteredProcurementLogs.map((row) => String(row.item_name || "").trim()).filter(Boolean)
+  ).size;
+  const uniqueSuppliersCount = new Set(
+    filteredProcurementLogs.map((row) => row.supplier_id || row.supplier_name).filter(Boolean)
+  ).size;
+  const itemBreakdown = useMemo(() => {
+    const grouped = new Map();
+
+    filteredProcurementLogs.forEach((row) => {
+      const itemName = String(row.item_name || "Unknown Item").trim();
+      const unit = String(row.unit || "UNIT").trim().toUpperCase();
+      const key = `${itemName}__${unit}`;
+      const current = grouped.get(key) || {
+        key,
+        itemName,
+        unit,
+        category: String(row.item_category || "OTHER").trim(),
+        quantity: 0,
+        spend: 0,
+        entries: 0,
+      };
+
+      current.quantity += toFiniteNumber(row.quantity);
+      current.spend += Number(
+        row.total_cost ?? Number(row.quantity || 0) * Number(row.rate_per_unit || row.rate_per_liter || 0)
+      );
+      current.entries += 1;
+
+      grouped.set(key, current);
+    });
+
+    return [...grouped.values()].sort((a, b) => b.entries - a.entries || b.quantity - a.quantity);
+  }, [filteredProcurementLogs]);
+  const selectedProduct = itemBreakdown.find((item) => item.key === selectedProductKey) || null;
+  const selectedProductLogs = useMemo(() => {
+    if (!selectedProduct) return [];
+
+    return filteredProcurementLogs.filter((row) => {
+      const itemName = String(row.item_name || "Unknown Item").trim();
+      const unit = String(row.unit || "UNIT").trim().toUpperCase();
+      return itemName === selectedProduct.itemName && unit === selectedProduct.unit;
+    });
+  }, [filteredProcurementLogs, selectedProduct]);
+  return (
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
+      <AdminMobileTopbar adminName={dashboardMeta?.dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
+      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <main className="px-4 py-8 pb-24 sm:px-6 lg:ml-64 lg:px-10">
+        <section className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-8 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B89970]">
+                Supply Operations
+              </span>
+              <h1 className="mt-3 text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+                Purchase Records
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#7B6247]">
+                Record supplier purchases for milk, dairy products, feed, packaging, and other items in one place.
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-[#EDE8DF] bg-[#FFF8EF] px-4 py-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#B8641A] shadow-sm">
+                <Landmark size={18} />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                  {selectedDateKey === todayKey ? "Today's Entries" : "Selected Day Entries"}
+                </p>
+                <p className="text-lg font-black text-[#2C1A0E]">{totalEntries}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {error ? (
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
+
+        <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-6 shadow-[0_10px_30px_rgba(92,61,30,0.06)]">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-[#FFF3E2] p-3 text-[#B8641A]">
+                <PackageSearch size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Items Procured</p>
+                <p className="mt-1 text-2xl font-black text-[#2C1A0E]">{uniqueItemsCount}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-6 shadow-[0_10px_30px_rgba(92,61,30,0.06)]">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-[#EEF7EB] p-3 text-[#6F8C45]">
+                <IndianRupee size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Spend On Selected Date</p>
+                <p className="mt-1 text-2xl font-black text-[#2C1A0E]">{formatCurrency(totalSpend)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-6 shadow-[0_10px_30px_rgba(92,61,30,0.06)]">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-[#EAF6FB] p-3 text-[#2E7D9A]">
+                <Boxes size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Suppliers Used</p>
+                <p className="mt-1 text-2xl font-black text-[#2C1A0E]">{uniqueSuppliersCount}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8">
+          {loading ? (
+            <div className="rounded-[32px] border border-[#EDE8DF] bg-white p-8 text-sm text-[#8B7355] shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+              Loading procurement data...
+            </div>
+          ) : (
+            <ProcurementTracker
+              suppliers={dashboardMeta.suppliers}
+              logs={procurementLogs}
+              selectedDate={selectedDateKey}
+              maxDate={todayKey}
+              onChangeSelectedDate={(nextDate) => {
+                setSelectedDate(nextDate);
+                setSelectedProductKey("");
+              }}
+              onAddLog={handleSaveProcurement}
+              onOpenSupplierForm={() => navigate("/admin/suppliers")}
+            />
+          )}
+        </section>
+
+        <section className="mt-8 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Product Breakdown</h2>
+              <p className="mt-1 text-sm text-[#8B7355]">
+                See exactly how much of each purchased item came in on the selected date. Click any product card to open its purchase details.
+              </p>
+            </div>
+            <div className="text-sm text-[#8B7355]">
+              {itemBreakdown.length} tracked item{itemBreakdown.length === 1 ? "" : "s"}
+            </div>
+          </div>
+
+          {itemBreakdown.length > 0 ? (
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {itemBreakdown.map((item) => (
+                <button
+                  type="button"
+                  key={item.key}
+                  onClick={() => setSelectedProductKey(item.key)}
+                  className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5 text-left transition hover:border-[#E5C79D] hover:bg-[#FFF8EF] hover:shadow-[0_14px_28px_rgba(184,100,26,0.10)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-black text-[#2C1A0E]">{item.itemName}</h3>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#B89970]">
+                        {item.category}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className="rounded-full bg-[#FDE9C9] px-3 py-1 text-xs font-bold text-[#B8641A]">
+                        {item.entries} entr{item.entries === 1 ? "y" : "ies"}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[#EAD9C2] bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#8B7355]">
+                        View Details
+                        <ArrowUpRight size={13} />
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-4 text-3xl font-black text-[#2C1A0E]">
+                    {formatQuantity(item.quantity)} <span className="text-lg text-[#8B7355]">{item.unit}</span>
+                  </div>
+                  <div className="mt-2 text-sm text-[#6F4A27]">
+                    Spend: <span className="font-bold">{formatCurrency(item.spend)}</span>
+                  </div>
+                  <div className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-[#B89970]">
+                    Click to inspect supplier-wise details
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-dashed border-[#E5D9C7] bg-[#FFFDF8] p-4 text-sm text-[#8B7355]">
+              No product-wise procurement entries yet.
+            </div>
+          )}
+        </section>
+      </main>
+
+      {selectedProduct ? (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 px-4">
+          <div className="flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white shadow-[0_24px_60px_rgba(44,26,14,0.18)]">
+            <div className="flex items-start justify-between gap-4 border-b border-[#F2EDE4] px-6 py-4 sm:px-8">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                  Product Details
+                </span>
+                <h3 className="mt-1 text-[2.1rem] leading-none text-[#2C1A0E]" style={adminHeadingFont}>
+                  {selectedProduct.itemName}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-[#FFF3E2] px-3 py-1 text-sm font-black text-[#B8641A]">
+                    {formatQuantity(selectedProduct.quantity)} {selectedProduct.unit}
+                  </span>
+                  <span className="rounded-full border border-[#E5D9C7] px-3 py-1 text-sm font-semibold text-[#7B6247]">
+                    {selectedProduct.entries} entr{selectedProduct.entries === 1 ? "y" : "ies"}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProductKey("")}
+                className="rounded-full border border-[#E5D9C7] p-2 text-[#8B7355] transition hover:bg-[#FFF3E2] hover:text-[#B8641A]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-5 sm:px-8">
+              <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Category</p>
+                  <p className="mt-2 text-xl font-black text-[#2C1A0E]">{selectedProduct.category}</p>
+                </div>
+                <div className="rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Quantity</p>
+                  <p className="mt-2 text-xl font-black text-[#2C1A0E]">
+                    {formatQuantity(selectedProduct.quantity)} <span className="text-base text-[#8B7355]">{selectedProduct.unit}</span>
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Suppliers</p>
+                  <p className="mt-2 text-xl font-black text-[#2C1A0E]">
+                    {new Set(selectedProductLogs.map((entry) => entry.supplier_name || "-")).size}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B89970]">Spend</p>
+                  <p className="mt-2 text-xl font-black text-[#2C1A0E]">{formatCurrency(selectedProduct.spend)}</p>
+                </div>
+              </section>
+
+              <section className="mt-5 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Purchase Details</h4>
+                    <p className="mt-1 text-sm text-[#8B7355]">
+                      Supplier-wise entries for this product in one place.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-[#E5D9C7] text-xs uppercase tracking-[0.16em] text-[#B89970]">
+                        <th className="pb-3 pr-4">Supplier</th>
+                        <th className="pb-3 pr-4">Qty</th>
+                        <th className="pb-3 pr-4">Rate</th>
+                        <th className="pb-3 pr-4">Total</th>
+                        <th className="pb-3">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedProductLogs.map((entry) => (
+                        <tr key={entry.id} className="border-b border-[#F2EDE4] text-[#6F4A27] last:border-b-0">
+                          <td className="py-3 pr-4 font-semibold">{entry.supplier_name || "-"}</td>
+                          <td className="py-3 pr-4 font-semibold">
+                            {formatQuantity(entry.quantity)} {entry.unit || ""}
+                          </td>
+                          <td className="py-3 pr-4">Rs {entry.rate_per_unit || entry.rate_per_liter || "-"}</td>
+                          <td className="py-3 pr-4">
+                            {formatCurrency(entry.total_cost ?? Number(entry.quantity || 0) * Number(entry.rate_per_unit || entry.rate_per_liter || 0))}
+                          </td>
+                          <td className="py-3">
+                            {entry.created_at
+                              ? new Date(entry.created_at).toLocaleString([], {
+                                  day: "2-digit",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

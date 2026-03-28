@@ -1,13 +1,25 @@
 import { supabase } from "../../config/supabase.js";
 import {
   ensureCustomerSubscriptionDeliveryForDate,
-  ensureDeliveredSubscriptionPaymentsForCustomer,
-  getUnpaidDeliveredSubscriptionPaymentSummary,
 } from "./subscription.automation.service.js";
+import {
+  getCurrentMonthSuccessfulSubscriptionDue,
+  getUnpaidDeliveredSubscriptionMonthlySummary,
+} from "./monthlyBilling.service.js";
+import { invalidateCustomerDashboardCache } from "./dashboardCache.service.js";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
-  return message.includes("column") && message.includes("does not exist");
+  return (
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("column")) ||
+    message.includes("schema cache")
+  );
+};
+
+const isSpecificMissingColumnError = (error, columnName) => {
+  const message = String(error?.message || "").toLowerCase();
+  return isMissingColumnError(error) && message.includes(String(columnName || "").toLowerCase());
 };
 
 const isOnConflictConstraintError = (error) => {
@@ -28,6 +40,68 @@ const isMissingTableError = (error) => {
 const isActiveSubscriptionStatus = (status) => {
   const value = String(status || "ACTIVE").trim().toUpperCase();
   return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
+const normalizeRouteValue = (value) => String(value || "").trim().toLowerCase();
+
+const WEEKDAY_KEYS = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+];
+
+const normalizeDeliveryDays = (value) => {
+  if (!Array.isArray(value)) return [];
+  const normalized = value
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter((item) => WEEKDAY_KEYS.includes(item));
+  return [...new Set(normalized)];
+};
+
+const findAutoAssignedAgentId = async ({ customerId, dairyId }) => {
+  if (!customerId || !dairyId) return null;
+
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("id, building_name")
+    .eq("id", customerId)
+    .limit(1)
+    .maybeSingle();
+
+  if (customerError) {
+    if (isMissingTableError(customerError) || isMissingColumnError(customerError) || isUuidSyntaxError(customerError)) {
+      return null;
+    }
+    throw customerError;
+  }
+
+  const customerRoute = normalizeRouteValue(customer?.building_name);
+  if (!customerRoute) return null;
+
+  const { data: agents, error: agentError } = await supabase
+    .from("agents")
+    .select("id, building, status")
+    .eq("dairy_id", dairyId)
+    .order("id", { ascending: true });
+
+  if (agentError) {
+    if (isMissingTableError(agentError) || isMissingColumnError(agentError) || isUuidSyntaxError(agentError)) {
+      return null;
+    }
+    throw agentError;
+  }
+
+  const matchedAgent = (agents || []).find((agent) => {
+    const agentRoute = normalizeRouteValue(agent?.building);
+    const agentStatus = String(agent?.status || "ACTIVE").trim().toUpperCase();
+    return agentRoute === customerRoute && agentStatus !== "INACTIVE";
+  });
+
+  return matchedAgent?.id ?? null;
 };
 
 const ensureCustomerDairyAssignment = async ({ customerId, dairyId }) => {
@@ -131,10 +205,11 @@ export const getSubscriptionByCustomerId = async (customerId) => {
 
 export const upsertSubscription = async (customerId, payload) => {
   let resolvedApprovalStatus = payload.approval_status;
+  let existingAssignedAgentId = null;
   if (!resolvedApprovalStatus) {
     const { data: existingApproval, error: existingApprovalError } = await supabase
       .from("subscriptions")
-      .select("approval_status")
+      .select("approval_status, assigned_agent_id")
       .eq("customer_id", customerId)
       .eq("dairy_id", payload.dairy_id)
       .limit(1)
@@ -142,6 +217,37 @@ export const upsertSubscription = async (customerId, payload) => {
 
     if (existingApprovalError) throw existingApprovalError;
     resolvedApprovalStatus = existingApproval?.approval_status || "PENDING";
+    existingAssignedAgentId = existingApproval?.assigned_agent_id ?? null;
+  }
+
+  if (existingAssignedAgentId == null) {
+    const { data: existingAssignment, error: existingAssignmentError } = await supabase
+      .from("subscriptions")
+      .select("assigned_agent_id")
+      .eq("customer_id", customerId)
+      .eq("dairy_id", payload.dairy_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingAssignmentError) throw existingAssignmentError;
+    existingAssignedAgentId = existingAssignment?.assigned_agent_id ?? null;
+  }
+
+  let resolvedAssignedAgentId =
+    payload.assigned_agent_id !== undefined ? payload.assigned_agent_id : existingAssignedAgentId;
+
+  const normalizedStatus = String(payload.status || "ACTIVE").toUpperCase();
+  const normalizedApprovalStatus = String(resolvedApprovalStatus || "PENDING").toUpperCase();
+
+  if (
+    (resolvedAssignedAgentId == null || resolvedAssignedAgentId === "") &&
+    normalizedStatus === "ACTIVE" &&
+    normalizedApprovalStatus === "APPROVED"
+  ) {
+    resolvedAssignedAgentId = await findAutoAssignedAgentId({
+      customerId,
+      dairyId: payload.dairy_id,
+    });
   }
 
   const body = {
@@ -154,62 +260,80 @@ export const upsertSubscription = async (customerId, payload) => {
     address: payload.address,
     payment_method: payload.payment_method,
     status: payload.status || "ACTIVE",
-    approval_status: String(resolvedApprovalStatus || "PENDING").toUpperCase(),
-    assigned_agent_id: payload.assigned_agent_id ?? null,
+    approval_status: normalizedApprovalStatus,
+    assigned_agent_id: resolvedAssignedAgentId ?? null,
+  };
+
+  if (payload.delivery_days !== undefined) {
+    body.delivery_days = normalizeDeliveryDays(payload.delivery_days);
+  }
+
+  const persistSubscriptionRow = async (candidateBody) => {
+    let data;
+    let error;
+
+    ({ data, error } = await supabase
+      .from("subscriptions")
+      .upsert(candidateBody, { onConflict: "customer_id,dairy_id" })
+      .select("*")
+      .single());
+
+    if (error && isOnConflictConstraintError(error)) {
+      const { data: existing, error: existingError } = await supabase
+        .from("subscriptions")
+        .select("id")
+        .eq("customer_id", customerId)
+        .eq("dairy_id", payload.dairy_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing?.id) {
+        const { data: updated, error: updateError } = await supabase
+          .from("subscriptions")
+          .update(candidateBody)
+          .eq("id", existing.id)
+          .select("*")
+          .single();
+
+        if (updateError) throw updateError;
+        data = updated;
+        error = null;
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from("subscriptions")
+          .insert(candidateBody)
+          .select("*")
+          .single();
+
+        if (insertError) throw insertError;
+        data = inserted;
+        error = null;
+      }
+    }
+
+    if (error) throw error;
+    return data;
   };
 
   let data;
-  let error;
-
-  ({ data, error } = await supabase
-    .from("subscriptions")
-    .upsert(body, { onConflict: "customer_id,dairy_id" })
-    .select("*")
-    .single());
-
-  if (error && isOnConflictConstraintError(error)) {
-    const { data: existing, error: existingError } = await supabase
-      .from("subscriptions")
-      .select("id")
-      .eq("customer_id", customerId)
-      .eq("dairy_id", payload.dairy_id)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingError) throw existingError;
-
-    if (existing?.id) {
-      const { data: updated, error: updateError } = await supabase
-        .from("subscriptions")
-        .update(body)
-        .eq("id", existing.id)
-        .select("*")
-        .single();
-
-      if (updateError) throw updateError;
-      data = updated;
-      error = null;
+  try {
+    data = await persistSubscriptionRow(body);
+  } catch (error) {
+    if (body.delivery_days !== undefined && isSpecificMissingColumnError(error, "delivery_days")) {
+      const legacyBody = { ...body };
+      delete legacyBody.delivery_days;
+      data = await persistSubscriptionRow(legacyBody);
     } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from("subscriptions")
-        .insert(body)
-        .select("*")
-        .single();
-
-      if (insertError) throw insertError;
-      data = inserted;
-      error = null;
+      const message = String(error?.message || "").toLowerCase();
+      if (message.includes("invalid input syntax for type uuid")) {
+        throw new Error(
+          "Database schema mismatch for subscriptions IDs. Run updated SUPABASE_MIGRATIONS.sql and ensure subscriptions.customer_id/dairy_id types match customers.id/dairies.id."
+        );
+      }
+      throw error;
     }
-  }
-
-  if (error) {
-    const message = String(error?.message || "").toLowerCase();
-    if (message.includes("invalid input syntax for type uuid")) {
-      throw new Error(
-        "Database schema mismatch for subscriptions IDs. Run updated SUPABASE_MIGRATIONS.sql and ensure subscriptions.customer_id/dairy_id types match customers.id/dairies.id."
-      );
-    }
-    throw error;
   }
 
   await ensureMembershipLink({
@@ -229,15 +353,28 @@ export const upsertSubscription = async (customerId, payload) => {
     await ensureCustomerSubscriptionDeliveryForDate({ customerId });
   }
 
+  invalidateCustomerDashboardCache(customerId);
   return data;
 };
 
 export const clearSubscriptionByCustomerId = async (customerId) => {
-  await ensureDeliveredSubscriptionPaymentsForCustomer(customerId);
-  const unpaidSummary = await getUnpaidDeliveredSubscriptionPaymentSummary(customerId);
+  const [unpaidSummary, currentMonthDue] = await Promise.all([
+    getUnpaidDeliveredSubscriptionMonthlySummary(customerId),
+    getCurrentMonthSuccessfulSubscriptionDue(customerId),
+  ]);
+
+  const runningDueAmount = Number(currentMonthDue?.payableTillDate || 0);
   if (unpaidSummary.unpaidCount > 0) {
     const error = new Error(
-      `Please clear all pending subscription dues before closing. Unpaid delivered entries: ${unpaidSummary.unpaidCount}`
+      `Please clear all pending monthly subscription dues before closing. Unpaid delivered entries: ${unpaidSummary.unpaidCount}`
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (runningDueAmount > 0) {
+    const error = new Error(
+      `Please pay your running subscription bill before closing. Current unpaid due: Rs.${runningDueAmount.toFixed(2)}`
     );
     error.statusCode = 400;
     throw error;
@@ -282,5 +419,6 @@ export const clearSubscriptionByCustomerId = async (customerId) => {
     dairyId: null,
   });
 
+  invalidateCustomerDashboardCache(customerId);
   return { deleted: deletedRows.length };
 };

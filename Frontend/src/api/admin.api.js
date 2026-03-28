@@ -222,6 +222,21 @@ export const updateAdminPaymentStatus = async (id, status) => {
   return data;
 };
 
+export const collectAdminOfflinePayment = async ({
+  customerId,
+  receivedAmount,
+  method = "CASH",
+  note = "",
+} = {}) => {
+  const { data } = await client.post("/admin/payments/offline-collect", {
+    customerId,
+    receivedAmount,
+    method,
+    note,
+  });
+  return data;
+};
+
 export const updateAdminFarmPlan = async (plan) => {
   const { data } = await client.patch("/admin/farm-plan", { plan });
   return data;
@@ -329,12 +344,37 @@ export const fetchAdminAgentEarningsSummary = async ({ agentId, startDate = "", 
 ========================= */
 export const fetchProcurementLogs = async () => {
   const { data } = await client.get("/admin/procurement");
-  return data;
+  return Array.isArray(data?.data) ? data.data : [];
 };
 
 export const addProcurementLog = async (logData) => {
   const { data } = await client.post("/admin/procurement", logData);
   return data;
+};
+
+export const updateProcurementLog = async (logId, logData) => {
+  const { data } = await client.put(`/admin/procurement/${logId}`, logData);
+  return data;
+};
+
+export const fetchAdminSuppliers = async () => {
+  const { data } = await client.get("/admin/suppliers");
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+export const createAdminSupplier = async (payload) => {
+  const { data } = await client.post("/admin/suppliers", payload);
+  return data?.data || data;
+};
+
+export const updateAdminSupplier = async (supplierId, payload) => {
+  const { data } = await client.put(`/admin/suppliers/${supplierId}`, payload);
+  return data?.data || data;
+};
+
+export const removeAdminSupplier = async (supplierId) => {
+  const { data } = await client.delete(`/admin/suppliers/${supplierId}`);
+  return data?.data || data;
 };
 
 // Use this for recording manual payments via the modal

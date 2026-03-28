@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { fetchAdminDashboard, getCachedAdminDashboard, addProcurementLog } from "../../api/admin.api";
-import toast from "react-hot-toast";
+import { fetchAdminDashboard, getCachedAdminDashboard } from "../../api/admin.api";
 
 // Layout & Sections
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
@@ -12,10 +11,10 @@ import AdminFinancialAlert from "../../components/admin/sections/AdminFinancialA
 import AdminActivity from "../../components/admin/sections/AdminActivity";
 import DailyOperationsSnapshot from "../../components/admin/sections/DailyOperationsSnapshot";
 import DeliveryExceptionDashboard from "../../components/admin/sections/DeliveryExceptionDashboard";
-import ProcurementTracker from "../../components/admin/sections/ProcurementTracker";
 import CustomerRiskIndicator from "../../components/admin/sections/CustomerRiskIndicator";
 import BulkDeliveryActions from "../../components/admin/sections/BulkDeliveryActions";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
+import { adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminDashboard() {
   const [error, setError] = useState(null);
@@ -76,22 +75,10 @@ const loadDashboard = useCallback(async (force = false) => {
 }, []);
 
   useEffect(() => {
-    loadDashboard();
+    loadDashboard(true);
   }, [loadDashboard]);
 
   // Handlers
-  const handleAddProcurement = async (logData) => {
-    try {
-      // Ensure the log data uses 'supplier_id' to match your Supabase schema
-      await addProcurementLog(logData);
-      toast.success("Log added successfully!");
-      // Refresh to update the Milk Procured card and history
-      loadDashboard(true); 
-    } catch (err) {
-      toast.error("Failed to add log");
-    }
-  };
-
   const toggleDeliverySelection = (id) => {
     setSelectedDeliveries(prev => 
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
@@ -107,11 +94,11 @@ const loadDashboard = useCallback(async (force = false) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar adminName={data?.dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="lg:ml-64 px-4 sm:px-6 lg:px-10 py-8 pb-32">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         {!uiReady ? (
           <AdminDashboardSkeleton />
         ) : (
@@ -128,12 +115,6 @@ const loadDashboard = useCallback(async (force = false) => {
                   selectedIds={selectedDeliveries}
                   onToggleSelect={toggleDeliverySelection}
                   onReschedule={(id) => console.log("Rescheduling", id)} 
-                />
-                
-                <ProcurementTracker 
-                  suppliers={data?.suppliers} 
-                  logs={data?.procurementLogs}
-                  onAddLog={handleAddProcurement} 
                 />
               </div>
 

@@ -6,54 +6,14 @@
   color-scheme: light;
 }
 
-html[data-theme="dark"] {
-  color-scheme: dark;
-}
-
 html,
 body,
 #root {
   min-height: 100%;
 }
-
-html[data-theme="dark"] body {
-  background-color: #0b1220;
-  color: #e5e7eb;
-}
-
-html[data-theme="dark"] .bg-white,
-html[data-theme="dark"] .bg-surface {
-  background-color: #111827 !important;
-}
-
-html[data-theme="dark"] .bg-gray-50,
-html[data-theme="dark"] .bg-slate-50,
-html[data-theme="dark"] .bg-background {
-  background-color: #0f172a !important;
-}
-
-html[data-theme="dark"] .border,
-html[data-theme="dark"] .border-gray-100,
-html[data-theme="dark"] .border-gray-200,
-html[data-theme="dark"] .border-border {
-  border-color: #374151 !important;
-}
-
-html[data-theme="dark"] .text-gray-900,
-html[data-theme="dark"] .text-text-primary {
-  color: #f9fafb !important;
-}
-
-html[data-theme="dark"] .text-gray-700,
-html[data-theme="dark"] .text-gray-600,
-html[data-theme="dark"] .text-gray-500,
-html[data-theme="dark"] .text-text-secondary,
-html[data-theme="dark"] .text-text-muted {
-  color: #9ca3af !important;
-}
 .pro-input {
-  @apply w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-2 mt-1
-  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition;
+  @apply mt-1 w-full rounded-xl border border-[#E5D9C7] bg-[#FFFDF8] px-4 py-2 text-[#2C1A0E]
+  focus:outline-none focus:ring-2 focus:ring-[#C98A42] focus:bg-white transition;
 }
 
 @layer components {
@@ -86,15 +46,15 @@ html[data-theme="dark"] .text-text-muted {
   }
 
   .pro-btn-primary {
-    @apply rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-xl bg-[#B8641A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#9E5415] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .pro-btn-dark {
-    @apply rounded-xl bg-text-primary px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-xl bg-[#2C1A0E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4A311D] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .pro-btn-outline {
-    @apply rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60;
+    @apply rounded-xl border border-[#E5D9C7] bg-white px-4 py-2 text-sm font-semibold text-[#8B7355] transition hover:bg-[#FDF6EC] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .pro-feedback-success {
@@ -157,4 +117,31 @@ html[data-theme="dark"] .text-text-muted {
 
 .animate-fade-scale {
   animation: fadeScale 0.5s ease-out forwards;
+}
+
+.modal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #c9baa5 transparent;
+}
+
+.modal-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.modal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 12px 0;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #d4c4af 0%, #b99d7f 100%);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #c7b297 0%, #a98663 100%);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }

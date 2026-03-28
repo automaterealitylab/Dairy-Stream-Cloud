@@ -1,214 +1,200 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
-// --- Components ---
-import ProtectedRoute from "./pages/ProtectedRoute";
-import LoginPage from "./pages/LoginPage";
-import RegisterNewuserPage from "./pages/RegisterNewuserPage";
-import RegisterDairyPage from "./pages/RegisterDairyPage";
-import ExploreDairiesPage from "./pages/public/ExploreDairiesPage";
-import DairyDetailsPage from "./pages/public/DairyDetailsPage";
-import BuyOncePage from "./pages/public/BuyOncePage.jsx";
+import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
+import ProtectedRoute from "./pages/ProtectedRoute.jsx";
+import LoginPage from "./pages/LoginPage.jsx";
 
-// --- Customer Pages ---
-import CustomerDashboard from "./pages/customer/CustomerDashboard";
-import Deliveries from "./pages/customer/CustomerDeliveryHistory.jsx";
-import Subscription from "./pages/customer/CustomerSubscription.jsx";
-import Payments from "./pages/customer/CustomerPayments.jsx";
-import Profile from "./pages/customer/CustomerProfile.jsx";
+const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
+const RegisterDairyPage = lazy(() => import("./pages/RegisterDairyPage.jsx"));
+const ExploreDairiesPage = lazy(() => import("./pages/public/ExploreDairiesPage.jsx"));
+const DairyDetailsPage = lazy(() => import("./pages/public/DairyDetailsPage.jsx"));
+const BuyOncePage = lazy(() => import("./pages/public/BuyOncePage.jsx"));
 
-// --- Admin Pages ---
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminCustomers from "./pages/admin/AdminCustomers";
-// ⚠️ Ensure these files exist, even if empty placeholders for now:
-import AdminAgents from "./pages/admin/AdminAgents.jsx"; 
-import AdminDeliveries from "./pages/admin/AdminDeliveries"; 
-import AdminPayments from "./pages/admin/AdminPayments"; 
-import AdminProducts from "./pages/admin/AdminProducts.jsx";
-import AdminPerformanceDashboard from "./pages/admin/AdminPerformanceDashboard.jsx";
+const DairyCustomerDashboard = lazy(() => import("./pages/customer/DairyCustomerDashboard.jsx"));
+const Deliveries = lazy(() => import("./pages/customer/CustomerDeliveryHistory.jsx"));
+const Subscription = lazy(() => import("./pages/customer/CustomerSubscription.jsx"));
+const Payments = lazy(() => import("./pages/customer/CustomerPayments.jsx"));
+const Profile = lazy(() => import("./pages/customer/CustomerProfile.jsx"));
+const TrackAgent = lazy(() => import("./pages/customer/TrackAgent.jsx"));
 
-// --- Agent Pages ---
-import AgentDashboard from "./pages/agent/agentDashboard.jsx";
-import AgentHistory from "./pages/agent/AgentHistory.jsx";
-import AgentProfile from "./pages/agent/AgentProfile.jsx";
-import AgentWorkingPage from "./pages/agent/AgentWorkingPage.jsx";
-import ThemeToggleButton from "./components/common/ThemeToggleButton.jsx";
-import TrackAgent from "./pages/customer/TrackAgent.jsx";
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.jsx"));
+const AdminCustomers = lazy(() => import("./pages/admin/AdminCustomers.jsx"));
+const AdminAgents = lazy(() => import("./pages/admin/AdminAgents.jsx"));
+const AdminDeliveries = lazy(() => import("./pages/admin/AdminDeliveries.jsx"));
+const AdminPayments = lazy(() => import("./pages/admin/AdminPayments.jsx"));
+const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.jsx"));
+const AdminPerformanceDashboard = lazy(() => import("./pages/admin/AdminPerformanceDashboard.jsx"));
+const AdminProcurement = lazy(() => import("./pages/admin/AdminProcurement.jsx"));
+const AdminSuppliers = lazy(() => import("./pages/admin/AdminSuppliers.jsx"));
 
+const AgentDashboard = lazy(() => import("./pages/agent/agentDashboard.jsx"));
+const AgentHistory = lazy(() => import("./pages/agent/AgentHistory.jsx"));
+const AgentProfile = lazy(() => import("./pages/agent/AgentProfile.jsx"));
+const AgentWorkingPage = lazy(() => import("./pages/agent/AgentWorkingPage.jsx"));
 
+const RouteFallback = () => (
+  <LoadingIndicator fullScreen message="Loading page..." />
+);
 
 function App() {
   return (
-    <>
-    <ThemeToggleButton />
-    <Routes>
-      {/* ==============================
-          🔓 PUBLIC ROUTES
-      ============================== */}
-      <Route path="/" element={<LoginPage />} />
-      <Route path="/explore" element={<ExploreDairiesPage />} />
-      <Route path="/join/:id" element={<DairyDetailsPage />} />
-      <Route path="/buy-once/:id" element={<BuyOncePage />} />
-      <Route path="/customer/register" element={<RegisterNewuserPage />} />
-      <Route path="/register-dairy" element={<RegisterDairyPage />} />
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/explore" element={<ExploreDairiesPage />} />
+        <Route path="/join/:id" element={<DairyDetailsPage />} />
+        <Route path="/buy-once/:id" element={<BuyOncePage />} />
+        <Route path="/customer/register" element={<RegisterNewuserPage />} />
+        <Route path="/register-dairy" element={<RegisterDairyPage />} />
 
+        <Route
+          path="/customer/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <DairyCustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer/dashboard/deliveries"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <Deliveries />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer/dashboard/subscriptions"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <Subscription />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer/dashboard/payments"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <Payments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer/dashboard/track/agent"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <TrackAgent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer/dashboard/profile"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ==============================
-          👤 CUSTOMER ROUTES (Protected)
-      ============================== */}
-      <Route
-        path="/customer/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <CustomerDashboard />
-          </ProtectedRoute>
-        }
-      />
-       
-      <Route
-        path="/customer/dashboard/deliveries"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Deliveries />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/customer/dashboard/subscriptions"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Subscription />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/customer/dashboard/payments"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Payments />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/customer/dashboard/track/agent"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <TrackAgent />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/customer/dashboard/profile"
-        element={
-          <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/admin/AdminDashboard"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/customers"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminCustomers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/addCustomer"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <Navigate to="/admin/customers?addCustomer=1" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/agents"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminAgents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/addagent"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <Navigate to="/admin/agents?addAgent=1" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/deliveries"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminDeliveries />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/payments"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminPayments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/products"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminProducts />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/performance"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminPerformanceDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/procurement"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminProcurement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/suppliers"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminSuppliers />
+            </ProtectedRoute>
+          }
+        />
 
-
-      {/* ==============================
-          🛡️ ADMIN ROUTES (Protected)
-      ============================== */}
-      {/* Dashboard */}
-      <Route
-        path="/admin/AdminDashboard"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Customers Section */}
-      <Route
-        path="/admin/customers"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminCustomers />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/addCustomer"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <Navigate to="/admin/customers?addCustomer=1" replace />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Agents Section (This was missing!) */}
-      <Route
-        path="/admin/agents"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminAgents /> 
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/addagent"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <Navigate to="/admin/agents?addAgent=1" replace />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Deliveries Section (This was missing!) */}
-      <Route
-        path="/admin/deliveries"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminDeliveries />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Payments Section (This was missing!) */}
-      <Route
-        path="/admin/payments"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminPayments />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/products"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminProducts />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/performance"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminPerformanceDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-
-      {/* ==============================
-          🚚 AGENT ROUTES (Protected)
-      ============================== */}
         <Route path="/agent/dashboard" element={<AgentDashboard />} />
-      <Route path="/agent/working" element={<AgentWorkingPage />} />
-      <Route path="/agent/profile" element={<AgentProfile />} />
-      <Route path="/agent/history" element={<AgentHistory />} />
+        <Route path="/agent/working" element={<AgentWorkingPage />} />
+        <Route path="/agent/profile" element={<AgentProfile />} />
+        <Route path="/agent/history" element={<AgentHistory />} />
 
-
-      {/* ==============================
-          ⛔ 404 CATCH-ALL
-      ============================== */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-    </>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

@@ -1,33 +1,122 @@
-import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
-import { ArrowLeft, Phone, User, MapPin, ShieldCheck, MessageSquare, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
+import DeliveryETADisplay from "../../components/customer/DeliveryETADisplay.jsx";
+import {
+  fetchCustomerDeliveries,
+  getCachedCustomerDeliveries,
+} from "../../api/customer/customer.api.js";
+import {
+  ArrowLeft,
+  Phone,
+  User,
+  ShieldCheck,
+  MessageSquare,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
+
+const headingFont = { fontFamily: "'Lora', serif" };
+
+const steps = [
+  { label: "Order Placed", mobileLabel: "Placed", status: "PENDING" },
+  { label: "Out for Delivery", mobileLabel: "On Way", status: "OUT_FOR_DELIVERY" },
+  { label: "Delivered", mobileLabel: "Done", status: "DELIVERED" },
+];
+
+const getSafeStepIndex = (status) => {
+  const index = steps.findIndex((step) => step.status === status);
+  return index >= 0 ? index : 0;
+};
+
+const getDeliveryTypeLabel = (delivery = {}) => {
+  const normalizedType = String(delivery?.deliveryType || "").toUpperCase();
+  if (normalizedType === "ONE_TIME") return "One-time";
+  if (normalizedType === "SUBSCRIPTION") return "Subscription";
+  return delivery?.isOneTimeOrder ? "One-time" : "Subscription";
+};
 
 const TrackAgent = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const cachedTodayDelivery = getCachedCustomerDeliveries()?.todayDelivery || null;
+  const cachedTrackableDelivery =
+    cachedTodayDelivery?.agent && cachedTodayDelivery?.deliveryId ? cachedTodayDelivery : null;
+  const initialDelivery = location.state?.delivery || cachedTrackableDelivery || null;
+  const [delivery, setDelivery] = useState(initialDelivery);
+  const [loading, setLoading] = useState(!initialDelivery);
+  const [error, setError] = useState("");
 
-  // Safe data extraction
-  const delivery = location.state?.delivery || null;
-  const agent = delivery?.agent;
+  useEffect(() => {
+    let cancelled = false;
 
-  // Progress Bar Configuration
-  const steps = [
-    { label: 'Order Placed', status: 'PENDING' },
-    { label: 'Out for Delivery', status: 'OUT_FOR_DELIVERY' },
-    { label: 'Delivered', status: 'DELIVERED' }
-  ];
+    const loadTrackingData = async ({ force = false, showSpinner = force || !initialDelivery } = {}) => {
+      try {
+        if (showSpinner) {
+          setLoading(true);
+        }
+        setError("");
 
-  // Logic to determine current step index - Added safety check for delivery
-  const currentStepIndex = delivery ? steps.findIndex(s => s.status === delivery.status) : 0;
+        const response = await fetchCustomerDeliveries({ force });
+        const todayDelivery = response?.todayDelivery || null;
 
-  // If tracking data is missing, show fallback UI
-  if (!delivery || !agent) {
+        if (!cancelled) {
+          setDelivery(todayDelivery);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || "Unable to load tracking data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const needsRefresh =
+      !location.state?.delivery ||
+      !location.state?.delivery?.agent ||
+      !location.state?.delivery?.deliveryId;
+
+    if (needsRefresh) {
+      loadTrackingData();
+    } else {
+      setLoading(false);
+      loadTrackingData({ force: true, showSpinner: false });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.state]);
+
+  const agent = delivery?.agent || null;
+  const currentStepIndex = getSafeStepIndex(String(delivery?.status || "PENDING").toUpperCase());
+  const canTrack = Boolean(delivery?.deliveryId && agent);
+
+  if (loading) {
+    return (
+      <CustomerLayout>
+        <div className="p-8 text-center text-gray-500">
+          <div className="inline-flex items-center gap-2 rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-3">
+            <Loader2 size={18} className="animate-spin text-[#B8641A]" />
+            <span className="font-semibold">Loading active delivery tracking...</span>
+          </div>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  if (!canTrack) {
     return (
       <CustomerLayout>
         <div className="p-8 text-center">
-          <p className="text-gray-500 font-bold">No active delivery tracking data available.</p>
-          <button onClick={() => navigate(-1)} className="text-blue-600 mt-4 underline">Go Back</button>
+          <p className="font-bold text-[#8B7355]">No active delivery tracking data available.</p>
+          {error ? <p className="mt-2 text-sm text-[#C0392B]">{error}</p> : null}
+          <button onClick={() => navigate(-1)} className="mt-4 text-[#B8641A] underline">
+            Go Back
+          </button>
         </div>
       </CustomerLayout>
     );
@@ -35,23 +124,25 @@ const TrackAgent = () => {
 
   return (
     <CustomerLayout>
-      <div className="max-w-2xl mx-auto space-y-6 pb-10">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ArrowLeft size={24} />
+      <div className="space-y-5 pb-8 sm:space-y-6 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <div className="flex items-start gap-3 sm:items-center sm:gap-5">
+          <button
+            onClick={() => navigate(-1)}
+            className="rounded-full border border-[#EDE8DF] bg-white p-2 transition-colors hover:bg-[#FBF7F0]"
+          >
+            <ArrowLeft size={20} />
           </button>
-          <h2 className="text-2xl font-bold text-gray-900">Track Order</h2>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">Delivery Tracking</p>
+            <h2 className="mt-1 text-[24px] font-semibold text-[#2C1A0E] sm:text-[32px]" style={headingFont}>Track <span className="text-[#B8641A]">Order</span></h2>
+          </div>
         </div>
 
-        {/* 🚀 Delivery Progress Bar (The Stepper) */}
-        <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm">
+        <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 pb-10 pt-5 shadow-sm sm:rounded-[32px] sm:p-9">
           <div className="relative flex justify-between items-center">
-            {/* Background Line */}
-            <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 z-0"></div>
-            {/* Active Progress Line */}
-            <div 
-              className="absolute top-1/2 left-0 h-1 bg-blue-600 -translate-y-1/2 transition-all duration-700 z-0"
+            <div className="absolute top-1/2 left-0 h-1 w-full -translate-y-1/2 bg-[#F2EDE4] z-0"></div>
+            <div
+              className="absolute top-1/2 left-0 z-0 h-1 -translate-y-1/2 bg-[#B8641A] transition-all duration-700"
               style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
             ></div>
 
@@ -61,16 +152,24 @@ const TrackAgent = () => {
 
               return (
                 <div key={step.label} className="relative z-10 flex flex-col items-center">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    isCurrent ? 'bg-blue-600 ring-4 ring-blue-100 text-white' : 
-                    isActive ? 'bg-blue-600 text-white' : 'bg-white border-2 border-gray-200 text-gray-400'
-                  }`}>
-                    {isActive ? <CheckCircle2 size={20} /> : <div className="w-2 h-2 rounded-full bg-gray-300"></div>}
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300 sm:h-10 sm:w-10 ${
+                      isCurrent
+                        ? "bg-[#B8641A] ring-4 ring-[#FDE9C9] text-white"
+                        : isActive
+                        ? "bg-[#B8641A] text-white"
+                        : "bg-white border-2 border-[#EDE8DF] text-[#C4A882]"
+                    }`}
+                  >
+                    {isActive ? <CheckCircle2 size={20} /> : <div className="h-2 w-2 rounded-full bg-[#C4A882]"></div>}
                   </div>
-                  <span className={`absolute -bottom-7 text-[10px] font-black uppercase tracking-tighter whitespace-nowrap ${
-                    isActive ? 'text-blue-600' : 'text-gray-400'
-                  }`}>
-                    {step.label}
+                  <span
+                    className={`absolute -bottom-7 max-w-[70px] text-center text-[9px] font-black uppercase leading-tight tracking-tight sm:-bottom-8 sm:max-w-none sm:text-[10px] sm:whitespace-nowrap ${
+                      isActive ? "text-[#B8641A]" : "text-[#A88763]"
+                    }`}
+                  >
+                    <span className="sm:hidden">{step.mobileLabel || step.label}</span>
+                    <span className="hidden sm:inline">{step.label}</span>
                   </span>
                 </div>
               );
@@ -78,50 +177,66 @@ const TrackAgent = () => {
           </div>
         </div>
 
-        {/* Agent Profile Card */}
-        <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm space-y-8 mt-10">
-          <div className="flex items-center gap-5">
+        <div className="mt-8 space-y-6 rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] p-5 shadow-sm sm:mt-12 sm:space-y-10 sm:rounded-[32px] sm:p-9">
+          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
             <div className="relative">
-              <div className="h-20 w-20 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 overflow-hidden">
-                <User size={40} />
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-[#FBF7F0] text-[#A88763] sm:h-20 sm:w-20">
+                <User size={32} className="sm:hidden" />
+                <User size={40} className="hidden sm:block" />
               </div>
-              <div className="absolute -bottom-1 -right-1 bg-green-500 h-5 w-5 rounded-full border-4 border-white animate-pulse"></div>
+              <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-4 border-white bg-[#4A7C2F] animate-pulse"></div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                {/* 2. FIX: Added optional chaining to agent property */}
-                <h4 className="text-xl font-bold text-gray-900">{agent?.name}</h4>
-                <ShieldCheck size={18} className="text-blue-500" />
+            <div className="min-w-0">
+              <div className="flex items-center justify-center gap-2 sm:justify-start">
+                <h4 className="break-words text-lg font-bold text-[#2C1A0E] sm:text-xl">{agent.name}</h4>
+                <ShieldCheck size={18} className="text-[#B8641A]" />
               </div>
-              <p className="text-gray-500 text-sm">On his way to your address</p>
+              <p className="mt-1 text-sm text-[#8B7355]">
+                {agent.route && agent.route !== "-" ? `Route: ${agent.route}` : "On the way to your address"}
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <a
-              href={`tel:${agent?.phone}`}
-              className="flex items-center justify-center gap-3 bg-green-600 text-white py-4 rounded-2xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100"
+              href={`tel:${agent.phone}`}
+              className="flex min-h-[52px] items-center justify-center gap-3 rounded-[16px] bg-[#4A7C2F] px-4 py-3.5 text-sm font-bold text-white transition-all shadow-lg shadow-[#DDE8D1] hover:bg-[#3F6B27] sm:rounded-[18px] sm:py-4"
             >
               <Phone size={20} /> Call Agent
             </a>
-            <button className="flex items-center justify-center gap-3 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all">
-              <MessageSquare size={20} /> Message
+            <button
+              type="button"
+              disabled
+              className="flex min-h-[52px] cursor-not-allowed items-center justify-center gap-3 rounded-[16px] bg-[#EADFCC] px-4 py-3.5 text-sm font-bold text-[#8B7355] sm:rounded-[18px] sm:py-4"
+            >
+              <MessageSquare size={20} /> Message Soon
             </button>
           </div>
-        </div>
-  
 
-        {/* Delivery Summary */}
-        <div className="bg-gray-50 rounded-[32px] p-8 space-y-4">
-          <h5 className="font-bold text-gray-900 uppercase text-xs tracking-widest">Order Details</h5>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Product</span>
-            {/* 3. FIX: Added optional chaining to delivery properties */}
-            <span className="font-bold">{delivery?.quantity} {delivery?.product}</span>
+          <DeliveryETADisplay deliveryId={delivery.deliveryId} />
+        </div>
+
+        <div className="space-y-4 rounded-[24px] border border-[#EDE8DF] bg-[#F5F0E8] p-5 sm:space-y-5 sm:rounded-[32px] sm:p-9">
+          <h5 className="text-xs font-bold uppercase tracking-[0.18em] text-[#C4A882]">Order Details</h5>
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-sm text-[#8B7355]">Product</span>
+            <span className="max-w-[55%] text-right text-sm font-bold text-[#2C1A0E] sm:max-w-none">
+              {delivery.quantity} {delivery.product}
+            </span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Delivery Address</span>
-            <span className="font-bold text-right text-sm">Stored in Profile</span>
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-sm text-[#8B7355]">Delivery Slot</span>
+            <span className="max-w-[55%] text-right text-sm font-bold text-[#2C1A0E] sm:max-w-none">
+              {delivery.expectedWindow || delivery.slotWindow || delivery.slot || "-"}
+            </span>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-sm text-[#8B7355]">Status</span>
+            <span className="max-w-[55%] text-right text-sm font-bold text-[#2C1A0E] sm:max-w-none">{delivery.status || "-"}</span>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-sm text-gray-600">Delivery Type</span>
+            <span className="max-w-[55%] text-right text-sm font-bold sm:max-w-none">{getDeliveryTypeLabel(delivery)}</span>
           </div>
         </div>
       </div>
