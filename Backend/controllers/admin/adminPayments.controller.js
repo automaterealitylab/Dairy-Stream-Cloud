@@ -47,19 +47,36 @@ export const changeFarmPlan = async (req, res) => {
   }
 };
 
-export const collectOfflinePayment = async (req, res) => {
+/* ================================
+   3. MANUAL PAYMENTS AND CUSTOMER WALLET LOGIC
+   ================================ */
+
+/**
+ * @desc Process a manual payment: Clear bill first, then put remainder in wallet.
+ */
+
+export const collectManualPayment = async (req, res) => {
   try {
-    const { customerId, receivedAmount, method, note } = req.body || {};
-    const dairyId = req.admin.dairyId || null;
-    const result = await paymentService.collectCustomerOfflinePayment({
-      customerId: Number(customerId),
+    const { customerId, amount } = req.body;
+    const dairyId = req.admin.dairyId;
+
+    if (!customerId || !amount) {
+      return res.status(400).json({ error: "Customer ID and Amount are required." });
+    }
+
+    const updatedCustomer = await paymentService.recordManualPayment({
+      customerId,
+      amount,
       dairyId,
-      receivedAmount,
-      method,
-      note,
     });
-    res.json(result);
+
+    res.json({
+      success: true,
+      message: "Payment recorded. Bill and Wallet updated.",
+      customer: updatedCustomer,
+    });
   } catch (err) {
-    res.status(400).json({ error: err.message || "Failed to record offline payment" });
+    console.error("MANUAL PAYMENT ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 };

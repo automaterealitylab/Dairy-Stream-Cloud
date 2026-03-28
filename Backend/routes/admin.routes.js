@@ -37,6 +37,7 @@ import {
 import {
   collectOfflinePayment,
   changeFarmPlan,
+  collectManualPayment,
   fetchPageData,
   updateStatus,
 } from "../controllers/admin/adminPayments.controller.js";
@@ -133,7 +134,7 @@ router.put("/procurement/:id", verifyAdmin, updateProcurementLog); // Correct an
 // ==========================================
 router.get("/payments", verifyAdmin, fetchPageData); // Fetch payment ledger data
 router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
-router.post("/payments/offline-collect", verifyAdmin, collectOfflinePayment); // Collect offline payment and add excess to wallet
+router.post("/payments/manual", verifyAdmin, collectManualPayment);
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
 
 // ==========================================
