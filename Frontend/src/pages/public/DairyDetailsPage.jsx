@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Star,
@@ -35,7 +35,7 @@ const DAY_OPTIONS = [
   { key: "SUNDAY", label: "Sun" },
 ];
 
-const normalizeProducts = (dairy = {}) => {
+const normalizeAllProducts = (dairy = {}) => {
   const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
   if (explicitItems.length > 0) {
     return explicitItems
@@ -47,7 +47,7 @@ const normalizeProducts = (dairy = {}) => {
         stockQuantity: Number(item.stockQuantity || 0),
         unit: item.unit || "LITER",
       }))
-      .filter((item) => item.type === "MILK" && item.name && item.ratePerUnit > 0);
+      .filter((item) => item.name && item.ratePerUnit > 0);
   }
 
   const legacy = dairy?.products || {
@@ -67,10 +67,24 @@ const normalizeProducts = (dairy = {}) => {
   }));
 };
 
+const getMilkProducts = (products = []) =>
+  products.filter((item) => String(item.type || "MILK").trim().toUpperCase() === "MILK");
+
+const isProductOutOfStock = (stockQuantity) => {
+  const stock = Number(stockQuantity);
+  return Number.isFinite(stock) && stock <= 0;
+};
+
+const formatProductStockLabel = (stockQuantity) => {
+  const stock = Number(stockQuantity);
+  if (!Number.isFinite(stock)) return "Fresh stock available";
+  if (stock <= 0) return "Out of stock";
+  return `${stock} left`;
+};
+
 const DairyDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -134,7 +148,8 @@ const DairyDetailsPage = () => {
 
   const dairy = useMemo(() => {
     if (!data) return null;
-    const productItems = normalizeProducts(data);
+    const allProductItems = normalizeAllProducts(data);
+    const productItems = getMilkProducts(allProductItems);
     const products = productItems.reduce((acc, item) => {
       acc[item.name] = item.ratePerUnit;
       return acc;
@@ -148,6 +163,7 @@ const DairyDetailsPage = () => {
       address: data.address || data.city || "Address not available",
       rating: data.rating || 4.5,
       products,
+      allProductItems,
       productItems,
     };
   }, [data]);
@@ -281,9 +297,58 @@ const handleContinueFromStep2 = () => {
             )}
           </div>
 
-          <section className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
-            <h2 className="text-2xl font-bold mb-4">About this Farm</h2>
-            <p className="text-slate-600 leading-relaxed">{dairy.description}</p>
+          <section className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Available Products</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  See everything this dairy currently offers before you subscribe or place a one-time order.
+                </p>
+              </div>
+            </div>
+
+            {dairy.allProductItems.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {dairy.allProductItems.map((item) => {
+                  const outOfStock = isProductOutOfStock(item.stockQuantity);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold leading-5 text-slate-900">{item.name}</p>
+                          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                            {item.type}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+                            outOfStock
+                              ? "bg-red-100 text-red-600"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {formatProductStockLabel(item.stockQuantity)}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-end justify-between">
+                        <p className="text-lg font-black text-slate-900">
+                          Rs {item.ratePerUnit}
+                          <span className="ml-1 text-xs font-medium text-slate-400">/{item.unit}</span>
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500">
+                No products are listed for this dairy right now.
+              </div>
+            )}
           </section>
         </div>
 
