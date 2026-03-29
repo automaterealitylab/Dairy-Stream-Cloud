@@ -18,7 +18,7 @@ This document provides a complete summary of all features implemented, including
 ## Files Modified/Created
 
 ### Database
-- **SUPABASE_MIGRATIONS.sql** ✏️ MODIFIED
+- **Backend/sql/SUPABASE_MIGRATIONS.sql** ✏️ MODIFIED
   - Added `deliveries` table with proof fields
   - Added `delivery_proofs` table
   - Added `agent_performance` table with efficiency metrics
@@ -386,7 +386,7 @@ States: performanceData, topPerformers, missedDeliveries, summaryStats
 
 ## Integration Checklist
 
-- [ ] Run database migrations (SUPABASE_MIGRATIONS.sql)
+- [ ] Run database migrations (Backend/sql/SUPABASE_MIGRATIONS.sql)
 - [ ] Add routes in Backend/routes/
 - [ ] Add API endpoints to Postman/API documentation
 - [ ] Test all backend endpoints
@@ -452,7 +452,7 @@ Frontend/
 │       └── offlineSyncManager.js ✨
 
 Root/
-├── SUPABASE_MIGRATIONS.sql ✏️
+├── Backend/sql/SUPABASE_MIGRATIONS.sql ✏️
 ├── IMPLEMENTATION_GUIDE.md ✨
 └── IMPLEMENTATION_SUMMARY.md ✨
 
@@ -464,7 +464,7 @@ Root/
 
 ## Support Links
 
-- **Database Schema**: SUPABASE_MIGRATIONS.sql
+- **Database Schema**: Backend/sql/SUPABASE_MIGRATIONS.sql
 - **Implementation Guide**: IMPLEMENTATION_GUIDE.md
 - **Admin Dashboard**: Frontend/src/pages/admin/AdminPerformanceDashboard.jsx
 - **Agent Earnings**: Frontend/src/pages/agent/AgentEarnings.jsx

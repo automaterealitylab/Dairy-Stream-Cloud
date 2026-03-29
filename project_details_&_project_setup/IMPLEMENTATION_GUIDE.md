@@ -227,7 +227,7 @@ await DeliveryManager.markDeliveryFailed(deliveryId, reason, details, file, api)
 Run these SQL migrations in Supabase:
 
 ```sql
--- Already included in SUPABASE_MIGRATIONS.sql
+-- Already included in Backend/sql/SUPABASE_MIGRATIONS.sql
 -- New tables:
 -- - deliveries
 -- - delivery_proofs
@@ -372,7 +372,7 @@ Default earning per delivery: ₹50 (configurable via API)
 ## Support & Documentation
 
 For detailed implementation of individual features, refer to:
-- Database schema: `SUPABASE_MIGRATIONS.sql`
+- Database schema: `Backend/sql/SUPABASE_MIGRATIONS.sql`
 - Frontend components: `Frontend/src/components/agent/`
 - Backend services: `Backend/services/`
 - API utilities: `Frontend/src/api/performance.api.js`
