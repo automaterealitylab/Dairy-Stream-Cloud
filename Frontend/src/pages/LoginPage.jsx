@@ -25,6 +25,7 @@ import {
 } from "../services/auth.api.js"; // Adjust path if needed
 
 const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
+const headingFont = { fontFamily: "'Lora', serif" };
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -407,33 +408,33 @@ const LoginPage = () => {
 
     let Icon = User;
     let label = "User";
-    let badgeColor = "bg-blue-200 text-blue-700";
+    let badgeColor = "bg-[#FFF4E2] text-[#B8641A]";
 
     if (detectedUser.userType === "ADMIN") {
       Icon = Mail;
       label = "Admin ID";
-      badgeColor = "bg-purple-200 text-purple-700";
+      badgeColor = "bg-[#FFF1E4] text-[#C86A2B]";
     } else if (detectedUser.userType === "AGENT" || detectedUser.userType === "STAFF") {
       Icon = Briefcase;
       label = "Staff ID";
-      badgeColor = "bg-orange-200 text-orange-700";
+      badgeColor = "bg-[#FFF1E4] text-[#C86A2B]";
     } else if (detectedUser.userType === "CUSTOMER") {
       Icon = Smartphone;
       label = "Email/Mobile";
-      badgeColor = "bg-green-200 text-green-700";
+      badgeColor = "bg-[#EEF5E7] text-[#4A7C2F]";
     }
 
     return (
-      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 p-3 rounded-lg mb-6">
+      <div className="mb-6 flex items-center justify-between rounded-[16px] border border-[#EDE8DF] bg-[#FBF7F0] p-3">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className={`p-2 rounded-full ${badgeColor}`}>
             <Icon size={16} />
           </div>
           <div className="flex flex-col text-left">
-            <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#A88763]">
               {label}
             </span>
-            <span className="text-sm font-semibold text-gray-900 truncate">
+            <span className="truncate text-sm font-semibold text-[#2C1A0E]">
               {identifier}
             </span>
           </div>
@@ -441,7 +442,7 @@ const LoginPage = () => {
         <button
           type="button"
           onClick={handleReset}
-          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+          className="p-2 text-[#A88763] transition-colors hover:text-[#B8641A]"
           title="Change User"
         >
           <Edit2 size={16} />
@@ -452,38 +453,68 @@ const LoginPage = () => {
 
   // ================= FULL JSX =================
   return (
-    <div className="min-h-screen bg-slate-50 grid lg:grid-cols-2">
+    <div
+      className="min-h-screen flex flex-col bg-[linear-gradient(180deg,#F5F0E8_0%,#FFFDF8_100%)] lg:grid lg:grid-cols-2"
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    >
+      <div className="order-2 px-4 pb-6 sm:px-6 lg:hidden">
+        <div className="relative overflow-hidden rounded-[28px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-5 py-6 text-white shadow-[0_20px_50px_rgba(44,26,14,0.16)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.18),transparent_40%)]" />
+          <div className="relative z-10">
+            <h1 className="text-[30px] font-semibold leading-[1.05]" style={headingFont}>DairyStream</h1>
+            <p className="mt-3 max-w-sm text-sm text-[#F5E6D2]">
+              Manage milk deliveries, subscriptions, billing, and customer access from one calm, reliable platform.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2.5">
+              <Link
+                to="/register-dairy"
+                className="inline-flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white no-underline transition hover:bg-white/16"
+              >
+                <ShieldCheck size={16} /> Register Dairy
+              </Link>
+              <Link
+                to="/explore"
+                className="inline-flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white no-underline transition hover:bg-white/16"
+              >
+                <MapPin size={16} /> Explore Nearby
+              </Link>
+            </div>
+          </div>
+          <div className="absolute -bottom-16 -right-14 h-40 w-40 rounded-full bg-[#D28A40]/20 blur-3xl" />
+        </div>
+      </div>
 
       {/* ================= LEFT BRAND SECTION ================= */}
-      <div className="hidden lg:flex flex-col justify-center px-20 bg-blue-600 text-white relative overflow-hidden">
+      <div className="relative hidden overflow-hidden bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-20 text-white lg:flex lg:flex-col lg:justify-center">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.16),transparent_42%)]" />
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold tracking-tight">DairyStream</h1>
-          <div className="w-12 h-1 bg-blue-300 rounded-full mt-4 mb-6" />
-          <p className="text-lg text-blue-100 max-w-md">
+          <h1 className="mt-3 text-5xl font-semibold tracking-tight text-white" style={headingFont}>DairyStream</h1>
+          <div className="mb-6 mt-4 h-1 w-12 rounded-full bg-[#D6A15D]" />
+          <p className="max-w-md text-lg text-[#F5E6D2]">
             Manage milk deliveries, subscriptions, billing, and customer access from one calm, reliable platform.
           </p>
           <div className="mt-8 flex gap-4">
             <Link
               to="/register-dairy"
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg border border-white/10 transition text-white no-underline"
+              className="flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-4 py-2.5 text-white no-underline transition hover:bg-white/16"
             >
               <ShieldCheck size={18} /> Register Dairy
             </Link>
             <Link
               to="/explore"
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg border border-white/10 transition no-underline text-white"
+              className="flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-4 py-2.5 text-white no-underline transition hover:bg-white/16"
             >
               <MapPin size={18} /> Explore Nearby
             </Link>
           </div>
         </div>
-        {/* Decorative Blur */}
-        <div className="absolute -bottom-40 -right-20 w-96 h-96 bg-blue-500/50 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -right-20 h-96 w-96 rounded-full bg-[#D28A40]/20 blur-3xl"></div>
+        <div className="absolute -top-24 left-10 h-52 w-52 rounded-full bg-[#FFF4E2]/8 blur-3xl"></div>
       </div>
 
       {/* ================= RIGHT LOGIN FORM SECTION ================= */}
-      <div className="flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
+      <div className="order-1 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:order-none lg:px-4 lg:py-10">
+        <div className="w-full max-w-md rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-5 shadow-[0_24px_60px_rgba(44,26,14,0.12)] sm:p-8">
 
           {/* HEADER */}
           <div className="text-center mb-8">
@@ -492,10 +523,11 @@ const LoginPage = () => {
               alt="Dairy"
               className="h-16 w-auto mx-auto mb-4 object-contain"
             />
-            <h2 className="text-2xl font-bold text-gray-900">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">Sign In</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
               {step === "IDENTIFIER" ? "Welcome Back" : "Sign In"}
             </h2>
-            <p className="text-gray-500 text-sm mt-1">
+            <p className="mt-1 text-sm text-[#8B7355]">
               {step === "IDENTIFIER" && "Enter your Email, Mobile, or Staff ID"}
               {step === "CONFIRMATION" && "Verify your account details"}
               {step === "OTP" && `Verifying ${identifier}`}
@@ -507,10 +539,10 @@ const LoginPage = () => {
               <div className="flex justify-center mt-3">
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border uppercase ${
                   detectedUser.userType === "ADMIN"
-                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                    ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
                     : (detectedUser.userType === "AGENT" || detectedUser.userType === "STAFF")
-                    ? "bg-orange-50 text-orange-700 border-orange-200"
-                    : "bg-green-50 text-green-700 border-green-200"
+                    ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
+                    : "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
                 }`}>
                   {detectedUser.userType === "ADMIN" ? "Dairy Admin" : 
                    (detectedUser.userType === "AGENT" || detectedUser.userType === "STAFF") ? "Delivery Agent" : "Customer"}
@@ -521,7 +553,7 @@ const LoginPage = () => {
 
           {/* ERROR ALERT */}
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm flex items-center gap-2 animate-pulse">
+            <div className="mb-6 flex items-center gap-2 rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] p-4 text-sm text-[#C0392B]">
               <AlertCircle size={16} /> {error}
             </div>
           )}
@@ -536,13 +568,13 @@ const LoginPage = () => {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="Mobile, email, or staff ID (STF...)"
-                  className="w-full pl-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 text-[#2C1A0E] outline-none transition-all focus:border-[#B8641A]"
                   autoFocus
                 />
               </div>
               <button
                 disabled={loading || !identifier}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white transition-colors hover:bg-[#9F5313] disabled:bg-[#D8C8B2]"
               >
                 {loading ? <Loader2 className="animate-spin" /> : "Continue"}
                 {!loading && <ArrowRight size={18} />}
@@ -573,13 +605,13 @@ const LoginPage = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
                       autoFocus
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -598,7 +630,7 @@ const LoginPage = () => {
                             handleAgentForgotPasswordRequest();
                           }
                         }}
-                        className="text-xs text-blue-600 font-semibold hover:underline"
+                        className="text-xs font-semibold text-[#B8641A] hover:underline"
                         disabled={loading}
                       >
                         Forgot Password?
@@ -608,14 +640,14 @@ const LoginPage = () => {
 
                   <button
                     disabled={loading || !password}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                    className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white hover:bg-[#9F5313] disabled:bg-[#D8C8B2]"
                   >
                     {loading ? <Loader2 className="animate-spin" /> : "Login"}
                   </button>
                 </>
               ) : adminResetMode ? (
                 <>
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
+                  <div className="rounded-[14px] border border-[#E7DAC6] bg-[#FFF8EC] p-3 text-xs text-[#8B7355]">
                     OTP will be sent to your registered admin email, irrespective of email/mobile login method.
                   </div>
 
@@ -624,7 +656,7 @@ const LoginPage = () => {
                       type="button"
                       onClick={handleAdminForgotPasswordRequest}
                       disabled={loading}
-                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white hover:bg-[#9F5313] disabled:bg-[#D8C8B2]"
                     >
                       {loading ? <Loader2 className="animate-spin" /> : "Send OTP"}
                     </button>
@@ -639,7 +671,7 @@ const LoginPage = () => {
                             type="button"
                             onClick={handleAdminForgotPasswordRequest}
                             disabled={loading || adminOtpRequestsRemaining <= 0}
-                            className="text-blue-600 font-semibold hover:underline disabled:text-gray-400 disabled:no-underline"
+                            className="font-semibold text-[#B8641A] hover:underline disabled:text-[#C4A882] disabled:no-underline"
                           >
                             Resend OTP
                           </button>
@@ -655,7 +687,7 @@ const LoginPage = () => {
                         value={adminResetOtp}
                         onChange={(e) => setAdminResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder="Enter 6-digit OTP"
-                        className="w-full text-center text-2xl tracking-widest py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                        className="w-full rounded-[16px] border border-[#EDE8DF] py-3 text-center font-mono text-2xl tracking-widest outline-none focus:border-[#B8641A]"
                         autoFocus
                       />
 
@@ -666,12 +698,12 @@ const LoginPage = () => {
                           value={newAdminPassword}
                           onChange={(e) => setNewAdminPassword(e.target.value)}
                           placeholder="New password"
-                          className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
                         />
                         <button
                           type="button"
                           onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
                         >
                           {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -684,12 +716,12 @@ const LoginPage = () => {
                           value={confirmAdminPassword}
                           onChange={(e) => setConfirmAdminPassword(e.target.value)}
                           placeholder="Confirm new password"
-                          className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
                         />
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
                         >
                           {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -697,7 +729,7 @@ const LoginPage = () => {
 
                       <button
                         disabled={loading || adminResetOtp.length < 6 || !newAdminPassword || !confirmAdminPassword}
-                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                        className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
                       >
                         {loading ? <Loader2 className="animate-spin" /> : "Reset Password"}
                       </button>
@@ -712,7 +744,7 @@ const LoginPage = () => {
                           setConfirmAdminPassword("");
                           setAdminOtpRequestsRemaining(null);
                         }}
-                        className="w-full text-sm text-gray-500 hover:text-gray-700"
+                        className="w-full text-sm text-[#8B7355] hover:text-[#5C3D1E]"
                       >
                         Back to Login
                       </button>
@@ -721,7 +753,7 @@ const LoginPage = () => {
                 </>
               ) : (
                 <>
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
+                  <div className="rounded-[14px] border border-[#E7DAC6] bg-[#FFF8EC] p-3 text-xs text-[#8B7355]">
                     OTP will be sent to the agent's registered email using your staff ID.
                   </div>
 
@@ -730,7 +762,7 @@ const LoginPage = () => {
                       type="button"
                       onClick={handleAgentForgotPasswordRequest}
                       disabled={loading}
-                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white hover:bg-[#9F5313] disabled:bg-[#D8C8B2]"
                     >
                       {loading ? <Loader2 className="animate-spin" /> : "Send OTP"}
                     </button>
@@ -745,7 +777,7 @@ const LoginPage = () => {
                             type="button"
                             onClick={handleAgentForgotPasswordRequest}
                             disabled={loading || agentOtpRequestsRemaining <= 0}
-                            className="text-blue-600 font-semibold hover:underline disabled:text-gray-400 disabled:no-underline"
+                            className="font-semibold text-[#B8641A] hover:underline disabled:text-[#C4A882] disabled:no-underline"
                           >
                             Resend OTP
                           </button>
@@ -761,7 +793,7 @@ const LoginPage = () => {
                         value={agentResetOtp}
                         onChange={(e) => setAgentResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder="Enter 6-digit OTP"
-                        className="w-full text-center text-2xl tracking-widest py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                        className="w-full rounded-[16px] border border-[#EDE8DF] py-3 text-center font-mono text-2xl tracking-widest outline-none focus:border-[#B8641A]"
                         autoFocus
                       />
 
@@ -772,12 +804,12 @@ const LoginPage = () => {
                           value={newAgentPassword}
                           onChange={(e) => setNewAgentPassword(e.target.value)}
                           placeholder="New password"
-                          className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
                         />
                         <button
                           type="button"
                           onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
                         >
                           {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -790,12 +822,12 @@ const LoginPage = () => {
                           value={confirmAgentPassword}
                           onChange={(e) => setConfirmAgentPassword(e.target.value)}
                           placeholder="Confirm new password"
-                          className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
                         />
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
                         >
                           {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -803,7 +835,7 @@ const LoginPage = () => {
 
                       <button
                         disabled={loading || agentResetOtp.length < 6 || !newAgentPassword || !confirmAgentPassword}
-                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                        className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
                       >
                         {loading ? <Loader2 className="animate-spin" /> : "Reset Password"}
                       </button>
@@ -818,7 +850,7 @@ const LoginPage = () => {
                           setConfirmAgentPassword("");
                           setAgentOtpRequestsRemaining(null);
                         }}
-                        className="w-full text-sm text-gray-500 hover:text-gray-700"
+                        className="w-full text-sm text-[#8B7355] hover:text-[#5C3D1E]"
                       >
                         Back to Login
                       </button>
@@ -840,27 +872,27 @@ const LoginPage = () => {
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   maxLength={6}
                   placeholder="• • • • • •"
-                  className="w-full text-center text-3xl tracking-widest py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-mono"
+                  className="w-full rounded-[16px] border border-[#EDE8DF] py-4 text-center font-mono text-3xl tracking-widest outline-none focus:border-[#4A7C2F]"
                   autoFocus
                 />
-                <p className="text-xs text-gray-400 mt-2">Enter the 6-digit code sent to your email/mobile</p>
+                <p className="mt-2 text-xs text-[#A88763]">Enter the 6-digit code sent to your email/mobile</p>
               </div>
 
               <button 
                 disabled={loading || otp.length < 4}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
               >
                 {loading ? <Loader2 className="animate-spin" /> : "Verify & Login"}
               </button>
 
               <div className="text-center">
                  {otpTimer > 0 ? (
-                    <span className="text-xs text-gray-400">Resend in {otpTimer}s</span>
+                    <span className="text-xs text-[#A88763]">Resend in {otpTimer}s</span>
                  ) : (
                     <button 
                         type="button"
                         onClick={() => {/* logic to resend */}}
-                        className="text-xs text-blue-600 font-semibold hover:underline"
+                        className="text-xs font-semibold text-[#B8641A] hover:underline"
                     >
                         Resend Code
                     </button>
@@ -870,12 +902,12 @@ const LoginPage = () => {
           )}
 
           {/* FOOTER LINK */}
-          <div className="text-center mt-6 pt-6 border-t border-gray-100">
-            <p className="text-sm text-gray-500">
+          <div className="mt-6 border-t border-[#F2EDE4] pt-6 text-center">
+            <p className="text-sm text-[#8B7355]">
               New user?{" "}
               <Link
                 to="/customer/register"
-                className="text-blue-600 font-bold hover:underline"
+                className="font-bold text-[#B8641A] hover:underline"
               >
                 Create account
               </Link>

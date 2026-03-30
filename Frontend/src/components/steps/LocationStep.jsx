@@ -1,16 +1,29 @@
 import React from "react";
 import { Target } from "lucide-react";
 
+const headingFont = { fontFamily: "'Lora', serif" };
+
+const inputClassName =
+  "w-full rounded-[16px] border border-[#EDE8DF] bg-white px-5 py-4 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]";
+
 const LocationStep = ({ formData, handleChange, detectLocation }) => {
   return (
-    <div className="p-10 animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-black">Location Settings</h2>
+    <div className="animate-in fade-in slide-in-from-right-4 duration-500 p-5 sm:p-10">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Service Area</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
+            Location Settings
+          </h2>
+          <p className="mt-2 text-sm text-[#8B7355]">
+            Define where the dairy operates and how delivery coverage should work.
+          </p>
+        </div>
 
         <button
           type="button"
           onClick={detectLocation}
-          className="flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-blue-100 transition-all active:scale-95"
+          className="inline-flex items-center gap-2 rounded-[14px] border border-[#EFD7B3] bg-[#FFF4E2] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-[#B8641A] transition hover:bg-[#FCE8CB] active:scale-95"
         >
           <Target size={16} /> Detect GPS
         </button>
@@ -18,20 +31,18 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
 
       <div className="space-y-6">
         <div
-          className={`p-4 rounded-2xl text-xs font-bold border ${
+          className={`rounded-[18px] border px-4 py-4 text-sm font-semibold ${
             formData.latitude
-              ? "bg-green-50 text-green-700 border-green-100"
-              : "bg-amber-50 text-amber-700 border-amber-100"
+              ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
+              : "border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
           }`}
         >
           {formData.latitude
-            ? `✅ GPS Locked: ${formData.latitude.toFixed(4)}, ${formData.longitude.toFixed(4)}`
-            : "⚠️ Capture GPS to enable radius delivery"}
+            ? `GPS Locked: ${formData.latitude.toFixed(4)}, ${formData.longitude.toFixed(4)}`
+            : "Capture GPS to enable radius delivery"}
         </div>
 
-        {/* Delivery Type */}
-
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
           <button
             type="button"
             onClick={() =>
@@ -39,10 +50,10 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
                 target: { name: "service_type", value: "RADIUS" },
               })
             }
-            className={`px-4 py-2 rounded-xl text-xs font-black ${
+            className={`rounded-[14px] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.14em] transition ${
               formData.service_type === "RADIUS"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100"
+                ? "border border-[#B8641A] bg-[#B8641A] text-white"
+                : "border border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
             }`}
           >
             Radius
@@ -55,17 +66,15 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
                 target: { name: "service_type", value: "PINCODE" },
               })
             }
-            className={`px-4 py-2 rounded-xl text-xs font-black ${
+            className={`rounded-[14px] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.14em] transition ${
               formData.service_type === "PINCODE"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100"
+                ? "border border-[#B8641A] bg-[#B8641A] text-white"
+                : "border border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
             }`}
           >
             Pincode
           </button>
         </div>
-
-        {/* Radius */}
 
         {formData.service_type === "RADIUS" && (
           <input
@@ -74,11 +83,9 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
             value={formData.service_radius}
             onChange={handleChange}
             placeholder="Delivery Radius KM"
-            className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl font-bold"
+            className={inputClassName}
           />
         )}
-
-        {/* Pincode */}
 
         {formData.service_type === "PINCODE" && (
           <input
@@ -87,7 +94,7 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
             value={formData.service_pincodes || ""}
             onChange={handleChange}
             placeholder="Serviceable Pincodes (comma separated)"
-            className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl font-bold"
+            className={inputClassName}
           />
         )}
 
@@ -97,17 +104,17 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
           value={formData.address}
           onChange={handleChange}
           placeholder="Full Street Address *"
-          className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl font-bold"
+          className={inputClassName}
         />
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <input
             type="text"
             name="city"
             value={formData.city}
             onChange={handleChange}
             placeholder="City *"
-            className="px-5 py-4 bg-gray-50 border-none rounded-2xl font-bold"
+            className={inputClassName}
           />
 
           <input
@@ -116,7 +123,7 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
             value={formData.state}
             onChange={handleChange}
             placeholder="State *"
-            className="px-5 py-4 bg-gray-50 border-none rounded-2xl font-bold"
+            className={inputClassName}
           />
 
           <input
@@ -125,7 +132,7 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
             value={formData.pincode}
             onChange={handleChange}
             placeholder="Pincode *"
-            className="px-5 py-4 bg-gray-50 border-none rounded-2xl font-bold"
+            className={inputClassName}
           />
         </div>
       </div>

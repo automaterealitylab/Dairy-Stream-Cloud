@@ -218,14 +218,17 @@ async (pos) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-10 px-4 flex flex-col items-center">
-      <div className="sticky top-0 z-30 w-full flex justify-center bg-slate-50/95 backdrop-blur pb-4">
-        <div className="w-full max-w-5xl pt-4">
-          <div className="mb-4 flex justify-start">
+    <div
+      className="min-h-screen bg-[linear-gradient(180deg,#F5F0E8_0%,#FFFDF8_100%)] px-3 py-4 flex flex-col items-center sm:px-4 sm:py-6 lg:py-10"
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    >
+      <div className="sticky top-0 z-30 w-full flex justify-center bg-[#F5F0E8]/95 backdrop-blur pb-3 sm:pb-4">
+        <div className="w-full max-w-5xl">
+          <div className="mb-3 flex justify-start sm:mb-4">
             <button
               type="button"
               onClick={() => navigate("/", { replace: true })}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+              className="inline-flex items-center gap-2 rounded-[14px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] shadow-sm transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
             >
               <ArrowLeft size={16} />
               Back to Login
@@ -236,7 +239,7 @@ async (pos) => {
         </div>
       </div>
 
-      <div className="bg-white w-full max-w-5xl rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+      <div className="w-full max-w-5xl overflow-hidden rounded-[24px] border border-[#E7DAC6] bg-[#FFFDF7] shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[32px]">
         {currentStep === 1 && (
           <BrandStep
             formData={formData}
@@ -275,7 +278,7 @@ async (pos) => {
           <ReviewStep formData={formData} logoPreview={logoPreview} />
         )}
 
-        <div className="p-8 bg-gray-50 flex justify-between border-t border-gray-100">
+        <div className="flex flex-col-reverse gap-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <button
             onClick={() => {
               if (currentStep === 1) {
@@ -284,7 +287,7 @@ async (pos) => {
               }
               setCurrentStep((s) => s - 1);
             }}
-            className="font-bold text-gray-400"
+            className="w-full rounded-[14px] border border-[#EDE8DF] bg-white px-4 py-3 text-center font-bold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] sm:w-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
           >
             {currentStep === 1 ? "Back to Login" : "Back"}
           </button>
@@ -292,8 +295,8 @@ async (pos) => {
           <button
             onClick={currentStep === 6 ? handleSubmit : handleNext}
             disabled={loading}
-            className={`px-10 py-4 rounded-2xl font-black text-white flex items-center gap-2 ${
-              currentStep === 6 ? "bg-green-600" : "bg-blue-600"
+            className={`flex w-full items-center justify-center gap-2 rounded-[16px] px-6 py-4 font-black text-white transition disabled:cursor-not-allowed disabled:bg-[#D8C8B2] sm:w-auto sm:px-10 ${
+              currentStep === 6 ? "bg-[#4A7C2F] hover:bg-[#3E6928]" : "bg-[#B8641A] hover:bg-[#9F5313]"
             }`}
           >
             {loading ? (
