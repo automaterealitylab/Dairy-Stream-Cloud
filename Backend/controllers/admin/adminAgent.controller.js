@@ -10,9 +10,13 @@ export const fetchAdminAgents = async (req, res) => {
     const page = Number(req.query.page || 1);
     const limit = Number(req.query.limit || 10);
     const search = req.query.search || "";
+    const lite =
+      String(req.query.lite || "")
+        .trim()
+        .toLowerCase() === "true";
     const dairyId = req.admin?.dairyId ?? null;
 
-    const result = await getAdminAgents({ page, limit, search, dairyId });
+    const result = await getAdminAgents({ page, limit, search, dairyId, lite });
 
     res.json(result);
   } catch (err) {

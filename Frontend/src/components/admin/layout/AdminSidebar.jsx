@@ -111,7 +111,7 @@ export default function AdminSidebar({ open, onClose }) {
         className={`
           fixed inset-y-0 left-0 z-50 w-64
           border-r border-[#EDE8DF] bg-white/95 backdrop-blur
-          flex flex-col
+          flex h-screen min-h-0 flex-col
           transform transition-transform duration-300 ease-out
           ${open ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
@@ -119,17 +119,17 @@ export default function AdminSidebar({ open, onClose }) {
         style={adminShellFont}
       >
         {/* Brand */}
-        <div className="border-b border-[#F2EDE4] px-6 py-7">
+        <div className="border-b border-[#F2EDE4] px-5 py-4">
           <h2 className="text-[26px] text-[#B8641A]" style={adminHeadingFont}>
             DairyStream
           </h2>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
             Admin Portal
           </p>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-5">
+        <nav className="flex-1 space-y-1 px-3 pt-1 pb-3 overflow-hidden">
           {menuItems.map((item) => (
             <NavLink
               key={item.label}
@@ -138,7 +138,7 @@ export default function AdminSidebar({ open, onClose }) {
               className={({ isActive }) =>
                 `
                 relative group flex items-center gap-4
-                px-4 py-3 rounded-xl text-sm font-semibold
+                px-3 py-2.5 rounded-xl text-sm font-semibold
                 transition-all
                 ${
                   isActive
@@ -170,7 +170,7 @@ export default function AdminSidebar({ open, onClose }) {
         </nav>
 
         {/* Logout */}
-        <div className="border-t border-[#F2EDE4] px-6 py-5">
+        <div className="shrink-0 border-t border-[#F2EDE4] px-5 py-4">
           <button
             onClick={() => {
               localStorage.removeItem("adminToken");
