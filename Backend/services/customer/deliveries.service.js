@@ -1028,11 +1028,38 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     throw new Error("Only one-time orders can be cancelled");
   }
 
-  if (String(delivery?.status || "PENDING").toUpperCase() !== "PENDING") {
+  const deliveryStatus = String(delivery?.status || "PENDING").toUpperCase();
+  const approvalStatus = String(delivery?.approval_status || "PENDING").toUpperCase();
+
+  if (deliveryStatus === "IN_TRANSIT") {
+    throw new Error("This order is already out for delivery and can no longer be cancelled");
+  }
+
+  if (deliveryStatus === "DELIVERED" || deliveryStatus === "COMPLETED") {
+    throw new Error("Delivered orders cannot be cancelled");
+  }
+
+  if (deliveryStatus === "FAILED") {
+    throw new Error("Failed orders cannot be cancelled");
+  }
+
+  if (deliveryStatus === "CANCELLED" || deliveryStatus === "CANCELED") {
+    throw new Error("This order has already been cancelled");
+  }
+
+  if (deliveryStatus !== "PENDING") {
     throw new Error("Only pending one-time orders can be cancelled");
   }
 
-  if (String(delivery?.approval_status || "PENDING").toUpperCase() !== "PENDING") {
+  if (approvalStatus === "APPROVED") {
+    throw new Error("This order has already been approved and cannot be cancelled by the customer");
+  }
+
+  if (approvalStatus === "CANCELLED" || approvalStatus === "CANCELED") {
+    throw new Error("This order has already been cancelled");
+  }
+
+  if (approvalStatus !== "PENDING") {
     throw new Error("Only approval-pending one-time orders can be cancelled");
   }
 

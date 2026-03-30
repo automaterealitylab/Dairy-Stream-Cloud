@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
+import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
@@ -127,7 +128,9 @@ function App() {
           path="/admin/agents"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminAgents />
+              <AdminPlanRoute feature="agents">
+                <AdminAgents />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />
@@ -167,7 +170,9 @@ function App() {
           path="/admin/performance"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminPerformanceDashboard />
+              <AdminPlanRoute feature="performance">
+                <AdminPerformanceDashboard />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />
@@ -175,7 +180,9 @@ function App() {
           path="/admin/procurement"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminProcurement />
+              <AdminPlanRoute feature="procurement">
+                <AdminProcurement />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />
@@ -183,7 +190,9 @@ function App() {
           path="/admin/suppliers"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminSuppliers />
+              <AdminPlanRoute feature="suppliers">
+                <AdminSuppliers />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />

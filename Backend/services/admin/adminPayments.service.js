@@ -61,6 +61,7 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
     .select("id, customer_id, dairy_id, amount, status, method, paid_at, due_date, created_at", {
       count: "exact",
     })
+    .not("status", "in", '("CANCELLED","CANCELED")')
     .order("created_at", { ascending: false })
     .range(from, to);
 

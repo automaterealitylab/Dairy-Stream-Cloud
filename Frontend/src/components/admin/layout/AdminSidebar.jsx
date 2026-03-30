@@ -1,8 +1,13 @@
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+
+import { fetchAdminDashboard, getCachedAdminDashboard } from "../../../api/admin.api.js";
+import { canAccessAdminFeature, normalizeAdminPlan } from "../../../utils/adminPlanAccess.js";
 import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
 const menuItems = [
   {
+    feature: "dashboard",
     label: "Dashboard",
     to: "/admin/AdminDashboard",
     icon: (
@@ -12,6 +17,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "customers",
     label: "Customers",
     to: "/admin/customers",
     icon: (
@@ -21,6 +27,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "agents",
     label: "Agents",
     to: "/admin/agents",
     icon: (
@@ -30,6 +37,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "deliveries",
     label: "Deliveries",
     to: "/admin/deliveries",
     icon: (
@@ -39,6 +47,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "products",
     label: "Products",
     to: "/admin/products",
     icon: (
@@ -48,6 +57,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "payments",
     label: "Payments",
     to: "/admin/payments",
     icon: (
@@ -57,6 +67,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "procurement",
     label: "Purchases",
     to: "/admin/procurement",
     icon: (
@@ -66,6 +77,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "suppliers",
     label: "Suppliers",
     to: "/admin/suppliers",
     icon: (
@@ -75,6 +87,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "performance",
     label: "Performance",
     to: "/admin/performance",
     icon: (
@@ -84,6 +97,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "profile",
     label: "Profile",
     to: "/admin/profile",
     icon: (
@@ -96,6 +110,50 @@ const menuItems = [
 
 export default function AdminSidebar({ open, onClose }) {
   const navigate = useNavigate();
+  const [selectedPlan, setSelectedPlan] = useState(() =>
+    normalizeAdminPlan(getCachedAdminDashboard()?.selectedPlan)
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncPlan = async () => {
+      try {
+        const cached = getCachedAdminDashboard();
+        if (cached?.selectedPlan) {
+          if (isMounted) setSelectedPlan(normalizeAdminPlan(cached.selectedPlan));
+          return;
+        }
+
+        const dashboard = await fetchAdminDashboard();
+        if (isMounted) {
+          setSelectedPlan(normalizeAdminPlan(dashboard?.selectedPlan));
+        }
+      } catch {
+        if (isMounted) setSelectedPlan("Free");
+      }
+    };
+
+    const syncFromCache = () => {
+      setSelectedPlan(normalizeAdminPlan(getCachedAdminDashboard()?.selectedPlan));
+    };
+
+    syncPlan();
+    window.addEventListener("admin-plan-updated", syncFromCache);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("admin-plan-updated", syncFromCache);
+    };
+  }, []);
+
+  const effectivePlan = normalizeAdminPlan(
+    getCachedAdminDashboard()?.selectedPlan || selectedPlan
+  );
+  const visibleMenuItems = useMemo(
+    () => menuItems.filter((item) => canAccessAdminFeature(effectivePlan, item.feature)),
+    [effectivePlan]
+  );
 
   return (
     <>
@@ -130,7 +188,7 @@ export default function AdminSidebar({ open, onClose }) {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-5">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <NavLink
               key={item.label}
               to={item.to}

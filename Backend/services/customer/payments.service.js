@@ -14,6 +14,7 @@ const MEMBERSHIP_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "cu
 const SUBSCRIPTION_DELIVERY_PAYMENT_MARKER = "[SUBSCRIPTION_DELIVERY_PAYMENT]";
 const ONE_TIME_PAYMENT_MARKER = "[ONE_TIME_PAYMENT]";
 const WALLET_TOPUP_MARKER = "[WALLET_TOPUP";
+const ONE_TIME_ORDER_CANCEL_MARKER = "[ONE_TIME_ORDER_CANCEL]";
 
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
@@ -62,6 +63,11 @@ const isDeliveredStatus = (status) => {
   return value === "DELIVERED" || value === "COMPLETED";
 };
 
+const isCancelledStatus = (status) => {
+  const value = String(status || "").toUpperCase();
+  return value === "CANCELLED" || value === "CANCELED";
+};
+
 const parseDeliveryIdFromPaymentDescription = (description) => {
   const text = String(description || "");
   const match = text.match(/delivery_id=(\d+)/i);
@@ -83,7 +89,17 @@ const isOneTimePaymentRow = (row) => {
 const isWalletTopupPaymentRow = (row) => {
   const description = String(row?.description || "");
   if (description.includes(WALLET_TOPUP_MARKER)) return true;
+  if (description.includes(ONE_TIME_ORDER_CANCEL_MARKER)) return true;
   return /\bwallet\b/i.test(description);
+};
+
+const isCancelledOneTimePaymentRow = (row, deliveryStatusById) => {
+  if (!isOneTimePaymentRow(row)) return false;
+
+  const deliveryId = parseDeliveryIdFromPaymentDescription(row?.description);
+  if (!deliveryId) return false;
+
+  return isCancelledStatus(deliveryStatusById.get(deliveryId));
 };
 
 const isMonthlyBillPaymentRow = (row) => {
@@ -258,7 +274,10 @@ const isDeliveredSubscriptionPaymentRow = (row, deliveryStatusById) => {
 
 const isVisibleCustomerPaymentRow = (row, deliveryStatusById) => {
   if (isWalletTopupPaymentRow(row)) return true;
-  if (isOneTimePaymentRow(row)) return normalizeStatus(row?.status) === "PAID";
+  if (isOneTimePaymentRow(row)) {
+    if (isCancelledOneTimePaymentRow(row, deliveryStatusById)) return false;
+    return normalizeStatus(row?.status) === "PAID";
+  }
   if (isMonthlyBillPaymentRow(row)) return true;
   return false;
 };
@@ -273,6 +292,7 @@ const isBillableCustomerPaymentRow = (row, deliveryStatusById) => {
 const isDirectCheckoutCustomerPaymentRow = (row, deliveryStatusById) => {
   if (isWalletTopupPaymentRow(row)) return false;
   if (isOneTimePaymentRow(row)) {
+    if (isCancelledOneTimePaymentRow(row, deliveryStatusById)) return false;
     const status = normalizeStatus(row?.status);
     return status === "PENDING" || status === "OVERDUE";
   }
@@ -286,9 +306,13 @@ const mapPaymentRow = (row, index) => {
   const monthKey = getPaymentMonthKey(row);
   const monthMeta = parseMonthlyBillMeta(row.description);
   const monthLabel = row.billing_month || row.month || monthKey || null;
-  const title = monthMeta.isMonthlyBill
+  let title = monthMeta.isMonthlyBill
     ? `${monthLabel ? `${monthLabel} Monthly Bill` : "Monthly Bill"}`
     : row.title || row.description || "Payment";
+
+  if (String(row?.description || "").includes(ONE_TIME_ORDER_CANCEL_MARKER)) {
+    title = "Refund to Wallet";
+  }
 
   return {
     id: row.id ?? `payment-${index}`,
@@ -1135,14 +1159,17 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     fetchPaymentsRows(customerId, dairyId),
   ]);
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId, paymentRows);
-  const beneficiary = await getDairyBankDetails(resolvedDairyId);
+  const [beneficiary, deliveryStatusById] = await Promise.all([
+    getDairyBankDetails(resolvedDairyId),
+    fetchCustomerDeliveryStatusById(customerId, resolvedDairyId),
+  ]);
   const payableTillDate = Number(payableTillDateData?.payableTillDate || 0);
 
   const history = paymentRows
-    .filter((row) => isVisibleCustomerPaymentRow(row))
+    .filter((row) => isVisibleCustomerPaymentRow(row, deliveryStatusById))
     .map(mapPaymentRow);
   const pendingCandidates = paymentRows
-    .filter((row) => isBillableCustomerPaymentRow(row))
+    .filter((row) => isBillableCustomerPaymentRow(row, deliveryStatusById))
     .map(mapPaymentRow)
     .filter(
     (item) => item.status === "PENDING" || item.status === "OVERDUE"

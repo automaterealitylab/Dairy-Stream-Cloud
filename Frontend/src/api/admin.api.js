@@ -55,6 +55,25 @@ const persistDashboardCache = (data, timestamp) => {
   }
 };
 
+const patchCachedDashboard = (updater) => {
+  const now = Date.now();
+  const current = getCachedAdminDashboard();
+  if (!current) return null;
+
+  const next = updater(current);
+  dashboardCache = next;
+  cacheTime = now;
+  persistDashboardCache(next, now);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("admin-plan-updated", {
+        detail: { selectedPlan: next?.selectedPlan || null },
+      })
+    );
+  }
+  return next;
+};
+
 export const getCachedAdminDashboard = () => {
   const now = Date.now();
   if (dashboardCache && now - cacheTime < DASHBOARD_CACHE_TTL_MS) {
@@ -239,6 +258,10 @@ export const collectAdminOfflinePayment = async ({
 
 export const updateAdminFarmPlan = async (plan) => {
   const { data } = await client.patch("/admin/farm-plan", { plan });
+  patchCachedDashboard((current) => ({
+    ...current,
+    selectedPlan: data?.selected_plan || plan,
+  }));
   return data;
 };
 
