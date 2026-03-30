@@ -15,6 +15,14 @@ import {
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.png";
 
+const headingFont = { fontFamily: "'Lora', serif" };
+
+const inputClassName =
+  "w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]";
+
+const labelClassName =
+  "mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]";
+
 const CustomerRegister = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,7 +78,6 @@ const CustomerRegister = () => {
     setError("");
 
     try {
-      // Using JSON payload since there is no photo file anymore
       const res = await fetch("http://localhost:4000/api/customer/addCustomer", {
         method: "POST",
         headers: {
@@ -108,68 +115,75 @@ const CustomerRegister = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
-      {/* Left Panel */}
-      <div className="hidden md:flex w-1/2 bg-blue-600 items-center justify-center p-12 relative">
-        <div className="relative z-10 text-white max-w-lg">
-          <h1 className="text-5xl font-bold mb-6 tracking-tight">Join DairyStream</h1>
-          <p className="text-xl text-blue-100 mb-8 leading-relaxed">
+    <div
+      className="min-h-screen bg-[linear-gradient(180deg,#F5F0E8_0%,#FFFDF8_100%)] lg:grid lg:grid-cols-2"
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    >
+      <div className="relative hidden overflow-hidden bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-12 text-white md:flex md:items-center md:justify-center">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.18),transparent_40%)]" />
+        <div className="relative z-10 max-w-lg">
+          <h1 className="mb-6 text-5xl font-semibold tracking-tight" style={headingFont}>
+            Join DairyStream
+          </h1>
+          <p className="mb-8 text-xl leading-relaxed text-[#F5E6D2]">
             Create your account to start managing your daily milk delivery, billing, and vacations effortlessly.
           </p>
           <div className="flex gap-4">
-            <div className="flex items-center gap-2 bg-blue-500/40 px-4 py-2 rounded-lg backdrop-blur-md border border-blue-400/30">
+            <div className="flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-4 py-2.5 backdrop-blur-md">
               <ShieldCheck size={20} />
               <span>Secure Data</span>
             </div>
-            <div className="flex items-center gap-2 bg-blue-500/40 px-4 py-2 rounded-lg backdrop-blur-md border border-blue-400/30">
+            <div className="flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-4 py-2.5 backdrop-blur-md">
               <CheckCircle size={20} />
               <span>Easy Billing</span>
             </div>
           </div>
         </div>
-        <div className="absolute -bottom-40 -right-20 w-96 h-96 bg-blue-400/30 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -right-20 h-96 w-96 rounded-full bg-[#D28A40]/20 blur-3xl" />
       </div>
 
-      {/* Right Panel */}
-      <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-6 bg-white relative">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-6">
-            <img src={dairyImage} alt="Logo" className="h-16 w-auto mx-auto mb-2 object-contain" />
-            <h2 className="text-2xl font-bold text-gray-900">Create Account</h2>
-            <p className="text-gray-500 text-sm">
+      <div className="relative flex w-full items-center justify-center px-4 py-8 sm:px-6 md:w-full">
+        <div className="w-full max-w-md rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-6 shadow-[0_24px_60px_rgba(44,26,14,0.12)] sm:p-8">
+          <div className="mb-6 text-center">
+            <img src={dairyImage} alt="Logo" className="mx-auto mb-2 h-16 w-auto object-contain" />
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">Customer Register</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
+              Create Account
+            </h2>
+            <p className="text-sm text-[#8B7355]">
               Step {currentStep} of 2: {currentStep === 1 ? "Personal Details" : "Address & Plan"}
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2 rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] p-3 text-sm text-[#C0392B]">
               <AlertCircle size={16} /> {error}
             </div>
           )}
 
           <form onSubmit={currentStep === 1 ? handleNext : handleSubmit}>
             {currentStep === 1 && (
-              <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
+              <div className="animate-in fade-in slide-in-from-right-4 space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                  <label className={labelClassName}>Full Name</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                    <User className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
                     <input
                       type="text"
                       name="customerName"
                       value={formData.customerName}
                       onChange={handleChange}
                       placeholder="e.g. Rahul Sharma"
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className={`pl-10 ${inputClassName}`}
                       autoFocus
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Mobile Number</label>
+                  <label className={labelClassName}>Mobile Number</label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                    <Phone className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
                     <input
                       type="tel"
                       name="phoneNumber"
@@ -177,29 +191,31 @@ const CustomerRegister = () => {
                       onChange={handleChange}
                       placeholder="9876543210"
                       maxLength={10}
-                      className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
-                        location.state?.mobile ? 'bg-blue-50/50 text-gray-600' : 'bg-gray-50'
+                      className={`pl-10 ${
+                        location.state?.mobile
+                          ? "w-full rounded-[16px] border border-[#EFD7B3] bg-[#FFF4E2] px-4 py-3 text-sm font-semibold text-[#6B5B3E] outline-none"
+                          : inputClassName
                       }`}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">This will be your login ID.</p>
+                  <p className="mt-1 text-xs text-[#A88763]">This will be your login ID.</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                  <label className={labelClassName}>Email</label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="rahul@gmail.com"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg"
+                    className={inputClassName}
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3.5 font-semibold text-white transition-all hover:bg-[#9F5313]"
                 >
                   Next Step <ArrowRight size={18} />
                 </button>
@@ -207,72 +223,72 @@ const CustomerRegister = () => {
             )}
 
             {currentStep === 2 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+              <div className="animate-in fade-in slide-in-from-right-4 space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Building Name</label>
+                  <label className={labelClassName}>Building Name</label>
                   <div className="relative">
-                    <Building2 className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                    <Building2 className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
                     <input
                       type="text"
                       name="buildingName"
                       value={formData.buildingName}
                       onChange={handleChange}
                       placeholder="Galaxy Apartments"
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className={`pl-10 ${inputClassName}`}
                       autoFocus
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Wing (Opt)</label>
+                    <label className={labelClassName}>Wing (Opt)</label>
                     <input
                       type="text"
                       name="wing"
                       value={formData.wing}
                       onChange={handleChange}
                       placeholder="A"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className={inputClassName}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Room No</label>
+                    <label className={labelClassName}>Room No</label>
                     <input
                       type="text"
                       name="roomNo"
                       value={formData.roomNo}
                       onChange={handleChange}
                       placeholder="101"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className={inputClassName}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Daily Milk (L)</label>
+                    <label className={labelClassName}>Daily Milk (L)</label>
                     <div className="relative">
-                      <Droplets className="absolute left-3 top-3.5 text-blue-500" size={18} />
+                      <Droplets className="absolute left-3 top-3.5 text-[#B8641A]" size={18} />
                       <input
                         type="number"
                         step="0.5"
                         name="defaultMilkQuantityLiters"
                         value={formData.defaultMilkQuantityLiters}
                         onChange={handleChange}
-                        className="w-full pl-10 pr-4 py-3 bg-blue-50 border border-blue-100 text-blue-900 font-bold rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full rounded-[16px] border border-[#EFD7B3] bg-[#FFF4E2] py-3 pl-10 pr-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Billing</label>
+                    <label className={labelClassName}>Billing</label>
                     <div className="relative">
-                      <Calendar className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                      <Calendar className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
                       <select
                         name="billingCycle"
                         value={formData.billingCycle}
                         onChange={handleChange}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                        className={`appearance-none pl-10 ${inputClassName}`}
                       >
                         <option>Daily</option>
                         <option>Weekly</option>
@@ -282,18 +298,18 @@ const CustomerRegister = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-6">
+                <div className="mt-6 flex gap-3">
                   <button
                     type="button"
                     onClick={() => setCurrentStep(1)}
-                    className="w-1/3 py-3 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 font-semibold transition"
+                    className="w-1/3 rounded-[16px] border border-[#EDE8DF] bg-white py-3 font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-2/3 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
+                    className="flex w-2/3 items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white transition-all hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
                   >
                     {loading ? <Loader2 className="animate-spin" size={20} /> : "Finish Registration"}
                   </button>
@@ -302,11 +318,19 @@ const CustomerRegister = () => {
             )}
           </form>
 
-          <div className="mt-6 text-center text-xs text-gray-400">
-            By joining, you agree to our <a href="#" className="underline">Terms</a> & <a href="#" className="underline">Privacy Policy</a>.
+          <div className="mt-6 border-t border-[#F2EDE4] pt-6 text-center text-xs text-[#A88763]">
+            By joining, you agree to our{" "}
+            <a href="#" className="underline">
+              Terms
+            </a>{" "}
+            &{" "}
+            <a href="#" className="underline">
+              Privacy Policy
+            </a>
+            .
             <div className="mt-2">
-              Already have an account?{' '}
-              <span onClick={() => navigate('/')} className="text-blue-600 font-bold cursor-pointer hover:underline">
+              Already have an account?{" "}
+              <span onClick={() => navigate("/")} className="cursor-pointer font-bold text-[#B8641A] hover:underline">
                 Log in
               </span>
             </div>
