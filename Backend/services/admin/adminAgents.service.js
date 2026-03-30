@@ -57,7 +57,35 @@ export const getAdminAgents = async ({
   limit = 10,
   search = "",
   dairyId = null,
+  lite = false,
 }) => {
+  if (lite) {
+    let liteQuery = supabase
+      .from("agents")
+      .select("id, agent_name, phone_number, status, inactive_until, inactive_from, inactive_days")
+      .order("agent_name", { ascending: true });
+
+    if (dairyId) {
+      liteQuery = liteQuery.eq("dairy_id", dairyId);
+    }
+
+    if (search) {
+      liteQuery = liteQuery.or(
+        `agent_name.ilike.%${search}%,phone_number.ilike.%${search}%`
+      );
+    }
+
+    const { data, error } = await liteQuery;
+    if (error) throw error;
+
+    return {
+      agents: (data || []).map(mapAgentForAdmin),
+      total: (data || []).length,
+      page: 1,
+      limit: (data || []).length,
+    };
+  }
+
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 

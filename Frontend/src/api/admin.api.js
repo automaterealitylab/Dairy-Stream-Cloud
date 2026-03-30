@@ -152,9 +152,9 @@ export const assignAdminCustomerPermanentPartner = async (customerId, agentId) =
 /* =========================
    AGENT MANAGEMENT
 ========================= */
-export const fetchAdminAgents = async ({ page = 1, limit = 10, search = "" }) => {
+export const fetchAdminAgents = async ({ page = 1, limit = 10, search = "", lite = false } = {}) => {
   const { data } = await client.get("/admin/agents", {
-    params: { page, limit, search },
+    params: { page, limit, search, lite },
   });
   return data;
 };
