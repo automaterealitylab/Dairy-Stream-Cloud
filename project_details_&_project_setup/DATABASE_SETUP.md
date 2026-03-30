@@ -37,7 +37,7 @@ The initialization script will run automatically and log the status:
    - Click **"New Query"**
 
 3. **Copy and Paste SQL**
-   - Open the file `SUPABASE_MIGRATIONS.sql` in the project root
+   - Open the file `Backend/sql/SUPABASE_MIGRATIONS.sql` in the `Backend/sql` folder
    - Copy all the SQL code
    - Paste it into the Supabase SQL Editor
    - Click **"Run"** button
@@ -164,7 +164,7 @@ curl -X POST http://localhost:4000/api/customer/login \
 1. Check that `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` are set in `.env`
 2. Verify Supabase project is active and accessible
 3. Check Supabase dashboard for any errors
-4. Manually run the SQL from `SUPABASE_MIGRATIONS.sql`
+4. Manually run the SQL from `Backend/sql/SUPABASE_MIGRATIONS.sql`
 
 ### Connection errors
 1. Verify `.env` has correct Supabase credentials

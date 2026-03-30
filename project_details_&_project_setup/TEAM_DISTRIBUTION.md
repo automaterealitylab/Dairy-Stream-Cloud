@@ -325,7 +325,7 @@ Review all codebase, learn from project documentation, refine UI/UX design, opti
 
 #### Learning Tasks:
 - [ ] Study `DATABASE_SETUP.md` and understand customer data schema
-- [ ] Review `SUPABASE_MIGRATIONS.sql` for customer-related tables and relationships
+- [ ] Review `Backend/sql/SUPABASE_MIGRATIONS.sql` for customer-related tables and relationships
 - [ ] Analyze `ARCHITECTURE.md` for authentication flow integration points
 - [ ] Study email verification flow in `verifyEmail.js`
 
@@ -368,7 +368,7 @@ Review all codebase, learn from project documentation, refine UI/UX design, opti
 
 #### Learning Tasks:
 - [ ] Study `DATABASE_SETUP.md` and understand agent schema relationships
-- [ ] Review `SUPABASE_MIGRATIONS.sql` for agent tables and indexes
+- [ ] Review `Backend/sql/SUPABASE_MIGRATIONS.sql` for agent tables and indexes
 - [ ] Analyze `ARCHITECTURE.md` for admin/agent role separation
 - [ ] Review `PROJECT_SUMMARY.md` for agent responsibilities and workflow
 
@@ -411,7 +411,7 @@ Review all codebase, learn from project documentation, refine UI/UX design, opti
 
 #### Learning Tasks:
 - [ ] Study complete `DATABASE_SETUP.md` for all schemas
-- [ ] Review entire `SUPABASE_MIGRATIONS.sql` file
+- [ ] Review entire `Backend/sql/SUPABASE_MIGRATIONS.sql` file
 - [ ] Analyze `ARCHITECTURE.md` for system design patterns
 - [ ] Study `CODE_REVIEW.md` for coding standards
 - [ ] Review `QUICK_START.md` for setup procedures
@@ -462,7 +462,7 @@ Review all codebase, learn from project documentation, refine UI/UX design, opti
   - [ ] Review `CODE_REVIEW.md` standards
   - [ ] Check `PROJECT_SUMMARY.md` for completeness
   - [ ] Validate `QUICK_START.md` procedures
-- [ ] Review and validate all migrations in `SUPABASE_MIGRATIONS.sql`:
+- [ ] Review and validate all migrations in `Backend/sql/SUPABASE_MIGRATIONS.sql`:
   - [ ] Verify all table structures
   - [ ] Check index creation
   - [ ] Validate relationships and foreign keys

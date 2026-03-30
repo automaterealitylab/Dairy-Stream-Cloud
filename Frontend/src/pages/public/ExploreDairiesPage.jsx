@@ -301,9 +301,10 @@ useEffect(() => {
     <div className="min-h-screen bg-[#F7F2EA]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {/* HEADER */}
       <header className="sticky top-0 z-20 border-b border-[#EDE8DF] bg-[#FFFDF8]/95 shadow-sm backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-4 md:px-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
+        <div className="mx-auto max-w-7xl px-4 pt-4 pb-2 md:px-6">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-6">
               <div
                 className="cursor-pointer text-2xl font-bold text-[#2C1A0E]"
                 style={headingFont}
@@ -312,137 +313,115 @@ useEffect(() => {
                 Dairy<span className="text-[#B8641A]">Stream</span>
               </div>
 
-              <div className="relative">
-                <button
-                  // onClick={() => setShowLocation(!showLocation)}
-                  className="flex items-center gap-2 rounded-full border border-[#EDE8DF] bg-[#FBF7F0] px-3 py-2 text-[#6B5B3E] transition-colors hover:bg-[#F5EDE2]"
-                >
-                  <MapPin size={18} className="text-[#B8641A]" />
-                  <span className="text-sm font-medium">
-                    Delivering to{" "}
-                    <b>
-                      {selectedCity ||
-                        (detectedLocation === "Nearby"
-                          ? "Your Current Location"
-                          : detectedLocation) ||
-                        "Your area"}
-                    </b>
-                  </span>
-                </button>
+                <div className="relative">
+                  <button
+                    // onClick={() => setShowLocation(!showLocation)}
+                    className="flex items-center gap-2 rounded-full border border-[#EDE8DF] bg-[#FBF7F0] px-3 py-2 text-[#6B5B3E] transition-colors hover:bg-[#F5EDE2]"
+                  >
+                    <MapPin size={18} className="text-[#B8641A]" />
+                    <span className="text-sm font-medium">
+                      Delivering to{" "}
+                      <b>
+                        {selectedCity ||
+                          (detectedLocation === "Nearby"
+                            ? "Your Current Location"
+                            : detectedLocation) ||
+                          "Your area"}
+                      </b>
+                    </span>
+                  </button>
 
-                {showLocation && (
-                  <div className="absolute top-12 left-0 z-50">
-                    <LocationSelector
-                      // Inside LocationSelector onApply or City Shortcut handler
-                      onApply={(data) => {
-                        setShowLocation(false);
-                        setSearchTerm("");
-                        setSelectedCity(data.city || "");
-                        setDetectedLocation(""); // Clear 'Nearby' so the label shows the city name
-                        if (data.city) {
-                          loadCity(data.city);
-                        }
-                      }}
-                    />
+                  {showLocation && (
+                    <div className="absolute top-12 left-0 z-50">
+                      <LocationSelector
+                        // Inside LocationSelector onApply or City Shortcut handler
+                        onApply={(data) => {
+                          setShowLocation(false);
+                          setSearchTerm("");
+                          setSelectedCity(data.city || "");
+                          setDetectedLocation(""); // Clear 'Nearby' so the label shows the city name
+                          if (data.city) {
+                            loadCity(data.city);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* SEARCH INPUT */}
+              <div className="relative max-w-2xl flex-1">
+                <Search
+                  className="absolute left-4 top-3.5 text-[#C4A882]"
+                  size={20}
+                />
+
+                <input
+                  type="text"
+                  placeholder="Search dairies, city, area, pincode..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF8] py-3 pl-12 pr-4 text-[#2C1A0E] outline-none transition focus:border-[#D7B38A] focus:ring-2 focus:ring-[#F3DEC4]"
+                />
+
+                {/* Suggestions Dropdown */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[18px] border border-[#EDE8DF] bg-white shadow-[0_20px_40px_rgba(84,52,16,0.12)]">
+                    {suggestions.map((s, i) => (
+                      <div
+                        key={i}
+                        className="flex cursor-pointer justify-between px-4 py-3 text-[#6B5B3E] transition hover:bg-[#FBF7F0]"
+                        onClick={() => {
+                          setSearchTerm(s.suggestion);
+                          setSuggestions([]);
+                          setShowSuggestions(false);
+                          setSelectedCity("");
+                          setDetectedLocation(s.suggestion);
+
+                          loadSearch(s.suggestion);
+                        }}
+                      >
+                        <span>{s.suggestion}</span>
+
+                        <span className="text-xs uppercase tracking-[0.16em] text-[#C4A882]">
+                          {s.type}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
+
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleAuthAction}
+                  className={`flex items-center gap-2 rounded-[14px] px-6 py-2.5 text-sm font-bold transition-all ${
+                    canOpenCustomerDashboard
+                      ? "bg-[#2C2416] text-white hover:bg-[#4A3820]"
+                      : "border border-[#EDE8DF] bg-white text-[#6B5B3E] hover:bg-[#FBF7F0]"
+                  }`}
+                >
+                  {canOpenCustomerDashboard ? (
+                    <LayoutDashboard size={18} />
+                  ) : (
+                    <User size={20} />
+                  )}
+                  {canOpenCustomerDashboard ? "Dashboard" : "Login"}
+                </button>
+              </div>
             </div>
-
-            {/* SEARCH INPUT */}
-            <div className="relative max-w-2xl flex-1">
-              <Search
-                className="absolute left-4 top-3.5 text-[#C4A882]"
-                size={20}
-              />
-
-              <input
-                type="text"
-                placeholder="Search dairies, city, area, pincode..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF8] py-3 pl-12 pr-4 text-[#2C1A0E] outline-none transition focus:border-[#D7B38A] focus:ring-2 focus:ring-[#F3DEC4]"
-              />
-
-              {/* Suggestions Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[18px] border border-[#EDE8DF] bg-white shadow-[0_20px_40px_rgba(84,52,16,0.12)]">
-                  {suggestions.map((s, i) => (
-                    <div
-                      key={i}
-                      className="flex cursor-pointer justify-between px-4 py-3 text-[#6B5B3E] transition hover:bg-[#FBF7F0]"
-                      onClick={() => {
-                        setSearchTerm(s.suggestion);
-                        setSuggestions([]);
-                        setShowSuggestions(false);
-                        setSelectedCity("");
-                        setDetectedLocation(s.suggestion);
-
-                        loadSearch(s.suggestion);
-                      }}
-                    >
-                      <span>{s.suggestion}</span>
-
-                      <span className="text-xs uppercase tracking-[0.16em] text-[#C4A882]">
-                        {s.type}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleAuthAction}
-                className={`flex items-center gap-2 rounded-[14px] px-6 py-2.5 text-sm font-bold transition-all ${
-                  canOpenCustomerDashboard
-                    ? "bg-[#2C2416] text-white hover:bg-[#4A3820]"
-                    : "border border-[#EDE8DF] bg-white text-[#6B5B3E] hover:bg-[#FBF7F0]"
-                }`}
-              >
-                {canOpenCustomerDashboard ? (
-                  <LayoutDashboard size={18} />
-                ) : (
-                  <User size={20} />
-                )}
-                {canOpenCustomerDashboard ? "Dashboard" : "Login"}
-              </button>
-            </div>
+            <p className="px-1 text-xs leading-5 text-[#8B7355]">
+              Browse nearby dairies, compare starting prices, and pick a plan that matches your area and routine.
+            </p>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
-        <section className="mb-6 rounded-[26px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-5 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:p-7">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
-                Explore Dairies
-              </p>
-              <h1 className="mt-2 text-[28px] font-semibold leading-tight text-[#2C1A0E] sm:text-[38px]" style={headingFont}>
-                Find your next <span className="text-[#B8641A]">daily delivery</span>
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-[#8B7355]">
-                Browse nearby dairies, compare starting prices, and pick a plan that matches your area and routine.
-              </p>
-            </div>
-            <div className="rounded-[18px] border border-[#E7DDCF] bg-white/90 px-4 py-3.5 text-sm text-[#6B5B3E] backdrop-blur-sm">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">
-                Current Area
-              </p>
-              <p className="mt-1 font-semibold text-[#2C1A0E]">
-                {selectedCity ||
-                  (detectedLocation === "Nearby" ? "Your Current Location" : detectedLocation) ||
-                  "Your area"}
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* CITY QUICK LINKS */}
         {/* <div className="flex gap-3 mb-8 overflow-x-auto pb-2 no-scrollbar">
           {CITY_OPTIONS.map((city) => (

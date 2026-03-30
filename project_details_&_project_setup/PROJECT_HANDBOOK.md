@@ -60,7 +60,7 @@ All routes are prefixed with `/api`. The main router (`routes/index.route.js`) d
 | `POST` | `/login` | `adminLogin` | None | Authenticates dairy owner/admin. |
 
 ### 4. Database Models (Supabase)
-The database uses **PostgreSQL** hosted on Supabase. Tables are defined in SQL (`SUPABASE_MIGRATIONS.sql`).
+The database uses **PostgreSQL** hosted on Supabase. Tables are defined in SQL (`Backend/sql/SUPABASE_MIGRATIONS.sql`).
 
 #### **`customers` Table**
 Stores customer data.

@@ -162,7 +162,7 @@ const CustomerLayout = ({ children }) => {
           </p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-5">
+        <nav className="flex-1 overflow-y-auto pt-2 pb-5">
           <p className="px-6 pb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882]">
             Menu
           </p>
