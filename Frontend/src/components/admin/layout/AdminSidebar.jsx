@@ -83,6 +83,15 @@ const menuItems = [
       </svg>
     ),
   },
+  {
+    label: "Profile",
+    to: "/admin/profile",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-6 h-6">
+        <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminSidebar({ open, onClose }) {

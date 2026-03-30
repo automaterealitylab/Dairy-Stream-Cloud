@@ -51,6 +51,7 @@ const ProcurementTracker = ({
   logs = [],
   selectedDate = "",
   maxDate = "",
+  breakdownSection = null,
   onChangeSelectedDate,
   onAddLog,
   onOpenSupplierForm,
@@ -168,51 +169,48 @@ const ProcurementTracker = ({
   const renderEntryCard = (entry, onEdit) => (
     <div
       key={entry.id}
-      className="rounded-[20px] border border-[#EEDFCB] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(92,61,30,0.04)]"
+      className="rounded-[18px] border border-[#EEDFCB] bg-white px-3 py-2.5 shadow-[0_8px_20px_rgba(92,61,30,0.04)]"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base font-black text-[#2C1A0E]">{entry.item_name || "-"}</p>
-            <span className="rounded-full bg-[#FFF3E2] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#B8641A]">
+            <p className="text-[15px] font-black text-[#2C1A0E] leading-tight">{entry.item_name || "-"}</p>
+            <span className="rounded-full bg-[#FFF3E2] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#B8641A]">
               {entry.item_category || "-"}
             </span>
-            <span className="rounded-full border border-[#E9D8C3] bg-[#FFFDF8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">
+            <span className="rounded-full border border-[#E9D8C3] bg-[#FFFDF8] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#8B7355]">
               {formatTimeLabel(entry.created_at)}
             </span>
           </div>
-          <p className="mt-1 text-sm font-semibold text-[#8B7355]">{entry.supplier_name || "-"}</p>
+          <p className="mt-0.5 text-[13px] font-semibold leading-tight text-[#8B7355]">{entry.supplier_name || "-"}</p>
         </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#6F4A27] lg:flex-nowrap">
+          <span className="rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold whitespace-nowrap">
+            Qty: <span className="font-black text-[#2C1A0E]">{entry.quantity ?? "-"} {entry.unit || ""}</span>
+          </span>
+          <span className="rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold whitespace-nowrap">
+            Rate: <span className="font-black text-[#2C1A0E]">Rs {entry.rate_per_unit || entry.rate_per_liter || "-"}</span>
+          </span>
+          <span className="rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold whitespace-nowrap">
+            Total: <span className="font-black text-[#2C1A0E]">
+              Rs {entry.total_cost ?? Number(entry.quantity || 0) * Number(entry.rate_per_unit || entry.rate_per_liter || 0)}
+            </span>
+          </span>
+          <span className="rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold whitespace-nowrap">
+            Unit: <span className="font-black uppercase text-[#2C1A0E]">{entry.unit || "-"}</span>
+          </span>
+        </div>
+
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E5D9C7] bg-white text-[#8B7355] transition hover:bg-[#FFF3E2] hover:text-[#B8641A]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E5D9C7] bg-white text-[#8B7355] transition hover:bg-[#FFF3E2] hover:text-[#B8641A]"
           aria-label="Edit entry"
           title="Edit entry"
         >
-          <PencilLine size={15} />
+          <PencilLine size={14} />
         </button>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-        <div className="rounded-2xl bg-[#FFF9F2] px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Quantity</p>
-          <p className="mt-1 text-sm font-black text-[#2C1A0E]">{entry.quantity ?? "-"} {entry.unit || ""}</p>
-        </div>
-        <div className="rounded-2xl bg-[#FFF9F2] px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Rate</p>
-          <p className="mt-1 text-sm font-black text-[#2C1A0E]">Rs {entry.rate_per_unit || entry.rate_per_liter || "-"}</p>
-        </div>
-        <div className="rounded-2xl bg-[#FFF9F2] px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Total</p>
-          <p className="mt-1 text-sm font-black text-[#2C1A0E]">
-            Rs {entry.total_cost ?? Number(entry.quantity || 0) * Number(entry.rate_per_unit || entry.rate_per_liter || 0)}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#FFF9F2] px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Unit</p>
-          <p className="mt-1 truncate text-sm font-black text-[#2C1A0E]">{entry.unit || "-"}</p>
-        </div>
       </div>
     </div>
   );
@@ -274,6 +272,7 @@ const ProcurementTracker = ({
         </div>
 
         <div className="mt-8 border-t border-[#F2EDE4] pt-6">
+        {breakdownSection ? <div className="mb-8">{breakdownSection}</div> : null}
         {procurementLogs.length > 0 ? (
           <>
             <div className="space-y-5">
