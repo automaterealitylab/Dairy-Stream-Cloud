@@ -141,6 +141,13 @@ const LoginPage = () => {
 
       // If backend says OTP, go straight there (Customer)
       if (response.nextStep === "OTP") {
+        if (response.hasOtpDelivery === false) {
+          const backendMessage = "No email is registered for this customer account, so OTP login is not available yet.";
+          setError(backendMessage);
+          toast.error(backendMessage);
+          return;
+        }
+
         setOtpTimer(30);
         setStep("OTP");
         await requestOtpApi({
@@ -161,8 +168,8 @@ const LoginPage = () => {
       
     } catch (err) {
       const backendMessage =
-        err.response?.data?.message ||
         err.response?.data?.error ||
+        err.response?.data?.message ||
         err.message ||
         "Connection error. Please try again.";
 

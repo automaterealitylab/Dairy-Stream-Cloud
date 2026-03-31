@@ -62,7 +62,7 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
 
   const { data, error } = await supabase
     .from("customers")
-    .select("id, customer_name")
+    .select("id, customer_name, email")
     .eq("phone_number", mobile)
     .limit(1)
     .maybeSingle();
@@ -106,11 +106,16 @@ export const detectUserService = async (identifier) => {
 
   const customer = await findCustomerByIdentifier(rawId);
   if (customer) {
+    const hasOtpDelivery = Boolean(String(customer.email || "").trim());
     return {
       exists: true,
       userType: "CUSTOMER",
       nextStep: "OTP",
       name: customer.customer_name || "Customer",
+      hasOtpDelivery,
+      emailMasked: hasOtpDelivery
+        ? customer.email.replace(/(^.).*(@.*$)/, "$1***$2")
+        : null,
     };
   }
 
