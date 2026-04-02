@@ -283,12 +283,13 @@ export default function AdminProfile() {
       </main>
 
       {showEditModal ? (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-2xl rounded-[32px] border border-[#EDE8DF] bg-white p-6 shadow-[0_24px_60px_rgba(44,26,14,0.18)] sm:p-8">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-[85] bg-black/40 px-4 py-4 sm:px-6 sm:py-8">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="flex w-full max-w-5xl flex-col rounded-[28px] border border-[#EDE8DF] bg-white shadow-[0_24px_60px_rgba(44,26,14,0.18)]">
+              <div className="flex items-start justify-between gap-3 border-b border-[#F2E8DB] px-4 py-2.5 sm:px-6">
               <div>
-                <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Edit Dairy Profile</h2>
-                <p className="mt-1 text-sm text-[#8B7355]">
+                <h2 className="text-xl text-[#2C1A0E] sm:text-2xl" style={adminHeadingFont}>Edit Dairy Profile</h2>
+                <p className="text-xs sm:text-sm text-[#8B7355]">
                   Update the dairy details and owner contact shown inside this panel.
                 </p>
               </div>
@@ -299,95 +300,98 @@ export default function AdminProfile() {
               >
                 <X size={18} />
               </button>
-            </div>
+              </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-4">
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+              <div className="px-4 py-3 sm:px-6">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5 xl:col-span-3">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Dairy Name</span>
                 <input
                   type="text"
                   value={formData.dairyName}
                   onChange={(e) => setFormData((prev) => ({ ...prev, dairyName: e.target.value }))}
-                  className="mt-3 w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
 
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+              <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Dairy Email</span>
                 <input
                   type="email"
                   value={formData.dairyEmail}
                   onChange={(e) => setFormData((prev) => ({ ...prev, dairyEmail: e.target.value }))}
-                  className="mt-3 w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
 
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+              <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Dairy Phone</span>
                 <input
                   type="text"
                   value={formData.dairyPhone}
                   onChange={(e) => setFormData((prev) => ({ ...prev, dairyPhone: e.target.value }))}
-                  className="mt-3 w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
 
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+                  <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5 xl:col-span-3">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Dairy Address</span>
                 <textarea
-                  rows={3}
+                  rows={1}
                   value={formData.address}
                   onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
-                  className="mt-3 w-full resize-none bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full resize-none bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
 
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+                  <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Owner / Admin Name</span>
                 <input
                   type="text"
                   value={formData.ownerName}
                   onChange={(e) => setFormData((prev) => ({ ...prev, ownerName: e.target.value }))}
-                  className="mt-3 w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
 
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+              <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Owner Email</span>
                 <input
                   type="email"
                   value={formData.ownerEmail}
                   onChange={(e) => setFormData((prev) => ({ ...prev, ownerEmail: e.target.value }))}
-                  className="mt-3 w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
 
-              <label className="rounded-[24px] border border-[#E5D9C7] bg-[#FFFDF8] px-5 py-4">
+              <label className="rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">Owner Phone</span>
                 <input
                   type="text"
                   value={formData.ownerPhone}
                   onChange={(e) => setFormData((prev) => ({ ...prev, ownerPhone: e.target.value }))}
-                  className="mt-3 w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none"
+                  className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
                 />
               </label>
-            </div>
+                </div>
+              </div>
 
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowEditModal(false)}
-                className="rounded-2xl border border-[#E5D9C7] px-5 py-3 text-sm font-black text-[#8B7355] transition hover:bg-[#F8F3EC]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveProfile}
-                className="rounded-2xl bg-[#B8641A] px-5 py-3 text-sm font-black text-white transition hover:bg-[#9E5415]"
-              >
-                Save Changes
-              </button>
+              <div className="flex flex-col-reverse gap-2 border-t border-[#F2E8DB] px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="rounded-xl border border-[#E5D9C7] px-4 py-2.5 text-sm font-black text-[#8B7355] transition hover:bg-[#F8F3EC]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  className="rounded-xl bg-[#B8641A] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#9E5415]"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>
