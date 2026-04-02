@@ -91,6 +91,9 @@ export const requestOtpAuth = async (req, res) => {
     });
 
   } catch (err) {
+    console.error(
+      `[CUSTOMER OTP ERROR] identifier=${req?.body?.identifier || ""} dairyId=${req?.body?.dairyId || ""} message=${err?.message || err}`
+    );
     return res.status(400).json({
       success: false,
       message: "Failed to send OTP",
