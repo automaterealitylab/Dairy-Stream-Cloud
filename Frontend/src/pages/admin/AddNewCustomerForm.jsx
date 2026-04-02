@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import client from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import toast from "react-hot-toast";
 
@@ -20,7 +20,6 @@ function AddNewCustomerForm() {
     billingCycle: 'Monthly',
   });
 
-  const apiurl = "http://localhost:4000/api/customer/addCustomer"; ////need to change the api later
   const navigate = useNavigate();
 
   // Handle input changes
@@ -50,7 +49,7 @@ function AddNewCustomerForm() {
     }
 
     try {
-      await axios.post(apiurl, customer);
+      await client.post("/customer/addCustomer", customer);
       toast.success("Customer added successfully!");
       navigate("/");
     } catch (error) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
+import client from "../api/client";
 import {
   User,
   Phone,
@@ -78,25 +79,7 @@ const CustomerRegister = () => {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:4000/api/customer/addCustomer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      const data = contentType.includes("application/json")
-        ? await res.json()
-        : { message: await res.text() };
-
-      if (!res.ok) {
-        const errorMessage = data?.message || data?.error || "Registration failed";
-        setError(errorMessage);
-        toast.error(errorMessage);
-        return;
-      }
+      const { data } = await client.post("/customer/addCustomer", formData);
 
       toast.success("Account created successfully. Please login.");
       navigate("/", {
@@ -106,7 +89,10 @@ const CustomerRegister = () => {
       });
     } catch (err) {
       console.error("Register error:", err);
-      const errorMessage = "Something went wrong. Please try again.";
+      const errorMessage =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Something went wrong. Please try again.";
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {

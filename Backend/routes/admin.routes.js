@@ -33,7 +33,7 @@ import {
   fetchAdminAgentById,
   updateAdminAgentById,
   deleteAdminAgentById,
-} from "../controllers/admin/adminagent.controller.js";
+} from "../controllers/admin/adminAgent.controller.js";
 import {
   collectOfflinePayment,
   changeFarmPlan,

@@ -1,4 +1,4 @@
-import axios from "axios";
+import client from "./client";
 
 export const fetchNearbyDairies = async ({
   lat,
@@ -13,7 +13,7 @@ export const fetchNearbyDairies = async ({
     page,
   };
 
-  const res = await axios.get("/api/public/dairies/nearby", { params });
+  const res = await client.get("/public/dairies/nearby", { params });
   return res.data;
 };
 
@@ -21,13 +21,13 @@ export const fetchSearchDairies = async ({ q } = {}) => {
   const params = {};
   if (q) params.q = q;
 
-  const res = await axios.get("/api/public/dairies/search", { params });
+  const res = await client.get("/public/dairies/search", { params });
   return res.data;
 };
 
 
 export const fetchSearchSuggestions = async (q) => {
-  const res = await axios.get("/api/public/dairies/suggestions", {
+  const res = await client.get("/public/dairies/suggestions", {
     params: {
       q,
       t: Date.now()
@@ -40,13 +40,13 @@ export const fetchCityDairies = async ({ city } = {}) => {
   const params = {};
   if (city) params.city = city;
 
-  const res = await axios.get("/api/public/dairies/city", { params });
+  const res = await client.get("/public/dairies/city", { params });
   return res.data;
 };
 
 /* ---------- GET SINGLE DAIRY ---------- */
 
 export const fetchPublicDairyById = async (id) => {
-  const res = await axios.get(`/api/public/dairies/${id}`);
+  const res = await client.get(`/public/dairies/${id}`);
   return res.data;
 };
