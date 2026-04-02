@@ -29,7 +29,7 @@ createRoot(document.getElementById("root")).render(
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/service-worker.js")
+      .register("/service-worker.js", { updateViaCache: "none" })
       .then(() => console.log("Service Worker registered"))
       .catch((err) =>
         console.error("Service Worker registration failed:", err)
