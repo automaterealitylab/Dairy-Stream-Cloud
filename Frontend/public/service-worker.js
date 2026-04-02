@@ -1,4 +1,4 @@
-const CACHE_NAME = "dairystream-cache-v1";
+const CACHE_NAME = "dairystream-cache-v2";
 
 const STATIC_ASSETS = [
   "/",
@@ -21,13 +21,22 @@ self.addEventListener("activate", () => {
 
 // Fetch strategy: Network first, cache fallback
 self.addEventListener("fetch", (event) => {
+  // Never try to cache non-GET requests. The Cache API only supports GET.
+  if (event.request.method !== "GET") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const cloned = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, cloned);
-        });
+        // Cache only successful GET responses.
+        if (response.ok) {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, cloned);
+          });
+        }
         return response;
       })
       .catch(() => caches.match(event.request))
