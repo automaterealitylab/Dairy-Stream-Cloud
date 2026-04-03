@@ -3,8 +3,8 @@ import client from "../api/client"; // ✅ Use the centralized client instead of
 // ===============================
 // 1. DETECT USER (Gatekeeper)
 // ===============================
-export const detectUserApi = async (identifier) => {
-  const { data } = await client.post("/auth/detect", { identifier });
+export const detectUserApi = async (identifier, options = {}) => {
+  const { data } = await client.post("/auth/detect", { identifier, ...options });
   return data;
 };
 

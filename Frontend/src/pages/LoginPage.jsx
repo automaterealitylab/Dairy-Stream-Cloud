@@ -96,14 +96,48 @@ const LoginPage = () => {
     setAgentOtpRequestsRemaining(null);
   };
 
+  const handleCustomerOtpResend = async () => {
+    const normalizedIdentifier = String(identifier || "").trim();
+    if (!normalizedIdentifier) {
+      toast.error("Identifier is required");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await requestOtpApi({
+        identifier: normalizedIdentifier,
+        dairyId: selectedDairy?.id,
+      });
+
+      setOtp("");
+      setOtpTimer(30);
+      toast.success(result?.message || "OTP sent successfully");
+    } catch (err) {
+      const backendMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to send OTP";
+
+      setError(backendMessage);
+      toast.error(backendMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ================= IDENTIFIER SUBMIT =================
   const handleIdentifierSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    const normalizedIdentifier = String(identifier || "").trim();
 
-    const isEmail = identifier.includes("@");
-    const isStaffId = identifier.toUpperCase().startsWith("STF");
-    const isMobile = /^\d{10}$/.test(identifier);
+    const isEmail = normalizedIdentifier.includes("@");
+    const isStaffId = normalizedIdentifier.toUpperCase().startsWith("STF");
+    const isMobile = /^\d{10}$/.test(normalizedIdentifier);
 
     if (!isEmail && !isStaffId && !isMobile) {
       toast.error("Please enter a valid Email, Mobile, or Staff ID");
@@ -113,13 +147,16 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      const response = await detectUserApi(identifier);
+      const response = await detectUserApi(normalizedIdentifier, {
+        requestCustomerOtp: true,
+        dairyId: selectedDairy?.id,
+      });
 
       if (!response.exists) {
         toast("User not found. Please register first");
         // If it looks like a mobile number, offer registration
         if(isMobile) {
-            navigate("/customer/register", { state: { identifier } });
+            navigate("/customer/register", { state: { identifier: normalizedIdentifier } });
         } else {
             setError("User ID not found.");
         }
@@ -131,7 +168,7 @@ const LoginPage = () => {
       // Routing based on backend "nextStep" instruction
       if (response.nextStep === "EXPLORE") {
         toast("No dairy assigned. Please explore dairies.");
-        navigate("/explore", { state: { identifier } });
+        navigate("/explore", { state: { identifier: normalizedIdentifier } });
         return;
       }
 
@@ -148,12 +185,21 @@ const LoginPage = () => {
           return;
         }
 
-        await requestOtpApi({
-          identifier,
-          dairyId: response.dairy?.id,
-        });
-        setOtpTimer(30);
+        setOtp("");
+        setOtpTimer(0);
         setStep("OTP");
+
+        if (!response.otpRequested) {
+          const otpResponse = await requestOtpApi({
+            identifier: normalizedIdentifier,
+            dairyId: response.dairy?.id ?? selectedDairy?.id,
+          });
+          setOtpTimer(30);
+          toast.success(otpResponse?.message || "OTP sent successfully");
+          return;
+        }
+
+        setOtpTimer(30);
         toast.success("OTP sent successfully");
         return;
       }
@@ -182,9 +228,10 @@ const LoginPage = () => {
   };
 
   // ================= DAIRY SELECT (If multiple) =================
-  const handleDairySelect = (dairy) => {
+  const _handleDairySelect = (dairy) => {
     setSelectedDairy(dairy);
-    setOtpTimer(30);
+    setOtp("");
+    setOtpTimer(0);
     setStep("OTP");
   };
 
@@ -883,11 +930,11 @@ const LoginPage = () => {
                   className="w-full rounded-[16px] border border-[#EDE8DF] py-4 text-center font-mono text-3xl tracking-widest outline-none focus:border-[#4A7C2F]"
                   autoFocus
                 />
-                <p className="mt-2 text-xs text-[#A88763]">Enter the 6-digit code sent to your email/mobile</p>
+                <p className="mt-2 text-xs text-[#A88763]">Enter the 6-digit code sent to your registered email</p>
               </div>
 
               <button 
-                disabled={loading || otp.length < 4}
+                disabled={loading || otp.length < 6}
                 className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
               >
                 {loading ? <Loader2 className="animate-spin" /> : "Verify & Login"}
@@ -899,8 +946,9 @@ const LoginPage = () => {
                  ) : (
                     <button 
                         type="button"
-                        onClick={() => {/* logic to resend */}}
-                        className="text-xs font-semibold text-[#B8641A] hover:underline"
+                        onClick={handleCustomerOtpResend}
+                        disabled={loading}
+                        className="text-xs font-semibold text-[#B8641A] hover:underline disabled:text-[#C4A882] disabled:no-underline"
                     >
                         Resend Code
                     </button>
