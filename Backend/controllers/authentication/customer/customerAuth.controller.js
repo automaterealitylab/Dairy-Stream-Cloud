@@ -91,13 +91,26 @@ export const requestOtpAuth = async (req, res) => {
     });
 
   } catch (err) {
+    const rawMessage = String(err?.message || err || "");
+    const normalizedMessage = rawMessage.toLowerCase();
+    let statusCode = 400;
+
+    if (normalizedMessage.includes("customer not found")) {
+      statusCode = 404;
+    } else if (
+      normalizedMessage.includes("email delivery failed") ||
+      normalizedMessage.includes("email credentials are not configured")
+    ) {
+      statusCode = 503;
+    }
+
     console.error(
       `[CUSTOMER OTP ERROR] identifier=${req?.body?.identifier || ""} dairyId=${req?.body?.dairyId || ""} message=${err?.message || err}`
     );
-    return res.status(400).json({
+    return res.status(statusCode).json({
       success: false,
-      message: "Failed to send OTP",
-      error: err.message,
+      message: rawMessage || "Failed to send OTP",
+      error: rawMessage || "Failed to send OTP",
     });
   }
 };

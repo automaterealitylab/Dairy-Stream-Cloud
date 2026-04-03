@@ -148,12 +148,13 @@ const LoginPage = () => {
           return;
         }
 
-        setOtpTimer(30);
-        setStep("OTP");
         await requestOtpApi({
           identifier,
           dairyId: response.dairy?.id,
         });
+        setOtpTimer(30);
+        setStep("OTP");
+        toast.success("OTP sent successfully");
         return;
       }
 
