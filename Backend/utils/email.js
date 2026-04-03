@@ -191,12 +191,14 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
   const connectionTimeout = Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 10000);
   const greetingTimeout = Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 10000);
   const socketTimeout = Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 15000);
+  const maxAttempts = Number(process.env.EMAIL_SMTP_MAX_ATTEMPTS || 2);
+  const retryBackoffMs = Number(process.env.EMAIL_SMTP_RETRY_BACKOFF_MS || 2000);
 
   if (!emailUser || !emailPassword) {
     throw new Error("Email credentials are not configured (EMAIL_USER and EMAIL_PASS/EMAIL_PASSWORD)");
   }
 
-  const transportConfig = {
+  const buildConfig = (override = {}) => ({
     auth: {
       user: emailUser,
       pass: emailPassword,
@@ -207,85 +209,93 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
     tls: {
       rejectUnauthorized: false,
     },
-  };
+    ...override,
+  });
 
+  const smtpConfigs = [];
   if (emailService) {
-    transportConfig.service = emailService;
+    smtpConfigs.push(buildConfig({ service: emailService }));
   } else {
-    transportConfig.host = smtpHost;
-    transportConfig.port = smtpPort;
-    transportConfig.secure = smtpSecure;
+    smtpConfigs.push(buildConfig({ host: smtpHost, port: smtpPort, secure: smtpSecure }));
+
+    // Gmail alternative bindings (common timeout/resolution path)
+    if (smtpHost.includes("gmail.com")) {
+      if (smtpPort !== 465) {
+        smtpConfigs.push(buildConfig({ host: "smtp.gmail.com", port: 465, secure: true }));
+      }
+      if (smtpPort !== 587) {
+        smtpConfigs.push(buildConfig({ host: "smtp.gmail.com", port: 587, secure: false }));
+      }
+    }
   }
 
-  const transporter = nodemailer.createTransport(transportConfig);
+  let lastError = null;
+  for (const config of smtpConfigs) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const transporter = nodemailer.createTransport(config);
+        const info = await transporter.sendMail({ from, to, subject, html });
 
-  try {
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject,
-      html,
-    });
+        console.log(
+          `[EMAIL SENT] provider=smtp to=${to} subject="${subject}" host=${config.host || emailService} port=${config.port || ""} secure=${config.secure || ""} messageId=${info.messageId}`
+        );
+        return info;
+      } catch (error) {
+        lastError = error;
+        console.warn(
+          `[SMTP RETRY] attempt=${attempt}/${maxAttempts} host=${config.host || emailService} port=${config.port || ""} secure=${config.secure || ""} code=${error?.code || "UNKNOWN"} message=${error?.message || error}`
+        );
 
-    console.log(
-      `[EMAIL SENT] provider=smtp to=${to} subject="${subject}" messageId=${info.messageId}`
-    );
-    return info;
-  } catch (error) {
-    console.error(
-      `[EMAIL ERROR] to=${to} service=${emailService || "custom"} host=${smtpHost}:${smtpPort} secure=${smtpSecure} user=${emailUser} connectionTimeout=${connectionTimeout} greetingTimeout=${greetingTimeout} socketTimeout=${socketTimeout} code=${error?.code || "UNKNOWN"} message=${error?.message || error}`
-    );
-    const smtpMessage = [error?.code, error?.message].filter(Boolean).join(" - ") || "Unknown email transport error";
-    throw new Error(`Email delivery failed via SMTP: ${smtpMessage}`);
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, retryBackoffMs));
+        }
+      }
+    }
   }
+
+  const errorCode = lastError?.code || "UNKNOWN";
+  const errorMessage = lastError?.message || "Connection failed for all SMTP options";
+  console.error(
+    `[EMAIL ERROR] to=${to} service=${emailService || "custom"} host=${smtpHost}:${smtpPort} secure=${smtpSecure} user=${emailUser} connectionTimeout=${connectionTimeout} greetingTimeout=${greetingTimeout} socketTimeout=${socketTimeout} code=${errorCode} message=${errorMessage}`
+  );
+
+  throw new Error(`Email delivery failed via SMTP: ${errorCode} - ${errorMessage}`);
 };
 
 export const sendEmail = async ({ to, subject, html }) => {
   const emailUser = String(process.env.EMAIL_USER || "").trim();
   const emailFrom = process.env.EMAIL_FROM || `"Dairy Automation System" <${emailUser}>`;
+  const forceSmtp = String(process.env.EMAIL_ONLY_SMTP || "false").toLowerCase() === "true";
 
   const hasResend = Boolean(String(process.env.RESEND_API_KEY || "").trim());
   const hasBrevo = Boolean(String(process.env.BREVO_API_KEY || "").trim());
   const hasSendGrid = Boolean(String(process.env.SENDGRID_API_KEY || "").trim());
   const hasSmtp = Boolean(emailUser && (process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD));
 
-  const tryApiFallback = async (error) => {
-    console.warn(
-      `[EMAIL FALLBACK] SMTP failed (${error?.code || "UNKNOWN"}): ${error?.message || error}. Trying configured API provider.`
-    );
+  if (!forceSmtp) {
+    if (hasResend) {
+      return sendViaResend({ to, subject, html, from: emailFrom });
+    }
 
-    if (hasResend) return sendViaResend({ to, subject, html, from: emailFrom });
-    if (hasBrevo) return sendViaBrevo({ to, subject, html, from: emailFrom });
-    if (hasSendGrid) return sendViaSendGrid({ to, subject, html, from: emailFrom });
+    if (hasBrevo) {
+      return sendViaBrevo({ to, subject, html, from: emailFrom });
+    }
 
-    throw error;
-  };
-
-  if (hasResend) {
-    return sendViaResend({ to, subject, html, from: emailFrom });
-  }
-
-  if (hasBrevo) {
-    return sendViaBrevo({ to, subject, html, from: emailFrom });
-  }
-
-  if (hasSendGrid) {
-    return sendViaSendGrid({ to, subject, html, from: emailFrom });
-  }
-
-  if (hasSmtp) {
-    try {
-      return await sendViaSmtp({ to, subject, html, from: emailFrom });
-    } catch (smtpError) {
-      // if alternative API provider config exists, attempt fallback
-      if (hasResend || hasBrevo || hasSendGrid) {
-        return tryApiFallback(smtpError);
-      }
-      throw smtpError;
+    if (hasSendGrid) {
+      return sendViaSendGrid({ to, subject, html, from: emailFrom });
     }
   }
 
-  throw new Error(
-    "Email delivery failed: no email provider is configured. Set RESEND_API_KEY, BREVO_API_KEY, SENDGRID_API_KEY, or SMTP environment variables."
-  );
+  if (!hasSmtp) {
+    throw new Error(
+      "Email delivery failed: no SMTP credentials configured. Set EMAIL_USER and EMAIL_PASS/EMAIL_PASSWORD."
+    );
+  }
+
+  try {
+    return await sendViaSmtp({ to, subject, html, from: emailFrom });
+  } catch (smtpError) {
+    console.error(`Email delivery failure in SMTP-only mode: ${smtpError?.message || smtpError}`);
+    throw smtpError;
+  }
 };
