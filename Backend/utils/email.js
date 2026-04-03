@@ -235,7 +235,8 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
     console.error(
       `[EMAIL ERROR] to=${to} service=${emailService || "custom"} host=${smtpHost}:${smtpPort} secure=${smtpSecure} user=${emailUser} connectionTimeout=${connectionTimeout} greetingTimeout=${greetingTimeout} socketTimeout=${socketTimeout} code=${error?.code || "UNKNOWN"} message=${error?.message || error}`
     );
-    throw new Error(`Email delivery failed via SMTP: ${error?.message || "Unknown email transport error"}`);
+    const smtpMessage = [error?.code, error?.message].filter(Boolean).join(" - ") || "Unknown email transport error";
+    throw new Error(`Email delivery failed via SMTP: ${smtpMessage}`);
   }
 };
 
@@ -243,17 +244,48 @@ export const sendEmail = async ({ to, subject, html }) => {
   const emailUser = String(process.env.EMAIL_USER || "").trim();
   const emailFrom = process.env.EMAIL_FROM || `"Dairy Automation System" <${emailUser}>`;
 
-  if (String(process.env.RESEND_API_KEY || "").trim()) {
+  const hasResend = Boolean(String(process.env.RESEND_API_KEY || "").trim());
+  const hasBrevo = Boolean(String(process.env.BREVO_API_KEY || "").trim());
+  const hasSendGrid = Boolean(String(process.env.SENDGRID_API_KEY || "").trim());
+  const hasSmtp = Boolean(emailUser && (process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD));
+
+  const tryApiFallback = async (error) => {
+    console.warn(
+      `[EMAIL FALLBACK] SMTP failed (${error?.code || "UNKNOWN"}): ${error?.message || error}. Trying configured API provider.`
+    );
+
+    if (hasResend) return sendViaResend({ to, subject, html, from: emailFrom });
+    if (hasBrevo) return sendViaBrevo({ to, subject, html, from: emailFrom });
+    if (hasSendGrid) return sendViaSendGrid({ to, subject, html, from: emailFrom });
+
+    throw error;
+  };
+
+  if (hasResend) {
     return sendViaResend({ to, subject, html, from: emailFrom });
   }
 
-  if (String(process.env.BREVO_API_KEY || "").trim()) {
+  if (hasBrevo) {
     return sendViaBrevo({ to, subject, html, from: emailFrom });
   }
 
-  if (String(process.env.SENDGRID_API_KEY || "").trim()) {
+  if (hasSendGrid) {
     return sendViaSendGrid({ to, subject, html, from: emailFrom });
   }
 
-  return sendViaSmtp({ to, subject, html, from: emailFrom });
+  if (hasSmtp) {
+    try {
+      return await sendViaSmtp({ to, subject, html, from: emailFrom });
+    } catch (smtpError) {
+      // if alternative API provider config exists, attempt fallback
+      if (hasResend || hasBrevo || hasSendGrid) {
+        return tryApiFallback(smtpError);
+      }
+      throw smtpError;
+    }
+  }
+
+  throw new Error(
+    "Email delivery failed: no email provider is configured. Set RESEND_API_KEY, BREVO_API_KEY, SENDGRID_API_KEY, or SMTP environment variables."
+  );
 };
