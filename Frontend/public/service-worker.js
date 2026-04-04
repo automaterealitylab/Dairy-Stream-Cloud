@@ -1,4 +1,4 @@
-const CACHE_NAME = "dairystream-cache-v2";
+const CACHE_NAME = "dairystream-cache-v3";
 
 const STATIC_ASSETS = [
   "/",
@@ -64,8 +64,8 @@ self.addEventListener("push", (event) => {
   const data = event.data.json();
   const options = {
     body: data.notification?.body || "New notification",
-    icon: data.notification?.icon || "/icons/favicon.png",
-    badge: data.notification?.badge || "/icons/badge.png",
+    icon: data.notification?.icon || "/icons/icon-192.png",
+    badge: data.notification?.badge || "/icons/icon-192.png",
     vibrate: [200, 100, 200],
     tag: data.data?.deliveryId || "notification",
     requireInteraction: false,
