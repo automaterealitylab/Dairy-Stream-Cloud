@@ -244,8 +244,17 @@ const CustomerLayout = ({ children }) => {
                 Customer Portal
               </p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355]">
-              <Bell size={18} />
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355]">
+                <Bell size={18} />
+              </div>
+              <button
+                onClick={handleLogout}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[#EDE8DF] bg-white px-3 text-xs font-semibold text-[#8B7355] transition hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B]"
+              >
+                <LogOut size={14} />
+                Logout
+              </button>
             </div>
           </div>
         </header>
