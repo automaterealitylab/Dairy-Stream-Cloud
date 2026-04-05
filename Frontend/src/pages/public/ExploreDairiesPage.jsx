@@ -243,6 +243,7 @@ const ExploreDairiesPage = () => {
                   </span>
                 </button>
               </div>
+            </div>
 
             <div className="relative max-w-2xl flex-1">
               <Search className="absolute left-4 top-3.5 text-[#C4A882]" size={20} />
