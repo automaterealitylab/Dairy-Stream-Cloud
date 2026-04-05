@@ -2,7 +2,10 @@ import { supabase } from "../../config/supabase.js";
 import { appendDeliveryBillingMeta } from "./monthlyBilling.service.js";
 import { addAmountToCustomerWallet } from "./payments.service.js";
 import { getSubscriptionByCustomerId } from "./subscription.service.js";
-import { ensureCustomerSubscriptionDeliveryForDate } from "./subscription.automation.service.js";
+import {
+  autoFailOverduePendingSubscriptionDeliveriesForCustomer,
+  ensureCustomerSubscriptionDeliveryForDate,
+} from "./subscription.automation.service.js";
 
 const VALID_ONE_TIME_SLOTS = new Set(["MORNING", "EVENING"]);
 const SLOT_WINDOWS = {
@@ -757,6 +760,7 @@ const getSavedCustomerAddress = async (customerId) => {
 };
 
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
+  await autoFailOverduePendingSubscriptionDeliveriesForCustomer({ customerId });
   await ensureCustomerSubscriptionDeliveryForDate({ customerId });
 
   const resolvedSubscription =

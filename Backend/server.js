@@ -137,6 +137,8 @@ const runSubscriptionAutoFail = async () => {
   }
 };
 
+runSubscriptionAutoFail();
+
 const runMonthEndSubscriptionBilling = async () => {
   try {
     const result = await runMonthEndSubscriptionBillingForAllCustomers();
