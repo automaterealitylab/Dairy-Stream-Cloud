@@ -35,7 +35,7 @@ import {
   deleteAdminAgentById,
 } from "../controllers/admin/adminAgent.controller.js";
 import {
-  collectOfflinePayment,
+  
   changeFarmPlan,
   fetchPageData,
   updateStatus,
