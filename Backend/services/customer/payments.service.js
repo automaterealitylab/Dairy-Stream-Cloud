@@ -1,6 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { getRazorpayConfig } from "../../config/razorpay.js";
 import {
   MONTHLY_BILL_MARKER,
   getCurrentMonthSuccessfulSubscriptionDue,
@@ -460,13 +461,11 @@ const createWalletLedgerEntry = async ({
 };
 
 const getRazorpayClient = () => {
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    throw new Error("Razorpay is not configured on server");
-  }
+  const { keyId, keySecret } = getRazorpayConfig();
 
   return new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: keyId,
+    key_secret: keySecret,
   });
 };
 
@@ -796,7 +795,7 @@ export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyI
     });
 
     return {
-      keyId: process.env.RAZORPAY_KEY_ID,
+      keyId: getRazorpayConfig().keyId,
       order,
       payment: {
         id: null,
@@ -844,7 +843,7 @@ export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyI
   });
 
   return {
-    keyId: process.env.RAZORPAY_KEY_ID,
+    keyId: getRazorpayConfig().keyId,
     order,
     payment: {
       id: pendingPayment.id,
@@ -873,7 +872,7 @@ export const verifyCustomerPayment = async ({
   }
 
   const generatedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .createHmac("sha256", getRazorpayConfig().keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
@@ -1049,7 +1048,7 @@ export const createCustomerWalletTopupOrder = async ({
   });
 
   return {
-    keyId: process.env.RAZORPAY_KEY_ID,
+    keyId: getRazorpayConfig().keyId,
     order,
     amount: amountInRupees,
   };
@@ -1073,7 +1072,7 @@ export const verifyCustomerWalletTopup = async ({
   }
 
   const generatedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .createHmac("sha256", getRazorpayConfig().keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
