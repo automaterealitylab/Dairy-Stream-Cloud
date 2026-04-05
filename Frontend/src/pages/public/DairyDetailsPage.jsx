@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Star,
@@ -35,7 +35,9 @@ const DAY_OPTIONS = [
   { key: "SUNDAY", label: "Sun" },
 ];
 
-const normalizeProducts = (dairy = {}) => {
+const headingFont = { fontFamily: "'Lora', serif" };
+
+const normalizeAllProducts = (dairy = {}) => {
   const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
   if (explicitItems.length > 0) {
     return explicitItems
@@ -47,7 +49,7 @@ const normalizeProducts = (dairy = {}) => {
         stockQuantity: Number(item.stockQuantity || 0),
         unit: item.unit || "LITER",
       }))
-      .filter((item) => item.type === "MILK" && item.name && item.ratePerUnit > 0);
+      .filter((item) => item.name && item.ratePerUnit > 0);
   }
 
   const legacy = dairy?.products || {
@@ -67,10 +69,24 @@ const normalizeProducts = (dairy = {}) => {
   }));
 };
 
+const getMilkProducts = (products = []) =>
+  products.filter((item) => String(item.type || "MILK").trim().toUpperCase() === "MILK");
+
+const isProductOutOfStock = (stockQuantity) => {
+  const stock = Number(stockQuantity);
+  return Number.isFinite(stock) && stock <= 0;
+};
+
+const formatProductStockLabel = (stockQuantity) => {
+  const stock = Number(stockQuantity);
+  if (!Number.isFinite(stock)) return "Fresh stock available";
+  if (stock <= 0) return "Out of stock";
+  return `${stock} left`;
+};
+
 const DairyDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -134,7 +150,8 @@ const DairyDetailsPage = () => {
 
   const dairy = useMemo(() => {
     if (!data) return null;
-    const productItems = normalizeProducts(data);
+    const allProductItems = normalizeAllProducts(data);
+    const productItems = getMilkProducts(allProductItems);
     const products = productItems.reduce((acc, item) => {
       acc[item.name] = item.ratePerUnit;
       return acc;
@@ -148,6 +165,7 @@ const DairyDetailsPage = () => {
       address: data.address || data.city || "Address not available",
       rating: data.rating || 4.5,
       products,
+      allProductItems,
       productItems,
     };
   }, [data]);
@@ -261,54 +279,110 @@ const handleContinueFromStep2 = () => {
   if (loading) return <LoadingIndicator fullScreen message="Fetching farm details..." />;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      <div className="bg-white/80 backdrop-blur-md border-b sticky top-0 z-30">
+    <div
+      className="min-h-screen bg-[linear-gradient(180deg,#F5F0E8_0%,#FFFDF8_100%)] pb-24"
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    >
+      <div className="sticky top-0 z-30 border-b border-[#EDE8DF] bg-[#FFFDF8]/95 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+          <button
+            onClick={() => navigate(-1)}
+            className="rounded-full border border-[#EDE8DF] bg-white p-2 text-[#8B7355] transition-colors hover:border-[#D4B896] hover:text-[#5C3D1E]"
+          >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-xl font-bold text-slate-900">{dairy.name}</h1>
+          <h1 className="text-xl font-semibold text-[#2C1A0E]" style={headingFont}>{dairy.name}</h1>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-8">
-          <div className="aspect-video w-full rounded-[40px] overflow-hidden shadow-2xl bg-slate-200">
+          <div className="aspect-video w-full rounded-[40px] overflow-hidden border border-[#E7DAC6] shadow-[0_20px_60px_rgba(84,52,16,0.08)] bg-[#F3E6D6]">
             {dairy.image ? (
               <img src={dairy.image} alt={dairy.name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-400">No Image Available</div>
+              <div className="w-full h-full flex items-center justify-center text-[#B89E80]">No Image Available</div>
             )}
           </div>
 
-          <section className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
-            <h2 className="text-2xl font-bold mb-4">About this Farm</h2>
-            <p className="text-slate-600 leading-relaxed">{dairy.description}</p>
+          <section className="rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] p-6 shadow-[0_12px_32px_rgba(84,52,16,0.06)]">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Dairy Menu</p>
+                <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>Available Products</h2>
+                <p className="mt-1 text-sm text-[#8B7355]">
+                  See everything this dairy currently offers before you subscribe or place a one-time order.
+                </p>
+              </div>
+            </div>
+
+            {dairy.allProductItems.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {dairy.allProductItems.map((item) => {
+                  const outOfStock = isProductOutOfStock(item.stockQuantity);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[18px] border border-[#EDE8DF] bg-[#FBF7F0] p-3.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold leading-5 text-[#2C1A0E]">{item.name}</p>
+                          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C4A882]">
+                            {item.type}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+                            outOfStock
+                              ? "bg-[#FDECEA] text-[#C0392B]"
+                              : "bg-[#EEF5E7] text-[#4A7C2F]"
+                          }`}
+                        >
+                          {formatProductStockLabel(item.stockQuantity)}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-end justify-between">
+                        <p className="text-lg font-black text-[#2C1A0E]">
+                          Rs {item.ratePerUnit}
+                          <span className="ml-1 text-xs font-medium text-[#8B7355]">/{item.unit}</span>
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0] px-6 py-8 text-sm text-[#8B7355]">
+                No products are listed for this dairy right now.
+              </div>
+            )}
           </section>
         </div>
 
         <div className="lg:col-span-1">
-          <div className="bg-white p-8 rounded-[40px] shadow-2xl shadow-slate-200 border border-white sticky top-28">
+          <div className="sticky top-28 rounded-[40px] border border-[#E7DAC6] bg-[#FFFDF8] p-8 shadow-[0_20px_60px_rgba(84,52,16,0.08)]">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Starting from</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Starting from</p>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">Rs {currentPrice}</span>
-                  <span className="text-slate-400 font-medium">/L</span>
+                  <span className="text-4xl font-black text-[#2C1A0E]">Rs {currentPrice}</span>
+                  <span className="font-medium text-[#8B7355]">/L</span>
                 </div>
               </div>
-              <div className="bg-green-500 text-white px-3 py-1 rounded-xl flex items-center gap-1 font-bold">
-                {dairy.rating} <Star size={14} fill="white" />
+              <div className="rounded-xl bg-[#EEF5E7] px-3 py-1 text-[#4A7C2F] flex items-center gap-1 font-bold">
+                {dairy.rating} <Star size={14} fill="currentColor" />
               </div>
             </div>
 
             <div className="space-y-4 mb-8">
-              <div className="flex items-center gap-3 text-slate-600 bg-slate-50 p-4 rounded-2xl">
-                <ShieldCheck className="text-blue-600" size={20} />
+              <div className="flex items-center gap-3 rounded-2xl bg-[#FBF7F0] p-4 text-[#6B5B3E]">
+                <ShieldCheck className="text-[#B8641A]" size={20} />
                 <span className="text-sm font-semibold">100% Organic & Verified</span>
               </div>
-              <div className="flex items-center gap-3 text-slate-600 bg-slate-50 p-4 rounded-2xl">
-                <Truck className="text-blue-600" size={20} />
+              <div className="flex items-center gap-3 rounded-2xl bg-[#FBF7F0] p-4 text-[#6B5B3E]">
+                <Truck className="text-[#B8641A]" size={20} />
                 <span className="text-sm font-semibold">Free Delivery (6 AM - 9 AM)</span>
               </div>
             </div>
@@ -317,7 +391,7 @@ const handleContinueFromStep2 = () => {
               <div className="space-y-3">
                 <button
                   onClick={() => navigate("/customer/dashboard/subscriptions")}
-                  className="w-full bg-green-600 text-white py-5 rounded-[24px] font-bold shadow-xl shadow-green-100 flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-[#4A7C2F] py-5 font-bold text-white shadow-[0_16px_30px_rgba(74,124,47,0.18)] transition hover:bg-[#3E6928]"
                 >
                   <CheckCircle2 size={20} /> Active Subscription
                 </button>
@@ -326,8 +400,8 @@ const handleContinueFromStep2 = () => {
                   disabled={isSubscribedToThis && hasActiveSubscription}
                   className={`w-full py-4 rounded-[20px] font-bold border transition-all flex items-center justify-center gap-2 ${
                     isSubscribedToThis && hasActiveSubscription
-                      ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                      : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+                      ? "bg-[#F5F0E8] text-[#BBA88E] border-[#EDE8DF] cursor-not-allowed"
+                      : "bg-white text-[#5C3D1E] border-[#EDE8DF] hover:border-[#D4B896] hover:bg-[#FDF6EC]"
                   }`}
                 >
                   <Calendar size={18} />
@@ -340,20 +414,20 @@ const handleContinueFromStep2 = () => {
               <div className="space-y-3">
                 <button
                   onClick={handleSubscribeClick}
-                  className="w-full bg-blue-600 text-white py-5 rounded-[24px] font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 group"
+                  className="group flex w-full items-center justify-center gap-2 rounded-[24px] bg-[#B8641A] py-5 font-bold text-white shadow-[0_16px_30px_rgba(184,100,26,0.18)] transition-all hover:bg-[#9F5313]"
                 >
                   Subscribe Now <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
                 <button
                   onClick={handleBuyOnceClick}
-                  className="w-full bg-white text-slate-900 py-4 rounded-[20px] font-bold border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-[20px] border border-[#EDE8DF] bg-white py-4 font-bold text-[#5C3D1E] transition-all hover:border-[#D4B896] hover:bg-[#FDF6EC]"
                 >
                   <Calendar size={18} /> Buy Once
                 </button>
               </div>
             )}
 
-            <p className="mt-4 text-xs text-slate-500">
+            <p className="mt-4 text-xs text-[#8B7355]">
               Buy once from the dedicated order page, or choose subscription for recurring delivery plans.
             </p>
           </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "dairystream-cache-v1";
+const CACHE_NAME = "dairystream-cache-v3";
 
 const STATIC_ASSETS = [
   "/",
@@ -15,19 +15,36 @@ self.addEventListener("install", (event) => {
 });
 
 // Activate
-self.addEventListener("activate", () => {
-  self.clients.claim();
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
+      )
+    ).then(() => self.clients.claim())
+  );
 });
 
 // Fetch strategy: Network first, cache fallback
 self.addEventListener("fetch", (event) => {
+  // Never try to cache non-GET requests. The Cache API only supports GET.
+  if (event.request.method !== "GET") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const cloned = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, cloned);
-        });
+        // Cache only successful GET responses.
+        if (response.ok) {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, cloned);
+          });
+        }
         return response;
       })
       .catch(() => caches.match(event.request))
@@ -47,8 +64,8 @@ self.addEventListener("push", (event) => {
   const data = event.data.json();
   const options = {
     body: data.notification?.body || "New notification",
-    icon: data.notification?.icon || "/icons/favicon.png",
-    badge: data.notification?.badge || "/icons/badge.png",
+    icon: data.notification?.icon || "/icons/icon-192.png",
+    badge: data.notification?.badge || "/icons/icon-192.png",
     vibrate: [200, 100, 200],
     tag: data.data?.deliveryId || "notification",
     requireInteraction: false,

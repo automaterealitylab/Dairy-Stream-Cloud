@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import client from "../../api/client";
 import {
   User,
   Phone,
@@ -71,31 +72,18 @@ export default function AddCustomerModal({ open, onClose, onCreated }) {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:4000/api/customer/addCustomer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      const data = contentType.includes("application/json")
-        ? await res.json()
-        : { message: await res.text() };
-
-      if (!res.ok) {
-        const errorMessage = data?.message || data?.error || "Customer creation failed";
-        setError(errorMessage);
-        return;
-      }
+      const { data } = await client.post("/customer/addCustomer", formData);
 
       alert("Customer added successfully.");
       const createdCustomer = data?.customer || null;
       closeModal();
       if (onCreated) onCreated(createdCustomer);
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      setError(
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }

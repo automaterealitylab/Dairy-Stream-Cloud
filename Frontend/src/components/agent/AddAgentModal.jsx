@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import client from "../../api/client";
 import {
   User,
   Lock,
@@ -30,19 +30,6 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
-  const apiurlAddAgent = "http://localhost:4000/api/admin/addagent";
-  const apiurlGenerateAgentId = "http://localhost:4000/api/admin/agents/generate-id";
-  const apiurlFetchBuildings = "http://localhost:4000/api/admin/buildings";
-
-  const getAuthHeader = () => {
-    const token = localStorage.getItem("adminToken");
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-  };
-
   const inputHandler = (e) => {
     const { name, value, type, checked } = e.target;
     setAgent((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
@@ -50,7 +37,7 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
 
   const generateNewAgentId = async () => {
     try {
-      const response = await axios.get(apiurlGenerateAgentId, getAuthHeader());
+      const response = await client.get("/admin/agents/generate-id");
       const newId = response?.data?.agentId;
       if (!newId) throw new Error("No agentId returned by server");
       setAgent((prev) => ({ ...prev, agentId: newId }));
@@ -68,7 +55,7 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
       await generateNewAgentId();
       try {
         setIsLoadingBuildings(true);
-        const response = await axios.get(apiurlFetchBuildings, getAuthHeader());
+        const response = await client.get("/admin/buildings");
         if (!active) return;
         setBuildingNames(Array.isArray(response.data) ? response.data : []);
         setFetchError(null);
@@ -112,7 +99,7 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
 
     try {
       setIsSubmitting(true);
-      const response = await axios.post(apiurlAddAgent, agent, getAuthHeader());
+      const response = await client.post("/admin/addagent", agent);
       const createdAgentId = response?.data?.data?.agent_id || agent.agentId;
       alert(
         `Delivery Agent Created Successfully!\n\nAgent ID: ${createdAgentId}\n(Please share this ID with the agent for login)`

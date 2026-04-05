@@ -2,9 +2,10 @@ import axios from "axios";
 
 // Cleanly fetch and trim the base URL
 export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:4000").trim();
+export const API_BASE_URL = `${BASE_URL}/api`;
 
 const client = axios.create({
-  baseURL: `${BASE_URL}/api`,
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -43,4 +44,5 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+export { client };
 export default client;

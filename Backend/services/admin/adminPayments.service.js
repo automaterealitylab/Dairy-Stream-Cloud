@@ -61,6 +61,7 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
     .select("id, customer_id, dairy_id, amount, status, method, paid_at, due_date, created_at", {
       count: "exact",
     })
+    .not("status", "in", '("CANCELLED","CANCELED")')
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -343,64 +344,5 @@ export const updateCustomerPlan = async (customerId, newPlanName) => {
     .select();
 
   if (error) throw error;
-  return data;
-};
-
-
-/* ================================
-   3. MANUAL PAYMENTS AND CUSTOMER WALLET LOGIC
-   ================================ */
-
-/**
- * @desc Process a manual payment: Clear bill first, then put remainder in wallet.
- */
-export const recordManualPayment = async ({ customerId, amount, dairyId }) => {
-  // 1. Fetch current financial state
-  const { data: customer, error: fetchError } = await supabase
-    .from("customers")
-    .select("total_bill, wallet_balance")
-    .eq("id", customerId)
-    .single();
-
-  if (fetchError) throw fetchError;
-
-  let newBill = Number(customer.total_bill || 0);
-  let newWallet = Number(customer.wallet_balance || 0);
-  const paymentAmount = Number(amount);
-
-  // 2. The Logic
-  if (paymentAmount >= newBill) {
-    // Payment covers the whole bill
-    newWallet += (paymentAmount - newBill);
-    newBill = 0;
-  } else {
-    // Payment only covers part of the bill
-    newBill -= paymentAmount;
-  }
-
-  // 3. Update the database
-  const { data, error: updateError } = await supabase
-    .from("customers")
-    .update({
-      total_bill: newBill,
-      wallet_balance: newWallet,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", customerId)
-    .select()
-    .single();
-
-  if (updateError) throw updateError;
-
-  // 4. Log the transaction in the payments table for history
-  await supabase.from("payments").insert([{
-    customer_id: customerId,
-    dairy_id: dairyId,
-    amount: paymentAmount,
-    status: "PAID",
-    method: "MANUAL",
-    paid_at: new Date().toISOString(),
-  }]);
-
   return data;
 };

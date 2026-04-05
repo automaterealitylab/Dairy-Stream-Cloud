@@ -243,7 +243,6 @@ const ExploreDairiesPage = () => {
                   </span>
                 </button>
               </div>
-            </div>
 
             <div className="relative max-w-2xl flex-1">
               <Search className="absolute left-4 top-3.5 text-[#C4A882]" size={20} />
@@ -281,6 +280,9 @@ const ExploreDairiesPage = () => {
                 {canOpenCustomerDashboard ? "Dashboard" : "Login"}
               </button>
             </div>
+            <p className="px-1 text-xs leading-5 text-[#8B7355]">
+              Browse nearby dairies, compare starting prices, and pick a plan that matches your area and routine.
+            </p>
           </div>
         </div>
       </header>

@@ -12,6 +12,7 @@ import {
 export const getPerformance = async (req, res) => {
   try {
     const { agentId, startDate, endDate } = req.query;
+    const dairyId = req.admin?.dairyId || null;
 
     // Default to last 7 days if not provided
     const end = endDate || new Date().toISOString().split('T')[0];
@@ -19,7 +20,7 @@ export const getPerformance = async (req, res) => {
       .toISOString()
       .split('T')[0];
 
-    const performance = await getAgentPerformance(agentId, start, end);
+    const performance = await getAgentPerformance(agentId, start, end, dairyId);
 
     res.json({
       success: true,
@@ -41,7 +42,8 @@ export const getPerformance = async (req, res) => {
  */
 export const getPerformanceSummaryData = async (req, res) => {
   try {
-    const summary = await getPerformanceSummary();
+    const dairyId = req.admin?.dairyId || null;
+    const summary = await getPerformanceSummary(dairyId);
 
     res.json({
       success: true,
@@ -63,12 +65,13 @@ export const getPerformanceSummaryData = async (req, res) => {
 export const getTopPerformers = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
+    const dairyId = req.admin?.dairyId || null;
     const end = new Date().toISOString().split('T')[0];
     const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split('T')[0];
 
-    const topAgents = await getTopPerformingAgents(parseInt(limit), start, end);
+    const topAgents = await getTopPerformingAgents(parseInt(limit), start, end, dairyId);
 
     res.json({
       success: true,
@@ -90,13 +93,14 @@ export const getTopPerformers = async (req, res) => {
 export const getMissedDeliveries = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
+    const dairyId = req.admin?.dairyId || null;
 
     const end = endDate || new Date().toISOString().split('T')[0];
     const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split('T')[0];
 
-    const missedDeliveries = await getMissedDeliveriesSummary(start, end);
+    const missedDeliveries = await getMissedDeliveriesSummary(start, end, dairyId);
 
     res.json({
       success: true,

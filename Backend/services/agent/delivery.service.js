@@ -2,6 +2,7 @@ import axios from "axios";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { supabase } from "../../config/supabase.js";
+import { getRazorpayConfig } from "../../config/razorpay.js";
 import {
   ensureBuyOnceInvoiceForDeliveredOrder,
   syncCustomerMonthlyBills,
@@ -112,15 +113,11 @@ const formatAddress = (customer = {}) => {
 };
 
 const getRazorpayClient = () => {
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    const error = new Error("Razorpay is not configured on server");
-    error.statusCode = 500;
-    throw error;
-  }
+  const { keyId, keySecret } = getRazorpayConfig();
 
   return new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: keyId,
+    key_secret: keySecret,
   });
 };
 
@@ -432,11 +429,7 @@ export const createAgentOnlineCollectionQr = async ({
   dairyId = null,
   deliveryId,
 } = {}) => {
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    const error = new Error("Razorpay is not configured on server");
-    error.statusCode = 500;
-    throw error;
-  }
+  const { keyId, keySecret } = getRazorpayConfig();
 
   const row = await fetchAssignedDeliveryRow({ agentDbId, dairyId, deliveryId });
   const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
@@ -488,8 +481,8 @@ export const createAgentOnlineCollectionQr = async ({
 
     const linkResponse = await axios.post("https://api.razorpay.com/v1/payment_links", linkPayload, {
       auth: {
-        username: process.env.RAZORPAY_KEY_ID,
-        password: process.env.RAZORPAY_KEY_SECRET,
+        username: keyId,
+        password: keySecret,
       },
       timeout: 15000,
     });
@@ -578,7 +571,7 @@ export const createAgentOnlineCollectionOrder = async ({
   });
 
   return {
-    keyId: process.env.RAZORPAY_KEY_ID,
+    keyId: getRazorpayConfig().keyId,
     order,
     payment: {
       id: paymentRow.id,
@@ -625,7 +618,7 @@ export const verifyAgentOnlineCollectionPayment = async ({
   }
 
   const generatedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .createHmac("sha256", getRazorpayConfig().keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 

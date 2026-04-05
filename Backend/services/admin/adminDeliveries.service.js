@@ -83,6 +83,11 @@ const formatQuantity = (value) => {
   return `${compact}L`;
 };
 
+const parseNotesField = (notesValue, field) => {
+  const match = String(notesValue || "").match(new RegExp(`${field}=([^;\\n]+)`, "i"));
+  return match?.[1]?.trim() || null;
+};
+
 const normalizeDate = (value) => {
   if (!value) return "";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -184,13 +189,13 @@ const getCustomerAndAgentMaps = async ({ customerIds, agentIds }) => {
     customerIds.length > 0
       ? supabase
           .from("customers")
-          .select("id, customer_name, building_name")
+          .select("id, customer_name, building_name, wing, room_no")
           .in("id", customerIds)
       : Promise.resolve({ data: [], error: null }),
     agentIds.length > 0
       ? supabase
           .from("agents")
-          .select("id, agent_name, building")
+          .select("id, agent_name, building, status, inactive_until")
           .in("id", agentIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -212,7 +217,7 @@ const getSubscriptionMapForCustomers = async ({ customerIds, dairyId }) => {
   let query = supabase
     .from("subscriptions")
     .select(
-      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, created_at, updated_at"
+      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, created_at, updated_at"
     )
     .in("customer_id", customerIds);
 
@@ -226,6 +231,161 @@ const getSubscriptionMapForCustomers = async ({ customerIds, dairyId }) => {
   return pickLatestSubscriptionByCustomer(data || [], dairyId, { activeOnly: true });
 };
 
+const normalizeRouteValue = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const routeMatchesCustomer = (agentRoute, customerRoute) => {
+  const target = normalizeRouteValue(customerRoute);
+  if (!target) return false;
+
+  return String(agentRoute || "")
+    .split(",")
+    .map((part) => normalizeRouteValue(part))
+    .filter(Boolean)
+    .some((part) => part === target);
+};
+
+const fetchAssignableAgentsForDairy = async ({ dairyId = null } = {}) => {
+  let query = supabase
+    .from("agents")
+    .select("id, agent_name, building, status, inactive_until");
+
+  if (dairyId) {
+    query = query.eq("dairy_id", dairyId);
+  }
+
+  const { data, error } = await query.order("agent_name", { ascending: true });
+  if (!error) {
+    return data || [];
+  }
+
+  if (!isMissingColumnError(error)) {
+    throw error;
+  }
+
+  let fallbackQuery = supabase.from("agents").select("id, agent_name, building");
+  if (dairyId) {
+    fallbackQuery = fallbackQuery.eq("dairy_id", dairyId);
+  }
+
+  const fallback = await fallbackQuery.order("agent_name", { ascending: true });
+  if (fallback.error) throw fallback.error;
+
+  return (fallback.data || []).map((row) => ({
+    ...row,
+    status: "ACTIVE",
+    inactive_until: null,
+  }));
+};
+
+const findBestAutoAssignAgentId = async ({
+  dairyId = null,
+  deliveryDate,
+  customer = null,
+  subscription = null,
+} = {}) => {
+  const candidateAgents = await fetchAssignableAgentsForDairy({ dairyId });
+  const activeAgents = candidateAgents.filter((agent) => deriveAgentIsActive(agent));
+  if (activeAgents.length === 0) return null;
+
+  const activeAgentIds = activeAgents.map((agent) => agent.id).filter(Boolean);
+  const preferredAgentId = Number(subscription?.assigned_agent_id || 0);
+  if (preferredAgentId > 0 && activeAgentIds.includes(preferredAgentId)) {
+    return preferredAgentId;
+  }
+
+  const availabilityMap = await getAgentAvailabilityMap({
+    agentIds: activeAgentIds,
+    deliveryDate,
+  });
+
+  const rankedAgents = activeAgents
+    .map((agent) => {
+      const availability = availabilityMap.get(agent.id) || {
+        assignedCount: 0,
+        availability: "AVAILABLE",
+      };
+
+      return {
+        ...agent,
+        assignedCount: availability.assignedCount,
+        routeMatch: routeMatchesCustomer(agent?.building, customer?.building_name),
+      };
+    })
+    .sort((left, right) => {
+      if (Number(right.routeMatch) !== Number(left.routeMatch)) {
+        return Number(right.routeMatch) - Number(left.routeMatch);
+      }
+      if ((left.assignedCount || 0) !== (right.assignedCount || 0)) {
+        return (left.assignedCount || 0) - (right.assignedCount || 0);
+      }
+      return String(left.agent_name || "").localeCompare(String(right.agent_name || ""));
+    });
+
+  return rankedAgents[0]?.id || null;
+};
+
+const autoAssignDeliveryIfPossible = async ({ delivery, dairyId = null } = {}) => {
+  const parsedDeliveryId = Number(delivery?.id);
+  if (!Number.isFinite(parsedDeliveryId) || parsedDeliveryId <= 0) {
+    return { agentId: null, assigned: false };
+  }
+  if (delivery?.agent_id) {
+    return { agentId: delivery.agent_id, assigned: false };
+  }
+
+  const customerId = Number(delivery?.customer_id || 0);
+  if (!customerId) {
+    return { agentId: null, assigned: false };
+  }
+
+  const resolvedDairyId = delivery?.dairy_id || dairyId || null;
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("id, building_name, wing, room_no")
+    .eq("id", customerId)
+    .limit(1)
+    .maybeSingle();
+  if (customerError) throw customerError;
+
+  const subscriptionByCustomer = await getSubscriptionMapForCustomers({
+    customerIds: [customerId],
+    dairyId: resolvedDairyId,
+  });
+  const subscription = subscriptionByCustomer.get(customerId) || null;
+
+  const nextAgentId = await findBestAutoAssignAgentId({
+    dairyId: resolvedDairyId,
+    deliveryDate: delivery?.delivery_date || new Date(),
+    customer,
+    subscription,
+  });
+
+  if (!nextAgentId) {
+    return { agentId: null, assigned: false };
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("deliveries")
+    .update({
+      agent_id: nextAgentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsedDeliveryId)
+    .select("id, agent_id")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+
+  return {
+    agentId: updated?.agent_id || nextAgentId,
+    assigned: Boolean(updated?.agent_id),
+  };
+};
+
 const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCustomer }) => {
   return (deliveries || []).map((row) => {
     const customer = customersById.get(row.customer_id) || {};
@@ -236,8 +396,13 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
     const route = customer.building_name || agent.building || "-";
     const notes = String(row.notes || "");
     const isOneTimeOrder = notes.includes("[ONE_TIME_ORDER]");
+    const isSubscriptionExtraOrder = isOneTimeOrder && Boolean(subscription?.customer_id);
     const approvalStatus = normalizeApprovalStatus(row.approval_status, { isOneTimeOrder });
     const issueMeta = extractIssueMeta(row);
+    const buildingName = customer.building_name || route || "-";
+    const wingOrFloor = customer.wing || "";
+    const roomNo = customer.room_no || "";
+    const slot = subscription.delivery_slot || parseNotesField(notes, "slot") || "-";
 
     return {
       id: row.id != null ? `DLV-${row.id}` : "DLV-NA",
@@ -246,11 +411,21 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
       customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
       agentName: agent.agent_name || "Unassigned",
       route,
+      buildingName,
+      wingOrFloor,
+      roomNo,
+      locationLabel: [buildingName, wingOrFloor, roomNo].filter(Boolean).join(" / ") || "-",
       quantity: formatQuantity(quantity),
       date: normalizeDate(row.delivery_date || row.created_at),
-      slot: subscription.delivery_slot || "-",
+      slot,
       status: normalizeStatus(row.status),
       isOneTimeOrder,
+      isSubscriptionExtraOrder,
+      deliveryType: isSubscriptionExtraOrder
+        ? "SUBSCRIPTION EXTRA"
+        : isOneTimeOrder
+        ? "BUY ONCE"
+        : "SUBSCRIPTION",
       approvalStatus,
       needsApproval: approvalStatus === "PENDING",
       isAssigned: row.agent_id != null,
@@ -402,7 +577,7 @@ export const getDeliverySchedulingOptions = async ({ dairyId = null } = {}) => {
   let subscriptionsQuery = supabase
     .from("subscriptions")
     .select(
-      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, created_at, updated_at"
+      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, created_at, updated_at"
     );
 
   if (dairyId) {
@@ -534,7 +709,7 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     throw makeError("deliveryDate must be in YYYY-MM-DD format");
   }
 
-  const parsedAgentId = toIntegerOrNull(agentId);
+  let parsedAgentId = toIntegerOrNull(agentId);
 
   let subscriptionQuery = supabase
     .from("subscriptions")
@@ -573,6 +748,23 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     if (!agent) {
       throw makeError("Selected agent is not available for this dairy", 400);
     }
+  }
+
+  if (!parsedAgentId) {
+    const { data: customerForAssignment, error: customerError } = await supabase
+      .from("customers")
+      .select("id, building_name, wing, room_no")
+      .eq("id", parsedCustomerId)
+      .limit(1)
+      .maybeSingle();
+    if (customerError) throw customerError;
+
+    parsedAgentId = await findBestAutoAssignAgentId({
+      dairyId: resolvedDairyId,
+      deliveryDate,
+      customer: customerForAssignment,
+      subscription: activeSubscription,
+    });
   }
 
   const { data: existing, error: existingError } = await supabase
@@ -677,7 +869,7 @@ export const scheduleBulkDeliveriesForDate = async ({
   let subscriptionQuery = supabase
     .from("subscriptions")
     .select(
-      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, updated_at, created_at"
+      "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, updated_at, created_at"
     );
 
   if (dairyId) {
@@ -707,7 +899,7 @@ export const scheduleBulkDeliveriesForDate = async ({
 
   const { data: customers, error: customerError } = await supabase
     .from("customers")
-    .select("id, customer_name, email, building_name")
+    .select("id, customer_name, email, building_name, wing, room_no")
     .in("id", candidateCustomerIds);
 
   if (customerError) throw customerError;
@@ -767,10 +959,20 @@ export const scheduleBulkDeliveriesForDate = async ({
       continue;
     }
 
+    const customer = customerById.get(customerId) || {};
+    const autoAssignedAgentId = parsedAgentId
+      ? parsedAgentId
+      : await findBestAutoAssignAgentId({
+          dairyId: resolvedDairyId,
+          deliveryDate,
+          customer,
+          subscription: sub,
+        });
+
     insertRows.push({
       customer_id: customerId,
       dairy_id: resolvedDairyId,
-      agent_id: parsedAgentId,
+      agent_id: autoAssignedAgentId,
       delivery_date: deliveryDate,
       milk_type: sub?.milk_type || "Milk",
       quantity_liters: sub?.quantity_liters ?? null,
@@ -831,7 +1033,7 @@ export const approvePendingDeliveryOrder = async ({ dairyId = null, deliveryId }
 
   let existingQuery = supabase
     .from("deliveries")
-    .select("id, dairy_id, notes, approval_status")
+    .select("id, customer_id, dairy_id, agent_id, delivery_date, notes, approval_status")
     .eq("id", parsedDeliveryId)
     .limit(1);
   if (dairyId) {
@@ -872,10 +1074,16 @@ export const approvePendingDeliveryOrder = async ({ dairyId = null, deliveryId }
   if (updateError) throw updateError;
   if (!updatedDelivery) throw makeError("Failed to approve order", 500);
 
+  const autoAssignment = await autoAssignDeliveryIfPossible({
+    delivery,
+    dairyId: delivery.dairy_id || dairyId,
+  });
+
   return {
     approvedCount: 1,
     deliveryId: updatedDelivery.id,
     approvalStatus: String(updatedDelivery.approval_status || "APPROVED").toUpperCase(),
+    autoAssignedAgentId: autoAssignment.agentId,
   };
 };
 
@@ -886,7 +1094,7 @@ export const approveAllPendingDeliveryOrders = async ({ dairyId = null } = {}) =
 
   const { data: pendingRows, error: pendingError } = await supabase
     .from("deliveries")
-    .select("id")
+    .select("id, customer_id, dairy_id, agent_id, delivery_date")
     .eq("dairy_id", dairyId)
     .ilike("notes", "%[ONE_TIME_ORDER]%")
     .eq("approval_status", "PENDING");
@@ -908,8 +1116,20 @@ export const approveAllPendingDeliveryOrders = async ({ dairyId = null } = {}) =
 
   if (updateError) throw updateError;
 
+  let autoAssignedCount = 0;
+  for (const row of pendingRows || []) {
+    const assignment = await autoAssignDeliveryIfPossible({
+      delivery: row,
+      dairyId,
+    });
+    if (assignment.assigned) {
+      autoAssignedCount += 1;
+    }
+  }
+
   return {
     approvedCount: (updatedRows || []).length,
+    autoAssignedCount,
   };
 };
 

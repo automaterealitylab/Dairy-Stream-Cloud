@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import client from "./client";
 
 // ============================================
 // Agent Performance APIs
@@ -14,25 +12,17 @@ export const agentPerformanceAPI = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
 
-    return axios.get(
-      `${API_BASE_URL}/admin/performance?${params}`,
-      { withCredentials: true }
-    );
+    return client.get(`/admin/performance?${params}`);
   },
 
   // Get performance summary
   getPerformanceSummary: () => {
-    return axios.get(`${API_BASE_URL}/admin/performance/summary`, {
-      withCredentials: true,
-    });
+    return client.get("/admin/performance/summary");
   },
 
   // Get top performing agents
   getTopPerformers: (limit = 10) => {
-    return axios.get(
-      `${API_BASE_URL}/admin/performance/top-performers?limit=${limit}`,
-      { withCredentials: true }
-    );
+    return client.get(`/admin/performance/top-performers?limit=${limit}`);
   },
 
   // Get missed deliveries
@@ -41,19 +31,12 @@ export const agentPerformanceAPI = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
 
-    return axios.get(
-      `${API_BASE_URL}/admin/performance/missed-deliveries?${params}`,
-      { withCredentials: true }
-    );
+    return client.get(`/admin/performance/missed-deliveries?${params}`);
   },
 
   // Update performance metrics
   updatePerformanceMetrics: (agentId, performanceDate) => {
-    return axios.post(
-      `${API_BASE_URL}/admin/performance/update`,
-      { agentId, performanceDate },
-      { withCredentials: true }
-    );
+    return client.post("/admin/performance/update", { agentId, performanceDate });
   },
 };
 
@@ -68,17 +51,12 @@ export const agentEarningsAPI = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
 
-    return axios.get(`${API_BASE_URL}/admin/earnings?${params}`, {
-      withCredentials: true,
-    });
+    return client.get(`/admin/earnings?${params}`);
   },
 
   // Get today's work summary
   getTodayWorkSummary: (agentId) => {
-    return axios.get(
-      `${API_BASE_URL}/admin/earnings/today-summary?agentId=${agentId}`,
-      { withCredentials: true }
-    );
+    return client.get(`/admin/earnings/today-summary?agentId=${agentId}`);
   },
 
   // Get earnings summary
@@ -87,19 +65,16 @@ export const agentEarningsAPI = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
 
-    return axios.get(
-      `${API_BASE_URL}/admin/earnings/summary?${params}`,
-      { withCredentials: true }
-    );
+    return client.get(`/admin/earnings/summary?${params}`);
   },
 
   // Calculate and update earnings
   calculateEarnings: (agentId, earningDate, earningPerDelivery = 50) => {
-    return axios.post(
-      `${API_BASE_URL}/admin/earnings/calculate`,
-      { agentId, earningDate, earningPerDelivery },
-      { withCredentials: true }
-    );
+    return client.post("/admin/earnings/calculate", {
+      agentId,
+      earningDate,
+      earningPerDelivery,
+    });
   },
 };
 
@@ -113,19 +88,12 @@ export const deliveryAPI = {
     const params = new URLSearchParams({ agentId });
     if (date) params.append('date', date);
 
-    return axios.get(
-      `${API_BASE_URL}/agent/deliveries?${params}`,
-      { withCredentials: true }
-    );
+    return client.get(`/agent/deliveries?${params}`);
   },
 
   // Update delivery status
   updateDeliveryStatus: (deliveryId, status) => {
-    return axios.patch(
-      `${API_BASE_URL}/agent/deliveries/${deliveryId}/status`,
-      { status },
-      { withCredentials: true }
-    );
+    return client.patch(`/agent/deliveries/${deliveryId}/status`, { status });
   },
 
   // Submit delivery proof
@@ -142,14 +110,9 @@ export const deliveryAPI = {
       formData.append('otp', otp);
     }
 
-    return axios.post(
-      `${API_BASE_URL}/agent/deliveries/${deliveryId}/proof`,
-      formData,
-      {
-        withCredentials: true,
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
+    return client.post(`/agent/deliveries/${deliveryId}/proof`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   },
 
   // Mark delivery as failed
@@ -166,14 +129,9 @@ export const deliveryAPI = {
       formData.append('proof', file);
     }
 
-    return axios.post(
-      `${API_BASE_URL}/agent/deliveries/${deliveryId}/failed`,
-      formData,
-      {
-        withCredentials: true,
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
+    return client.post(`/agent/deliveries/${deliveryId}/failed`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   },
 };
 

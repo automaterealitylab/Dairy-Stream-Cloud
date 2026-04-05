@@ -2,7 +2,7 @@ import { detectUserService } from "../../services/authentication/detectUser.serv
 
 export const detectUser = async (req, res) => {
   try {
-    const { identifier } = req.body;
+    const { identifier, requestCustomerOtp, dairyId } = req.body;
 
     if (!identifier) {
       return res.status(400).json({ 
@@ -12,7 +12,10 @@ export const detectUser = async (req, res) => {
     }
 
     // Call the service logic
-    const result = await detectUserService(identifier);
+    const result = await detectUserService(identifier, {
+      requestCustomerOtp,
+      dairyId,
+    });
 
     // Send the roadmap back to Frontend
     return res.status(200).json({
@@ -23,9 +26,18 @@ export const detectUser = async (req, res) => {
 
   } catch (err) {
     console.error("Detect User Error:", err.message);
-    return res.status(500).json({ 
+
+    const rawMessage = String(err?.message || err || "");
+    const normalizedMessage = rawMessage.toLowerCase();
+    const isOtpDeliveryError =
+      normalizedMessage.includes("email delivery failed") ||
+      normalizedMessage.includes("email credentials are not configured");
+
+    return res.status(isOtpDeliveryError ? 503 : 500).json({ 
       success: false, 
-      message: "Unable to detect user. Please try again." 
+      message: isOtpDeliveryError
+        ? rawMessage
+        : "Unable to detect user. Please try again." 
     });
   }
 };

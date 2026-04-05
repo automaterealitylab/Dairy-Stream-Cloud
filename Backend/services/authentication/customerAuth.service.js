@@ -219,6 +219,15 @@ const otpStore = new Map();
 const buildOtpKey = (identifier, dairyId) =>
   `${normalizeIdentifier(identifier)}::${dairyId == null ? "null" : String(dairyId)}`;
 
+const purgeExpiredCustomerOtps = () => {
+  const now = Date.now();
+  for (const [key, value] of otpStore.entries()) {
+    if (!value?.expiresAt || value.expiresAt <= now) {
+      otpStore.delete(key);
+    }
+  }
+};
+
 // Helper: Phone Variants
 const buildPhoneVariants = (identifier) => {
   const raw = normalizeIdentifier(identifier);
@@ -365,9 +374,9 @@ export const loginWithPasswordService = async (emailOrPhone, password) => {
 // OTP LOGIC (Existing + Refined)
 // ==========================================
 
-export const generateCustomerOtp = async ({ identifier, dairyId }) => {
+export const generateCustomerOtp = async ({ identifier, dairyId, customer: existingCustomer = null }) => {
   const normalizedIdentifier = normalizeIdentifier(identifier);
-  const customer = await findCustomerByIdentifier(normalizedIdentifier);
+  const customer = existingCustomer || await findCustomerByIdentifier(normalizedIdentifier);
 
   if (!customer) throw new Error("Customer not found");
   if (!customer.email) throw new Error("Customer email not available for OTP delivery");
@@ -375,10 +384,7 @@ export const generateCustomerOtp = async ({ identifier, dairyId }) => {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = Date.now() + 5 * 60 * 1000; // 5 mins
 
-  // Purge old
-  for (const [key, value] of otpStore.entries()) {
-    if (value.expiresAt <= Date.now()) otpStore.delete(key);
-  }
+  purgeExpiredCustomerOtps();
 
   const key = buildOtpKey(normalizedIdentifier, dairyId);
   otpStore.set(key, { identifier: normalizedIdentifier, dairy_id: dairyId ?? null, otp, expiresAt });
@@ -401,6 +407,8 @@ export const generateCustomerOtp = async ({ identifier, dairyId }) => {
 export const verifyCustomerOtp = async ({ identifier, otp, dairyId }) => {
   const normalizedIdentifier = normalizeIdentifier(identifier);
   const normalizedOtp = String(otp ?? "").trim();
+
+  purgeExpiredCustomerOtps();
   
   // Find OTP in Memory
   const candidates = [];

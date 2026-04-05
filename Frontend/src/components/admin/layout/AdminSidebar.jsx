@@ -1,8 +1,13 @@
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+
+import { fetchAdminDashboard, getCachedAdminDashboard } from "../../../api/admin.api.js";
+import { canAccessAdminFeature, normalizeAdminPlan } from "../../../utils/adminPlanAccess.js";
 import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
 const menuItems = [
   {
+    feature: "dashboard",
     label: "Dashboard",
     to: "/admin/AdminDashboard",
     icon: (
@@ -12,6 +17,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "customers",
     label: "Customers",
     to: "/admin/customers",
     icon: (
@@ -21,6 +27,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "agents",
     label: "Agents",
     to: "/admin/agents",
     icon: (
@@ -30,6 +37,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "deliveries",
     label: "Deliveries",
     to: "/admin/deliveries",
     icon: (
@@ -39,6 +47,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "products",
     label: "Products",
     to: "/admin/products",
     icon: (
@@ -48,6 +57,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "payments",
     label: "Payments",
     to: "/admin/payments",
     icon: (
@@ -57,6 +67,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "procurement",
     label: "Purchases",
     to: "/admin/procurement",
     icon: (
@@ -66,6 +77,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "suppliers",
     label: "Suppliers",
     to: "/admin/suppliers",
     icon: (
@@ -75,6 +87,7 @@ const menuItems = [
     ),
   },
   {
+    feature: "performance",
     label: "Performance",
     to: "/admin/performance",
     icon: (
@@ -83,10 +96,64 @@ const menuItems = [
       </svg>
     ),
   },
+  {
+    feature: "profile",
+    label: "Profile",
+    to: "/admin/profile",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-6 h-6">
+        <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminSidebar({ open, onClose }) {
   const navigate = useNavigate();
+  const [selectedPlan, setSelectedPlan] = useState(() =>
+    normalizeAdminPlan(getCachedAdminDashboard()?.selectedPlan)
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncPlan = async () => {
+      try {
+        const cached = getCachedAdminDashboard();
+        if (cached?.selectedPlan) {
+          if (isMounted) setSelectedPlan(normalizeAdminPlan(cached.selectedPlan));
+          return;
+        }
+
+        const dashboard = await fetchAdminDashboard();
+        if (isMounted) {
+          setSelectedPlan(normalizeAdminPlan(dashboard?.selectedPlan));
+        }
+      } catch {
+        if (isMounted) setSelectedPlan("Free");
+      }
+    };
+
+    const syncFromCache = () => {
+      setSelectedPlan(normalizeAdminPlan(getCachedAdminDashboard()?.selectedPlan));
+    };
+
+    syncPlan();
+    window.addEventListener("admin-plan-updated", syncFromCache);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("admin-plan-updated", syncFromCache);
+    };
+  }, []);
+
+  const effectivePlan = normalizeAdminPlan(
+    getCachedAdminDashboard()?.selectedPlan || selectedPlan
+  );
+  const visibleMenuItems = useMemo(
+    () => menuItems.filter((item) => canAccessAdminFeature(effectivePlan, item.feature)),
+    [effectivePlan]
+  );
 
   return (
     <>
@@ -102,7 +169,7 @@ export default function AdminSidebar({ open, onClose }) {
         className={`
           fixed inset-y-0 left-0 z-50 w-64
           border-r border-[#EDE8DF] bg-white/95 backdrop-blur
-          flex flex-col
+          flex h-screen min-h-0 flex-col
           transform transition-transform duration-300 ease-out
           ${open ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
@@ -110,18 +177,18 @@ export default function AdminSidebar({ open, onClose }) {
         style={adminShellFont}
       >
         {/* Brand */}
-        <div className="border-b border-[#F2EDE4] px-6 py-7">
+        <div className="border-b border-[#F2EDE4] px-5 py-4">
           <h2 className="text-[26px] text-[#B8641A]" style={adminHeadingFont}>
             DairyStream
           </h2>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
             Admin Portal
           </p>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-5">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <NavLink
               key={item.label}
               to={item.to}
@@ -129,7 +196,7 @@ export default function AdminSidebar({ open, onClose }) {
               className={({ isActive }) =>
                 `
                 relative group flex items-center gap-4
-                px-4 py-3 rounded-xl text-sm font-semibold
+                px-3 py-2.5 rounded-xl text-sm font-semibold
                 transition-all
                 ${
                   isActive
@@ -161,7 +228,7 @@ export default function AdminSidebar({ open, onClose }) {
         </nav>
 
         {/* Logout */}
-        <div className="border-t border-[#F2EDE4] px-6 py-5">
+        <div className="shrink-0 border-t border-[#F2EDE4] px-5 py-4">
           <button
             onClick={() => {
               localStorage.removeItem("adminToken");

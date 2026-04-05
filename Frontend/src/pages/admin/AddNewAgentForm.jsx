@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import client from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Phone, MapPin, Mail, Briefcase, Loader2, RefreshCw } from 'lucide-react';
 
@@ -19,21 +19,7 @@ function AddNewAgentForm() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
-  const apiurlAddAgent = "http://localhost:4000/api/admin/addagent";
-  const apiurlGenerateAgentId = "http://localhost:4000/api/admin/agents/generate-id";
-  const apiurlFetchBuildings = "http://localhost:4000/api/admin/buildings"; 
-  
   const navigate = useNavigate();
-
-  // --- Helper to get Token ---
-  const getAuthHeader = () => {
-    const token = localStorage.getItem("adminToken"); 
-    return {
-      headers: {
-        Authorization: `Bearer ${token}` 
-      }
-    };
-  };
 
   // ✅ NEW: Generate Random Staff ID on Mount
   useEffect(() => {
@@ -42,7 +28,7 @@ function AddNewAgentForm() {
 
   const generateNewAgentId = async () => {
     try {
-      const response = await axios.get(apiurlGenerateAgentId, getAuthHeader());
+      const response = await client.get("/admin/agents/generate-id");
       const newId = response?.data?.agentId;
       if (!newId) {
         throw new Error("No agentId returned by server");
@@ -61,7 +47,7 @@ function AddNewAgentForm() {
     const fetchBuildings = async () => {
       try {
         setIsLoading(true);
-        const response = await axios.get(apiurlFetchBuildings, getAuthHeader());
+        const response = await client.get("/admin/buildings");
         setBuildingNames(response.data);
         setFetchError(null);
       } catch (error) {
@@ -100,7 +86,7 @@ function AddNewAgentForm() {
     }
 
     try {
-      const response = await axios.post(apiurlAddAgent, agent, getAuthHeader());
+      const response = await client.post("/admin/addagent", agent);
       const createdAgentId = response?.data?.data?.agent_id || agent.agentId;
       
       // Show the ID in the success message so admin can note it down

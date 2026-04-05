@@ -35,6 +35,7 @@ export default function AdminProducts() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
   const [search, setSearch] = useState("");
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [products, setProducts] = useState([]);
@@ -68,6 +69,7 @@ export default function AdminProducts() {
   const resetForm = () => {
     setEditingId(null);
     setForm(defaultForm);
+    setShowProductModal(false);
   };
 
   const startEdit = (item) => {
@@ -80,6 +82,13 @@ export default function AdminProducts() {
       stockQuantity: item.stockQuantity ?? "",
       isActive: Boolean(item.isActive),
     });
+    setShowProductModal(true);
+  };
+
+  const startAddProduct = () => {
+    setEditingId(null);
+    setForm(defaultForm);
+    setShowProductModal(true);
   };
 
   const handleSubmit = async (e) => {
@@ -148,96 +157,19 @@ export default function AdminProducts() {
               Add milk, dahi, paneer and track available stock for customer orders.
             </p>
           </div>
-          <div className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2 text-sm text-[#8B7355]">
-            Total SKUs: <span className="font-semibold text-[#2C1A0E]">{products.length}</span> | Total Stock:{" "}
-            <span className="font-semibold text-[#2C1A0E]">{totalStock.toFixed(2)}</span>
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2 text-sm text-[#8B7355]">
+              Total SKUs: <span className="font-semibold text-[#2C1A0E]">{products.length}</span> | Total Stock:{" "}
+              <span className="font-semibold text-[#2C1A0E]">{totalStock.toFixed(2)}</span>
+            </div>
+            <button type="button" onClick={startAddProduct} className="pro-btn-primary">
+              Add Product
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <section className="xl:col-span-1 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-            <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>
-              {editingId ? "Edit Product" : "Add Product"}
-            </h2>
-            <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-              <input
-                className="pro-input"
-                placeholder="Product name (Milk, Dahi, Paneer)"
-                value={form.name}
-                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                required
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  className="pro-input"
-                  value={form.type}
-                  onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
-                >
-                  <option value="MILK">Milk</option>
-                  <option value="CURD">Dahi/Curd</option>
-                  <option value="PANEER">Paneer</option>
-                  <option value="GHEE">Ghee</option>
-                  <option value="OTHER">Other</option>
-                </select>
-                <select
-                  className="pro-input"
-                  value={form.unit}
-                  onChange={(e) => setForm((prev) => ({ ...prev, unit: e.target.value }))}
-                >
-                  <option value="LITER">Liter</option>
-                  <option value="KG">Kg</option>
-                  <option value="PIECE">Piece</option>
-                  <option value="PACK">Pack</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="pro-input"
-                  placeholder="Rate"
-                  value={form.ratePerUnit}
-                  onChange={(e) => setForm((prev) => ({ ...prev, ratePerUnit: e.target.value }))}
-                  required
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="pro-input"
-                  placeholder="Stock"
-                  value={form.stockQuantity}
-                  onChange={(e) => setForm((prev) => ({ ...prev, stockQuantity: e.target.value }))}
-                  required
-                />
-              </div>
-              <label className="inline-flex items-center gap-2 text-sm text-[#6F4A27]">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(e) => setForm((prev) => ({ ...prev, isActive: e.target.checked }))}
-                />
-                Active product
-              </label>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="pro-btn-primary flex-1"
-                >
-                  {saving ? "Saving..." : editingId ? "Update Product" : "Add Product"}
-                </button>
-                {editingId && (
-                  <button type="button" onClick={resetForm} className="pro-btn-outline">
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-
-          <section className="xl:col-span-2 rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+        <div className="grid grid-cols-1 gap-6">
+          <section className="rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
             <div className="flex flex-col gap-3 border-b border-[#F2EDE4] p-5 sm:flex-row sm:items-center sm:justify-between">
               <input
                 className="pro-input max-w-sm"
@@ -323,6 +255,105 @@ export default function AdminProducts() {
             }`}
           >
             {feedback.message}
+          </div>
+        )}
+
+        {showProductModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+            <div className="w-full max-w-2xl rounded-[28px] border border-[#EDE8DF] bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>
+                    {editingId ? "Edit Product" : "Add Product"}
+                  </h2>
+                  <p className="mt-1 text-sm text-[#8B7355]">
+                    Fill in the product details and save them to the catalog.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="rounded-full border border-[#EDE8DF] px-3 py-1.5 text-sm text-[#6F4A27] hover:bg-[#FAF7F1]"
+                >
+                  Close
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+                <input
+                  className="pro-input"
+                  placeholder="Product name (Milk, Dahi, Paneer)"
+                  value={form.name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <select
+                    className="pro-input"
+                    value={form.type}
+                    onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
+                  >
+                    <option value="MILK">Milk</option>
+                    <option value="CURD">Dahi/Curd</option>
+                    <option value="PANEER">Paneer</option>
+                    <option value="GHEE">Ghee</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  <select
+                    className="pro-input"
+                    value={form.unit}
+                    onChange={(e) => setForm((prev) => ({ ...prev, unit: e.target.value }))}
+                  >
+                    <option value="LITER">Liter</option>
+                    <option value="KG">Kg</option>
+                    <option value="PIECE">Piece</option>
+                    <option value="PACK">Pack</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="pro-input"
+                    placeholder="Rate"
+                    value={form.ratePerUnit}
+                    onChange={(e) => setForm((prev) => ({ ...prev, ratePerUnit: e.target.value }))}
+                    required
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="pro-input"
+                    placeholder="Stock"
+                    value={form.stockQuantity}
+                    onChange={(e) => setForm((prev) => ({ ...prev, stockQuantity: e.target.value }))}
+                    required
+                  />
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm text-[#6F4A27]">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  />
+                  Active product
+                </label>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="pro-btn-primary flex-1"
+                  >
+                    {saving ? "Saving..." : editingId ? "Update Product" : "Add Product"}
+                  </button>
+                  <button type="button" onClick={resetForm} className="pro-btn-outline">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </main>

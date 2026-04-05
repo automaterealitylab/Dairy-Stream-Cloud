@@ -45,7 +45,7 @@
 ```bash
 # Run the SQL migrations to add new columns/tables
 # Login to Supabase Dashboard → SQL Editor
-# Copy content from SUPABASE_MIGRATIONS.sql and run it
+# Copy content from Backend/sql/SUPABASE_MIGRATIONS.sql and run it
 ```
 
 ### Step 2: Environment Variables

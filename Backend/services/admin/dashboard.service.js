@@ -62,7 +62,11 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
     await Promise.all([
       getActiveCustomerCountForDairy(targetDairyId),
       supabase.from("agents").select("id", { count: "exact", head: true }).eq("dairy_id", targetDairyId),
-      supabase.from("dairies").select("dairy_name").eq("id", targetDairyId).maybeSingle(),
+      supabase
+        .from("dairies")
+        .select("dairy_name, selected_plan")
+        .eq("id", targetDairyId)
+        .maybeSingle(),
       supabase.from("suppliers").select("id, name").eq("dairy_id", targetDairyId).eq("status", "ACTIVE"),
       supabase
         .from("deliveries")
@@ -114,6 +118,7 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
 
   const finalResponse = {
     dairyName: dairyRow.data?.dairy_name || "My Dairy",
+    selectedPlan: dairyRow.data?.selected_plan || "Free",
     totalCustomers: totalCustomers || 0,
     totalAgents: totalAgents.count || 0,
     activeAgents: totalAgents.count || 0,

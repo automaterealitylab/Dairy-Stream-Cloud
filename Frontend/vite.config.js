@@ -8,11 +8,43 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
+      workbox: {
+        // Avoid precaching every route chunk on first load.
+        // The previous default Workbox behavior was pulling most built JS files
+        // in the background, which is why the login page showed requests for
+        // admin/customer/agent bundles in the network tab.
+        globPatterns: ["**/*.{html,css,ico,png,svg,webmanifest}"],
+        globIgnores: ["**/assets/dairyproduct-*.png"],
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: "DairyStream",
         short_name: "DairyStream",
         start_url: "/",
         display: "standalone",
+        description: "Milk delivery management system for dairies, agents and customers",
+        background_color: "#f8fafc",
+        theme_color: "#2563eb",
+        orientation: "portrait",
+        icons: [
+          {
+            src: "/icons/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+          {
+            src: "/icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+          {
+            src: "/icons/apple-touch-icon.png",
+            sizes: "180x180",
+            type: "image/png",
+          },
+        ],
       },
     }),
   ],

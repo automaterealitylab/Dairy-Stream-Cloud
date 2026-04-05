@@ -543,3 +543,56 @@ export const autoFailPendingSubscriptionDeliveriesForDate = async ({
 
   return { date: targetDate, failedCount };
 };
+
+export const autoFailOverduePendingSubscriptionDeliveriesForCustomer = async ({
+  customerId,
+  todayDate = getLocalTodayIso(),
+} = {}) => {
+  const parsedCustomerId = Number(customerId);
+  if (!Number.isFinite(parsedCustomerId) || parsedCustomerId <= 0) {
+    return { todayDate, failedCount: 0 };
+  }
+  if (!isValidDateString(todayDate)) {
+    return { todayDate, failedCount: 0 };
+  }
+
+  const { data: deliveries, error } = await supabase
+    .from("deliveries")
+    .select("id, notes, status, delivery_date")
+    .eq("customer_id", parsedCustomerId)
+    .eq("status", "PENDING")
+    .lt("delivery_date", todayDate)
+    .limit(5000);
+
+  if (error) throw error;
+
+  const overdueSubscriptionRows = (deliveries || []).filter((row) => {
+    const notes = String(row?.notes || "");
+    return !notes.includes(ONE_TIME_ORDER_MARKER);
+  });
+
+  if (!overdueSubscriptionRows.length) {
+    return { todayDate, failedCount: 0 };
+  }
+
+  let failedCount = 0;
+  for (const row of overdueSubscriptionRows) {
+    const { error: updateError } = await supabase
+      .from("deliveries")
+      .update({
+        status: "FAILED",
+        notes: appendAutoFailNote(
+          row?.notes,
+          `Delivery auto-failed after day change from ${row?.delivery_date || "scheduled date"}`
+        ),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("status", "PENDING");
+
+    if (updateError) throw updateError;
+    failedCount += 1;
+  }
+
+  return { todayDate, failedCount };
+};

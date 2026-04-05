@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
+import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
@@ -28,6 +29,7 @@ const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.jsx"));
 const AdminPerformanceDashboard = lazy(() => import("./pages/admin/AdminPerformanceDashboard.jsx"));
 const AdminProcurement = lazy(() => import("./pages/admin/AdminProcurement.jsx"));
 const AdminSuppliers = lazy(() => import("./pages/admin/AdminSuppliers.jsx"));
+const AdminProfile = lazy(() => import("./pages/admin/AdminProfile.jsx"));
 
 const AgentDashboard = lazy(() => import("./pages/agent/agentDashboard.jsx"));
 const AgentHistory = lazy(() => import("./pages/agent/AgentHistory.jsx"));
@@ -126,7 +128,9 @@ function App() {
           path="/admin/agents"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminAgents />
+              <AdminPlanRoute feature="agents">
+                <AdminAgents />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />
@@ -166,7 +170,9 @@ function App() {
           path="/admin/performance"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminPerformanceDashboard />
+              <AdminPlanRoute feature="performance">
+                <AdminPerformanceDashboard />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />
@@ -174,7 +180,9 @@ function App() {
           path="/admin/procurement"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminProcurement />
+              <AdminPlanRoute feature="procurement">
+                <AdminProcurement />
+              </AdminPlanRoute>
             </ProtectedRoute>
           }
         />
@@ -182,7 +190,17 @@ function App() {
           path="/admin/suppliers"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminSuppliers />
+              <AdminPlanRoute feature="suppliers">
+                <AdminSuppliers />
+              </AdminPlanRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/profile"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminProfile />
             </ProtectedRoute>
           }
         />

@@ -170,6 +170,67 @@ export default function AdminProcurement() {
       return itemName === selectedProduct.itemName && unit === selectedProduct.unit;
     });
   }, [filteredProcurementLogs, selectedProduct]);
+
+  const productBreakdownSection = (
+    <section className="rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Product Breakdown</h2>
+          <p className="mt-1 text-sm text-[#8B7355]">
+            See exactly how much of each purchased item came in on the selected date. Click any product card to open its purchase details.
+          </p>
+        </div>
+        <div className="text-sm text-[#8B7355]">
+          {itemBreakdown.length} tracked item{itemBreakdown.length === 1 ? "" : "s"}
+        </div>
+      </div>
+
+      {itemBreakdown.length > 0 ? (
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {itemBreakdown.map((item) => (
+            <button
+              type="button"
+              key={item.key}
+              onClick={() => setSelectedProductKey(item.key)}
+              className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5 text-left transition hover:border-[#E5C79D] hover:bg-[#FFF8EF] hover:shadow-[0_14px_28px_rgba(184,100,26,0.10)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-black text-[#2C1A0E]">{item.itemName}</h3>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#B89970]">
+                    {item.category}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <span className="rounded-full bg-[#FDE9C9] px-3 py-1 text-xs font-bold text-[#B8641A]">
+                    {item.entries} entr{item.entries === 1 ? "y" : "ies"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#EAD9C2] bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#8B7355]">
+                    View Details
+                    <ArrowUpRight size={13} />
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4 text-3xl font-black text-[#2C1A0E]">
+                {formatQuantity(item.quantity)} <span className="text-lg text-[#8B7355]">{item.unit}</span>
+              </div>
+              <div className="mt-2 text-sm text-[#6F4A27]">
+                Spend: <span className="font-bold">{formatCurrency(item.spend)}</span>
+              </div>
+              <div className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-[#B89970]">
+                Click to inspect supplier-wise details
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-dashed border-[#E5D9C7] bg-[#FFFDF8] p-4 text-sm text-[#8B7355]">
+          No product-wise procurement entries yet.
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar adminName={dashboardMeta?.dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
@@ -257,6 +318,7 @@ export default function AdminProcurement() {
               logs={procurementLogs}
               selectedDate={selectedDateKey}
               maxDate={todayKey}
+              breakdownSection={productBreakdownSection}
               onChangeSelectedDate={(nextDate) => {
                 setSelectedDate(nextDate);
                 setSelectedProductKey("");
@@ -264,64 +326,6 @@ export default function AdminProcurement() {
               onAddLog={handleSaveProcurement}
               onOpenSupplierForm={() => navigate("/admin/suppliers")}
             />
-          )}
-        </section>
-
-        <section className="mt-8 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Product Breakdown</h2>
-              <p className="mt-1 text-sm text-[#8B7355]">
-                See exactly how much of each purchased item came in on the selected date. Click any product card to open its purchase details.
-              </p>
-            </div>
-            <div className="text-sm text-[#8B7355]">
-              {itemBreakdown.length} tracked item{itemBreakdown.length === 1 ? "" : "s"}
-            </div>
-          </div>
-
-          {itemBreakdown.length > 0 ? (
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {itemBreakdown.map((item) => (
-                <button
-                  type="button"
-                  key={item.key}
-                  onClick={() => setSelectedProductKey(item.key)}
-                  className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5 text-left transition hover:border-[#E5C79D] hover:bg-[#FFF8EF] hover:shadow-[0_14px_28px_rgba(184,100,26,0.10)]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-black text-[#2C1A0E]">{item.itemName}</h3>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#B89970]">
-                        {item.category}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className="rounded-full bg-[#FDE9C9] px-3 py-1 text-xs font-bold text-[#B8641A]">
-                        {item.entries} entr{item.entries === 1 ? "y" : "ies"}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[#EAD9C2] bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#8B7355]">
-                        View Details
-                        <ArrowUpRight size={13} />
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-4 text-3xl font-black text-[#2C1A0E]">
-                    {formatQuantity(item.quantity)} <span className="text-lg text-[#8B7355]">{item.unit}</span>
-                  </div>
-                  <div className="mt-2 text-sm text-[#6F4A27]">
-                    Spend: <span className="font-bold">{formatCurrency(item.spend)}</span>
-                  </div>
-                  <div className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-[#B89970]">
-                    Click to inspect supplier-wise details
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-6 rounded-2xl border border-dashed border-[#E5D9C7] bg-[#FFFDF8] p-4 text-sm text-[#8B7355]">
-              No product-wise procurement entries yet.
-            </div>
           )}
         </section>
       </main>
@@ -379,7 +383,7 @@ export default function AdminProcurement() {
                 </div>
               </section>
 
-              <section className="mt-5 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6">
+              <section className="mt-5 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Purchase Details</h4>
@@ -389,42 +393,40 @@ export default function AdminProcurement() {
                   </div>
                 </div>
 
-                <div className="mt-5 overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E5D9C7] text-xs uppercase tracking-[0.16em] text-[#B89970]">
-                        <th className="pb-3 pr-4">Supplier</th>
-                        <th className="pb-3 pr-4">Qty</th>
-                        <th className="pb-3 pr-4">Rate</th>
-                        <th className="pb-3 pr-4">Total</th>
-                        <th className="pb-3">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedProductLogs.map((entry) => (
-                        <tr key={entry.id} className="border-b border-[#F2EDE4] text-[#6F4A27] last:border-b-0">
-                          <td className="py-3 pr-4 font-semibold">{entry.supplier_name || "-"}</td>
-                          <td className="py-3 pr-4 font-semibold">
-                            {formatQuantity(entry.quantity)} {entry.unit || ""}
-                          </td>
-                          <td className="py-3 pr-4">Rs {entry.rate_per_unit || entry.rate_per_liter || "-"}</td>
-                          <td className="py-3 pr-4">
-                            {formatCurrency(entry.total_cost ?? Number(entry.quantity || 0) * Number(entry.rate_per_unit || entry.rate_per_liter || 0))}
-                          </td>
-                          <td className="py-3">
-                            {entry.created_at
-                              ? new Date(entry.created_at).toLocaleString([], {
-                                  day: "2-digit",
-                                  month: "short",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="mt-4 space-y-2">
+                  {selectedProductLogs.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[18px] border border-[#ECE2D5] bg-white px-4 py-3 text-xs text-[#6F4A27]"
+                    >
+                      <span className="min-w-[120px] font-bold text-[#2C1A0E]">
+                        {entry.supplier_name || "-"}
+                      </span>
+                      <span className="rounded-full bg-[#FFF3E2] px-2.5 py-1 font-semibold text-[#B8641A]">
+                        {formatQuantity(entry.quantity)} {entry.unit || ""}
+                      </span>
+                      <span>
+                        Rate: <span className="font-semibold">Rs {entry.rate_per_unit || entry.rate_per_liter || "-"}</span>
+                      </span>
+                      <span>
+                        Total: <span className="font-semibold">
+                          {formatCurrency(
+                            entry.total_cost ?? Number(entry.quantity || 0) * Number(entry.rate_per_unit || entry.rate_per_liter || 0)
+                          )}
+                        </span>
+                      </span>
+                      <span className="text-[#8B7355] sm:ml-auto">
+                        {entry.created_at
+                          ? new Date(entry.created_at).toLocaleString([], {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "-"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </section>
             </div>
