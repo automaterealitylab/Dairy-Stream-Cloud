@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
-const EMAIL_HTTP_TIMEOUT_MS = Number(process.env.EMAIL_HTTP_TIMEOUT_MS || 15000);
+const EMAIL_HTTP_TIMEOUT_MS = Number(process.env.EMAIL_HTTP_TIMEOUT_MS || 8000);
+const smtpTransporterCache = new Map();
 
 const withTimeoutSignal = (timeoutMs) => {
   const controller = new AbortController();
@@ -188,10 +189,10 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
   const smtpHost = process.env.EMAIL_HOST || "smtp.gmail.com";
   const smtpPort = Number(process.env.EMAIL_PORT || 465);
   const smtpSecure = String(process.env.EMAIL_SECURE || "true").toLowerCase() === "true";
-  const connectionTimeout = Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 10000);
-  const greetingTimeout = Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 10000);
-  const socketTimeout = Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 15000);
-  const maxAttempts = Number(process.env.EMAIL_SMTP_MAX_ATTEMPTS || 2);
+  const connectionTimeout = Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 5000);
+  const greetingTimeout = Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 5000);
+  const socketTimeout = Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 8000);
+  const maxAttempts = Number(process.env.EMAIL_SMTP_MAX_ATTEMPTS || 1);
   const retryBackoffMs = Number(process.env.EMAIL_SMTP_RETRY_BACKOFF_MS || 2000);
 
   if (!emailUser || !emailPassword) {
@@ -205,12 +206,31 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
     },
     connectionTimeout,
     greetingTimeout,
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 100,
     socketTimeout,
     tls: {
       rejectUnauthorized: false,
     },
     ...override,
   });
+
+  const getTransporter = (config) => {
+    const cacheKey = JSON.stringify({
+      service: config.service || null,
+      host: config.host || null,
+      port: config.port || null,
+      secure: config.secure ?? null,
+      user: config.auth?.user || null,
+    });
+
+    if (!smtpTransporterCache.has(cacheKey)) {
+      smtpTransporterCache.set(cacheKey, nodemailer.createTransport(config));
+    }
+
+    return smtpTransporterCache.get(cacheKey);
+  };
 
   const smtpConfigs = [];
   if (emailService) {
@@ -233,7 +253,7 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
   for (const config of smtpConfigs) {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const transporter = nodemailer.createTransport(config);
+        const transporter = getTransporter(config);
         const info = await transporter.sendMail({ from, to, subject, html });
 
         console.log(
@@ -271,31 +291,54 @@ export const sendEmail = async ({ to, subject, html }) => {
   const hasBrevo = Boolean(String(process.env.BREVO_API_KEY || "").trim());
   const hasSendGrid = Boolean(String(process.env.SENDGRID_API_KEY || "").trim());
   const hasSmtp = Boolean(emailUser && (process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD));
+  const providerAttempts = [];
 
   if (!forceSmtp) {
     if (hasResend) {
-      return sendViaResend({ to, subject, html, from: emailFrom });
+      providerAttempts.push({
+        name: "resend",
+        send: () => sendViaResend({ to, subject, html, from: emailFrom }),
+      });
     }
 
     if (hasBrevo) {
-      return sendViaBrevo({ to, subject, html, from: emailFrom });
+      providerAttempts.push({
+        name: "brevo",
+        send: () => sendViaBrevo({ to, subject, html, from: emailFrom }),
+      });
     }
 
     if (hasSendGrid) {
-      return sendViaSendGrid({ to, subject, html, from: emailFrom });
+      providerAttempts.push({
+        name: "sendgrid",
+        send: () => sendViaSendGrid({ to, subject, html, from: emailFrom }),
+      });
     }
   }
 
-  if (!hasSmtp) {
+  if (hasSmtp) {
+    providerAttempts.push({
+      name: "smtp",
+      send: () => sendViaSmtp({ to, subject, html, from: emailFrom }),
+    });
+  }
+
+  if (providerAttempts.length === 0) {
     throw new Error(
-      "Email delivery failed: no SMTP credentials configured. Set EMAIL_USER and EMAIL_PASS/EMAIL_PASSWORD."
+      "Email delivery failed: no email provider configured. Set RESEND_API_KEY, BREVO_API_KEY, SENDGRID_API_KEY, or SMTP credentials."
     );
   }
 
-  try {
-    return await sendViaSmtp({ to, subject, html, from: emailFrom });
-  } catch (smtpError) {
-    console.error(`Email delivery failure in SMTP-only mode: ${smtpError?.message || smtpError}`);
-    throw smtpError;
+  const errors = [];
+  for (const provider of providerAttempts) {
+    try {
+      return await provider.send();
+    } catch (error) {
+      const message = error?.message || "Unknown error";
+      errors.push(`${provider.name}: ${message}`);
+      console.error(`[EMAIL PROVIDER FAILED] provider=${provider.name} message=${message}`);
+    }
   }
+
+  throw new Error(`Email delivery failed across all configured providers. ${errors.join(" | ")}`);
 };
