@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import AgentLayout from '../../components/agent/AgentLayout';
-import { User, Phone, Mail, MapPin, Award, TrendingUp, Route as RouteIcon, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { 
+  User, Phone, Mail, MapPin, Award, 
+  TrendingUp, Route as RouteIcon, ToggleLeft, 
+  ToggleRight, Home, List, History 
+} from 'lucide-react';
 import { fetchAgentProfile, updateAgentAvailability } from "../../api/agent/agent.api";
 
 const EMPTY_AGENT_PROFILE = {
@@ -19,18 +23,21 @@ const EMPTY_AGENT_PROFILE = {
 };
 
 const AgentProfile = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [profile, setProfile] = useState(EMPTY_AGENT_PROFILE);
   const [showInactiveDaysInput, setShowInactiveDaysInput] = useState(false);
   const [inactiveDays, setInactiveDays] = useState("1");
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState("");
 
-  const isActive =
-    typeof profile?.isActive === "boolean"
-      ? profile.isActive
-      : String(profile?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
+  // Logic to determine active state
+  const isActive = typeof profile?.isActive === "boolean" 
+    ? profile.isActive 
+    : String(profile?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
 
   useEffect(() => {
+    // Initial load from LocalStorage for speed
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
@@ -41,26 +48,18 @@ const AgentProfile = () => {
           name: user?.name || '',
           email: user?.email || '',
         }));
-      } catch {
-        // Ignore malformed local user data.
-      }
+      } catch (e) { console.error("Malformed local storage"); }
     }
 
+    // Actual Backend Fetch
     const loadProfile = async () => {
       try {
         const payload = await fetchAgentProfile();
         if (payload) setProfile(payload);
-      } catch (_err) {
-        // Keep local fallback profile values.
-      }
+      } catch (_err) { console.error("Backend fetch failed"); }
     };
     loadProfile();
   }, []);
-
-  const refreshProfileFromServer = async () => {
-    const payload = await fetchAgentProfile();
-    if (payload) setProfile(payload);
-  };
 
   const handleToggleStatus = async () => {
     if (statusSaving) return;
@@ -74,323 +73,145 @@ const AgentProfile = () => {
     try {
       setStatusSaving(true);
       const payload = await updateAgentAvailability({ isActive: true });
-      setProfile((prev) => ({
-        ...prev,
-        isActive: payload?.isActive ?? true,
-        status: payload?.status || "ACTIVE",
-        inactiveFrom: payload?.inactiveFrom || null,
-        inactiveUntil: payload?.inactiveUntil || null,
-        inactiveDaysRemaining: payload?.inactiveDaysRemaining || 0,
-      }));
-      try {
-        await refreshProfileFromServer();
-      } catch {
-        // UI already updated from PATCH response.
-      }
+      setProfile((prev) => ({ ...prev, ...payload, isActive: true }));
       setShowInactiveDaysInput(false);
-      setInactiveDays("1");
     } catch (err) {
-      setStatusError(err?.response?.data?.message || err?.message || "Failed to update status.");
-    } finally {
-      setStatusSaving(false);
-    }
+      setStatusError(err?.message || "Failed to update status.");
+    } finally { setStatusSaving(false); }
   };
 
   const confirmSetInactive = async () => {
     const parsedDays = Number(inactiveDays);
     if (!Number.isFinite(parsedDays) || parsedDays <= 0) {
-      setStatusError("Please enter valid inactive days.");
+      setStatusError("Enter valid days.");
       return;
     }
 
     try {
       setStatusSaving(true);
-      setStatusError("");
-      const payload = await updateAgentAvailability({
-        isActive: false,
-        inactiveDays: parsedDays,
-      });
-      setProfile((prev) => ({
-        ...prev,
-        isActive: payload?.isActive ?? false,
-        status: payload?.status || "INACTIVE",
-        inactiveFrom: payload?.inactiveFrom || null,
-        inactiveUntil: payload?.inactiveUntil || null,
-        inactiveDaysRemaining: payload?.inactiveDaysRemaining || parsedDays,
-      }));
-      try {
-        await refreshProfileFromServer();
-      } catch {
-        // UI already updated from PATCH response.
-      }
+      const payload = await updateAgentAvailability({ isActive: false, inactiveDays: parsedDays });
+      setProfile((prev) => ({ ...prev, ...payload, isActive: false }));
       setShowInactiveDaysInput(false);
     } catch (err) {
-      setStatusError(err?.response?.data?.message || err?.message || "Failed to update status.");
-    } finally {
-      setStatusSaving(false);
-    }
+      setStatusError(err?.message || "Failed to update.");
+    } finally { setStatusSaving(false); }
   };
 
-  // const { performanceStats } = profile;
-  // const completionPercentage = (performanceStats.completedDeliveries / performanceStats.totalDeliveries) * 100;
-  // const failedPercentage = (performanceStats.failedDeliveries / performanceStats.totalDeliveries) * 100;
-
   return (
-    <AgentLayout>
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Agent Profile</h2>
-          <p className="text-gray-600">Your profile and performance details</p>
+    <div className="min-h-screen bg-gray-50 text-gray-900 pb-32 px-4 pt-4 font-sans">
+      <div className="max-w-md mx-auto space-y-6">
+        
+        {/* HEADER */}
+        <div className="px-1">
+          <h2 className="text-xl font-black tracking-tight">Agent Profile</h2>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Identity & Availability</p>
         </div>
 
-        {/* Profile Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Header Section */}
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center border-4 border-white border-opacity-30">
-                  <User size={40} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold">{profile.name}</h3>
-                  <p className="text-blue-100">Agent ID: {profile.agentId}</p>
-                  <p className="text-sm text-blue-100 mt-1">
-                    Joined: {profile.joinedDate
-                      ? new Date(profile.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                      : '-'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Active Status Toggle */}
-              <div className="rounded-xl border border-white/40 bg-white/15 p-3 shadow-md backdrop-blur-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-white/90">Status</span>
-                </div>
-                <button
-                  onClick={handleToggleStatus}
-                  disabled={statusSaving}
-                  className="flex min-w-[150px] items-center justify-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isActive ? (
-                    <>
-                      <ToggleRight className="text-green-600" size={28} />
-                      <span>
-                        {statusSaving ? "Updating..." : "Active"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <ToggleLeft className="text-red-500" size={28} />
-                      <span>
-                        {statusSaving ? "Updating..." : "Inactive"}
-                      </span>
-                    </>
-                  )}
-                </button>
-                {!isActive && profile?.inactiveUntil && (
-                  <p className="mt-2 text-xs text-white/90">
-                    Inactive until: {new Date(profile.inactiveUntil).toLocaleDateString()} ({profile?.inactiveDaysRemaining || 0} day(s) left)
-                  </p>
-                )}
-              </div>
+        {/* PROFILE CARD */}
+        <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm text-center relative overflow-hidden">
+          {/* Subtle Background Accent */}
+          <div className="absolute top-0 left-0 w-full h-24 bg-blue-600/5 -z-0" />
+          
+          <div className="relative z-10">
+            <div className="w-20 h-20 bg-blue-50 rounded-full mx-auto flex items-center justify-center border-4 border-white shadow-md">
+              <User size={32} className="text-blue-600" />
             </div>
-          </div>
-
-          {showInactiveDaysInput && (
-            <div className="border-t border-gray-200 p-4 bg-amber-50">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Set inactive for how many days?
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={inactiveDays}
-                  onChange={(e) => setInactiveDays(e.target.value)}
-                  className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={confirmSetInactive}
-                    disabled={statusSaving}
-                    className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
-                  >
-                    {statusSaving ? "Saving..." : "Confirm Inactive"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowInactiveDaysInput(false);
-                      setInactiveDays("1");
-                      setStatusError("");
-                    }}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {statusError && (
-            <div className="px-6 pb-4 text-sm text-red-600">{statusError}</div>
-          )}
-
-          {/* Contact Information */}
-          <div className="p-6 space-y-4">
-            <h4 className="font-semibold text-gray-800 text-lg mb-4">Contact Information</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Phone className="text-blue-600" size={20} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Phone Number</p>
-                  <p className="font-medium text-gray-800">{profile.phone}</p>
-                </div>
-              </div>
+            <h3 className="text-lg font-black mt-4">{profile.name || "Loading..."}</h3>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ID: {profile.agentId}</p>
 
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Mail className="text-blue-600" size={20} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Email Address</p>
-                  <p className="font-medium text-gray-800">{profile.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 md:col-span-2">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <MapPin className="text-blue-600" size={20} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Address</p>
-                  <p className="font-medium text-gray-800">{profile.address}</p>
-                </div>
-              </div>
+            {/* STATUS TOGGLE UI */}
+            <div className="mt-6 flex flex-col items-center gap-3">
+               <div className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all ${isActive ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-600'}`}>
+                  <span className="text-[11px] font-black uppercase tracking-widest">{isActive ? 'Online' : 'Offline'}</span>
+                  <button onClick={handleToggleStatus} disabled={statusSaving} className="focus:outline-none transition-transform active:scale-90">
+                    {isActive ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+                  </button>
+               </div>
+               
+               {!isActive && profile?.inactiveUntil && (
+                 <p className="text-[9px] font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-full">
+                    Resume: {new Date(profile.inactiveUntil).toLocaleDateString()} ({profile.inactiveDaysRemaining}d left)
+                 </p>
+               )}
             </div>
           </div>
         </div>
 
-        {/* Assigned Routes */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-2 mb-4">
-            <RouteIcon className="text-blue-600" size={24} />
-            <h4 className="font-semibold text-gray-800 text-lg">Assigned Delivery Routes</h4>
+        {/* INACTIVE INPUT PROMPT */}
+        {showInactiveDaysInput && (
+          <div className="bg-gray-900 p-6 rounded-[30px] text-white shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+            <p className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-3">Set Inactive Duration</p>
+            <div className="flex gap-3">
+               <input 
+                 type="number" 
+                 value={inactiveDays} 
+                 onChange={(e) => setInactiveDays(e.target.value)} 
+                 className="flex-1 bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 placeholder="Days"
+               />
+               <button onClick={confirmSetInactive} className="bg-blue-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">Set</button>
+            </div>
+            <button onClick={() => setShowInactiveDaysInput(false)} className="w-full mt-3 text-[9px] font-bold text-gray-500 uppercase">Cancel</button>
           </div>
-          <div className="space-y-2">
-            {profile.deliveryRoutes.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600">
-                No routes assigned
-              </div>
-            ) : (
-              profile.deliveryRoutes.map((route, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100"
-                >
-                  <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
-                    {index + 1}
-                  </div>
-                  <p className="text-gray-800">{route}</p>
-                </div>
-              ))
-            )}
-          </div>
+        )}
+
+        {statusError && <p className="text-center text-[10px] font-bold text-red-500 px-4">{statusError}</p>}
+
+        {/* CONTACT INFO GRID */}
+        <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm space-y-5">
+           <InfoRow icon={<Phone size={16}/>} label="Phone Number" value={profile.phone} />
+           <InfoRow icon={<Mail size={16}/>} label="Email Address" value={profile.email} />
+           <InfoRow icon={<MapPin size={16}/>} label="Home Address" value={profile.address} />
         </div>
 
-        {/* Performance Report */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp className="text-green-600" size={24} />
-            {/* <h4 className="font-semibold text-gray-800 text-lg">Performance Report</h4> */}
-          </div>
-
-          {/* Stats Grid */}
-          {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{performanceStats.totalDeliveries}</p>
-              <p className="text-sm text-gray-600 mt-1">Total Deliveries</p>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">{performanceStats.completedDeliveries}</p>
-              <p className="text-sm text-gray-600 mt-1">Completed</p>
-            </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
-              <p className="text-2xl font-bold text-red-600">{performanceStats.failedDeliveries}</p>
-              <p className="text-sm text-gray-600 mt-1">Failed</p>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{performanceStats.successRate}%</p>
-              <p className="text-sm text-gray-600 mt-1">Success Rate</p>
-            </div>
-          </div> */}
-
-          {/* Visual Performance Graph */}
-          <div className="space-y-4">
-            <h5 className="font-medium text-gray-700">Delivery Distribution</h5>
-            
-            {/* Completed Bar */}
-            <div>
-              {/* <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Completed Deliveries</span>
-                <span className="text-sm font-semibold text-green-600">
-                  {performanceStats.completedDeliveries} ({completionPercentage.toFixed(1)}%)
-                </span>
-              </div> */}
-              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                {/* <div
-                  className="bg-gradient-to-r from-green-500 to-green-600 h-4 transition-all duration-500"
-                  style={{ width: `${completionPercentage}%` }}
-                /> */}
-              </div>
-            </div>
-
-            {/* Failed Bar */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Failed Deliveries</span>
-                {/* <span className="text-sm font-semibold text-red-600">
-                  {performanceStats.failedDeliveries} ({failedPercentage.toFixed(1)}%)
-                </span> */}
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-red-500 to-red-600 h-4 transition-all duration-500"
-                  // style={{ width: `${failedPercentage}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Overall Performance Badge */}
-            <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Award className="text-green-600" size={32} />
-                  <div>
-                    <p className="font-semibold text-gray-800">Overall Performance</p>
-                    <p className="text-sm text-gray-600">Based on all-time deliveries</p>
-                  </div>
+        {/* ROUTES SECTION */}
+        <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm">
+           <div className="flex items-center gap-2 mb-4">
+              <RouteIcon size={16} className="text-blue-600" />
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-gray-400">Assigned Routes</h4>
+           </div>
+           <div className="space-y-2">
+              {profile.deliveryRoutes.length > 0 ? profile.deliveryRoutes.map((route, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                   <div className="w-6 h-6 bg-blue-600 text-white rounded-lg flex items-center justify-center text-[10px] font-black">{i+1}</div>
+                   <p className="text-xs font-bold text-gray-700">{route}</p>
                 </div>
-                <div className="text-right">
-                  {/* <p className="text-3xl font-bold text-green-600">{performanceStats.successRate}%</p> */}
-                  <p className="text-xs text-gray-600">Success Rate</p>
-                </div>
-              </div>
-            </div>
-          </div>
+              )) : (
+                <p className="text-xs font-bold text-gray-300 italic py-2">No active routes assigned</p>
+              )}
+           </div>
         </div>
       </div>
-    </AgentLayout>
+
+      {/* FIXED BOTTOM NAV */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/90 backdrop-blur-md border border-gray-200 p-2 rounded-full flex justify-around items-center z-50 shadow-2xl">
+        <NavTab icon={<Home size={18} />} label="Home" onClick={() => navigate("/agent/dashboard")} />
+        <NavTab icon={<List size={18} />} label="Tasks" onClick={() => navigate("/agent/working")} />
+        <NavTab icon={<History size={18} />} label="History" onClick={() => navigate("/agent/history")} />
+        <NavTab icon={<User size={18} />} label="Profile" active onClick={() => navigate("/agent/profile")} />
+      </div>
+    </div>
   );
 };
+
+// UI Helper Components
+const InfoRow = ({ icon, label, value }) => (
+  <div className="flex items-center gap-4">
+    <div className="p-2.5 bg-gray-50 rounded-xl text-gray-400">{icon}</div>
+    <div className="min-w-0">
+      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
+      <p className="text-sm font-bold text-gray-800 truncate">{value || "Not provided"}</p>
+    </div>
+  </div>
+);
+
+const NavTab = ({ icon, label, active, onClick }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-0.5 p-2 rounded-2xl min-w-[65px] transition-colors ${active ? "text-blue-600" : "text-gray-400"}`}>
+    {icon}
+    <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
+    {active && <div className="w-1 h-1 bg-blue-600 rounded-full mt-0.5" />}
+  </button>
+);
 
 export default AgentProfile;
