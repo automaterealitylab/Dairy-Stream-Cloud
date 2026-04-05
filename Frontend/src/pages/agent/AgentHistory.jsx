@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import AgentLayout from '../../components/agent/AgentLayout';
+import { useNavigate } from 'react-router-dom';
 import DeliveryDetailsModal from '../../components/agent/DeliveryDetailsModal';
-import { Calendar, CheckCircle, XCircle, Clock, Search, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Search, ChevronDown, ChevronUp, Package, Home, List, History, User } from 'lucide-react';
 import { fetchAgentDeliveryHistory } from "../../api/agent/agent.api";
 
 const AgentHistory = () => {
+  const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDates, setExpandedDates] = useState([]);
@@ -15,194 +16,105 @@ const AgentHistory = () => {
       try {
         const payload = await fetchAgentDeliveryHistory();
         setHistory(payload || []);
-        setExpandedDates(payload?.[0]?.date ? [payload[0].date] : []);
-      } catch (_err) {
-        setHistory([]);
-        setExpandedDates([]);
-      }
+        if (payload?.[0]?.date) setExpandedDates([payload[0].date]);
+      } catch (_err) { setHistory([]); }
     };
     loadHistory();
   }, []);
 
   const toggleDateExpanded = (date) => {
-    if (expandedDates.includes(date)) {
-      setExpandedDates(expandedDates.filter(d => d !== date));
-    } else {
-      setExpandedDates([...expandedDates, date]);
-    }
+    setExpandedDates(prev => prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date]);
   };
 
   const filteredHistory = history.map(day => ({
     ...day,
-    deliveries: day.deliveries.filter(delivery => 
-      delivery.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delivery.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delivery.address.toLowerCase().includes(searchQuery.toLowerCase())
+    deliveries: day.deliveries.filter(d => 
+      d.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.address.toLowerCase().includes(searchQuery.toLowerCase())
     ),
   })).filter(day => day.deliveries.length > 0);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    if (status === 'completed') {
-      return (
-        <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-          <CheckCircle size={14} />
-          Completed
-        </span>
-      );
-    } else if (status === 'failed') {
-      return (
-        <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
-          <XCircle size={14} />
-          Failed
-        </span>
-      );
-    }
-  };
-
-  const getDayStats = (deliveries) => {
-    const completed = deliveries.filter(d => d.status === 'completed').length;
-    const failed = deliveries.filter(d => d.status === 'failed').length;
-    const total = deliveries.length;
-    return { completed, failed, total };
-  };
+  const getStatusIcon = (status) => status === 'completed' ? <CheckCircle size={14} className="text-green-500" /> : <XCircle size={14} className="text-red-500" />;
 
   return (
-    <AgentLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Delivery History</h2>
-          <p className="text-gray-600">View all your past deliveries</p>
+    <div className="min-h-screen bg-gray-50 text-gray-900 pb-32 px-4 pt-4">
+      <div className="max-w-md mx-auto space-y-5">
+        <div className="px-1">
+          <h2 className="text-xl font-black tracking-tight">History</h2>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Review past performance</p>
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by customer name, delivery ID, or address..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-blue-600" size={16} />
+          <input
+            type="text"
+            placeholder="Search deliveries..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+          />
         </div>
 
-        {/* History List */}
-        {filteredHistory.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <Package className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-600">No delivery history found</p>
-            {searchQuery && (
-              <p className="text-sm text-gray-500 mt-2">Try adjusting your search query</p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredHistory.map((day) => {
-              const isExpanded = expandedDates.includes(day.date);
-              const stats = getDayStats(day.deliveries);
-
-              return (
-                <div key={day.date} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  {/* Date Header */}
-                  <button
-                    onClick={() => toggleDateExpanded(day.date)}
-                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-blue-50 rounded-lg">
-                        <Calendar className="text-blue-600" size={24} />
-                      </div>
-                      <div className="text-left">
-                        <h3 className="font-semibold text-gray-800">{formatDate(day.date)}</h3>
-                        <p className="text-sm text-gray-600">
-                          {stats.total} deliveries · {stats.completed} completed · {stats.failed} failed
-                        </p>
-                      </div>
+        {/* List */}
+        <div className="space-y-3">
+          {filteredHistory.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-gray-100">
+              <Package className="mx-auto text-gray-200 mb-2" size={40} />
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No History</p>
+            </div>
+          ) : (
+            filteredHistory.map((day) => (
+              <div key={day.date} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+                <button onClick={() => toggleDateExpanded(day.date)} className="w-full px-5 py-4 flex items-center justify-between active:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600"><Calendar size={20} /></div>
+                    <div className="text-left">
+                      <p className="text-sm font-black text-gray-800">{day.date}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{day.deliveries.length} Tasks</p>
                     </div>
-                    {isExpanded ? (
-                      <ChevronUp className="text-gray-400" size={24} />
-                    ) : (
-                      <ChevronDown className="text-gray-400" size={24} />
-                    )}
-                  </button>
+                  </div>
+                  {expandedDates.includes(day.date) ? <ChevronUp size={20} className="text-gray-300" /> : <ChevronDown size={20} className="text-gray-300" />}
+                </button>
 
-                  {/* Deliveries List */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-200 divide-y divide-gray-200">
-                      {day.deliveries.map((delivery) => (
-                        <div
-                          key={delivery.id}
-                          onClick={() => setSelectedDelivery(delivery)}
-                          className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <span className="text-sm font-mono text-gray-500">{delivery.id}</span>
-                                {getStatusBadge(delivery.status)}
-                              </div>
-                              <h4 className="font-semibold text-gray-800 mb-1">{delivery.customerName}</h4>
-                              <p className="text-sm text-gray-600 mb-1">{delivery.address}</p>
-                              <div className="flex items-center gap-4 text-sm text-gray-600">
-                                <span className="flex items-center gap-1">
-                                  <Package size={14} />
-                                  {delivery.milkQuantity}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock size={14} />
-                                  {delivery.completedAt}
-                                </span>
-                              </div>
-                              {delivery.status === 'failed' && delivery.failedReason && (
-                                <p className="text-sm text-red-600 mt-2">
-                                  <span className="font-medium">Reason:</span> {delivery.failedReason}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                {expandedDates.includes(day.date) && (
+                  <div className="px-3 pb-3 space-y-2 border-t border-gray-50 pt-3">
+                    {day.deliveries.map((delivery) => (
+                      <div key={delivery.id} onClick={() => setSelectedDelivery(delivery)} className="p-4 bg-gray-50 rounded-2xl flex items-center justify-between active:scale-95 transition-transform cursor-pointer">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-gray-800 truncate">{delivery.customerName}</p>
+                          <p className="text-[10px] font-bold text-gray-400 truncate uppercase mt-0.5">{delivery.id}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                        {getStatusIcon(delivery.status)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      {/* Delivery Details Modal */}
-      {selectedDelivery && (
-        <DeliveryDetailsModal
-          delivery={selectedDelivery}
-          onClose={() => setSelectedDelivery(null)}
-        />
-      )}
-    </AgentLayout>
+      {/* Bottom Nav */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/90 backdrop-blur-md border border-gray-200 p-2 rounded-full flex justify-around items-center z-50 shadow-2xl">
+        <NavTab icon={<Home size={18} />} label="Home" onClick={() => navigate("/agent/dashboard")} />
+        <NavTab icon={<List size={18} />} label="Tasks" onClick={() => navigate("/agent/working")} />
+        <NavTab icon={<History size={18} />} label="History" active onClick={() => navigate("/agent/history")} />
+        <NavTab icon={<User size={18} />} label="Profile" onClick={() => navigate("/agent/profile")} />
+      </div>
+
+      {selectedDelivery && <DeliveryDetailsModal delivery={selectedDelivery} onClose={() => setSelectedDelivery(null)} />}
+    </div>
   );
 };
+
+const NavTab = ({ icon, label, active, onClick }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-0.5 p-2 rounded-2xl min-w-[60px] ${active ? "text-blue-600" : "text-gray-400"}`}>
+    {icon} <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
+    {active && <div className="w-1 h-1 bg-blue-600 rounded-full mt-0.5" />}
+  </button>
+);
 
 export default AgentHistory;
