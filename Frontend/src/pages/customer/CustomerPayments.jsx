@@ -307,7 +307,7 @@ export default function Payments() {
       if (!(await loadRazorpay())) throw new Error("Could not load payment gateway.");
 
       const orderPayload = await createCustomerPaymentOrder(
-        payAll ? { payAll: true } : { paymentId: payment.id }
+        payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
       );
       const { title } = parseTitle(orderPayload.payment?.title || "");
 
@@ -322,6 +322,7 @@ export default function Payments() {
           await verifyCustomerPayment({
             paymentId: payment?.id,
             payAll,
+            includeRunningDue: payAll ? false : undefined,
             razorpay_order_id: res.razorpay_order_id,
             razorpay_payment_id: res.razorpay_payment_id,
             razorpay_signature: res.razorpay_signature,

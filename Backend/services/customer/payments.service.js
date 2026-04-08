@@ -750,7 +750,13 @@ const updatePaymentsWithFallbacks = async ({
   return [];
 };
 
-export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyId = null, payAll = false }) => {
+export const createCustomerPaymentOrder = async ({
+  customerId,
+  paymentId,
+  dairyId = null,
+  payAll = false,
+  includeRunningDue = true,
+}) => {
   await syncCustomerMonthlyBills(customerId);
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
 
@@ -759,8 +765,12 @@ export const createCustomerPaymentOrder = async ({ customerId, paymentId, dairyI
       customerId,
       resolvedDairyId
     );
-    const runningDueData = await getCurrentMonthSuccessfulSubscriptionDue(customerId);
-    const runningDueAmount = Number(runningDueData?.payableTillDate || 0);
+    const runningDueData = includeRunningDue
+      ? await getCurrentMonthSuccessfulSubscriptionDue(customerId)
+      : null;
+    const runningDueAmount = includeRunningDue
+      ? Number(runningDueData?.payableTillDate || 0)
+      : 0;
     const currentMonthKey = getCurrentMonthKey();
     const historicalPendingAmount = pendingPayments.reduce((sum, row) => {
       return getPaymentMonthKey(row) === currentMonthKey ? sum : sum + extractPaymentAmount(row);
@@ -863,6 +873,7 @@ export const verifyCustomerPayment = async ({
   paymentId,
   dairyId = null,
   payAll = false,
+  includeRunningDue = true,
   razorpayOrderId,
   razorpayPaymentId,
   razorpaySignature,
@@ -909,8 +920,12 @@ export const verifyCustomerPayment = async ({
       }
     }
 
-    const runningDueData = await getCurrentMonthSuccessfulSubscriptionDue(customerId);
-    const runningDueAmount = Number(runningDueData?.payableTillDate || 0);
+    const runningDueData = includeRunningDue
+      ? await getCurrentMonthSuccessfulSubscriptionDue(customerId)
+      : null;
+    const runningDueAmount = includeRunningDue
+      ? Number(runningDueData?.payableTillDate || 0)
+      : 0;
     const hasCurrentMonthPendingBill = pendingPayments.some(
       (row) => getPaymentMonthKey(row) === currentMonthKey
     );

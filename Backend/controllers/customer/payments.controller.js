@@ -24,11 +24,12 @@ export const getPayments = async (req, res) => {
 
 export const createPaymentOrder = async (req, res) => {
   try {
-    const { paymentId, payAll } = req.body || {};
+    const { paymentId, payAll, includeRunningDue } = req.body || {};
     const data = await createCustomerPaymentOrder({
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
+      includeRunningDue: includeRunningDue === undefined ? true : Boolean(includeRunningDue),
       dairyId: req.customer?.dairyId ?? null,
     });
     res.json(data);
@@ -45,6 +46,7 @@ export const verifyPayment = async (req, res) => {
     const {
       paymentId,
       payAll,
+      includeRunningDue,
       razorpay_order_id: razorpayOrderId,
       razorpay_payment_id: razorpayPaymentId,
       razorpay_signature: razorpaySignature,
@@ -54,6 +56,7 @@ export const verifyPayment = async (req, res) => {
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
+      includeRunningDue: includeRunningDue === undefined ? true : Boolean(includeRunningDue),
       dairyId: req.customer?.dairyId ?? null,
       razorpayOrderId,
       razorpayPaymentId,
