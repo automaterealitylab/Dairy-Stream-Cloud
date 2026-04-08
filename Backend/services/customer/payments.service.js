@@ -59,6 +59,8 @@ const normalizeStatus = (status) => {
   return "PENDING";
 };
 
+const OVERDUE_PENALTY_RATE = 0.01;
+
 const isDeliveredStatus = (status) => {
   const value = String(status || "").toUpperCase();
   return value === "DELIVERED" || value === "COMPLETED";
@@ -121,6 +123,27 @@ const isMonthlyBillPaymentRow = (row) => {
 
 const extractPaymentAmount = (row) =>
   toNumber(row?.amount ?? row?.total_amount ?? row?.total ?? row?.bill_amount ?? 0, 0);
+
+const getOverduePenaltyAmount = (row) => {
+  const status = normalizeStatus(row?.status);
+  if (status !== "OVERDUE") return 0;
+
+  const baseAmount = extractPaymentAmount(row);
+  if (baseAmount <= 0) return 0;
+
+  return Number((baseAmount * OVERDUE_PENALTY_RATE).toFixed(2));
+};
+
+const getEffectivePaymentAmount = (row) => {
+  const baseAmount = extractPaymentAmount(row);
+  const overduePenaltyAmount = getOverduePenaltyAmount(row);
+
+  return {
+    baseAmount: Number(baseAmount.toFixed(2)),
+    overduePenaltyAmount,
+    totalAmount: Number((baseAmount + overduePenaltyAmount).toFixed(2)),
+  };
+};
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -301,7 +324,7 @@ const isDirectCheckoutCustomerPaymentRow = (row, deliveryStatusById) => {
 };
 
 const mapPaymentRow = (row, index) => {
-  const amount = extractPaymentAmount(row);
+  const { baseAmount, overduePenaltyAmount, totalAmount } = getEffectivePaymentAmount(row);
   const status = normalizeStatus(row.status);
   const dateSource = row.payment_date || row.date || row.created_at || row.updated_at;
   const monthKey = getPaymentMonthKey(row);
@@ -319,7 +342,9 @@ const mapPaymentRow = (row, index) => {
     id: row.id ?? `payment-${index}`,
     title,
     date: formatDate(dateSource),
-    amount,
+    amount: totalAmount,
+    baseAmount,
+    overduePenaltyAmount,
     status,
     method: row.method || row.payment_method || "-",
     dueDate: row.due_date || row.dueDate || null,
@@ -773,10 +798,14 @@ export const createCustomerPaymentOrder = async ({
       : 0;
     const currentMonthKey = getCurrentMonthKey();
     const historicalPendingAmount = pendingPayments.reduce((sum, row) => {
-      return getPaymentMonthKey(row) === currentMonthKey ? sum : sum + extractPaymentAmount(row);
+      return getPaymentMonthKey(row) === currentMonthKey
+        ? sum
+        : sum + getEffectivePaymentAmount(row).totalAmount;
     }, 0);
     const currentMonthPendingAmount = pendingPayments.reduce((sum, row) => {
-      return getPaymentMonthKey(row) === currentMonthKey ? sum + extractPaymentAmount(row) : sum;
+      return getPaymentMonthKey(row) === currentMonthKey
+        ? sum + getEffectivePaymentAmount(row).totalAmount
+        : sum;
     }, 0);
     const amountInRupees =
       historicalPendingAmount + Math.max(currentMonthPendingAmount, runningDueAmount);
@@ -832,7 +861,7 @@ export const createCustomerPaymentOrder = async ({
     throw new Error("No pending payment found");
   }
 
-  const amountInRupees = extractPaymentAmount(pendingPayment);
+  const amountInRupees = getEffectivePaymentAmount(pendingPayment).totalAmount;
   if (amountInRupees <= 0) {
     throw new Error("Payment amount must be greater than zero");
   }
@@ -910,12 +939,17 @@ export const verifyCustomerPayment = async ({
 
     if (pendingPayments.length && customerColumn) {
       for (const row of pendingPayments) {
+        const { totalAmount } = getEffectivePaymentAmount(row);
+        const payloadVariantsWithAmount = payloadVariants.map((payload) => ({
+          ...payload,
+          amount: totalAmount,
+        }));
         await updatePaymentsWithFallbacks({
           customerColumn,
           customerId,
           dairyId: resolvedDairyId,
           paymentId: row.id,
-          payloadVariants,
+          payloadVariants: payloadVariantsWithAmount,
         });
       }
     }
@@ -1023,7 +1057,10 @@ export const verifyCustomerPayment = async ({
     customerId,
     dairyId: resolvedDairyId,
     paymentId: normalizedPaymentId,
-    payloadVariants,
+    payloadVariants: payloadVariants.map((payload) => ({
+      ...payload,
+      amount: getEffectivePaymentAmount(existingPayment).totalAmount,
+    })),
   });
 
   return {
@@ -1194,6 +1231,14 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     0
   );
   const totalOverdue = overdueCandidates.reduce((sum, item) => sum + toNumber(item.amount, 0), 0);
+  const overdueBaseAmount = overdueCandidates.reduce(
+    (sum, item) => sum + toNumber(item.baseAmount, 0),
+    0
+  );
+  const overduePenaltyAmount = overdueCandidates.reduce(
+    (sum, item) => sum + toNumber(item.overduePenaltyAmount, 0),
+    0
+  );
   const currentMonthKey = String(getLocalTodayIso()).slice(0, 7);
   const historicalPendingAndOverdue = pendingCandidates.reduce((sum, item) => {
     return item.monthKey === currentMonthKey ? sum : sum + toNumber(item.amount, 0);
@@ -1217,6 +1262,8 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     summary: {
       monthlyDue: totalPendingAndOverdue,
       overdueAmount: Number(totalOverdue.toFixed(2)),
+      overdueBaseAmount: Number(overdueBaseAmount.toFixed(2)),
+      overduePenaltyAmount: Number(overduePenaltyAmount.toFixed(2)),
       walletBalance: toNumber(walletBalance, 0),
       payableTillDate: toNumber(payableTillDate, 0),
       billingSummaryAmount: Number(liveBillingSummaryAmount.toFixed(2)),
