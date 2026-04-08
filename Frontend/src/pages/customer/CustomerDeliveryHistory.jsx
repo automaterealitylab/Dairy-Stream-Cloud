@@ -45,6 +45,13 @@ const STATUS_CFG = {
     label: 'Skipped',
     sub: () => 'Not delivered',
   },
+  FAILED: {
+    icon: XCircle,
+    iconBg: 'bg-[#FDECEA] text-[#C0392B]',
+    badge: 'bg-[#FDECEA] text-[#C0392B]',
+    label: 'Failed',
+    sub: () => 'Auto-failed after scheduled day',
+  },
   CANCELLED: {
     icon: XCircle,
     iconBg: 'bg-[#FCE8E6] text-[#B42318]',
@@ -223,6 +230,7 @@ function DeliveryRow({ item, muted = false, onCancel, isCancelling = false }) {
 function CollapsedSummary({ items, onExpand }) {
   const delivered = items.filter((item) => String(item.status).toUpperCase() === 'DELIVERED').length;
   const skipped = items.filter((item) => String(item.status).toUpperCase() === 'SKIPPED').length;
+  const failed = items.filter((item) => String(item.status).toUpperCase() === 'FAILED').length;
   const cancelled = items.filter((item) => String(item.status).toUpperCase() === 'CANCELLED').length;
   const pending = items.filter((item) =>
     ['PENDING', 'PENDING_APPROVAL'].includes(String(item.status).toUpperCase())
@@ -231,6 +239,7 @@ function CollapsedSummary({ items, onExpand }) {
   const parts = [
     delivered ? `${delivered} delivered` : '',
     skipped ? `${skipped} skipped` : '',
+    failed ? `${failed} failed` : '',
     cancelled ? `${cancelled} cancelled` : '',
     pending ? `${pending} pending` : '',
   ]
@@ -246,6 +255,7 @@ function CollapsedSummary({ items, onExpand }) {
         <div className="flex gap-1.5">
           {delivered > 0 && <span className="h-2 w-2 rounded-full bg-[#4A7C2F]" />}
           {skipped > 0 && <span className="h-2 w-2 rounded-full bg-[#C0392B]" />}
+          {failed > 0 && <span className="h-2 w-2 rounded-full bg-[#B42318]" />}
           {pending > 0 && <span className="h-2 w-2 rounded-full bg-[#B8641A]" />}
         </div>
         <span className="text-xs text-[#8B7355]">{parts}</span>
