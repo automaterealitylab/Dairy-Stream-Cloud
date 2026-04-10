@@ -162,7 +162,7 @@ export default function AdminPayments() {
         autopayConfiguredAt: prev?.autopayConfiguredAt || null,
       }));
 
-      toast.success(`${planName} plan selected`);
+      toast.success(`${getPlanLabel(planName)} plan selected`);
       setPlanModalOpen(false);
       setPendingAutopayPlan(planName);
       setSelectedAutopayMethod("");
@@ -219,7 +219,7 @@ export default function AdminPayments() {
       setAutopayModalOpen(false);
       setPendingAutopayPlan(null);
       toast.success(
-        `${selectedAutopayMethod} autopay enabled for ${pendingAutopayPlan || farmPlan?.plan}`
+        `${selectedAutopayMethod} autopay enabled for ${pendingAutopayPlanLabel}`
       );
     } finally {
       setAutopaySaving(false);
@@ -234,9 +234,10 @@ export default function AdminPayments() {
 
   const planOptions = [
     {
-      name: "Free",
-      monthlyPrice: 0,
-      yearlyPrice: 0,
+      value: "Free",
+      label: "Starter",
+      monthlyPrice: 499,
+      yearlyPrice: 4990,
       features: [
         "Basic customer and product management",
         "Manual delivery scheduling",
@@ -246,7 +247,8 @@ export default function AdminPayments() {
       popular: false,
     },
     {
-      name: "Growth",
+      value: "Growth",
+      label: "Growth",
       monthlyPrice: 999,
       yearlyPrice: 9990,
       features: [
@@ -258,7 +260,8 @@ export default function AdminPayments() {
       popular: true,
     },
     {
-      name: "Prime",
+      value: "Prime",
+      label: "Enterprise",
       monthlyPrice: 2499,
       yearlyPrice: 24990,
       features: [
@@ -272,7 +275,11 @@ export default function AdminPayments() {
   ];
 
   const activePlanDetails =
-    planOptions.find((option) => option.name === farmPlan?.plan) || planOptions[0];
+    planOptions.find((option) => option.value === farmPlan?.plan) || planOptions[0];
+  const activePlanLabel = activePlanDetails?.label || farmPlan?.plan || "Starter";
+  const getPlanLabel = (planValue) =>
+    planOptions.find((option) => option.value === planValue)?.label || planValue || "Starter";
+  const pendingAutopayPlanLabel = getPlanLabel(pendingAutopayPlan || farmPlan?.plan);
   const activePlanPrice =
     billingCycle === "yearly"
       ? activePlanDetails?.yearlyPrice ?? 0
@@ -293,8 +300,10 @@ export default function AdminPayments() {
             <div className="relative z-10">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-blue-200 text-sm font-medium uppercase tracking-wider">Your Subscription</p>
-                  <h2 className="text-2xl font-bold mt-1">{farmPlan?.plan}</h2>
+                  <p className="text-blue-200 text-sm font-medium tracking-wide">
+                    Revenue Streams: Starter (Rs.499/mo) | Growth (Rs.999/mo) | Enterprise (Rs.2499/mo)
+                  </p>
+                  <h2 className="text-2xl font-bold mt-1">{activePlanLabel}</h2>
                 </div>
                 <span className="bg-green-400/20 text-green-100 text-xs px-2 py-1 rounded-full border border-green-400/30 font-bold uppercase tracking-widest">
                   {farmPlan?.status}
@@ -472,24 +481,24 @@ export default function AdminPayments() {
             </div>
             <div className="grid grid-cols-1 gap-6 p-8 md:grid-cols-3">
               {planOptions.map((p) => (
-                <div key={p.name} className={`relative rounded-[28px] border bg-white p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] transition ${p.name === farmPlan?.plan ? 'border-[#B8641A] ring-2 ring-[#F3D6A2]' : 'border-[#EDE8DF]'}`}>
+                <div key={p.value} className={`relative rounded-[28px] border bg-white p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] transition ${p.value === farmPlan?.plan ? 'border-[#B8641A] ring-2 ring-[#F3D6A2]' : 'border-[#EDE8DF]'}`}>
                   {p.popular && (
                     <span className="absolute right-5 top-5 rounded-full bg-[#FFF1E4] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#B8641A]">
                       Popular
                     </span>
                   )}
-                  <h4 className="text-2xl font-bold text-[#2C1A0E]">{p.name}</h4>
+                  <h4 className="text-2xl font-bold text-[#2C1A0E]">{p.label}</h4>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#C4A882]">Dairy SaaS Plan</p>
                   <div className="text-3xl font-black text-[#2C1A0E] mb-6 mt-6">₹{billingCycle === 'yearly' ? p.yearlyPrice : p.monthlyPrice}<span className="text-xs text-[#8B7355] font-normal"> / {billingCycle === 'yearly' ? 'yr' : 'mo'}</span></div>
                   <ul className="space-y-3 mb-8">
                     {p.features.map(f => <li key={f} className="text-xs text-[#6B5B3E] font-bold flex items-center gap-2"><CheckCircle size={14} className="text-[#B8641A]" /> {f}</li>)}
                   </ul>
                   <button
-                    onClick={() => handlePlanSelect(p.name)}
-                    disabled={p.name === farmPlan?.plan || planUpdating}
-                    className={`w-full py-3 rounded-[16px] font-bold text-xs uppercase tracking-[0.12em] transition ${p.name === farmPlan?.plan ? 'bg-[#F1ECE4] text-[#B89970] cursor-default' : 'bg-[#B8641A] text-white hover:bg-[#9F5414]'} disabled:opacity-60 disabled:cursor-not-allowed`}
+                    onClick={() => handlePlanSelect(p.value)}
+                    disabled={p.value === farmPlan?.plan || planUpdating}
+                    className={`w-full py-3 rounded-[16px] font-bold text-xs uppercase tracking-[0.12em] transition ${p.value === farmPlan?.plan ? 'bg-[#F1ECE4] text-[#B89970] cursor-default' : 'bg-[#B8641A] text-white hover:bg-[#9F5414]'} disabled:opacity-60 disabled:cursor-not-allowed`}
                   >
-                    {p.name === farmPlan?.plan ? 'Current' : planUpdating ? 'Updating...' : 'Select'}
+                    {p.value === farmPlan?.plan ? 'Current' : planUpdating ? 'Updating...' : 'Select'}
                   </button>
                 </div>
               ))}
@@ -520,7 +529,7 @@ export default function AdminPayments() {
                     Set Up Autopay
                   </h3>
                   <p className="mt-1 text-xs sm:text-sm text-white/70">
-                    Enable recurring billing for the {pendingAutopayPlan || farmPlan?.plan} plan.
+                    Enable recurring billing for the {pendingAutopayPlanLabel} plan.
                   </p>
                 </div>
                 <button
@@ -540,7 +549,7 @@ export default function AdminPayments() {
                       Selected Plan
                     </p>
                     <h4 className="mt-1 text-lg sm:text-xl font-bold text-[#2C1A0E]">
-                      {pendingAutopayPlan || farmPlan?.plan}
+                      {pendingAutopayPlanLabel}
                     </h4>
                     <p className="mt-1 text-xs sm:text-sm text-[#7A644A]">
                       Recurring amount: Rs. {activePlanPrice} {activePlanPeriod}
