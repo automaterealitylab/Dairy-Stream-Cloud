@@ -167,6 +167,8 @@ const INITIAL_SHOW = 7;
 const EMPTY_SUMMARY = {
   monthlyDue: 0,
   overdueAmount: 0,
+  overdueBaseAmount: 0,
+  overduePenaltyAmount: 0,
   walletBalance: 0,
   dueInDays: null,
   beneficiary: null,
@@ -178,6 +180,8 @@ const toPaymentsViewState = (data) => ({
   summary: {
     monthlyDue: Number(data?.summary?.monthlyDue || 0),
     overdueAmount: Number(data?.summary?.overdueAmount || 0),
+    overdueBaseAmount: Number(data?.summary?.overdueBaseAmount || 0),
+    overduePenaltyAmount: Number(data?.summary?.overduePenaltyAmount || 0),
     walletBalance: Number(data?.summary?.walletBalance || 0),
     dueInDays: data?.summary?.dueInDays == null ? null : Number(data.summary.dueInDays),
     beneficiary: data?.summary?.beneficiary || null,
@@ -450,6 +454,10 @@ export default function Payments() {
     year: "numeric",
   });
   const nextBillHint = "Monthly bill closes at the end of the month";
+  const overdueHelperText =
+    Number(summary.overduePenaltyAmount || 0) > 0
+      ? `${fmt(summary.overdueBaseAmount)} + ${fmt(summary.overduePenaltyAmount)}`
+      : "Increases only after the 10th if unpaid";
 
   return (
     <CustomerLayout>
@@ -580,7 +588,7 @@ export default function Payments() {
                   {fmt(summary.overdueAmount)}
                 </p>
                 <p className="mt-1.5 text-[10px] leading-4 text-[#B89970] sm:mt-2 sm:text-[11px] sm:leading-5">
-                  Increases only after the 10th if unpaid
+                  {overdueHelperText}
                 </p>
               </div>
 
