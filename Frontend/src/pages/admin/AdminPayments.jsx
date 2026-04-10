@@ -301,7 +301,7 @@ export default function AdminPayments() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-blue-200 text-sm font-medium tracking-wide">
-                    Revenue Streams: Starter (Rs.499/mo) | Growth (Rs.999/mo) | Enterprise (Rs.2499/mo)
+                    SUBSCRIPTION PLAN
                   </p>
                   <h2 className="text-2xl font-bold mt-1">{activePlanLabel}</h2>
                 </div>
