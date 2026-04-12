@@ -248,6 +248,16 @@ const isMissingRelationOrColumnError = (error) => {
   );
 };
 
+const isMissingCustomerRegistrationLocationColumns = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("address_line_1") ||
+    message.includes("address_line_2") ||
+    message.includes("latitude") ||
+    message.includes("longitude")
+  );
+};
+
 const findCustomerByIdentifier = async (identifier) => {
   const normalizedIdentifier = normalizeIdentifier(identifier);
   const isEmail = normalizedIdentifier.includes("@");
@@ -301,9 +311,13 @@ export const registerCustomerService = async (payload) => {
     customerName,
     email,
     phoneNumber,
+    addressLine1,
+    addressLine2,
     buildingName,
     wing,
     roomNo,
+    latitude,
+    longitude,
     defaultMilkQuantityLiters,
     billingCycle,
   } = payload;
@@ -329,9 +343,13 @@ export const registerCustomerService = async (payload) => {
         customer_name: customerName,
         email: normalizedEmail,
         phone_number: phoneNumber,
+        address_line_1: String(addressLine1 || "").trim() || null,
+        address_line_2: String(addressLine2 || "").trim() || null,
         building_name: buildingName || null,
         wing: wing || null,
         room_no: roomNo,
+        latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+        longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
         // ✅ Password and Photo are omitted so they stay NULL in DB
         default_milk_quantity_liters: defaultMilkQuantityLiters || 1,
         billing_cycle: billingCycle || "Monthly",
@@ -342,6 +360,11 @@ export const registerCustomerService = async (payload) => {
 
   if (error) {
     console.error("Supabase Error:", error.message);
+    if (isMissingCustomerRegistrationLocationColumns(error)) {
+      throw new Error(
+        "Customer location fields are not ready in the database. Run the updated SUPABASE_MIGRATIONS.sql and try again."
+      );
+    }
     throw new Error(error.message);
   }
 

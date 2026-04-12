@@ -1,13 +1,7 @@
 export const buildCustomerAddress = (source = {}) => {
-  const directAddress = [
-    source.address,
-    source.fullAddress,
-    source.areaSectorLocality,
-  ].find((value) => typeof value === "string" && value.trim().length > 0);
-
-  if (directAddress) return directAddress.trim();
-
   const parts = [
+    source.address_line_1 || source.addressLine1 || "",
+    source.address_line_2 || source.addressLine2 || "",
     source.building_name || source.buildingName || "",
     source.wing || "",
     source.room_no || source.roomNo || "",
@@ -15,5 +9,13 @@ export const buildCustomerAddress = (source = {}) => {
     .map((part) => String(part || "").trim())
     .filter(Boolean);
 
-  return parts.join(", ");
+  if (parts.length) return parts.join(", ");
+
+  const directAddress = [
+    source.address,
+    source.fullAddress,
+    source.areaSectorLocality,
+  ].find((value) => typeof value === "string" && value.trim().length > 0);
+
+  return directAddress ? directAddress.trim() : "";
 };

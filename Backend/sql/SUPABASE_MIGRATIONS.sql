@@ -87,9 +87,13 @@ CREATE TABLE IF NOT EXISTS public.customers (
   password VARCHAR(255) NOT NULL,
   customer_name VARCHAR(255),
   phone_number VARCHAR(20),
+  address_line_1 VARCHAR(255),
+  address_line_2 VARCHAR(255),
   building_name VARCHAR(255),
   wing VARCHAR(50),
   room_no VARCHAR(50),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
   profile_photo_url TEXT,
   default_milk_quantity_liters NUMERIC(10, 2) DEFAULT 1.0,
   default_extra_product VARCHAR(255) DEFAULT 'None',
@@ -113,6 +117,14 @@ ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12, 2) DEFAULT 0;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS address_line_1 VARCHAR(255);
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS address_line_2 VARCHAR(255);
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 CREATE INDEX IF NOT EXISTS idx_customers_dairy_id ON public.customers(dairy_id);
 
 -- ============================================

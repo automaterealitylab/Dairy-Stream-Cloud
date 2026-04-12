@@ -1,28 +1,62 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
+import L from "leaflet";
+import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import client from "../api/client";
 import {
   User,
   Phone,
   Building2,
-  Droplets,
-  Calendar,
   ArrowRight,
   CheckCircle,
   Loader2,
   AlertCircle,
   ShieldCheck,
+  LocateFixed,
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.png";
 
 const headingFont = { fontFamily: "'Lora', serif" };
+const DEFAULT_MAP_CENTER = [18.5204, 73.8567];
+const customerPinIcon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
 
 const inputClassName =
   "w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]";
 
 const labelClassName =
   "mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]";
+
+const MapViewUpdater = ({ center }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (Array.isArray(center) && center.length === 2) {
+      map.flyTo(center, map.getZoom(), {
+        animate: true,
+        duration: 1.2,
+      });
+    }
+  }, [center, map]);
+
+  return null;
+};
+
+const MapPinSelector = ({ onSelect }) => {
+  useMapEvents({
+    click(event) {
+      onSelect(event.latlng.lat, event.latlng.lng);
+    },
+  });
+
+  return null;
+};
 
 const CustomerRegister = () => {
   const navigate = useNavigate();
@@ -33,15 +67,20 @@ const CustomerRegister = () => {
     customerName: "",
     email: "",
     phoneNumber: "",
+    addressLine1: "",
+    addressLine2: "",
     buildingName: "",
     wing: "",
     roomNo: "",
-    defaultMilkQuantityLiters: 1.0,
-    billingCycle: "Monthly",
+    latitude: null,
+    longitude: null,
   });
 
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
+  const [gpsLocation, setGpsLocation] = useState(null);
+  const [mapCenter, setMapCenter] = useState(DEFAULT_MAP_CENTER);
 
   useEffect(() => {
     if (location.state?.mobile) {
@@ -62,19 +101,123 @@ const CustomerRegister = () => {
     return null;
   };
 
+  const validateStep2 = () => {
+    if (!formData.addressLine1.trim()) return "Please enter Address Line 1";
+    if (!formData.roomNo.trim()) return "Room No is required";
+    return null;
+  };
+
+  const validateStep3 = () => {
+    if (!Number.isFinite(Number(formData.latitude)) || !Number.isFinite(Number(formData.longitude))) {
+      return "Please allow GPS or tap the map to pin your exact location";
+    }
+    return null;
+  };
+
+  const setPinnedLocation = (latitude, longitude) => {
+    const lat = Number(Number(latitude).toFixed(6));
+    const lng = Number(Number(longitude).toFixed(6));
+
+    setFormData((prev) => ({
+      ...prev,
+      latitude: lat,
+      longitude: lng,
+    }));
+    setMapCenter([lat, lng]);
+    setError("");
+  };
+
+  const detectCurrentLocation = ({ showToast = true, pinIfMissing = true } = {}) => {
+    if (!navigator.geolocation) {
+      const message = "GPS location is not supported in this browser";
+      setError(message);
+      if (showToast) toast.error(message);
+      return;
+    }
+
+    const hasPinnedLocation =
+      Number.isFinite(Number(formData.latitude)) &&
+      Number.isFinite(Number(formData.longitude));
+    const toastId = showToast ? toast.loading("Getting your current location...") : null;
+
+    setLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+
+        setGpsLocation({ lat, lng });
+        setMapCenter([lat, lng]);
+
+        if (pinIfMissing || !hasPinnedLocation) {
+          setPinnedLocation(lat, lng);
+        } else {
+          setError("");
+        }
+
+        setLocating(false);
+
+        if (showToast) {
+          toast.success("Current location captured", { id: toastId });
+        }
+      },
+      (geoError) => {
+        let message = "Unable to fetch your current location";
+        if (geoError?.code === 1) {
+          message = "Location permission denied. Please allow GPS access and try again.";
+        } else if (geoError?.code === 2) {
+          message = "Your current location could not be determined.";
+        } else if (geoError?.code === 3) {
+          message = "Location request timed out. Please try again.";
+        }
+
+        setLocating(false);
+        setError(message);
+
+        if (showToast) {
+          toast.error(message, { id: toastId });
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    );
+  };
+
   const handleNext = (e) => {
     e.preventDefault();
-    const err = validateStep1();
+    const err =
+      currentStep === 1
+        ? validateStep1()
+        : currentStep === 2
+        ? validateStep2()
+        : validateStep3();
+
     if (err) {
       setError(err);
       return;
     }
     setError("");
-    setCurrentStep(2);
+    setCurrentStep((prev) => Math.min(prev + 1, 3));
   };
+
+  useEffect(() => {
+    if (currentStep === 3 && !gpsLocation && !locating) {
+      detectCurrentLocation({ showToast: false, pinIfMissing: true });
+    }
+  }, [currentStep]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const locationError = validateStep3();
+    if (locationError) {
+      setError(locationError);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -137,7 +280,7 @@ const CustomerRegister = () => {
               Create Account
             </h2>
             <p className="text-sm text-[#8B7355]">
-              Step {currentStep} of 2: {currentStep === 1 ? "Personal Details" : "Address & Plan"}
+              Step {currentStep} of 3: {currentStep === 1 ? "Personal Details" : currentStep === 2 ? "Address Details" : "Exact Location"}
             </p>
           </div>
 
@@ -147,7 +290,7 @@ const CustomerRegister = () => {
             </div>
           )}
 
-          <form onSubmit={currentStep === 1 ? handleNext : handleSubmit}>
+          <form onSubmit={currentStep < 3 ? handleNext : handleSubmit}>
             {currentStep === 1 && (
               <div className="animate-in fade-in slide-in-from-right-4 space-y-5">
                 <div>
@@ -211,6 +354,31 @@ const CustomerRegister = () => {
             {currentStep === 2 && (
               <div className="animate-in fade-in slide-in-from-right-4 space-y-4">
                 <div>
+                  <label className={labelClassName}>Address Line 1</label>
+                  <input
+                    type="text"
+                    name="addressLine1"
+                    value={formData.addressLine1}
+                    onChange={handleChange}
+                    placeholder="Flat / house / street"
+                    className={inputClassName}
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClassName}>Address Line 2 (Opt)</label>
+                  <input
+                    type="text"
+                    name="addressLine2"
+                    value={formData.addressLine2}
+                    onChange={handleChange}
+                    placeholder="Area / landmark"
+                    className={inputClassName}
+                  />
+                </div>
+
+                <div>
                   <label className={labelClassName}>Building Name</label>
                   <div className="relative">
                     <Building2 className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
@@ -221,7 +389,6 @@ const CustomerRegister = () => {
                       onChange={handleChange}
                       placeholder="Galaxy Apartments"
                       className={`pl-10 ${inputClassName}`}
-                      autoFocus
                     />
                   </div>
                 </div>
@@ -251,39 +418,6 @@ const CustomerRegister = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
-                  <div>
-                    <label className={labelClassName}>Daily Milk (L)</label>
-                    <div className="relative">
-                      <Droplets className="absolute left-3 top-3.5 text-[#B8641A]" size={18} />
-                      <input
-                        type="number"
-                        step="0.5"
-                        name="defaultMilkQuantityLiters"
-                        value={formData.defaultMilkQuantityLiters}
-                        onChange={handleChange}
-                        className="w-full rounded-[16px] border border-[#EFD7B3] bg-[#FFF4E2] py-3 pl-10 pr-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className={labelClassName}>Billing</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
-                      <select
-                        name="billingCycle"
-                        value={formData.billingCycle}
-                        onChange={handleChange}
-                        className={`appearance-none pl-10 ${inputClassName}`}
-                      >
-                        <option>Daily</option>
-                        <option>Weekly</option>
-                        <option>Monthly</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="mt-6 flex gap-3">
                   <button
                     type="button"
@@ -295,6 +429,86 @@ const CustomerRegister = () => {
                   <button
                     type="submit"
                     disabled={loading}
+                    className="flex w-2/3 items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white transition-all hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
+                  >
+                    Continue to Map <ArrowRight size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 3 && (
+              <div className="animate-in fade-in slide-in-from-right-4 space-y-4">
+                <div className="rounded-[18px] border border-[#E7DAC6] bg-[#FFF8F0] p-4 text-sm text-[#6E5232]">
+                  Allow GPS to show your current location, then tap the map to place your exact delivery pin.
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-[#E7DAC6] bg-white px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => detectCurrentLocation({ showToast: true, pinIfMissing: true })}
+                    disabled={locating}
+                    className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-2 text-xs font-semibold text-[#B8641A] transition hover:bg-[#FCE8CB] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {locating ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={16} />}
+                    {locating ? "Locating..." : "Use Current Location"}
+                  </button>
+
+                  <div className="min-w-0 flex-1 text-xs font-medium text-[#5C3D1E]">
+                    {gpsLocation
+                      ? `GPS: ${gpsLocation.lat.toFixed(6)}, ${gpsLocation.lng.toFixed(6)}`
+                      : "GPS location not captured yet. Tap the button or place the pin manually."}
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-[20px] border border-[#E7DAC6]">
+                  <MapContainer
+                    center={mapCenter}
+                    zoom={17}
+                    scrollWheelZoom
+                    className="h-[320px] w-full"
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <MapViewUpdater center={mapCenter} />
+                    <MapPinSelector onSelect={setPinnedLocation} />
+
+                    {gpsLocation && (
+                      <CircleMarker
+                        center={[gpsLocation.lat, gpsLocation.lng]}
+                        radius={10}
+                        pathOptions={{
+                          color: "#2563EB",
+                          fillColor: "#60A5FA",
+                          fillOpacity: 0.6,
+                          weight: 2,
+                        }}
+                      />
+                    )}
+
+                    {Number.isFinite(Number(formData.latitude)) &&
+                      Number.isFinite(Number(formData.longitude)) && (
+                        <Marker
+                          position={[Number(formData.latitude), Number(formData.longitude)]}
+                          icon={customerPinIcon}
+                        />
+                      )}
+                  </MapContainer>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(2)}
+                    className="w-1/3 rounded-[16px] border border-[#EDE8DF] bg-white py-3 font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || locating}
                     className="flex w-2/3 items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white transition-all hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
                   >
                     {loading ? <Loader2 className="animate-spin" size={20} /> : "Finish Registration"}
