@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { 
   MapContainer, 
   TileLayer, 
@@ -54,11 +54,16 @@ const MapController = ({ center, zoom, trigger }) => {
   return null;
 };
 
+const getDeliveryCoordinates = (delivery) => {
+  const lat = Number(delivery?.lat ?? delivery?.latitude);
+  const lng = Number(delivery?.lng ?? delivery?.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+};
+
 // --- MAIN COMPONENT ---
 
 const AgentDashboard = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   
   // 1. STATE MANAGEMENT
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
@@ -68,6 +73,7 @@ const AgentDashboard = () => {
   const [zoomLevel, setZoomLevel] = useState(15);
   const [recenterTrigger, setRecenterTrigger] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  const [hasAutoFocusedDestination, setHasAutoFocusedDestination] = useState(false);
 
   // 2. FETCH DATA FROM BACKEND
   const loadDashboard = useCallback(async () => {
@@ -95,8 +101,6 @@ const AgentDashboard = () => {
         (pos) => {
           const coords = [pos.coords.latitude, pos.coords.longitude];
           setAgentLocation(coords);
-          // Only set initial map view once we get the first GPS hit
-          if (!mapView) setMapView(coords);
         },
         (err) => console.error("GPS Error:", err.message),
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -110,6 +114,39 @@ const AgentDashboard = () => {
     ? Math.round((stats.completed / stats.totalAssigned) * 100) : 0;
 
   const nextTask = deliveries.find(d => d.status === 'PENDING');
+  const nextTaskCoordinates = getDeliveryCoordinates(nextTask);
+  const deliveriesWithCoordinates = deliveries.filter((delivery) => getDeliveryCoordinates(delivery));
+
+  useEffect(() => {
+    if (hasAutoFocusedDestination) return;
+
+    if (nextTaskCoordinates) {
+      setMapView(nextTaskCoordinates);
+      setZoomLevel(17);
+      setHasAutoFocusedDestination(true);
+      return;
+    }
+
+    const firstPinnedDelivery = deliveriesWithCoordinates[0];
+    const firstPinnedCoordinates = getDeliveryCoordinates(firstPinnedDelivery);
+    if (firstPinnedCoordinates) {
+      setMapView(firstPinnedCoordinates);
+      setZoomLevel(16);
+      setHasAutoFocusedDestination(true);
+      return;
+    }
+
+    if (!mapView && agentLocation) {
+      setMapView(agentLocation);
+      setZoomLevel(15);
+    }
+  }, [
+    agentLocation,
+    deliveriesWithCoordinates,
+    hasAutoFocusedDestination,
+    mapView,
+    nextTaskCoordinates,
+  ]);
 
   // UI Mini Stat Helper
   const MiniStat = ({ color, label, val, icon }) => (
@@ -187,32 +224,50 @@ const AgentDashboard = () => {
                   <Popup className="font-bold text-xs">Your Location</Popup>
                 </CircleMarker>
 
-                {/* Delivery Markers & Routing Line */}
-                {deliveries.map((delivery) => (
-                  delivery.lat && delivery.lng && (
-                    <React.Fragment key={delivery.id}>
-                      <Marker 
-                        position={[delivery.lat, delivery.lng]}
-                        icon={L.divIcon({
-                          className: 'custom-div-icon',
-                          html: `<div style="background-color: ${delivery.status === 'COMPLETED' ? '#10b981' : '#f97316'}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-                          iconSize: [12, 12],
-                          iconAnchor: [6, 6]
-                        })}
-                      >
-                        <Popup><p className="text-[10px] font-bold">{delivery.customerName}</p></Popup>
-                      </Marker>
+                {/* Customer Delivery Pins */}
+                {deliveriesWithCoordinates.map((delivery) => {
+                  const coordinates = getDeliveryCoordinates(delivery);
+                  if (!coordinates) return null;
 
-                      {/* Line to Next Pending Task */}
-                      {delivery.status === 'PENDING' && (
-                        <Polyline 
-                          positions={[agentLocation, [delivery.lat, delivery.lng]]}
-                          pathOptions={{ color: '#3b82f6', dashArray: '8, 8', weight: 2, opacity: 0.5 }}
-                        />
-                      )}
-                    </React.Fragment>
-                  )
-                ))}
+                  const isNextDestination = String(delivery.id) === String(nextTask?.id);
+                  const markerColor =
+                    delivery.status === 'COMPLETED'
+                      ? '#10b981'
+                      : isNextDestination
+                      ? '#2563eb'
+                      : '#f97316';
+
+                  return (
+                    <Marker 
+                      key={delivery.id}
+                      position={coordinates}
+                      icon={L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="background-color: ${markerColor}; width: ${isNextDestination ? 16 : 12}px; height: ${isNextDestination ? 16 : 12}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                        iconSize: [isNextDestination ? 16 : 12, isNextDestination ? 16 : 12],
+                        iconAnchor: [isNextDestination ? 8 : 6, isNextDestination ? 8 : 6]
+                      })}
+                    >
+                      <Popup>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold">{delivery.customerName}</p>
+                          <p className="text-[10px] text-gray-600">{delivery.address}</p>
+                          <p className="text-[10px] font-semibold text-blue-600">
+                            {isNextDestination ? "Next delivery destination" : "Customer delivery pin"}
+                          </p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
+                {/* Route line to the next pending customer */}
+                {nextTaskCoordinates && agentLocation && (
+                  <Polyline 
+                    positions={[agentLocation, nextTaskCoordinates]}
+                    pathOptions={{ color: '#3b82f6', dashArray: '8, 8', weight: 2, opacity: 0.6 }}
+                  />
+                )}
               </MapContainer>
             ) : (
               <div className="flex flex-col items-center gap-2">
@@ -230,6 +285,11 @@ const AgentDashboard = () => {
               <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Target Address</p>
               <h3 className="text-sm font-black truncate">{nextTask?.customerName || "No active tasks"}</h3>
               <p className="text-[10px] font-bold text-gray-400 truncate mt-0.5">{nextTask?.address || "Wait for assignment"}</p>
+              {nextTask && (
+                <p className={`text-[9px] font-black uppercase tracking-[0.12em] mt-2 ${nextTaskCoordinates ? 'text-blue-300' : 'text-gray-500'}`}>
+                  {nextTaskCoordinates ? 'Exact customer pin ready on map' : 'Customer pin not saved yet'}
+                </p>
+              )}
             </div>
             {nextTask && (
               <div className="bg-blue-600/20 px-3 py-2 rounded-2xl border border-blue-500/20 text-center">
@@ -241,17 +301,19 @@ const AgentDashboard = () => {
 
           <button 
             onClick={() => {
-              if (nextTask?.lat && nextTask?.lng) {
-                setMapView([nextTask.lat, nextTask.lng]);
+              if (nextTaskCoordinates) {
+                setMapView(nextTaskCoordinates);
                 setZoomLevel(17); // Closer zoom for the target
                 setRecenterTrigger(prev => prev + 1);
               }
             }} 
-            disabled={!nextTask}
+            disabled={!nextTaskCoordinates}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 disabled:text-gray-600 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-900/20"
           >
             <Navigation size={18} fill="currentColor" />
-            <span className="text-[11px] font-black uppercase tracking-[0.1em]">Focus Destination</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.1em]">
+              {nextTaskCoordinates ? "Focus Customer Pin" : "No Customer Pin"}
+            </span>
           </button>
         </div>
 

@@ -83,6 +83,11 @@ const formatQuantity = (value) => {
   return `${compact} L`;
 };
 
+const normalizeCoordinate = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Number(numeric.toFixed(6)) : null;
+};
+
 const normalizeStatusForCard = (status) => {
   const value = String(status || "").trim().toUpperCase();
   if (value === "DELIVERED" || value === "COMPLETED") return "COMPLETED";
@@ -106,7 +111,13 @@ const normalizeStatusForHistory = (status) => {
 };
 
 const formatAddress = (customer = {}) => {
-  const parts = [customer.building_name, customer.wing, customer.room_no]
+  const parts = [
+    customer.address_line_1,
+    customer.address_line_2,
+    customer.building_name,
+    customer.wing,
+    customer.room_no,
+  ]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : "-";
@@ -356,7 +367,9 @@ const buildLookupMaps = async (rows) => {
     customerIds.length
       ? supabase
           .from("customers")
-          .select("id, customer_name, phone_number, building_name, wing, room_no")
+          .select(
+            "id, customer_name, phone_number, address_line_1, address_line_2, building_name, wing, room_no, latitude, longitude"
+          )
           .in("id", customerIds)
       : Promise.resolve({ data: [], error: null }),
     dairyIds.length
@@ -379,6 +392,8 @@ const buildLookupMaps = async (rows) => {
 const mapAssignedDelivery = (row, lookups) => {
   const customer = lookups.customersById.get(row.customer_id) || {};
   const dairy = lookups.dairiesById.get(row.dairy_id) || {};
+  const latitude = normalizeCoordinate(customer.latitude);
+  const longitude = normalizeCoordinate(customer.longitude);
   const parsedProof = parseDeliveryProof(row.notes);
   const deliveryType = getDeliveryTypeFromNotes(row.notes);
   const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
@@ -392,6 +407,16 @@ const mapAssignedDelivery = (row, lookups) => {
     customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
     phoneNumber: customer.phone_number || "-",
     address: formatAddress(customer),
+    addressLine1: customer.address_line_1 || "",
+    addressLine2: customer.address_line_2 || "",
+    buildingName: customer.building_name || "",
+    wing: customer.wing || "",
+    roomNo: customer.room_no || "",
+    latitude,
+    longitude,
+    lat: latitude,
+    lng: longitude,
+    hasLocationPin: latitude !== null && longitude !== null,
     quantity: formatQuantity(row.quantity_liters),
     status: normalizeStatusForCard(row.status),
     dairyFarmId: row.dairy_id ?? null,

@@ -8,7 +8,21 @@
  * @param {string} address - Full address
  * @returns {string} - Building/complex name
  */
-const extractBuilding = (address) => {
+const extractBuilding = (deliveryOrAddress) => {
+  if (
+    deliveryOrAddress &&
+    typeof deliveryOrAddress === 'object' &&
+    typeof deliveryOrAddress.buildingName === 'string' &&
+    deliveryOrAddress.buildingName.trim()
+  ) {
+    return deliveryOrAddress.buildingName.trim();
+  }
+
+  const address =
+    typeof deliveryOrAddress === 'string'
+      ? deliveryOrAddress
+      : String(deliveryOrAddress?.address || '');
+
   // Extract building name/complex from address
   // Example: "Flat 102, Green Valley Society, Narhe" -> "Green Valley Society"
   const parts = address.split(',');
@@ -47,7 +61,7 @@ const calculateProximityScore = (addr1, addr2) => {
  */
 export const groupDeliveriesByBuilding = (deliveries) => {
   return deliveries.reduce((groups, delivery) => {
-    const building = extractBuilding(delivery.address);
+    const building = extractBuilding(delivery);
     if (!groups[building]) {
       groups[building] = [];
     }
@@ -75,8 +89,8 @@ export const optimizeRoute = (deliveries) => {
   buildings.forEach(building => {
     // Sort deliveries within building by flat number (numerically if possible)
     const buildingDeliveries = grouped[building].sort((a, b) => {
-      const flatA = a.address.split(',')[0]?.trim() || '';
-      const flatB = b.address.split(',')[0]?.trim() || '';
+      const flatA = String(a.roomNo || a.address.split(',')[0] || '').trim();
+      const flatB = String(b.roomNo || b.address.split(',')[0] || '').trim();
       
       // Try numeric sort if both start with flat/room numbers
       const numA = parseInt(flatA.match(/\d+/)?.[0] || '0');
