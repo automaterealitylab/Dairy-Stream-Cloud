@@ -228,7 +228,7 @@ const ExploreDairiesPage = () => {
 
   return (
     <div className="min-h-screen bg-[#F7F2EA]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      <header className="sticky top-0 z-20 border-b border-[#EDE8DF] bg-[#FFFDF8]/95 shadow-sm backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-[#EDE8DF] bg-[#FFFDF8]/95 shadow-sm backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-4 md:px-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-6">
@@ -281,28 +281,14 @@ const ExploreDairiesPage = () => {
                 {canOpenCustomerDashboard ? "Dashboard" : "Login"}
               </button>
             </div>
-            <p className="px-1 text-xs leading-5 text-[#8B7355]">
-              Browse nearby dairies, compare starting prices, and pick a plan that matches your area and routine.
-            </p>
           </div>
+          <p className="mt-2 pl-20 text-xs leading-5 text-[#8B7355]">
+            Browse nearby dairies, compare starting prices, and pick a plan that matches your area and routine.
+          </p>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
-        <section className="mb-6 rounded-[26px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-5 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:p-7">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Explore Dairies</p>
-              <h1 className="mt-2 text-[28px] font-semibold leading-tight text-[#2C1A0E] sm:text-[38px]" style={headingFont}> Find your next <span className="text-[#B8641A]">daily delivery</span> </h1>
-              <p className="mt-2 text-sm leading-6 text-[#8B7355]"> Browse nearby dairies, compare starting prices, and pick a plan that matches your routine. </p>
-            </div>
-            <div className="rounded-[18px] border border-[#E7DDCF] bg-white/90 px-4 py-3.5 text-sm text-[#6B5B3E] backdrop-blur-sm">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">Current Area</p>
-              <p className="mt-1 font-semibold text-[#2C1A0E]">{selectedCity || (detectedLocation === "Nearby" ? "Your Current Location" : detectedLocation) || "Your area"}</p>
-            </div>
-          </div>
-        </section>
-
         {loading ? (
           <LoadingIndicator className="py-20" />
         ) : loadError === "LOCATION_OFF" && !searchTerm && !selectedCity ? (

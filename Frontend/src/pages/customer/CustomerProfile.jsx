@@ -140,6 +140,7 @@ const CustomerProfile = () => {
   const [mapCenter, setMapCenter] = useState(
     () => getCoordinatePair(initialProfile.latitude, initialProfile.longitude) || DEFAULT_MAP_CENTER
   );
+  const activeDairyName = dashboardData?.customer?.dairy || cachedDashboardData?.customer?.dairy || initialProfile.farm;
 
   useEffect(() => {
     if (dashboardLoading && !dashboardData && !cachedDashboardData && !cachedProfileData) return;
@@ -153,15 +154,15 @@ const CustomerProfile = () => {
         }
 
         const dairyFallback =
-          dashboardData?.customer?.dairy ||
-          cachedDashboardData?.customer?.dairy ||
-          profile.farm;
+          activeDairyName || profile.farm;
         const apiProfile = await fetchCustomerProfile();
         const mapped = mapApiProfileToUi(apiProfile, dairyFallback);
 
         if (!cancelled) {
           setProfile(mapped);
-          setFormData(mapped);
+          if (!showModal) {
+            setFormData(mapped);
+          }
         }
       } catch (error) {
         console.error("Profile load error:", error);
@@ -177,7 +178,7 @@ const CustomerProfile = () => {
     return () => {
       cancelled = true;
     };
-  }, [dashboardLoading, dashboardData, cachedDashboardData, cachedProfileData, profile.farm]);
+  }, [dashboardLoading, dashboardData, cachedDashboardData, cachedProfileData, activeDairyName, profile.farm, showModal]);
 
   useEffect(() => {
     if (!previewPhoto || !previewPhoto.startsWith("blob:")) return undefined;

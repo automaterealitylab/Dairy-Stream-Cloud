@@ -35,6 +35,7 @@ const AgentDashboard = lazy(() => import("./pages/agent/agentDashboard.jsx"));
 const AgentHistory = lazy(() => import("./pages/agent/AgentHistory.jsx"));
 const AgentProfile = lazy(() => import("./pages/agent/AgentProfile.jsx"));
 const AgentWorkingPage = lazy(() => import("./pages/agent/AgentWorkingPage.jsx"));
+const AgentBuildingTasksPage = lazy(() => import("./pages/agent/AgentBuildingTasksPage.jsx"));
 
 const RouteFallback = () => (
   <LoadingIndicator fullScreen message="Loading page..." />
@@ -207,6 +208,7 @@ function App() {
 
         <Route path="/agent/dashboard" element={<AgentDashboard />} />
         <Route path="/agent/working" element={<AgentWorkingPage />} />
+        <Route path="/agent/working/building/:buildingName" element={<AgentBuildingTasksPage />} />
         <Route path="/agent/profile" element={<AgentProfile />} />
         <Route path="/agent/history" element={<AgentHistory />} />
 

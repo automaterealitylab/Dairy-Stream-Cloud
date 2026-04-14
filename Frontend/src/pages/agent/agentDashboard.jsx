@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth.jsx";
 import {
   MapContainer,
   TileLayer,
@@ -26,6 +27,7 @@ import {
   User,
   History,
   LocateFixed,
+  LogOut,
 } from "lucide-react";
 
 import { fetchAssignedAgentDeliveries, fetchAgentProfile } from "../../api/agent/agent.api";
@@ -134,6 +136,7 @@ const NavTab = ({ icon, label, active, onClick }) => (
 
 const AgentDashboard = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
   const [deliveries, setDeliveries] = useState([]);
@@ -276,14 +279,24 @@ const AgentDashboard = () => {
                 {dairyName}
               </p>
             </div>
-            <div
-              className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${
-                isOnline
-                  ? "border-[#D9E7C8] bg-[#EEF5E7] text-[#4A7C2F]"
-                  : "border-white/10 bg-white/10 text-white/70"
-              }`}
-            >
-              {isOnline ? "Online" : "Offline"}
+            <div className="flex flex-col items-end gap-2">
+              <div
+                className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${
+                  isOnline
+                    ? "border-[#D9E7C8] bg-[#EEF5E7] text-[#4A7C2F]"
+                    : "border-white/10 bg-white/10 text-white/70"
+                }`}
+              >
+                {isOnline ? "Online" : "Offline"}
+              </div>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white transition hover:bg-white/15"
+              >
+                <LogOut size={12} />
+                Logout
+              </button>
             </div>
           </div>
           <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />

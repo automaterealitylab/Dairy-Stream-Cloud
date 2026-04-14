@@ -7,6 +7,10 @@ const inputClassName =
   "w-full rounded-[16px] border border-[#EDE8DF] bg-white px-5 py-4 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]";
 
 const LocationStep = ({ formData, handleChange, detectLocation }) => {
+  const hasCoordinates =
+    Number.isFinite(Number(formData.latitude)) &&
+    Number.isFinite(Number(formData.longitude));
+
   return (
     <div className="animate-in fade-in slide-in-from-right-4 duration-500 p-5 sm:p-10">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -32,13 +36,13 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
       <div className="space-y-6">
         <div
           className={`rounded-[18px] border px-4 py-4 text-sm font-semibold ${
-            formData.latitude
+            hasCoordinates
               ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
               : "border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
           }`}
         >
-          {formData.latitude
-            ? `GPS Locked: ${formData.latitude.toFixed(4)}, ${formData.longitude.toFixed(4)}`
+          {hasCoordinates
+            ? `GPS Locked: ${Number(formData.latitude).toFixed(6)}, ${Number(formData.longitude).toFixed(6)}`
             : "Capture GPS to enable radius delivery"}
         </div>
 

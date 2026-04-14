@@ -1,15 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import DeliveryCard from "../../components/agent/DeliveryCard";
-import DeliveryDetailsModal from "../../components/agent/DeliveryDetailsModal";
-import FailedReasonModal from "../../components/agent/FailedReasonModal";
-import DeliveryProofModal from "../../components/agent/DeliveryProofModal";
-import { Home, List, History, User, Package } from "lucide-react";
-import {
-  fetchAssignedAgentDeliveries,
-  updateAssignedAgentDeliveryStatus,
-} from "../../api/agent/agent.api";
-import { optimizeRouteWithPriority } from "../../utils/routeOptimization";
+import { ChevronRight, Home, List, History, Package, User } from "lucide-react";
+import { fetchAssignedAgentDeliveries } from "../../api/agent/agent.api";
+import { buildBuildingTaskGroups } from "../../utils/agentTaskGrouping";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
@@ -26,13 +19,38 @@ const NavTab = ({ icon, label, active, onClick }) => (
   </button>
 );
 
+const BuildingTaskCard = ({ group, onOpen }) => (
+  <button
+    type="button"
+    onClick={onOpen}
+    className="w-full rounded-[28px] border border-[#EDE8DF] bg-white p-4 text-left shadow-[0_14px_35px_rgba(92,61,30,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(92,61,30,0.11)]"
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Building Task</p>
+        <h3 className="mt-2 text-xl font-black leading-tight text-[#2C1A0E]">{group.buildingName}</h3>
+        <p className="mt-1 text-sm font-semibold text-[#6B5B3E]">
+          {group.deliveries.length} {group.deliveries.length === 1 ? "delivery" : "deliveries"}
+        </p>
+      </div>
+      <div className="rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-3 py-2 text-right">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6B8A4A]">Drops</p>
+        <p className="mt-1 text-lg font-black text-[#2C1A0E]">{group.deliveries.length}</p>
+      </div>
+    </div>
+    <div className="mt-4 flex items-center justify-between rounded-[22px] border border-[#E7DAC6] bg-[#FFF8EF] px-4 py-3">
+      <p className="text-sm font-semibold text-[#6B5B3E]">
+        {group.deliveries.length} {group.deliveries.length === 1 ? "delivery" : "deliveries"}
+      </p>
+      <ChevronRight size={18} className="shrink-0 text-[#B8641A]" />
+    </div>
+  </button>
+);
+
 const AgentWorkingPage = () => {
   const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
   const [filter, setFilter] = useState("ALL");
-  const [selectedDelivery, setSelectedDelivery] = useState(null);
-  const [failedDelivery, setFailedDelivery] = useState(null);
-  const [proofDelivery, setProofDelivery] = useState(null);
 
   useEffect(() => {
     const loadDeliveries = async () => {
@@ -46,73 +64,19 @@ const AgentWorkingPage = () => {
     loadDeliveries();
   }, []);
 
-  const filteredDeliveries = deliveries.filter((delivery) => {
-    if (filter === "ALL") return true;
-    return delivery.status === filter;
-  });
+  const filteredDeliveries = useMemo(
+    () =>
+      deliveries.filter((delivery) => {
+        if (filter === "ALL") return true;
+        return delivery.status === filter;
+      }),
+    [deliveries, filter]
+  );
 
-  const orderedDeliveries = optimizeRouteWithPriority(filteredDeliveries, ["PENDING", "COMPLETED", "FAILED"]);
-
-  const handleCompleteWithProof = (delivery) => setProofDelivery(delivery);
-
-  const handleProofSubmit = async ({ proofType, proofOtp, imagePreview }) => {
-    if (!proofDelivery?.id) return;
-    const deliveryId = proofDelivery.id;
-    const proofNote = proofType === "OTP" ? `OTP_CONFIRMED:${proofOtp}` : "PHOTO_ATTACHED";
-
-    setDeliveries((prev) =>
-      prev.map((d) =>
-        String(d.id) === String(deliveryId)
-          ? {
-              ...d,
-              status: "COMPLETED",
-              deliveryProofType: proofType,
-              deliveryProofOtp: proofType === "OTP" ? proofOtp : null,
-              deliveryProofImage: proofType === "PHOTO" ? imagePreview : null,
-            }
-          : d
-      )
-    );
-    setProofDelivery(null);
-
-    try {
-      await updateAssignedAgentDeliveryStatus({
-        deliveryId,
-        status: "COMPLETED",
-        proofType,
-        proofOtp,
-        proofImage: proofType === "PHOTO" ? imagePreview : "",
-        reason: proofNote,
-      });
-    } catch (_err) {}
-  };
-
-  const handleStatusChange = async (deliveryId, newStatus) => {
-    if (newStatus === "FAILED") {
-      const delivery = deliveries.find((d) => String(d.id) === String(deliveryId));
-      setFailedDelivery(delivery);
-      return;
-    }
-
-    setDeliveries((prev) =>
-      prev.map((d) => (String(d.id) === String(deliveryId) ? { ...d, status: newStatus } : d))
-    );
-    try {
-      await updateAssignedAgentDeliveryStatus({ deliveryId, status: newStatus });
-    } catch (_err) {}
-  };
-
-  const handleFailedSubmit = async ({ reason }) => {
-    if (!failedDelivery?.id) return;
-    const deliveryId = failedDelivery.id;
-    setDeliveries((prev) =>
-      prev.map((d) => (String(d.id) === String(deliveryId) ? { ...d, status: "FAILED", failedReason: reason } : d))
-    );
-    setFailedDelivery(null);
-    try {
-      await updateAssignedAgentDeliveryStatus({ deliveryId, status: "FAILED", reason });
-    } catch (_err) {}
-  };
+  const groupedTasks = useMemo(
+    () => buildBuildingTaskGroups(filteredDeliveries),
+    [filteredDeliveries]
+  );
 
   const stats = {
     all: deliveries.length,
@@ -127,9 +91,11 @@ const AgentWorkingPage = () => {
         <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Task Queue</p>
           <h1 className="mt-2 text-[28px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
-            Active Tasks
+            Building Tasks
           </h1>
-          <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">Route optimized by proximity</p>
+          <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
+            Open a building to see flats and customers floor by floor
+          </p>
         </section>
 
         <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
@@ -161,19 +127,19 @@ const AgentWorkingPage = () => {
         </div>
 
         <div className="space-y-4">
-          {orderedDeliveries.length === 0 ? (
+          {groupedTasks.length === 0 ? (
             <div className="rounded-[28px] border border-[#EDE8DF] bg-white p-12 text-center shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
               <Package className="mx-auto mb-3 text-[#D4B896]" size={40} />
-              <p className="text-sm font-bold text-[#A88763]">No tasks found</p>
+              <p className="text-sm font-bold text-[#A88763]">No building tasks found</p>
             </div>
           ) : (
-            orderedDeliveries.map((delivery) => (
-              <DeliveryCard
-                key={delivery.id}
-                delivery={delivery}
-                onStatusChange={handleStatusChange}
-                onClick={setSelectedDelivery}
-                onCompleteRequest={handleCompleteWithProof}
+            groupedTasks.map((group) => (
+              <BuildingTaskCard
+                key={group.buildingName}
+                group={group}
+                onOpen={() =>
+                  navigate(`/agent/working/building/${encodeURIComponent(group.buildingName)}`)
+                }
               />
             ))
           )}
@@ -186,10 +152,6 @@ const AgentWorkingPage = () => {
         <NavTab icon={<History size={18} />} label="History" onClick={() => navigate("/agent/history")} />
         <NavTab icon={<User size={18} />} label="Profile" onClick={() => navigate("/agent/profile")} />
       </div>
-
-      {selectedDelivery && <DeliveryDetailsModal delivery={selectedDelivery} onClose={() => setSelectedDelivery(null)} />}
-      {failedDelivery && <FailedReasonModal delivery={failedDelivery} onSubmit={handleFailedSubmit} onClose={() => setFailedDelivery(null)} />}
-      {proofDelivery && <DeliveryProofModal delivery={proofDelivery} onClose={() => setProofDelivery(null)} onSubmit={handleProofSubmit} />}
     </div>
   );
 };

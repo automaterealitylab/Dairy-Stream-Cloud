@@ -1,13 +1,14 @@
 import React from 'react';
-import { X, Package, MapPin, Phone, User, Building2 } from 'lucide-react';
+import { X, Package, MapPin, Phone, User, Building2, CheckCircle, XCircle } from 'lucide-react';
 
-const DeliveryDetailsModal = ({ delivery, onClose }) => {
+const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFailed }) => {
   if (!delivery) return null;
 
   const requiresPaymentCollection =
     Boolean(delivery?.requiresPaymentCollection) && String(delivery?.status || '').toUpperCase() === 'PENDING';
   const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
   const amountDue = Number(delivery?.amountDue || 0);
+  const isPending = String(delivery?.status || '').toUpperCase() === 'PENDING';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -150,7 +151,29 @@ const DeliveryDetailsModal = ({ delivery, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="border-t px-6 py-4">
+        <div className="border-t px-6 py-4 space-y-3">
+          {isPending && (onCompleteRequest || onMarkFailed) && (
+            <div className="flex gap-2">
+              {onCompleteRequest && (
+                <button
+                  onClick={() => onCompleteRequest(delivery)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 font-medium text-white transition-colors hover:bg-green-700"
+                >
+                  <CheckCircle size={18} />
+                  {requiresPaymentCollection ? 'Collect & Complete' : 'Mark Delivered'}
+                </button>
+              )}
+              {onMarkFailed && (
+                <button
+                  onClick={() => onMarkFailed(delivery)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2.5 font-medium text-white transition-colors hover:bg-red-700"
+                >
+                  <XCircle size={18} />
+                  Mark Failed
+                </button>
+              )}
+            </div>
+          )}
           <button
             onClick={onClose}
             className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium transition-colors"
