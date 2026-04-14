@@ -1,14 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import AgentLayout from '../../components/agent/AgentLayout';
+import React, { useState, useEffect } from "react";
+import AgentLayout from "../../components/agent/AgentLayout";
 import {
   TrendingUp,
   DollarSign,
   Package,
-  Clock,
   CheckCircle,
   AlertCircle,
   Calendar,
-} from 'lucide-react';
+} from "lucide-react";
+
+const headingFont = { fontFamily: "'Lora', serif" };
+
+const SummaryCard = ({ label, value, helper, Icon, iconTone }) => (
+  <div className="rounded-[28px] border border-[#EDE8DF] bg-white p-5 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">{label}</p>
+        <p className="mt-2 text-3xl font-black text-[#2C1A0E]">{value}</p>
+        {helper ? <p className="mt-1 text-xs font-semibold text-[#8B7355]">{helper}</p> : null}
+      </div>
+      <div className={`rounded-[18px] border px-3 py-3 ${iconTone}`}>
+        <Icon size={22} />
+      </div>
+    </div>
+  </div>
+);
 
 const AgentEarnings = () => {
   const [todayData, setTodayData] = useState({
@@ -19,7 +35,7 @@ const AgentEarnings = () => {
     earnings: [],
     summary: { totalEarnings: 0, totalDeliveries: 0, averagePerDay: 0, count: 0 },
   });
-  const [dateRange, setDateRange] = useState('7days');
+  const [dateRange, setDateRange] = useState("7days");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -27,11 +43,6 @@ const AgentEarnings = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // TODO: Replace with actual API calls
-        // const today = await fetchTodayWorkSummary();
-        // const summary = await fetchEarningsSummary(dateRange);
-        
-        // Mock data for now
         setTodayData({
           deliveries: { total: 12, completed: 10, pending: 2, failed: 0 },
           earnings: {
@@ -51,9 +62,8 @@ const AgentEarnings = () => {
           summary: { totalEarnings: 1500, totalDeliveries: 30, averagePerDay: 500, count: 3 },
         });
         setError(null);
-      } catch (err) {
-        console.error('Error fetching earnings data:', err);
-        setError('Failed to load earnings data');
+      } catch (_err) {
+        setError("Failed to load earnings data");
       } finally {
         setLoading(false);
       }
@@ -71,8 +81,8 @@ const AgentEarnings = () => {
   if (loading) {
     return (
       <AgentLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-gray-500">Loading earnings data...</div>
+        <div className="flex min-h-screen items-center justify-center bg-[#FFFDF7] text-[#8B7355]">
+          Loading earnings data...
         </div>
       </AgentLayout>
     );
@@ -80,121 +90,89 @@ const AgentEarnings = () => {
 
   return (
     <AgentLayout>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
-        <div className="max-w-6xl mx-auto px-4">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-800">Earnings & Work Summary</h1>
-            <p className="text-gray-600 mt-2">Track your daily deliveries and earnings</p>
-          </div>
+      <div className="min-h-screen bg-[#FFFDF7] px-4 py-6 text-[#2C1A0E]">
+        <div className="mx-auto max-w-6xl space-y-6">
+          <section className="rounded-[32px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#2C1A0E_0%,#4A3820_58%,#6B4F2A_100%)] px-6 py-6 text-white shadow-[0_22px_50px_rgba(92,61,30,0.22)]">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/55">Earnings</p>
+            <h1 className="mt-2 text-4xl font-black leading-none" style={headingFont}>
+              Work Summary
+            </h1>
+            <p className="mt-3 text-sm font-medium text-white/75">Track your daily deliveries and earnings</p>
+          </section>
 
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <div className="rounded-[22px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm font-semibold text-[#C0392B]">
               {error}
             </div>
           )}
 
-          {/* Today's Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {/* Total Deliveries */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Total Deliveries</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">
-                    {todayData.deliveries.total}
-                  </p>
-                </div>
-                <Package size={40} className="text-blue-500 opacity-20" />
-              </div>
-            </div>
-
-            {/* Completed */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Completed</p>
-                  <p className="text-3xl font-bold text-green-600 mt-2">
-                    {todayData.deliveries.completed}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {calculateProgress()}% completed
-                  </p>
-                </div>
-                <CheckCircle size={40} className="text-green-500 opacity-20" />
-              </div>
-            </div>
-
-            {/* Pending/Failed */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Pending/Failed</p>
-                  <p className="text-3xl font-bold text-orange-600 mt-2">
-                    {todayData.deliveries.pending + todayData.deliveries.failed}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {todayData.deliveries.pending} pending,{' '}
-                    {todayData.deliveries.failed} failed
-                  </p>
-                </div>
-                <AlertCircle size={40} className="text-orange-500 opacity-20" />
-              </div>
-            </div>
-
-            {/* Today's Earnings */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Today's Earnings</p>
-                  <p className="text-3xl font-bold text-indigo-600 mt-2">
-                    {todayData.earnings.net_earnings > 0 ? `₹${todayData.earnings.net_earnings}` : '₹0'}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    +₹{todayData.earnings.bonus_amount} bonus
-                  </p>
-                </div>
-                <DollarSign size={40} className="text-indigo-500 opacity-20" />
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard
+              label="Total Deliveries"
+              value={todayData.deliveries.total}
+              Icon={Package}
+              iconTone="border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]"
+            />
+            <SummaryCard
+              label="Completed"
+              value={todayData.deliveries.completed}
+              helper={`${calculateProgress()}% completed`}
+              Icon={CheckCircle}
+              iconTone="border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
+            />
+            <SummaryCard
+              label="Pending / Failed"
+              value={todayData.deliveries.pending + todayData.deliveries.failed}
+              helper={`${todayData.deliveries.pending} pending, ${todayData.deliveries.failed} failed`}
+              Icon={AlertCircle}
+              iconTone="border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
+            />
+            <SummaryCard
+              label="Today's Earnings"
+              value={`Rs ${todayData.earnings.net_earnings || 0}`}
+              helper={`+Rs ${todayData.earnings.bonus_amount} bonus`}
+              Icon={DollarSign}
+              iconTone="border-[#F3E7D6] bg-[#FFF8EF] text-[#8B5CF6]"
+            />
           </div>
 
-          {/* Progress Bar */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Today's Progress</h3>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">
+          <section className="rounded-[28px] border border-[#EDE8DF] bg-white p-6 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">Today's Progress</p>
+                <p className="mt-1 text-sm font-semibold text-[#6B5B3E]">
                   {todayData.deliveries.completed} of {todayData.deliveries.total} deliveries completed
-                </span>
-                <span className="text-sm font-semibold text-gray-800">{calculateProgress()}%</span>
+                </p>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-4">
-                <div
-                  className="bg-gradient-to-r from-green-400 to-green-600 h-4 rounded-full transition-all"
-                  style={{ width: `${calculateProgress()}%` }}
-                ></div>
-              </div>
+              <span className="text-lg font-black text-[#B8641A]">{calculateProgress()}%</span>
             </div>
-          </div>
+            <div className="h-4 w-full rounded-full bg-[#F3E7D6]">
+              <div
+                className="h-4 rounded-full bg-[linear-gradient(90deg,#B8641A_0%,#D9903D_100%)]"
+                style={{ width: `${calculateProgress()}%` }}
+              />
+            </div>
+          </section>
 
-          {/* Date Range Filter */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <div className="flex items-center gap-4">
-              <Calendar size={24} className="text-gray-600" />
-              <div className="flex gap-2">
+          <section className="rounded-[28px] border border-[#EDE8DF] bg-white p-6 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2 text-[#B8641A]">
+                <Calendar size={20} />
+                <span className="text-sm font-black uppercase tracking-[0.16em] text-[#A88763]">Date Range</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {[
-                  { value: '7days', label: 'Last 7 days' },
-                  { value: '30days', label: 'Last 30 days' },
-                  { value: 'month', label: 'This Month' },
+                  { value: "7days", label: "Last 7 days" },
+                  { value: "30days", label: "Last 30 days" },
+                  { value: "month", label: "This Month" },
                 ].map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setDateRange(option.value)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    className={`rounded-full px-4 py-2 text-sm font-bold transition ${
                       dateRange === option.value
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? "bg-[#B8641A] text-white"
+                        : "bg-[#FFF8EF] text-[#8B7355]"
                     }`}
                   >
                     {option.label}
@@ -202,68 +180,52 @@ const AgentEarnings = () => {
                 ))}
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Earnings Summary */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
-              <TrendingUp size={24} className="text-green-600" />
+          <section className="rounded-[28px] border border-[#EDE8DF] bg-white p-6 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+            <h3 className="mb-6 flex items-center gap-2 text-lg font-black text-[#2C1A0E]">
+              <TrendingUp size={22} className="text-[#4A7C2F]" />
               Earnings Summary
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6">
-                <p className="text-sm text-gray-600">Total Earnings</p>
-                <p className="text-3xl font-bold text-green-700 mt-2">
-                  ₹{summaryData.summary.totalEarnings}
-                </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-[22px] bg-[linear-gradient(135deg,#EEF5E7_0%,#F8FBF4_100%)] p-6">
+                <p className="text-sm text-[#6B5B3E]">Total Earnings</p>
+                <p className="mt-2 text-3xl font-black text-[#4A7C2F]">Rs {summaryData.summary.totalEarnings}</p>
               </div>
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
-                <p className="text-sm text-gray-600">Total Deliveries</p>
-                <p className="text-3xl font-bold text-blue-700 mt-2">
-                  {summaryData.summary.totalDeliveries}
-                </p>
+              <div className="rounded-[22px] bg-[linear-gradient(135deg,#FFF4E2_0%,#FFF8EF_100%)] p-6">
+                <p className="text-sm text-[#6B5B3E]">Total Deliveries</p>
+                <p className="mt-2 text-3xl font-black text-[#B8641A]">{summaryData.summary.totalDeliveries}</p>
               </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6">
-                <p className="text-sm text-gray-600">Average Per Day</p>
-                <p className="text-3xl font-bold text-purple-700 mt-2">
-                  ₹{summaryData.summary.averagePerDay}
-                </p>
+              <div className="rounded-[22px] bg-[linear-gradient(135deg,#FFF1E4_0%,#FFF8EF_100%)] p-6">
+                <p className="text-sm text-[#6B5B3E]">Average Per Day</p>
+                <p className="mt-2 text-3xl font-black text-[#C86A2B]">Rs {summaryData.summary.averagePerDay}</p>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Daily Breakdown */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Daily Breakdown</h3>
+          <section className="rounded-[28px] border border-[#EDE8DF] bg-white p-6 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+            <h3 className="mb-4 text-lg font-black text-[#2C1A0E]">Daily Breakdown</h3>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+              <table className="w-full overflow-hidden rounded-[20px]">
+                <thead className="border-b border-[#F3E7D6] bg-[#FFF8EF]">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                      Deliveries
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                      Earnings
-                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-[#6B5B3E]">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-[#6B5B3E]">Deliveries</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-[#6B5B3E]">Earnings</th>
                   </tr>
                 </thead>
                 <tbody>
                   {summaryData.earnings.map((item, index) => (
-                    <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-800">{item.earning_date}</td>
-                      <td className="px-4 py-3 text-sm text-gray-800">
-                        {item.deliveries_completed} completed
-                      </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-green-600">
-                        ₹{item.net_earnings}
-                      </td>
+                    <tr key={index} className="border-b border-[#F8F1E7] hover:bg-[#FFFDF9]">
+                      <td className="px-4 py-3 text-sm text-[#2C1A0E]">{item.earning_date}</td>
+                      <td className="px-4 py-3 text-sm text-[#2C1A0E]">{item.deliveries_completed} completed</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-[#4A7C2F]">Rs {item.net_earnings}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </AgentLayout>
