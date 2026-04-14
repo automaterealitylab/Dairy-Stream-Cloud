@@ -1,5 +1,6 @@
 import {
   getAdminCustomers,
+  getCustomerBillDetails,
   getCustomerDetails,
   updateCustomerById,
   deleteCustomerById,
@@ -37,6 +38,20 @@ export const fetchAdminCustomerById = async (req, res) => {
     console.error("ADMIN CUSTOMER DETAIL ERROR:", err.message);
     res.status(500).json({
       message: "Failed to load customer details",
+    });
+  }
+};
+
+export const fetchAdminCustomerBillDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    const data = await getCustomerBillDetails({ customerId: id, dairyId });
+    res.json(data);
+  } catch (err) {
+    console.error("ADMIN CUSTOMER BILL DETAIL ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to load customer bill details",
     });
   }
 };

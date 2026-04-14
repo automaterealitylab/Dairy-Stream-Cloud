@@ -18,6 +18,7 @@ import {
 import {
   fetchAdminCustomers,
   fetchAdminCustomerById,
+  fetchAdminCustomerBillDetails,
   updateAdminCustomerById,
   deleteAdminCustomerById,
   approveAdminCustomerSubscription,
@@ -91,6 +92,7 @@ router.get("/health", (req, res) => {
 // ==========================================
 router.get("/customers", verifyAdmin, fetchAdminCustomers); // List all customers
 router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById); // Get specific customer details
+router.get("/customers/:id/bill-details", verifyAdmin, fetchAdminCustomerBillDetails); // Get bill detail rows
 router.put("/customers/:id", verifyAdmin, updateAdminCustomerById); // Edit customer info
 router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById); // Remove customer
 

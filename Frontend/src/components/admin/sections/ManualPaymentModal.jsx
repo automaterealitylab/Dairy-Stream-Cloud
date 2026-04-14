@@ -96,17 +96,29 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
   const [method, setMethod] = useState("CASH");
   const [note, setNote] = useState("");
 
-  const numericReceived = Number(received || 0);
+  const numericReceived = Math.max(0, Number(received || 0));
   const balance = Number((totalBill - numericReceived).toFixed(2));
   const customerName = delivery?.customer || delivery?.customerName || "Customer";
 
+  const handleReceivedChange = (e) => {
+    const nextRaw = e.target.value;
+    if (nextRaw === "") {
+      setReceived("");
+      return;
+    }
+
+    const nextValue = Math.max(0, Number(nextRaw));
+    setReceived(Number.isFinite(nextValue) ? nextValue : 0);
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(44,26,14,0.45)] p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[rgba(44,26,14,0.45)] p-2 sm:p-4 backdrop-blur-sm"
       style={adminShellFont}
     >
-      <div className="w-full max-w-xl overflow-hidden rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] shadow-[0_28px_70px_rgba(44,26,14,0.28)]">
-        <div className="bg-gradient-to-r from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] px-6 py-5 text-white">
+      <div className="flex min-h-full items-start justify-center sm:items-center">
+      <div className="flex w-full max-w-xl max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[24px] sm:rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] shadow-[0_28px_70px_rgba(44,26,14,0.28)]">
+        <div className="shrink-0 bg-gradient-to-r from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] px-5 py-4 text-white sm:px-6 sm:py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#F3D4A6]">
@@ -130,8 +142,9 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
           </div>
         </div>
 
-        <div className="space-y-5 px-6 py-6">
-          <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-5 shadow-[0_12px_30px_rgba(92,61,30,0.06)]">
+        <div className="min-h-0 overflow-y-auto">
+        <div className="space-y-4 px-4 py-4 sm:space-y-5 sm:px-6 sm:py-6">
+          <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-4 shadow-[0_12px_30px_rgba(92,61,30,0.06)] sm:p-5">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
               Total Bill
             </p>
@@ -156,7 +169,8 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
                 <input
                   type="number"
                   value={received}
-                  onChange={(e) => setReceived(e.target.value)}
+                  onChange={handleReceivedChange}
+                  min="0"
                   className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] py-4 pl-12 pr-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white"
                 />
               </div>
@@ -218,7 +232,7 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
               type="button"
               onClick={() =>
                 onSave({
-                  received: numericReceived,
+                  received: Math.max(0, numericReceived),
                   method,
                   balance,
                   note,
@@ -232,6 +246,8 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
             </button>
           </div>
         </div>
+        </div>
+      </div>
       </div>
     </div>
   );

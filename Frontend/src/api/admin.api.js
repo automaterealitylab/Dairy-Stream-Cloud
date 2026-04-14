@@ -122,6 +122,11 @@ export const fetchAdminCustomerById = async (id) => {
   return data;
 };
 
+export const fetchAdminCustomerBillDetails = async (id) => {
+  const { data } = await client.get(`/admin/customers/${id}/bill-details`);
+  return data;
+};
+
 export const updateAdminCustomer = async (id, payload) => {
   const { data } = await client.put(`/admin/customers/${id}`, payload);
   return data;

@@ -1,4 +1,3 @@
-# Database Setup Guide - Dairy Automation System
 
 ## Overview
 This guide explains how to set up your Supabase database tables for the Dairy Automation System.

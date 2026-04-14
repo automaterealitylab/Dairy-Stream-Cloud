@@ -3,7 +3,7 @@ import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import { 
   CreditCard, DollarSign, Calendar, TrendingUp, 
-  CheckCircle, Clock, AlertCircle, Edit2, Loader2, Share2, X, Wallet
+  CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, Share2, X, Wallet
 } from "lucide-react";
 import toast from "react-hot-toast";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -12,7 +12,6 @@ import {
   collectAdminOfflinePayment,
   fetchAdminPayments,
   updateAdminFarmPlan,
-  updateAdminPaymentStatus,
 } from "../../api/admin.api.js";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
@@ -28,7 +27,6 @@ export default function AdminPayments() {
   
   // UI States
   const [filter, setFilter] = useState("ALL"); 
-  const [editingPayment, setEditingPayment] = useState(null); 
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState("monthly");
   const [activePaymentModal, setActivePaymentModal] = useState(null);
@@ -37,6 +35,7 @@ export default function AdminPayments() {
   const [selectedAutopayMethod, setSelectedAutopayMethod] = useState("");
   const [pendingAutopayPlan, setPendingAutopayPlan] = useState(null);
   const [autopaySaving, setAutopaySaving] = useState(false);
+  const [expandedPaymentGroups, setExpandedPaymentGroups] = useState({});
 
   const getAutopayStorageKey = (dairyId) =>
     `${AUTOPAY_STORAGE_PREFIX}:${dairyId || "default"}`;
@@ -75,6 +74,97 @@ export default function AdminPayments() {
     return normalized === "PENDING" || normalized === "OVERDUE";
   };
 
+  const getPaymentDayKey = (value) => {
+    if (!value) return "unknown-date";
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
+
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatPaymentDate = (value) => {
+    if (!value) return "-";
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+
+    return parsed.toLocaleDateString("en-GB");
+  };
+
+  const formatCurrency = (value) => `\u20B9${Number(value || 0).toLocaleString("en-IN")}`;
+
+  const getGroupStatus = (items) => {
+    const statuses = [...new Set(items.map((item) => String(item.status || "").toUpperCase()))];
+
+    if (statuses.length === 1) return statuses[0];
+    if (statuses.includes("OVERDUE")) return "OVERDUE";
+    if (statuses.includes("PENDING")) return "PENDING";
+    if (statuses.includes("PAID")) return "PAID";
+    return "MIXED";
+  };
+
+  const groupedPayments = payments
+    .reduce((groups, payment) => {
+      const dayKey = getPaymentDayKey(payment.date);
+      const groupKey = `${payment.customerId || payment.customer || "unknown"}-${dayKey}`;
+      const existingGroup = groups.find((group) => group.groupKey === groupKey);
+
+      if (existingGroup) {
+        existingGroup.items.push(payment);
+        existingGroup.totalAmount += Number(payment.amount || 0);
+        existingGroup.collectibleAmount += isCollectibleStatus(payment.status)
+          ? Number(payment.amount || 0)
+          : 0;
+        return groups;
+      }
+
+      groups.push({
+        groupKey,
+        customerId: payment.customerId,
+        customer: payment.customer,
+        phone: payment.phone,
+        date: payment.date,
+        items: [payment],
+        totalAmount: Number(payment.amount || 0),
+        collectibleAmount: isCollectibleStatus(payment.status) ? Number(payment.amount || 0) : 0,
+      });
+      return groups;
+    }, [])
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort(
+        (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+      ),
+      status: getGroupStatus(group.items),
+      hasCollectibleItems: group.items.some((item) => isCollectibleStatus(item.status)),
+      displayAmount: group.items.some((item) => isCollectibleStatus(item.status))
+        ? group.collectibleAmount
+        : group.totalAmount,
+    }));
+
+  const togglePaymentGroup = (groupKey) => {
+    setExpandedPaymentGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
+  };
+
+  const renderStatusBadge = (status) => (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border uppercase ${
+      status === "PAID"
+        ? "bg-green-50 text-green-700 border-green-200"
+        : status === "PENDING"
+          ? "bg-orange-50 text-orange-700 border-orange-200"
+          : "bg-red-50 text-red-700 border-red-200"
+    }`}>
+      {status === "PAID" ? <CheckCircle size={10} /> : <Clock size={10} />} {status}
+    </span>
+  );
+
   const loadPayments = async () => {
     try {
       setLoading(true);
@@ -111,17 +201,6 @@ export default function AdminPayments() {
   useEffect(() => {
     loadPayments();
   }, [filter]);
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      await updateAdminPaymentStatus(id, newStatus);
-      setPayments(payments.map(p => p.id === id ? { ...p, status: newStatus } : p));
-      toast.success(`Payment marked as ${newStatus}`);
-      setEditingPayment(null);
-    } catch (err) {
-      toast.error("Failed to update status");
-    }
-  };
 
   const handleOfflineCollect = async (payData) => {
     try {
@@ -286,6 +365,110 @@ export default function AdminPayments() {
       : activePlanDetails?.monthlyPrice ?? 0;
   const activePlanPeriod = billingCycle === "yearly" ? "/yr" : "/mo";
 
+  const renderGroupedPayments = () =>
+    groupedPayments.map((group) => {
+      const isExpanded = Boolean(expandedPaymentGroups[group.groupKey]);
+
+      return (
+        <React.Fragment key={group.groupKey}>
+          <tr
+            className="cursor-pointer hover:bg-gray-50 transition group"
+            onClick={() => togglePaymentGroup(group.groupKey)}
+          >
+            <td className="px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A]">
+                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900">{group.customer}</div>
+                  <div className="text-xs font-semibold text-gray-500">
+                    {group.items.length} payment{group.items.length > 1 ? "s" : ""} on this day
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td className="px-6 py-5 text-sm text-gray-500">{formatPaymentDate(group.date)}</td>
+            <td className="px-6 py-5">
+              <div className="font-bold text-gray-900">{formatCurrency(group.displayAmount)}</div>
+              {group.items.length > 1 && (
+                <div className="text-xs font-semibold text-gray-500">
+                  {group.hasCollectibleItems
+                    ? `Total activity: ${formatCurrency(group.totalAmount)}`
+                    : `Recorded total: ${formatCurrency(group.totalAmount)}`}
+                </div>
+              )}
+            </td>
+            <td className="px-6 py-5">{renderStatusBadge(group.status)}</td>
+            <td className="px-6 py-5 text-right">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePaymentGroup(group.groupKey);
+                  }}
+                  className="h-9 px-4 bg-[#FDF6EC] text-[#B8641A] text-[11px] font-black uppercase rounded-xl hover:bg-[#F7E8D3] transition-all flex items-center justify-center"
+                >
+                  {isExpanded ? "Hide" : "View"} Details
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`https://wa.me/${group.phone}?text=Bill Reminder`, "_blank");
+                  }}
+                  className="h-9 w-9 flex items-center justify-center text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-100 rounded-xl transition-all"
+                  title="Send Reminder"
+                >
+                  <Share2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          {isExpanded && (
+            <tr className="bg-[#FFFCF8]">
+              <td colSpan="5" className="px-6 py-4">
+                <div className="overflow-hidden rounded-[24px] border border-[#EFE4D6] bg-white">
+                  <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F2EDE4] bg-[#FFF8F0] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                    <span>Customer</span>
+                    <span>Date</span>
+                    <span>Amount</span>
+                    <span>Status</span>
+                    <span className="text-right">Actions</span>
+                  </div>
+
+                  {group.items.map((pay) => (
+                    <div
+                      key={pay.id}
+                      className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F8F2E8] px-4 py-4 last:border-b-0"
+                    >
+                      <div>
+                        <div className="font-bold text-gray-900">{pay.customer}</div>
+                        <div className="text-xs text-gray-500">Payment ID: {pay.id}</div>
+                      </div>
+                      <div className="text-sm text-gray-500">{formatPaymentDate(pay.date)}</div>
+                      <div className="font-bold text-gray-900">{formatCurrency(pay.amount)}</div>
+                      <div>{renderStatusBadge(pay.status)}</div>
+                      <div className="flex items-center justify-end gap-2">
+                        {isCollectibleStatus(pay.status) && (
+                          <button
+                            onClick={() => setActivePaymentModal(pay)}
+                            className="h-9 px-4 bg-blue-600 text-white text-[11px] font-black uppercase rounded-xl hover:bg-blue-700 shadow-md shadow-blue-100 transition-all active:scale-95 flex items-center justify-center"
+                          >
+                            Collect
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </td>
+            </tr>
+          )}
+        </React.Fragment>
+      );
+    });
+
   return (
     <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
       <AdminMobileTopbar title="Payments & Billing" onMenu={() => setSidebarOpen(true)} />
@@ -340,7 +523,7 @@ export default function AdminPayments() {
               <div>
                 <p className="text-sm text-gray-500 font-medium">Pending Dues</p>
                 <h3 className="text-2xl font-bold text-gray-900">₹{payments.filter(p => isCollectibleStatus(p.status)).reduce((s, p) => s + Number(p.amount || 0), 0).toLocaleString()}</h3>
-                <p className="text-xs text-gray-500 mt-1 font-bold italic">{payments.filter(p => isCollectibleStatus(p.status)).length} Customer Dues</p>
+                <p className="text-xs text-gray-500 mt-1 font-bold italic">{groupedPayments.filter(group => group.hasCollectibleItems).length} Customer Dues</p>
               </div>
             </div>
           </div>
@@ -372,27 +555,12 @@ export default function AdminPayments() {
                 {loading ? (
                   <tr><td colSpan="5" className="py-10 text-center"><LoadingIndicator message="Fetching Ledger..." /></td></tr>
                 ) : (
-                  payments.map((pay) => (
+                  renderGroupedPayments() || payments.map((pay) => (
                     <tr key={pay.id} className="hover:bg-gray-50 transition group">
                       <td className="px-6 py-5"><div className="font-bold text-gray-900">{pay.customer}</div></td>
                       <td className="px-6 py-5 text-sm text-gray-500">{new Date(pay.date).toLocaleDateString('en-GB')}</td>
-                      <td className="px-6 py-5 font-bold text-gray-900">₹{pay.amount}</td>
-                      <td className="px-6 py-5">
-                        {editingPayment === pay.id ? (
-                          <select className="text-xs border rounded p-1 outline-none" defaultValue={pay.status} onChange={(e) => handleStatusChange(pay.id, e.target.value)} onBlur={() => setEditingPayment(null)} autoFocus>
-                            <option value="PAID">PAID</option>
-                            <option value="PENDING">PENDING</option>
-                            <option value="OVERDUE">OVERDUE</option>
-                          </select>
-                        ) : (
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border uppercase ${
-                            pay.status === "PAID" ? "bg-green-50 text-green-700 border-green-200" :
-                            pay.status === "PENDING" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-red-50 text-red-700 border-red-200"
-                          }`}>
-                            {pay.status === "PAID" ? <CheckCircle size={10} /> : <Clock size={10} />} {pay.status}
-                          </span>
-                        )}
-                      </td>
+                      <td className="px-6 py-5 font-bold text-gray-900">{formatCurrency(pay.amount)}</td>
+                      <td className="px-6 py-5">{renderStatusBadge(pay.status)}</td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {isCollectibleStatus(pay.status) && (
@@ -403,13 +571,6 @@ export default function AdminPayments() {
                               Collect
                             </button>
                           )}
-                          <button 
-                            onClick={() => setEditingPayment(pay.id)} 
-                            className="h-9 w-9 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 rounded-xl transition-all" 
-                            title="Change Status"
-                          >
-                            <Edit2 size={16} />
-                          </button>
                           <button 
                             onClick={() => window.open(`https://wa.me/${pay.phone}?text=Bill Reminder`, "_blank")} 
                             className="h-9 w-9 flex items-center justify-center text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-100 rounded-xl transition-all"
@@ -629,3 +790,4 @@ export default function AdminPayments() {
     </div>
   );
 }
+

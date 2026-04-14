@@ -1,38 +1,188 @@
-import React, { useState, useRef } from 'react';
-import { X, Download, Share2, CreditCard, CheckCircle2, Info } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { X, Download, Share2, Info, QrCode, ReceiptText, LoaderCircle } from "lucide-react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { QRCodeSVG } from "qrcode.react";
+import { fetchAdminCustomerBillDetails } from "../../../api/admin.api";
+
+const formatCurrency = (value) =>
+  `\u20B9${Number(value || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-GB");
+};
+
+const formatQty = (value) =>
+  Number(value || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const formatDateRange = (fromDate, toDate) => {
+  if (fromDate && toDate) {
+    if (fromDate === toDate) return formatDate(fromDate);
+    return `${formatDate(fromDate)} - ${formatDate(toDate)}`;
+  }
+  return formatDate(fromDate || toDate);
+};
+
+const SectionTable = ({ title, rows, accent = "bg-[#F8F3EC]" }) => {
+  const hasRows = Array.isArray(rows) && rows.length > 0;
+
+  return (
+    <div className="overflow-hidden rounded-[26px] border border-[#E7DAC6]">
+      <div className={`px-6 py-4 ${accent}`}>
+        <h3 className="text-[20px] font-black text-[#2C1A0E]">{title}</h3>
+      </div>
+      <table className="w-full border-collapse">
+        <thead className="bg-[#FDF9F2] text-[#6F604B]">
+          <tr className="text-left text-[11px] font-black uppercase tracking-[0.16em]">
+            <th className="border-b border-[#EDE3D3] px-5 py-3">Product</th>
+            <th className="border-b border-[#EDE3D3] px-5 py-3 text-center">Date Range</th>
+            <th className="border-b border-[#EDE3D3] px-5 py-3 text-center">Qty/Day</th>
+            <th className="border-b border-[#EDE3D3] px-5 py-3 text-center">Days</th>
+            <th className="border-b border-[#EDE3D3] px-5 py-3 text-center">Total Qty</th>
+            <th className="border-b border-[#EDE3D3] px-5 py-3 text-right">Rate</th>
+            <th className="border-b border-[#EDE3D3] px-5 py-3 text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {hasRows ? (
+            rows.map((row, index) => (
+              <tr key={`${title}-${row.product}-${index}`} className="text-[14px] font-semibold text-[#2C1A0E]">
+                <td className="border-b border-[#F3EBDD] px-5 py-3">{row.product}</td>
+                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">
+                  {formatDateRange(row.fromDate, row.toDate)}
+                </td>
+                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{formatQty(row.qtyPerDay)}</td>
+                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{row.days}</td>
+                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{formatQty(row.totalQty)}</td>
+                <td className="border-b border-[#F3EBDD] px-5 py-3 text-right">{formatQty(row.rate)}</td>
+                <td className="border-b border-[#F3EBDD] px-5 py-3 text-right font-black">{formatQty(row.amount)}</td>
+              </tr>
+            ))
+          ) : (
+            <tr className="text-[14px] font-semibold text-[#8B7355]">
+              <td colSpan={7} className="border-b border-[#F3EBDD] px-5 py-5 text-center">
+                No other products added in this billing period.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
-  const invoiceRef = useRef();
-  
+  const invoiceRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [billData, setBillData] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const [billConfig, setBillConfig] = useState({
-    billNo: `DS-${Date.now().toString().slice(-6)}`,
-    date: new Date().toLocaleDateString('en-GB'),
-    discount: 0,
-    notes: "Thanks for choosing us!", 
+    notes: "Please pay by the due date to avoid service interruption.",
     contact: "+91 98765 43210",
     email: "billing@dairystream.com",
     address: "Plot 42, Industrial Area, Milk City",
-    upiId: "ayanm102435@okaxis"
+    upiId: "ayanm102435@okaxis",
   });
 
-  const subtotal = customer.outstanding_balance || 0;
-  const totalDue = subtotal - billConfig.discount;
+  useEffect(() => {
+    let active = true;
 
-  // ✅ THE MASTER FIX: Clone-based capture to prevent overlaps and keep size small
+    const loadBill = async () => {
+      setLoading(true);
+      setLoadError("");
+      try {
+        const data = await fetchAdminCustomerBillDetails(customer?.id);
+        if (!active) return;
+        setBillData(data);
+      } catch (error) {
+        if (!active) return;
+        setLoadError(error?.response?.data?.message || "Failed to load bill details");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    if (customer?.id) {
+      loadBill();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [customer?.id]);
+
+  const resolvedCustomer = billData?.customer || customer || {};
+  const resolvedBilling = billData?.billing || {};
+  const resolvedDairyName =
+    dairyName ||
+    billData?.dairy?.dairy_name ||
+    resolvedCustomer?.dairy_name ||
+    "DairyStream";
+  const customerAddress = [
+    resolvedCustomer?.building_name,
+    resolvedCustomer?.wing,
+    resolvedCustomer?.room_no,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const subscriptionRows = resolvedBilling?.subscriptionRows || [];
+  const otherProductRows = resolvedBilling?.otherProductRows || [];
+  const subscriptionTotal = Number(resolvedBilling?.subscriptionTotal || 0);
+  const otherProductsTotal = Number(resolvedBilling?.otherProductsTotal || 0);
+  const sectionSubtotal = Number(resolvedBilling?.sectionSubtotal || 0);
+  const billedAmount = Number(resolvedBilling?.billedAmount ?? sectionSubtotal);
+  const previousDueAmount = Number(resolvedBilling?.previousDueAmount || 0);
+  const creditAdjustmentAmount = Number(resolvedBilling?.creditAdjustmentAmount || 0);
+  const totalDue = Number(
+    resolvedBilling?.amountDue ?? customer?.outstanding_balance ?? sectionSubtotal
+  );
+
+  const summaryRows = useMemo(() => {
+    const rows = [];
+    if (subscriptionTotal > 0) {
+      rows.push({ label: "Subscriptions Total", amount: subscriptionTotal });
+    }
+    if (otherProductsTotal > 0) {
+      rows.push({ label: "Other Products Total", amount: otherProductsTotal });
+    }
+    if (previousDueAmount > 0) {
+      rows.push({ label: "Previous Due Added", amount: previousDueAmount });
+    }
+    if (creditAdjustmentAmount > 0) {
+      rows.push({ label: "Credit / Adjustment Applied", amount: -creditAdjustmentAmount });
+    }
+    if (rows.length === 0) {
+      rows.push({ label: "Current Bill", amount: totalDue });
+    }
+    return rows;
+  }, [
+    creditAdjustmentAmount,
+    otherProductsTotal,
+    previousDueAmount,
+    subscriptionTotal,
+    totalDue,
+  ]);
+
   const generateStyledPDF = async () => {
     const element = invoiceRef.current;
-    
-    // 1. Create a hidden clone container to render at 100% scale
+    if (!element) return null;
+
     const cloneContainer = document.createElement("div");
     cloneContainer.style.position = "absolute";
     cloneContainer.style.left = "-9999px";
     cloneContainer.style.top = "0";
     document.body.appendChild(cloneContainer);
 
-    // 2. Clone the invoice and strip scaling
     const clone = element.cloneNode(true);
     clone.style.transform = "none";
     clone.style.scale = "1";
@@ -40,197 +190,288 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
     cloneContainer.appendChild(clone);
 
     try {
-      // 3. Capture the clone at 2x scale for sharpness
-      const canvas = await html2canvas(clone, { 
-        scale: 2, 
+      const canvas = await html2canvas(clone, {
+        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
-        width: 794, // Standard A4 Width
-        height: 1123 // Standard A4 Height
+        width: 794,
+        height: clone.scrollHeight || 1123,
       });
 
-      // 4. Compress to JPEG (0.7 quality) to hit the KB range
-      const imgData = canvas.toDataURL('image/jpeg', 0.7); 
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-      
-      // Cleanup
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imageHeight = (canvas.height * pageWidth) / canvas.width;
+      let remainingHeight = imageHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imageHeight);
+      remainingHeight -= pageHeight;
+
+      while (remainingHeight > 0) {
+        position = remainingHeight - imageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imageHeight);
+        remainingHeight -= pageHeight;
+      }
+
       document.body.removeChild(cloneContainer);
       return pdf;
     } catch (error) {
       document.body.removeChild(cloneContainer);
       console.error("PDF generation failed", error);
+      return null;
     }
   };
 
   const handleDownloadPDF = async () => {
     const pdf = await generateStyledPDF();
-    const fileName = `${customer.customer_name.replace(/\s+/g, '_')}_Invoice_${billConfig.billNo}.pdf`;
+    if (!pdf) return;
+    const fileName = `${String(resolvedCustomer?.customer_name || "Customer").replace(/\s+/g, "_")}_${String(resolvedBilling?.billingPeriod || "Bill").replace(/\s+/g, "-")}_${resolvedBilling?.billNo || "invoice"}.pdf`;
     pdf.save(fileName);
   };
 
   const handleShare = async () => {
     try {
       const pdf = await generateStyledPDF();
-      const pdfBlob = pdf.output('blob');
-      const fileName = `${customer.customer_name.replace(/\s+/g, '_')}_Bill.pdf`;
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      if (!pdf) return;
+
+      const pdfBlob = pdf.output("blob");
+      const fileName = `${String(resolvedCustomer?.customer_name || "Customer").replace(/\s+/g, "_")}_Bill.pdf`;
+      const file = new File([pdfBlob], fileName, { type: "application/pdf" });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Milk Invoice' });
+        await navigator.share({ files: [file], title: "Customer Bill" });
       } else {
-        // Fallback for Desktop
-        window.open(`https://wa.me/${customer.phone_number}?text=Hi, your bill for this month is ₹${totalDue}`);
+        window.open(
+          `https://wa.me/${resolvedCustomer?.phone_number || ""}?text=Hi, your bill for ${resolvedBilling?.billingPeriod || "this period"} is ${formatCurrency(totalDue)}.`,
+          "_blank"
+        );
       }
-    } catch (err) { console.error("Sharing failed", err); }
+    } catch (err) {
+      console.error("Sharing failed", err);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-6xl h-[95vh] overflow-hidden rounded-[2.5rem] shadow-2xl flex flex-col">
-        
-        {/* ACTION HEADER */}
-        <div className="px-8 py-4 border-b flex justify-between items-center bg-white z-10">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(15,23,42,0.88)] p-2 backdrop-blur-md sm:p-4">
+      <div className="flex h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <div className="flex shrink-0 flex-col gap-4 border-b border-[#EFE7DA] bg-[#FFFDF8] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-              <CreditCard size={20} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#B8641A] text-white shadow-lg shadow-[#E8C79D]">
+              <ReceiptText size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-900">Invoice Terminal</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Digital Signature Verified</p>
+              <h2 className="text-lg font-black text-[#2C1A0E]">Bill Preview</h2>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#B89970]">
+                Download or share customer bill
+              </p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <button onClick={handleShare} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl font-black text-sm transition-all border border-emerald-100">
-              <Share2 size={18} /> Share PDF
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              onClick={handleShare}
+              disabled={loading || !!loadError}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#D7E8C8] bg-[#EEF6E7] px-4 py-2.5 text-sm font-black text-[#4A7C2F] transition hover:bg-[#4A7C2F] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Share2 size={16} /> Share
             </button>
-            <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-sm shadow-xl shadow-blue-200 transition-all">
-              <Download size={18} /> Save PDF
+            <button
+              onClick={handleDownloadPDF}
+              disabled={loading || !!loadError}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#B8641A] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_28px_rgba(184,100,26,0.22)] transition hover:bg-[#9F5414] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download size={16} /> Download
             </button>
-            <button onClick={onClose} className="ml-4 p-2 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-full transition-colors">
-              <X size={28} />
+            <button onClick={onClose} className="ml-auto rounded-full border border-[#E7DAC6] p-2 text-[#8B7355] transition hover:bg-[#FDF6EC] hover:text-[#B8641A] sm:ml-0">
+              <X size={22} />
             </button>
           </div>
         </div>
 
-        {/* INVOICE PREVIEW AREA */}
-        <div className="flex-1 overflow-y-auto bg-slate-100 p-10 flex justify-center items-start">
-          
-          <div className="origin-top transition-transform duration-300 transform scale-[0.6] lg:scale-[0.8] xl:scale-[0.95] shadow-2xl">
-            
-            <div ref={invoiceRef} className="bg-white w-[210mm] min-h-[297mm] p-20 relative text-slate-900 overflow-hidden border border-gray-100 flex flex-col">
-              
-              {/* HEADER SECTION */}
-              <div className="flex justify-between items-start mb-16">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="h-10 w-10 bg-blue-600 rounded-xl" />
-                     <h1 className="text-4xl font-black tracking-tighter text-blue-600">{dairyName || "DAIRY STREAM"}</h1>
-                  </div>
-                  <div className="space-y-1 text-xs font-bold text-slate-400">
-                     <div contentEditable suppressContentEditableWarning className="outline-none focus:text-blue-600" onBlur={e => setBillConfig({...billConfig, address: e.target.innerText})}>{billConfig.address}</div>
-                     <div contentEditable suppressContentEditableWarning className="outline-none focus:text-blue-600" onBlur={e => setBillConfig({...billConfig, contact: e.target.innerText})}>{billConfig.contact}</div>
-                  </div>
-                  <div className="h-1 w-64 bg-blue-600 mt-6 rounded-full" />
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Invoice Reference</p>
-                  <p className="text-2xl font-black tracking-tighter">#{billConfig.billNo}</p>
-                  <p className="text-[10px] font-black text-slate-300 uppercase mt-4 tracking-widest">Date: {billConfig.date}</p>
-                </div>
+        <div className="flex-1 overflow-y-auto bg-[#F5F2EC] p-4 sm:p-8">
+          {loading ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="flex items-center gap-3 rounded-2xl bg-white px-6 py-4 text-[#8B7355] shadow-lg">
+                <LoaderCircle className="animate-spin" size={18} />
+                <span className="text-sm font-bold">Loading bill details...</span>
               </div>
-
-              {/* PARTIES */}
-              <div className="grid grid-cols-2 gap-20 py-12 mb-10 border-y border-slate-50">
-                <div>
-                  <p className="text-[10px] font-black text-blue-600 uppercase mb-3 tracking-widest italic">Bill To</p>
-                  <h3 className="text-2xl font-black text-slate-800">{customer.customer_name}</h3>
-                  <p className="text-sm font-bold text-slate-400 mt-1">{customer.phone_number}</p>
-                </div>
-                <div className="text-right flex flex-col justify-end">
-                  <h3 className="text-xl font-black text-slate-800">{adminName}</h3>
-                  <div className="flex items-center justify-end gap-1 text-emerald-500 text-[10px] font-black uppercase tracking-tighter mt-1">
-                    <CheckCircle2 size={12} /> Digital Signature Verified
-                  </div>
-                </div>
-              </div>
-
-              {/* TABLE */}
-              <div className="flex-1">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 text-left border-b border-gray-100">
-                      <th className="p-4 text-xs font-black uppercase text-gray-400 tracking-widest w-2/3">Description</th>
-                      <th className="p-4 text-right text-xs font-black uppercase text-gray-400 tracking-widest w-1/3">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-sm font-bold">
-                    <tr>
-                      <td className="p-6 text-slate-700 text-lg border-b border-gray-50 whitespace-nowrap">Monthly Outstanding Balance</td>
-                      <td className="p-6 text-right text-slate-900 text-lg border-b border-gray-50">₹{subtotal.toLocaleString()}</td>
-                    </tr>
-                    <tr className="text-emerald-600">
-                      <td className="p-4 border-b border-gray-50 italic">Adjustment / Applied Discount</td>
-                      <td className="p-4 text-right border-b border-gray-50">
-                        -₹<span contentEditable suppressContentEditableWarning className="outline-none border-b border-dashed border-emerald-300" onBlur={e => setBillConfig({...billConfig, discount: Number(e.target.innerText) || 0})}>{billConfig.discount}</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* TOTAL SECTION */}
-              <div className="flex flex-col items-end gap-3 mt-10">
-                <div className="w-64 flex justify-between text-gray-400 font-bold">
-                  <span>Subtotal</span>
-                  <span>₹{subtotal.toLocaleString()}</span>
-                </div>
-                <div className="w-64 flex justify-between text-3xl font-black text-slate-900 pt-3 border-t-2 border-slate-100">
-                  <span>Net Due</span>
-                  <span className="text-red-600">₹{totalDue.toLocaleString()}</span>
-                </div>
-              </div>
-
-              {/* FOOTER: QR & SIGNATURE */}
-              <div className="mt-20 flex justify-between items-end">
-                <div className="p-6 bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200 text-center">
-                  <div className="mb-3 mx-auto flex items-center justify-center">
-                    <QRCodeSVG 
-                      value={`upi://pay?pa=${billConfig.upiId}&pn=${encodeURIComponent(dairyName)}&am=${totalDue}&cu=INR`} 
-                      size={90} level="H"
-                    />
-                  </div>
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Scan to Pay Online</p>
-                </div>
-                
-                <div className="text-center w-64">
-                   <div className="mb-2">
-                      <p className="font-serif italic text-3xl text-blue-700 opacity-80" 
-                         style={{ fontFamily: 'Georgia, serif', letterSpacing: '-1px' }}>
-                        {adminName}
-                      </p>
-                      <div className="h-[1px] w-full bg-slate-200 mt-2" />
-                   </div>
-                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Authorized Head</p>
-                </div>
-              </div>
-
-              {/* NOTES */}
-              <div className="mt-16 pt-8 border-t border-gray-50">
-                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase mb-2">
-                   <Info size={12} /> Notes
-                 </div>
-                 <div contentEditable suppressContentEditableWarning className="w-full text-xs font-bold text-slate-500 outline-none min-h-[40px]" onBlur={e => setBillConfig({...billConfig, notes: e.target.innerText})}>{billConfig.notes}</div>
-              </div>
-
-              <div className="absolute bottom-8 left-0 right-0 text-center">
-                 <p className="text-[8px] font-bold text-slate-300 uppercase tracking-[0.2em]">Generated via DairyStream Systems © 2026</p>
-              </div>
-
             </div>
-          </div>
+          ) : loadError ? (
+            <div className="mx-auto max-w-xl rounded-[28px] border border-[#F0D4CF] bg-white p-8 text-center shadow-lg">
+              <p className="text-lg font-black text-[#A23D2C]">Could not load bill</p>
+              <p className="mt-2 text-sm font-semibold text-[#8B7355]">{loadError}</p>
+            </div>
+          ) : (
+            <div className="mx-auto origin-top scale-[0.56] shadow-2xl sm:scale-[0.7] lg:scale-[0.84] xl:scale-100">
+              <div
+                ref={invoiceRef}
+                className="flex min-h-[297mm] w-[210mm] flex-col overflow-hidden border border-[#E8DFD0] bg-white text-[#2C1A0E]"
+              >
+                <div className="bg-gradient-to-r from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] px-14 py-12 text-white">
+                  <div className="flex items-start justify-between gap-8">
+                    <div className="max-w-[60%]">
+                      <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#F3D4A6]">
+                        DairyStream Bill
+                      </p>
+                      <h1 className="mt-4 text-[40px] font-black tracking-tight">{resolvedDairyName}</h1>
+                      <div className="mt-5 space-y-1.5 text-[13px] font-semibold text-white/82">
+                        <p>{billConfig.address}</p>
+                        <p>{billConfig.contact}</p>
+                        <p>{billConfig.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="min-w-[220px] rounded-[28px] border border-white/15 bg-white/10 p-6 text-right">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#F3D4A6]">
+                        Bill Number
+                      </p>
+                      <p className="mt-2 text-[28px] font-black">#{resolvedBilling?.billNo || "-"}</p>
+                      <div className="mt-5 space-y-2 text-[12px] font-bold text-white/88">
+                        <p>Date: {formatDate(resolvedBilling?.billDate)}</p>
+                        <p>Billing Period: {resolvedBilling?.billingPeriod || "-"}</p>
+                        <p>Due Date: {formatDate(resolvedBilling?.dueDate)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[1.1fr_0.9fr] gap-10 px-14 py-10">
+                  <div className="rounded-[28px] border border-[#E9E0D3] bg-[#FFFDF8] p-7">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                      Customer Details
+                    </p>
+                    <h3 className="mt-3 text-[26px] font-black text-[#2C1A0E]">{resolvedCustomer?.customer_name || "Customer"}</h3>
+                    <div className="mt-5 space-y-2 text-[14px] font-semibold text-[#6B5B3E]">
+                      <p>Phone: {resolvedCustomer?.phone_number || "-"}</p>
+                      <p>Address: {customerAddress || "-"}</p>
+                      <p>Dairy: {resolvedDairyName}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[28px] border border-[#F0E5D5] bg-[#FFF7EB] p-7">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                      Monthly Bill
+                    </p>
+                    <p className="mt-3 text-[42px] font-black text-[#2C1A0E]">{formatCurrency(totalDue)}</p>
+                    <p className="mt-2 text-[13px] font-semibold text-[#8B7355]">
+                      Billing Period: {resolvedBilling?.billingPeriod || "-"}
+                    </p>
+                    {(previousDueAmount > 0 || creditAdjustmentAmount > 0) && (
+                      <div className="mt-5 rounded-[22px] border border-[#EADCC7] bg-[#FFFDF8] p-4 text-left">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                          Due Breakdown
+                        </p>
+                        <div className="mt-3 space-y-2 text-[13px] font-semibold text-[#6B5B3E]">
+                          <p>Current Bill: {formatCurrency(billedAmount)}</p>
+                          {previousDueAmount > 0 && (
+                            <p>Previous Due: {formatCurrency(previousDueAmount)}</p>
+                          )}
+                          {creditAdjustmentAmount > 0 && (
+                            <p>Credit Applied: - {formatCurrency(creditAdjustmentAmount)}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-5 rounded-[22px] border border-[#EADCC7] bg-white/70 p-4 text-left">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                        Payment Window
+                      </p>
+                      <div className="mt-3 space-y-2 text-[13px] font-semibold text-[#6B5B3E]">
+                        <p>Bill Date: {formatDate(resolvedBilling?.billDate)}</p>
+                        <p>Pay By: {formatDate(resolvedBilling?.dueDate)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-8 px-14">
+                  <SectionTable title="Subscriptions" rows={subscriptionRows} />
+                  <SectionTable title="Other Products" rows={otherProductRows} accent="bg-[#FFF6EA]" />
+
+                  <div className="overflow-hidden rounded-[26px] border border-[#E7DAC6]">
+                    <div className="grid grid-cols-[1.8fr_0.8fr] bg-[#F8F3EC] px-6 py-4 text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                      <div>Summary</div>
+                      <div className="text-right">Amount</div>
+                    </div>
+                    {summaryRows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="grid grid-cols-[1.8fr_0.8fr] border-t border-[#EFE7DA] px-6 py-4 text-[15px] font-semibold text-[#2C1A0E]"
+                      >
+                        <div>{row.label}</div>
+                        <div className={`text-right ${row.amount < 0 ? "text-emerald-700" : ""}`}>
+                          {row.amount < 0 ? `- ${formatCurrency(Math.abs(row.amount))}` : formatCurrency(row.amount)}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-[1.8fr_0.8fr] border-t border-[#E7DAC6] bg-[#FFFDF8] px-6 py-5 text-[18px] font-black text-[#2C1A0E]">
+                      <div>Total Payable</div>
+                      <div className="text-right text-[#B64533]">{formatCurrency(totalDue)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-10 grid grid-cols-[0.9fr_1.1fr] gap-10 px-14">
+                  <div className="rounded-[28px] border border-dashed border-[#D8C8B3] bg-[#FFFDF8] p-7 text-center">
+                    <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A]">
+                      <QrCode size={18} />
+                    </div>
+                    <div className="mb-4 flex justify-center">
+                      <QRCodeSVG
+                        value={`upi://pay?pa=${billConfig.upiId}&pn=${encodeURIComponent(resolvedDairyName)}&am=${Math.max(totalDue, 0)}&cu=INR`}
+                        size={120}
+                        level="H"
+                      />
+                    </div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                      Scan To Pay
+                    </p>
+                    <p className="mt-2 text-[12px] font-semibold text-[#8B7355]">{billConfig.upiId}</p>
+                  </div>
+
+                  <div className="rounded-[28px] border border-[#E9E0D3] bg-white p-7">
+                    <div className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                      <Info size={12} /> Notes
+                    </div>
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      className="min-h-[120px] w-full rounded-[22px] border border-[#F1E8DB] bg-[#FFFCF8] p-5 text-[14px] font-semibold leading-7 text-[#6B5B3E] outline-none"
+                      onBlur={(e) => setBillConfig((current) => ({ ...current, notes: e.target.innerText }))}
+                    >
+                      {billConfig.notes}
+                    </div>
+
+                    <div className="mt-8 flex items-end justify-between">
+                      <div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                          Authorized By
+                        </p>
+                        <p className="mt-3 text-[26px] font-black text-[#2C1A0E]">{adminName}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                          Contact
+                        </p>
+                        <p className="mt-2 text-[13px] font-semibold text-[#6B5B3E]">{billConfig.contact}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto px-14 py-10">
+                  <div className="flex items-center justify-between border-t border-[#EFE7DA] pt-5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                    <span>DairyStream Billing System</span>
+                    <span>{resolvedBilling?.billingPeriod || "-"}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
