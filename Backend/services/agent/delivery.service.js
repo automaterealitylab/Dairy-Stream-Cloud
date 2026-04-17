@@ -83,6 +83,27 @@ const formatQuantity = (value) => {
   return `${compact} L`;
 };
 
+const SLOT_WINDOWS = {
+  MORNING: "6:00 AM - 9:00 AM",
+  EVENING: "5:00 PM - 8:00 PM",
+};
+
+const normalizeDeliverySlot = (value) => {
+  const slot = String(value || "").trim().toUpperCase();
+  if (slot.startsWith("MOR")) return "MORNING";
+  if (slot.startsWith("EVE")) return "EVENING";
+  return slot;
+};
+
+const toDeliverySlotLabel = (slotKey) => {
+  if (slotKey === "MORNING") return "Morning";
+  if (slotKey === "EVENING") return "Evening";
+  return String(slotKey || "").trim() || "-";
+};
+
+const getDeliverySlotWindow = (slotKey) =>
+  SLOT_WINDOWS[String(slotKey || "").toUpperCase()] || null;
+
 const normalizeCoordinate = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Number(numeric.toFixed(6)) : null;
@@ -400,6 +421,10 @@ const mapAssignedDelivery = (row, lookups) => {
   const paymentCollection = parsePaymentCollection(row.notes);
   const requiresPaymentCollection =
     deliveryType === "BUY ONCE" && paymentMeta.paymentMethod === "COD";
+  const parsedSlot = normalizeDeliverySlot(row.delivery_slot || parseNotesField(row.notes, "slot") || "");
+  const slotKey = ["MORNING", "EVENING"].includes(parsedSlot) ? parsedSlot : null;
+  const slot = slotKey ? toDeliverySlotLabel(slotKey) : String(row.delivery_slot || parseNotesField(row.notes, "slot") || "-");
+  const slotWindow = getDeliverySlotWindow(slotKey);
 
   return {
     id: String(row.id),
@@ -423,6 +448,9 @@ const mapAssignedDelivery = (row, lookups) => {
     dairyFarmName: dairy.dairy_name || "Dairy",
     farmPhoneNumber: "-",
     deliveryType,
+    slot,
+    slotKey,
+    slotWindow,
     orderPaymentMethod: paymentMeta.paymentMethod || null,
     requiresPaymentCollection,
     amountDue: paymentMeta.amountDue,

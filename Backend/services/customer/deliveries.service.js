@@ -206,6 +206,7 @@ const getIssueMeta = (row = {}) => {
 const toTitleStatus = (status) => {
   const value = String(status || "").toUpperCase();
   if (value === "DELIVERED" || value === "COMPLETED") return "DELIVERED";
+  if (value === "IN_TRANSIT" || value === "OUT_FOR_DELIVERY") return "OUT_FOR_DELIVERY";
   if (value === "FAILED" || value === "MISSED") return "FAILED";
   if (value === "CANCELLED" || value === "CANCELED") return "CANCELLED";
   if (value === "SKIPPED") return "SKIPPED";
@@ -438,6 +439,13 @@ const getTodayDeliveryFromRows = (
     normalized?.slotWindow && normalized?.slot && normalized.slot !== "-"
       ? `${normalized.slot} (${normalized.slotWindow})`
       : null;
+  const agentLat = Number(todayRow?.agent_current_lat);
+  const agentLng = Number(todayRow?.agent_current_lng);
+  const currentAgentLocation =
+    Number.isFinite(agentLat) && Number.isFinite(agentLng)
+      ? { lat: agentLat, lng: agentLng }
+      : null;
+  const isOutForDelivery = normalized.status === "OUT_FOR_DELIVERY";
 
   return {
     id: normalized.id || null,
@@ -462,7 +470,9 @@ const getTodayDeliveryFromRows = (
     issueResolvedAt: normalized.issueResolvedAt || null,
     agentId: rawAgentId,
     agent: resolvedAgent,
-    canTrackAgent: Boolean(rawAgentId && resolvedAgent),
+    currentAgentLocation: isOutForDelivery ? currentAgentLocation : null,
+    agentLocationUpdatedAt: todayRow?.agent_location_updated_at || null,
+    canTrackAgent: Boolean(rawAgentId && resolvedAgent && isOutForDelivery),
   };
 };
 

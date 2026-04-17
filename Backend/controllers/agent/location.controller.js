@@ -52,7 +52,7 @@ export const startDelivery = async (req, res) => {
     const agentId = req.agent?.id;
     const { deliveryId, latitude, longitude } = req.body;
 
-    if (!agentId || !deliveryId || !latitude || !longitude) {
+    if (!agentId || !deliveryId || latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         message: "Missing required fields: deliveryId, latitude, longitude",
       });
@@ -61,12 +61,19 @@ export const startDelivery = async (req, res) => {
     // Get delivery details
     const { data: delivery, error: fetchError } = await supabase
       .from("deliveries")
-      .select("id, customer_id, status, customer_lat, customer_lng")
+      .select("id, customer_id, status, agent_id")
       .eq("id", deliveryId)
       .eq("agent_id", agentId)
       .single();
 
-    if (fetchError || !delivery) {
+    if (fetchError) {
+      console.error("START DELIVERY FETCH ERROR:", fetchError.message || fetchError);
+      return res.status(500).json({
+        message: "Failed to load assigned delivery",
+      });
+    }
+
+    if (!delivery) {
       return res.status(404).json({
         message: "Delivery not found",
       });

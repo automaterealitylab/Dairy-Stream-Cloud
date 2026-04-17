@@ -28,11 +28,29 @@ import {
   History,
   LocateFixed,
   LogOut,
+  Truck,
 } from "lucide-react";
 
 import { fetchAssignedAgentDeliveries, fetchAgentProfile } from "../../api/agent/agent.api";
+import { startDelivery } from "../../api/agent/location.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
+const SLOT_META = {
+  MORNING: {
+    label: "Morning",
+    startHour: 6,
+    startMinute: 0,
+    endHour: 9,
+    endMinute: 0,
+  },
+  EVENING: {
+    label: "Evening",
+    startHour: 17,
+    startMinute: 0,
+    endHour: 20,
+    endMinute: 0,
+  },
+};
 
 const DefaultIcon = L.icon({
   iconRetinaUrl: markerIcon2x,
@@ -107,6 +125,88 @@ const getAutoZoomLevel = (distanceInMeters) => {
   return 14;
 };
 
+const getLocalDateKey = (value = new Date()) => {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getSlotSortOrder = (slotKey = "") => {
+  if (slotKey === "MORNING") return 1;
+  if (slotKey === "EVENING") return 2;
+  return 3;
+};
+
+const compareScheduledDeliveries = (left, right) => {
+  const leftDate = String(left?.date || "");
+  const rightDate = String(right?.date || "");
+
+  if (leftDate !== rightDate) {
+    return leftDate.localeCompare(rightDate);
+  }
+
+  const leftSlot = getSlotSortOrder(String(left?.slotKey || "").toUpperCase());
+  const rightSlot = getSlotSortOrder(String(right?.slotKey || "").toUpperCase());
+  if (leftSlot !== rightSlot) {
+    return leftSlot - rightSlot;
+  }
+
+  return String(left?.customerName || "").localeCompare(String(right?.customerName || ""));
+};
+
+const getDeliveryScheduleState = (delivery, now = new Date()) => {
+  const deliveryDate = String(delivery?.date || "").trim();
+  const todayKey = getLocalDateKey(now);
+
+  if (!deliveryDate) {
+    return { phase: "UNSCHEDULED", isStartable: false, helperText: "Schedule not available" };
+  }
+
+  if (deliveryDate < todayKey) {
+    return { phase: "PAST", isStartable: false, helperText: "Scheduled window has passed" };
+  }
+
+  if (deliveryDate > todayKey) {
+    return { phase: "FUTURE", isStartable: false, helperText: `Scheduled for ${deliveryDate}` };
+  }
+
+  const slotKey = String(delivery?.slotKey || "").toUpperCase();
+  const slotMeta = SLOT_META[slotKey];
+  if (!slotMeta) {
+    return { phase: "TODAY", isStartable: true, helperText: "Ready for today's delivery" };
+  }
+
+  const slotStart = new Date(now);
+  slotStart.setHours(slotMeta.startHour, slotMeta.startMinute, 0, 0);
+
+  const slotEnd = new Date(now);
+  slotEnd.setHours(slotMeta.endHour, slotMeta.endMinute, 0, 0);
+
+  if (now < slotStart) {
+    return {
+      phase: "UPCOMING_TODAY",
+      isStartable: false,
+      helperText: `${slotMeta.label} slot starts at ${delivery?.slotWindow || "-"}`,
+    };
+  }
+
+  if (now > slotEnd) {
+    return {
+      phase: "ENDED_TODAY",
+      isStartable: false,
+      helperText: `${slotMeta.label} slot ended for today`,
+    };
+  }
+
+  return {
+    phase: "ACTIVE_TODAY",
+    isStartable: true,
+    helperText: `${slotMeta.label} slot is active now`,
+  };
+};
+
 const StatCard = ({ icon, label, value, accent, tint }) => (
   <div className="rounded-[24px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
     <div className="flex items-start justify-between gap-2">
@@ -147,18 +247,15 @@ const AgentDashboard = () => {
   const [recenterTrigger, setRecenterTrigger] = useState(0);
   const [isOnline] = useState(true);
   const [hasAutoFocusedDestination, setHasAutoFocusedDestination] = useState(false);
+  const [startingDelivery, setStartingDelivery] = useState(false);
+  const [startDeliveryMessage, setStartDeliveryMessage] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const loadDashboard = useCallback(async () => {
     try {
-      const assigned = await fetchAssignedAgentDeliveries({ today: true });
+      const assigned = await fetchAssignedAgentDeliveries();
       const resolved = assigned || [];
       setDeliveries(resolved);
-      setStats({
-        totalAssigned: resolved.length,
-        completed: resolved.filter((d) => d.status === "COMPLETED").length,
-        pending: resolved.filter((d) => d.status === "PENDING").length,
-        failed: resolved.filter((d) => d.status === "FAILED").length,
-      });
     } catch (_err) {
       setDeliveries([]);
     }
@@ -212,10 +309,58 @@ const AgentDashboard = () => {
     loadAgentProfile();
   }, []);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const now = useMemo(() => new Date(nowTick), [nowTick]);
+  const todayKey = useMemo(() => getLocalDateKey(now), [now]);
+  const todayDeliveries = useMemo(
+    () => deliveries.filter((delivery) => String(delivery?.date || "") === todayKey),
+    [deliveries, todayKey]
+  );
+  const pendingUpcomingDeliveries = useMemo(
+    () =>
+      deliveries
+        .filter(
+          (delivery) =>
+            String(delivery?.status || "").toUpperCase() === "PENDING" &&
+            (!delivery?.date || String(delivery.date) >= todayKey)
+        )
+        .sort(compareScheduledDeliveries),
+    [deliveries, todayKey]
+  );
+  const startableDelivery = useMemo(
+    () =>
+      pendingUpcomingDeliveries.find((delivery) => getDeliveryScheduleState(delivery, now).isStartable) || null,
+    [now, pendingUpcomingDeliveries]
+  );
+  const nextTask = startableDelivery || pendingUpcomingDeliveries[0] || null;
+  const nextTaskSchedule = useMemo(
+    () => (nextTask ? getDeliveryScheduleState(nextTask, now) : null),
+    [nextTask, now]
+  );
+  const statsForToday = useMemo(
+    () => ({
+      totalAssigned: todayDeliveries.length,
+      completed: todayDeliveries.filter((d) => d.status === "COMPLETED").length,
+      pending: todayDeliveries.filter((d) => d.status === "PENDING").length,
+      failed: todayDeliveries.filter((d) => d.status === "FAILED").length,
+    }),
+    [todayDeliveries]
+  );
+
+  useEffect(() => {
+    setStats(statsForToday);
+  }, [statsForToday]);
+
   const completionPercentage =
     stats.totalAssigned > 0 ? Math.round((stats.completed / stats.totalAssigned) * 100) : 0;
 
-  const nextTask = deliveries.find((d) => d.status === "PENDING");
   const nextTaskCoordinates = getDeliveryCoordinates(nextTask);
   const deliveriesWithCoordinates = useMemo(
     () => deliveries.filter((delivery) => getDeliveryCoordinates(delivery)),
@@ -265,6 +410,30 @@ const AgentDashboard = () => {
     setZoomLevel(getAutoZoomLevel(distanceToNextTask));
   }, [agentLocation, distanceToNextTask, nextTaskCoordinates]);
 
+  const handleMarkOutForDelivery = useCallback(async () => {
+    if (!startableDelivery?.id) {
+      setStartDeliveryMessage("No pending delivery is available to start.");
+      return;
+    }
+
+    if (!agentLocation) {
+      setStartDeliveryMessage("Waiting for your current GPS location. Please try again.");
+      return;
+    }
+
+    try {
+      setStartingDelivery(true);
+      setStartDeliveryMessage("");
+      await startDelivery(startableDelivery.id, agentLocation[0], agentLocation[1]);
+      setStartDeliveryMessage("Marked out for delivery.");
+      await loadDashboard();
+    } catch (err) {
+      setStartDeliveryMessage(err?.message || "Failed to mark this delivery out for delivery.");
+    } finally {
+      setStartingDelivery(false);
+    }
+  }, [agentLocation, loadDashboard, startableDelivery]);
+
   return (
     <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 pt-5 text-[#2C1A0E]">
       <div className="mx-auto max-w-md space-y-5">
@@ -297,11 +466,32 @@ const AgentDashboard = () => {
                 <LogOut size={12} />
                 Logout
               </button>
+              {startableDelivery?.id ? (
+                <button
+                  type="button"
+                  onClick={handleMarkOutForDelivery}
+                  disabled={startingDelivery || !agentLocation}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A] transition hover:bg-[#FFF1E4] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Truck size={12} />
+                  {startingDelivery ? "Starting..." : "Out for Delivery"}
+                </button>
+              ) : nextTask ? (
+                <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
+                  {nextTask?.date && String(nextTask.date) > todayKey ? "Next delivery tomorrow" : "No active slot"}
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
           <div className="absolute -bottom-12 left-10 h-24 w-24 rounded-full bg-[#F2D9B8]/20 blur-2xl" />
         </section>
+
+        {startDeliveryMessage ? (
+          <div className="rounded-[20px] border border-[#E7DAC6] bg-[#FFF8EF] px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-[#8B5E34] shadow-sm">
+            {startDeliveryMessage}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3">
           <StatCard
@@ -471,6 +661,17 @@ const AgentDashboard = () => {
               <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
                 {nextTask?.address || "Wait for your next assignment"}
               </p>
+              {nextTask?.date ? (
+                <p className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">
+                  {nextTask.date}
+                  {nextTask?.slot
+                    ? ` • ${nextTask.slot}${nextTask?.slotWindow ? ` (${nextTask.slotWindow})` : ""}`
+                    : ""}
+                </p>
+              ) : null}
+              {nextTaskSchedule?.helperText ? (
+                <p className="mt-2 text-xs font-semibold text-[#8B7355]">{nextTaskSchedule.helperText}</p>
+              ) : null}
               {nextTask && (
                 <p
                   className={`mt-3 text-[10px] font-black uppercase tracking-[0.18em] ${
@@ -483,26 +684,34 @@ const AgentDashboard = () => {
             </div>
             {nextTask && (
               <div className="rounded-[20px] border border-[#F0D9B9] bg-white px-4 py-3 text-center shadow-sm">
-                <p className="text-lg font-black text-[#B8641A]">₹{nextTask.amount || "0"}</p>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#A88763]">Value</p>
+                <p className="text-lg font-black text-[#B8641A]">
+                  {startableDelivery?.id && String(startableDelivery.id) === String(nextTask.id)
+                    ? "Ready"
+                    : nextTask?.date && String(nextTask.date) > todayKey
+                    ? "Tomorrow"
+                    : "Queued"}
+                </p>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#A88763]">Status</p>
               </div>
             )}
           </div>
 
-          <button
-            onClick={() => {
-              if (nextTaskCoordinates) {
-                setMapView(nextTaskCoordinates);
-                setZoomLevel(17);
-                setRecenterTrigger((prev) => prev + 1);
-              }
-            }}
-            disabled={!nextTaskCoordinates}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3.5 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
-          >
-            <Navigation size={18} fill="currentColor" />
-            {nextTaskCoordinates ? "Focus Customer Pin" : "No Customer Pin"}
-          </button>
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={() => {
+                if (nextTaskCoordinates) {
+                  setMapView(nextTaskCoordinates);
+                  setZoomLevel(17);
+                  setRecenterTrigger((prev) => prev + 1);
+                }
+              }}
+              disabled={!nextTaskCoordinates}
+              className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3.5 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
+            >
+              <Navigation size={18} fill="currentColor" />
+              {nextTaskCoordinates ? "Focus Customer Pin" : "No Customer Pin"}
+            </button>
+          </div>
         </section>
 
         <div className="fixed bottom-6 left-1/2 z-50 flex w-[92%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">

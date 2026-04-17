@@ -1,6 +1,32 @@
 import { supabase } from "../../config/supabase.js";
 import { sendNotification } from "../../push/sendNotification.js";
 
+const PUSH_SUBSCRIPTION_COLUMN = "push_subscription";
+let hasWarnedAboutMissingPushSubscriptionColumn = false;
+
+const isMissingPushSubscriptionColumnError = (error) =>
+  error?.code === "42703" &&
+  String(error?.message || "").toLowerCase().includes(`customers.${PUSH_SUBSCRIPTION_COLUMN}`);
+
+const warnMissingPushSubscriptionColumn = () => {
+  if (hasWarnedAboutMissingPushSubscriptionColumn) return;
+  hasWarnedAboutMissingPushSubscriptionColumn = true;
+  console.warn(
+    "Push notifications are disabled because customers.push_subscription is missing. Run Backend/sql/SUPABASE_MIGRATIONS.sql to add the column."
+  );
+};
+
+const getNotificationDelivery = async (deliveryId) => {
+  const { data, error } = await supabase
+    .from("deliveries")
+    .select("id, customer_id, quantity_liters")
+    .eq("id", deliveryId)
+    .single();
+
+  if (error) throw error;
+  return data || null;
+};
+
 /**
  * Save customer push notification subscription
  */
@@ -9,7 +35,7 @@ export const savePushSubscription = async (customerId, subscription) => {
     const { data, error } = await supabase
       .from("customers")
       .update({
-        push_subscription: subscription,
+        [PUSH_SUBSCRIPTION_COLUMN]: subscription,
         updated_at: new Date().toISOString(),
       })
       .eq("id", customerId)
@@ -20,6 +46,14 @@ export const savePushSubscription = async (customerId, subscription) => {
 
     return { success: true, customerId: data.id };
   } catch (error) {
+    if (isMissingPushSubscriptionColumnError(error)) {
+      warnMissingPushSubscriptionColumn();
+      const schemaError = new Error(
+        "Push notification storage is not configured in the database. Run Backend/sql/SUPABASE_MIGRATIONS.sql and try again."
+      );
+      schemaError.statusCode = 500;
+      throw schemaError;
+    }
     console.error("Error saving push subscription:", error);
     throw error;
   }
@@ -32,14 +66,18 @@ export const getCustomerSubscription = async (customerId) => {
   try {
     const { data, error } = await supabase
       .from("customers")
-      .select("push_subscription")
+      .select(PUSH_SUBSCRIPTION_COLUMN)
       .eq("id", customerId)
       .single();
 
     if (error) throw error;
 
-    return data?.push_subscription || null;
+    return data?.[PUSH_SUBSCRIPTION_COLUMN] || null;
   } catch (error) {
+    if (isMissingPushSubscriptionColumnError(error)) {
+      warnMissingPushSubscriptionColumn();
+      return null;
+    }
     console.error("Error fetching customer subscription:", error);
     return null;
   }
@@ -50,25 +88,13 @@ export const getCustomerSubscription = async (customerId) => {
  */
 export const sendDeliveryCompletionNotification = async (deliveryId) => {
   try {
-    // Fetch delivery details
-    const { data: delivery, error: deliveryError } = await supabase
-      .from("deliveries")
-      .select(`
-        id,
-        customer_id,
-        quantity,
-        customer_name,
-        address
-      `)
-      .eq("id", deliveryId)
-      .single();
+    const delivery = await getNotificationDelivery(deliveryId);
 
-    if (deliveryError || !delivery) {
+    if (!delivery) {
       console.error("Delivery not found for notification:", deliveryId);
       return;
     }
 
-    // Get customer subscription
     const subscription = await getCustomerSubscription(delivery.customer_id);
     if (!subscription) {
       console.log("No subscription for customer:", delivery.customer_id);
@@ -77,8 +103,8 @@ export const sendDeliveryCompletionNotification = async (deliveryId) => {
 
     const payload = {
       notification: {
-        title: "✅ Delivery Completed!",
-        body: `Your ${delivery.quantity}L milk delivery has been completed.`,
+        title: "Delivery Completed",
+        body: `Your ${delivery.quantity_liters || 0}L milk delivery has been completed.`,
         icon: "/icons/delivery-complete.png",
         badge: "/icons/badge.png",
       },
@@ -112,25 +138,13 @@ export const sendDeliveryCompletionNotification = async (deliveryId) => {
  */
 export const sendETAUpdateNotification = async (deliveryId, etaMinutes) => {
   try {
-    // Fetch delivery details
-    const { data: delivery, error: deliveryError } = await supabase
-      .from("deliveries")
-      .select(`
-        id,
-        customer_id,
-        estimated_arrival_time,
-        customer_name,
-        quantity
-      `)
-      .eq("id", deliveryId)
-      .single();
+    const delivery = await getNotificationDelivery(deliveryId);
 
-    if (deliveryError || !delivery) {
+    if (!delivery) {
       console.error("Delivery not found for ETA notification:", deliveryId);
       return;
     }
 
-    // Get customer subscription
     const subscription = await getCustomerSubscription(delivery.customer_id);
     if (!subscription) {
       console.log("No subscription for customer:", delivery.customer_id);
@@ -139,7 +153,7 @@ export const sendETAUpdateNotification = async (deliveryId, etaMinutes) => {
 
     const payload = {
       notification: {
-        title: "🕐 Delivery ETA Updated",
+        title: "Delivery ETA Updated",
         body: `Your delivery will arrive in approximately ${etaMinutes} minutes.`,
         icon: "/icons/eta-update.png",
         badge: "/icons/badge.png",
@@ -147,8 +161,8 @@ export const sendETAUpdateNotification = async (deliveryId, etaMinutes) => {
       data: {
         type: "ETA_UPDATE",
         deliveryId: deliveryId.toString(),
-        eta: delivery.estimated_arrival_time,
-        etaMinutes: etaMinutes.toString(),
+        eta: String(etaMinutes ?? ""),
+        etaMinutes: String(etaMinutes ?? ""),
         timestamp: new Date().toISOString(),
         actionUrl: `/deliveries/${deliveryId}`,
       },
@@ -166,49 +180,29 @@ export const sendETAUpdateNotification = async (deliveryId, etaMinutes) => {
  */
 export const sendDeliveryStartedNotification = async (deliveryId) => {
   try {
-    // Fetch delivery details
-    const { data: delivery, error: deliveryError } = await supabase
-      .from("deliveries")
-      .select(`
-        id,
-        customer_id,
-        customer_name,
-        estimated_arrival_time,
-        quantity
-      `)
-      .eq("id", deliveryId)
-      .single();
+    const delivery = await getNotificationDelivery(deliveryId);
 
-    if (deliveryError || !delivery) {
+    if (!delivery) {
       console.error("Delivery not found for started notification:", deliveryId);
       return;
     }
 
-    // Get customer subscription
     const subscription = await getCustomerSubscription(delivery.customer_id);
     if (!subscription) {
       console.log("No subscription for customer:", delivery.customer_id);
       return;
     }
 
-    const etaTime = new Date(delivery.estimated_arrival_time);
-    const timeString = etaTime.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-
     const payload = {
       notification: {
-        title: "🚚 Delivery Started!",
-        body: `Agent is on the way with your ${delivery.quantity}L milk. ETA: ${timeString}`,
+        title: "Delivery Started",
+        body: `Agent is on the way with your ${delivery.quantity_liters || 0}L milk.`,
         icon: "/icons/delivery-started.png",
         badge: "/icons/badge.png",
       },
       data: {
         type: "DELIVERY_STARTED",
         deliveryId: deliveryId.toString(),
-        eta: delivery.estimated_arrival_time,
         timestamp: new Date().toISOString(),
         actionUrl: `/deliveries/${deliveryId}`,
       },

@@ -181,21 +181,41 @@ const AgentBuildingTasksPage = () => {
               <Building2 size={18} className="text-[#B8641A]" />
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Delivery Summary</p>
             </div>
-            <p className="mt-3 text-sm font-semibold text-[#6B5B3E]">
-              {buildingSummary.deliveries.length} deliveries | Total milk {formatQuantity(buildingSummary.milkTotal)} L
-            </p>
-            <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
-              Milk types:{" "}
-              {buildingSummary.milkTypes.length
-                ? buildingSummary.milkTypes.map((item) => item.label).join(", ")
-                : "No milk items"}
-            </p>
-            <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
-              Other products:{" "}
-              {buildingSummary.otherProducts.length
-                ? buildingSummary.otherProducts.map((item) => item.label).join(", ")
-                : "No extra products"}
-            </p>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="rounded-[18px] border border-[#E7DAC6] bg-[#FFF8EF] px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">
+                  Deliveries
+                </p>
+                <p className="mt-1.5 text-base font-black text-[#2C1A0E]">
+                  {buildingSummary.deliveries.length}
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#6B5B3E]">
+                  Total milk {formatQuantity(buildingSummary.milkTotal)} L
+                </p>
+              </div>
+
+              <div className="rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6B8A4A]">
+                  Milk Types
+                </p>
+                <p className="mt-1.5 text-[12px] font-black leading-snug text-[#2C1A0E]">
+                  {buildingSummary.milkTypes.length
+                    ? buildingSummary.milkTypes.map((item) => item.label).join(", ")
+                    : "No milk items"}
+                </p>
+              </div>
+
+              <div className="rounded-[18px] border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#B8641A]">
+                  Other Products
+                </p>
+                <p className="mt-1.5 text-[12px] font-black leading-snug text-[#2C1A0E]">
+                  {buildingSummary.otherProducts.length
+                    ? buildingSummary.otherProducts.map((item) => item.label).join(", ")
+                    : "No extra products"}
+                </p>
+              </div>
+            </div>
           </section>
         )}
 

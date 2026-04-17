@@ -1,5 +1,49 @@
 import { supabase } from "../../config/supabase.js";
 
+const DELIVERY_TABLES = ["deliveries", "milk_deliveries"];
+
+const isMissingColumnError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("could not find") && message.includes("column")) ||
+    message.includes("schema cache")
+  );
+};
+
+const isMissingTableError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    (message.includes("table") && message.includes("could not find")) ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    message.includes("schema cache")
+  );
+};
+
+const findDeliveryRecord = async (deliveryId) => {
+  for (const table of DELIVERY_TABLES) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("*")
+      .eq("id", deliveryId)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingTableError(error) || isMissingColumnError(error)) {
+        continue;
+      }
+      throw error;
+    }
+
+    if (data) {
+      return { table, delivery: data };
+    }
+  }
+
+  return null;
+};
+
 /**
  * Calculate distance between two coordinates using Haversine formula
  */
@@ -64,7 +108,9 @@ export const calculateSmartETA = async ({
       .limit(50);
 
     if (error) {
-      console.error("Error fetching analytics:", error);
+      if (!isMissingTableError(error)) {
+        console.error("Error fetching analytics:", error);
+      }
     }
 
     let estimatedMinutes = 15; // Default 15 minutes
@@ -123,25 +169,60 @@ export const calculateSmartETA = async ({
  */
 export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
   try {
-    // Get delivery details
-    const { data: delivery, error: fetchError } = await supabase
-      .from("deliveries")
-      .select("agent_id, customer_lat, customer_lng")
-      .eq("id", deliveryId)
-      .single();
-
-    if (fetchError || !delivery) {
-      throw new Error("Delivery not found");
+    const deliveryRecord = await findDeliveryRecord(deliveryId);
+    if (!deliveryRecord?.delivery) {
+      const notFoundError = new Error("Delivery not found");
+      notFoundError.statusCode = 404;
+      throw notFoundError;
     }
 
+    const { table, delivery } = deliveryRecord;
+
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("latitude, longitude")
+      .eq("id", delivery.customer_id)
+      .single();
+
+    if (customerError) {
+      throw customerError;
+    }
+
+    const customerLat = Number(customer?.latitude);
+    const customerLng = Number(customer?.longitude);
+
     // Check if customer coordinates exist or are provided
-    if (!delivery.customer_lat || !delivery.customer_lng) {
+    if (!Number.isFinite(customerLat) || !Number.isFinite(customerLng)) {
       // If not in DB, we'll just use the new location
-      return {
+      const fallbackPayload = {
         estimatedMinutes: 15,
         estimatedArrivalTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         distance: null,
         message: "Customer location not available yet",
+      };
+
+      const { error: fallbackUpdateError } = await supabase
+        .from(table)
+        .update({
+          agent_current_lat: agentLat,
+          agent_current_lng: agentLng,
+          agent_location_updated_at: new Date().toISOString(),
+          estimated_arrival_time: fallbackPayload.estimatedArrivalTime,
+        })
+        .eq("id", deliveryId);
+
+      if (fallbackUpdateError && !isMissingColumnError(fallbackUpdateError)) {
+        throw fallbackUpdateError;
+      }
+
+      return {
+        ...fallbackPayload,
+        remainingMinutes: fallbackPayload.estimatedMinutes,
+        remainingDistance: null,
+        agentLocation: {
+          lat: agentLat,
+          lng: agentLng,
+        },
       };
     }
 
@@ -150,13 +231,13 @@ export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
       agentId: delivery.agent_id,
       agentLat,
       agentLng,
-      customerLat: delivery.customer_lat,
-      customerLng: delivery.customer_lng,
+      customerLat,
+      customerLng,
     });
 
     // Update delivery with ETA and agent location
     const { error: updateError } = await supabase
-      .from("deliveries")
+      .from(table)
       .update({
         agent_current_lat: agentLat,
         agent_current_lng: agentLng,
@@ -165,7 +246,7 @@ export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
       })
       .eq("id", deliveryId);
 
-    if (updateError) {
+    if (updateError && !isMissingColumnError(updateError)) {
       throw updateError;
     }
 
@@ -173,6 +254,11 @@ export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
       ...etaData,
       remainingMinutes: etaData.estimatedMinutes,
       remainingDistance: etaData.distance,
+      agentLocation: {
+        lat: agentLat,
+        lng: agentLng,
+      },
+      lastUpdated: new Date().toISOString(),
     };
   } catch (error) {
     console.error("Error updating delivery ETA:", error);
@@ -185,19 +271,20 @@ export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
  */
 export const getDeliveryETA = async (deliveryId, customerId = null) => {
   try {
-    const { data, error } = await supabase
-      .from("deliveries")
-      .select("*")
-      .eq("id", deliveryId)
-      .single();
+    const deliveryRecord = await findDeliveryRecord(deliveryId);
+    const data = deliveryRecord?.delivery || null;
 
-    if (error || !data) {
-      throw new Error("Delivery not found");
+    if (!data) {
+      const notFoundError = new Error("Delivery not found");
+      notFoundError.statusCode = 404;
+      throw notFoundError;
     }
 
     // Verify customer owns this delivery if customerId provided
     if (customerId && data.customer_id !== customerId) {
-      throw new Error("Unauthorized");
+      const unauthorizedError = new Error("Unauthorized");
+      unauthorizedError.statusCode = 403;
+      throw unauthorizedError;
     }
 
     // Check if ETA is still valid (location updated within last 10 minutes)
@@ -232,16 +319,7 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
       status: data.status,
       eta: data.estimated_arrival_time,
       remainingMinutes,
-      remainingDistance: data.agent_current_lat && data.customer_lat
-        ? parseFloat(
-            calculateDistance(
-              data.agent_current_lat,
-              data.agent_current_lng,
-              data.customer_lat,
-              data.customer_lng
-            ).toFixed(2)
-          )
-        : null,
+      remainingDistance: null,
       lastUpdated: data.agent_location_updated_at,
       agentLocation: data.agent_current_lat ? {
         lat: data.agent_current_lat,

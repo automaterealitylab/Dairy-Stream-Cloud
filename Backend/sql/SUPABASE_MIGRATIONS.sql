@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   wallet_balance NUMERIC(12, 2) DEFAULT 0,
   outstanding_balance NUMERIC(12, 2) DEFAULT 0,
   billing_cycle VARCHAR(50) DEFAULT 'Monthly',
+  push_subscription JSONB,
   date_joined TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -125,6 +126,8 @@ ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS push_subscription JSONB;
 CREATE INDEX IF NOT EXISTS idx_customers_dairy_id ON public.customers(dairy_id);
 
 -- ============================================

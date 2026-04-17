@@ -58,7 +58,13 @@ export const fetchDeliveryETA = async (req, res) => {
     });
   } catch (err) {
     console.error("FETCH DELIVERY ETA ERROR:", err?.message || err);
-    return res.status(err?.statusCode || 500).json({
+    const statusCode =
+      err?.statusCode ||
+      (String(err?.message || "").toLowerCase() === "delivery not found" ? 404 : null) ||
+      (String(err?.message || "").toLowerCase() === "unauthorized" ? 403 : null) ||
+      500;
+
+    return res.status(statusCode).json({
       message: err?.message || "Failed to fetch delivery ETA",
     });
   }
