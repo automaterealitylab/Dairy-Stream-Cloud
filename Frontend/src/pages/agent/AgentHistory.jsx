@@ -12,6 +12,7 @@ import {
   Home,
   List,
   History,
+  Map,
   User,
 } from "lucide-react";
 import { fetchAgentDeliveryHistory } from "../../api/agent/agent.api";
@@ -155,8 +156,13 @@ const AgentHistory = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-6 left-1/2 z-50 flex w-[92%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">
+      <div className="fixed bottom-6 left-1/2 z-50 flex w-[94%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">
         <NavTab icon={<Home size={18} />} label="Home" onClick={() => navigate("/agent/dashboard")} />
+        <NavTab
+          icon={<Map size={18} />}
+          label="Map"
+          onClick={() => navigate("/agent/dashboard", { state: { section: "MAP" } })}
+        />
         <NavTab icon={<List size={18} />} label="Tasks" onClick={() => navigate("/agent/working")} />
         <NavTab icon={<History size={18} />} label="History" active onClick={() => navigate("/agent/history")} />
         <NavTab icon={<User size={18} />} label="Profile" onClick={() => navigate("/agent/profile")} />
