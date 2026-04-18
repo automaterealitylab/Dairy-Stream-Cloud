@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
     // We normalize the data so the role is always accessible at the top level
     const userData = {
       token: data.token,
-      role: data.role || data.user?.role, 
+      role: data.role || data.user?.role,
       ...data.user,
     };
     const normalizedRole = String(userData.role || "").toUpperCase();

@@ -46,7 +46,7 @@ router.post("/agent/forgot-password/reset", resetAgentPasswordWithOtp);
 // 3. Customer/Shared Login Methods
 // These are often called by the generic login page
 // router.post("/login/password", loginCustomerAuth); // Handles Customer Password Login
-router.post("/login/otp", requestOtpAuth);         // Request OTP
+router.post("/login/otp", requestOtpAuth); // Request OTP
 router.post("/login/otp/verify", verifyOtpLoginAuth); // Verify OTP
 
 // 4. Token Validation (For Persistent Login)

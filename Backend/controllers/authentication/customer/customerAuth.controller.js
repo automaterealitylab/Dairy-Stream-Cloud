@@ -3,7 +3,7 @@ import {
   generateCustomerOtp,
   verifyCustomerOtp,
   customerOtpLoginService,
-  determineRedirectPath
+  determineRedirectPath,
 } from "../../../services/authentication/customerAuth.service.js";
 import { supabase } from "../../../config/supabase.js";
 
@@ -16,13 +16,7 @@ import { supabase } from "../../../config/supabase.js";
 export const addCustomerAuth = async (req, res) => {
   try {
     // 1. Extract Data from req.body (JSON)
-    const {
-      customerName,
-      email,
-      phoneNumber,
-      buildingName,
-      roomNo,
-    } = req.body;
+    const { customerName, email, phoneNumber, buildingName, roomNo } = req.body;
 
     // 2. Validate Required Fields
     // (Ensure these match what your frontend is sending)
@@ -43,14 +37,14 @@ export const addCustomerAuth = async (req, res) => {
       message: "Customer registered successfully",
       customer,
     });
-
   } catch (err) {
     console.error("Registration Controller Error:", err.message);
-    
+
     // Handle specific errors (like duplicate email/phone from your uniqueness service)
-    const isDuplicate = err.message.includes("already used") || err.message.includes("unique");
+    const isDuplicate =
+      err.message.includes("already used") || err.message.includes("unique");
     const statusCode = err.statusCode || (isDuplicate ? 409 : 500);
-    
+
     return res.status(statusCode).json({
       success: false,
       message: statusCode >= 500 ? "Registration failed" : err.message,
@@ -67,7 +61,9 @@ export const requestOtpAuth = async (req, res) => {
     const { identifier, dairyId } = req.body;
     const raw = String(identifier || "").trim();
     const isEmail = raw.includes("@");
-    const normalizedIdentifier = isEmail ? raw.toLowerCase() : raw.replace(/\D/g, "");
+    const normalizedIdentifier = isEmail
+      ? raw.toLowerCase()
+      : raw.replace(/\D/g, "");
 
     if (!normalizedIdentifier) {
       return res.status(400).json({
@@ -90,7 +86,6 @@ export const requestOtpAuth = async (req, res) => {
       success: true,
       message: "OTP sent successfully to your email",
     });
-
   } catch (err) {
     const rawMessage = String(err?.message || err || "");
     const normalizedMessage = rawMessage.toLowerCase();
@@ -106,7 +101,7 @@ export const requestOtpAuth = async (req, res) => {
     }
 
     console.error(
-      `[CUSTOMER OTP ERROR] identifier=${req?.body?.identifier || ""} dairyId=${req?.body?.dairyId || ""} message=${err?.message || err}`
+      `[CUSTOMER OTP ERROR] identifier=${req?.body?.identifier || ""} dairyId=${req?.body?.dairyId || ""} message=${err?.message || err}`,
     );
     return res.status(statusCode).json({
       success: false,
@@ -124,30 +119,30 @@ export const verifyOtpLoginAuth = async (req, res) => {
     const { otp, dairyId, identifier } = req.body;
     const raw = String(identifier || "").trim();
     const isEmail = raw.includes("@");
-    const normalizedIdentifier = isEmail ? raw.toLowerCase() : raw.replace(/\D/g, "");
+    const normalizedIdentifier = isEmail
+      ? raw.toLowerCase()
+      : raw.replace(/\D/g, "");
 
     // 2. Verify OTP via Service
-    const verifiedData = await verifyCustomerOtp({ 
-      identifier: normalizedIdentifier, 
-      otp, 
-      dairyId 
+    const verifiedData = await verifyCustomerOtp({
+      identifier: normalizedIdentifier,
+      otp,
+      dairyId,
     });
 
     // 3. Perform Login (Find User & Generate Token)
     // If dairyId was provided during request, use it. Otherwise use the one linked to OTP.
     const loginDairyId = verifiedData.dairy_id || dairyId;
-    
-    const { token, user } = await customerOtpLoginService({ 
-      identifier: normalizedIdentifier, 
-      dairyId: loginDairyId 
+
+    const { token, user } = await customerOtpLoginService({
+      identifier: normalizedIdentifier,
+      dairyId: loginDairyId,
     });
 
     // 4. Determine where to send the user next
     // (e.g., Dashboard if they have a subscription, Explore if they don't)
-    const { redirect, isRegisteredToRequestedDairy } = await determineRedirectPath(
-      user.id, 
-      loginDairyId
-    );
+    const { redirect, isRegisteredToRequestedDairy } =
+      await determineRedirectPath(user.id, loginDairyId);
 
     // 5. Send Success Response
     return res.status(200).json({
@@ -159,13 +154,12 @@ export const verifyOtpLoginAuth = async (req, res) => {
         name: user.customer_name,
         mobile: user.phone_number,
         email: user.email,
-        role: "CUSTOMER"
+        role: "CUSTOMER",
       },
       role: "CUSTOMER",
       isRegisteredToRequestedDairy,
       redirect,
     });
-
   } catch (err) {
     return res.status(401).json({
       success: false,
@@ -211,7 +205,7 @@ export const validateTokenAuth = async (req, res) => {
         name: data.customer_name,
         email: data.email,
         mobile: data.phone_number,
-        role: "CUSTOMER"
+        role: "CUSTOMER",
       };
     } else if (decoded.role === "ADMIN") {
       const { data, error } = await supabase
@@ -232,7 +226,7 @@ export const validateTokenAuth = async (req, res) => {
         name: data.name,
         email: data.email,
         mobile: data.phone || data.phone_number,
-        role: "ADMIN"
+        role: "ADMIN",
       };
     } else if (decoded.role === "AGENT" || decoded.role === "STAFF") {
       const { data, error } = await supabase
@@ -253,7 +247,7 @@ export const validateTokenAuth = async (req, res) => {
         name: data.agent_name,
         email: data.email,
         mobile: data.phone || data.phone_number,
-        role: decoded.role
+        role: decoded.role,
       };
     } else {
       return res.status(401).json({
@@ -268,7 +262,6 @@ export const validateTokenAuth = async (req, res) => {
       user: userData,
       role: userData.role,
     });
-
   } catch (err) {
     return res.status(401).json({
       success: false,

@@ -4,7 +4,10 @@ import client from "../api/client"; // ✅ Use the centralized client instead of
 // 1. DETECT USER (Gatekeeper)
 // ===============================
 export const detectUserApi = async (identifier, options = {}) => {
-  const { data } = await client.post("/auth/detect", { identifier, ...options });
+  const { data } = await client.post("/auth/detect", {
+    identifier,
+    ...options,
+  });
   return data;
 };
 
@@ -38,12 +41,18 @@ export const adminLoginApi = async (payload) => {
 };
 
 export const requestAdminPasswordResetOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/admin/forgot-password/request-otp", payload);
+  const { data } = await client.post(
+    "/auth/admin/forgot-password/request-otp",
+    payload,
+  );
   return data;
 };
 
 export const resetAdminPasswordWithOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/admin/forgot-password/reset", payload);
+  const { data } = await client.post(
+    "/auth/admin/forgot-password/reset",
+    payload,
+  );
   return data;
 };
 
@@ -56,11 +65,17 @@ export const agentLoginApi = async (payload) => {
 };
 
 export const requestAgentPasswordResetOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/agent/forgot-password/request-otp", payload);
+  const { data } = await client.post(
+    "/auth/agent/forgot-password/request-otp",
+    payload,
+  );
   return data;
 };
 
 export const resetAgentPasswordWithOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/agent/forgot-password/reset", payload);
+  const { data } = await client.post(
+    "/auth/agent/forgot-password/reset",
+    payload,
+  );
   return data;
 };
