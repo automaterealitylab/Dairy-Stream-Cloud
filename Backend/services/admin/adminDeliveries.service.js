@@ -26,6 +26,16 @@ const isSubscriptionActive = (status, approvalStatus = "APPROVED") => {
 const isValidDateString = (value) =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const WEEKDAY_KEYS = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+];
+
 const isMissingColumnError = (error) => {
   const message = String(error?.message || "").toLowerCase();
   return message.includes("column") && message.includes("does not exist");
@@ -95,6 +105,34 @@ const normalizeDate = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString().slice(0, 10);
+};
+
+const normalizeDeliveryDays = (value) => {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value
+        .map((item) => String(item || "").trim().toUpperCase())
+        .filter((item) => WEEKDAY_KEYS.includes(item))
+    )];
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim().toUpperCase())
+        .filter((item) => WEEKDAY_KEYS.includes(item))
+    )];
+  }
+
+  return [];
+};
+
+const getWeekdayForDate = (targetDate) => {
+  if (!isValidDateString(targetDate)) return null;
+  const dt = new Date(`${targetDate}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return WEEKDAY_KEYS[dt.getDay()] || null;
 };
 
 const extractIssueMetaFromNotes = (notesValue) => {
@@ -229,6 +267,31 @@ const getSubscriptionMapForCustomers = async ({ customerIds, dairyId }) => {
   if (error) throw error;
 
   return pickLatestSubscriptionByCustomer(data || [], dairyId, { activeOnly: true });
+};
+
+const getLatestActiveSubscriptionsForDairy = async ({ dairyId = null } = {}) => {
+  const selectWithDeliveryDays =
+    "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, delivery_days, created_at, updated_at";
+  const selectWithoutDeliveryDays =
+    "customer_id, dairy_id, milk_type, quantity_liters, delivery_slot, status, approval_status, assigned_agent_id, start_date, created_at, updated_at";
+
+  const runQuery = async (selectClause) => {
+    let query = supabase.from("subscriptions").select(selectClause);
+    if (dairyId) {
+      query = query.eq("dairy_id", dairyId);
+    }
+    return query;
+  };
+
+  let result = await runQuery(selectWithDeliveryDays);
+  if (result.error && isMissingColumnError(result.error)) {
+    result = await runQuery(selectWithoutDeliveryDays);
+  }
+  if (result.error) throw result.error;
+
+  return pickLatestSubscriptionByCustomer(result.data || [], dairyId, {
+    activeOnly: true,
+  });
 };
 
 const normalizeRouteValue = (value) =>
@@ -403,13 +466,17 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
     const wingOrFloor = customer.wing || "";
     const roomNo = customer.room_no || "";
     const slot = subscription.delivery_slot || parseNotesField(notes, "slot") || "-";
+    const deliveryId = row?.projectionKey || row?.id || null;
+    const projectedAgentId = row?.projectedAgentId || subscription?.assigned_agent_id || null;
+    const resolvedAgent = agentsById.get(projectedAgentId) || agent;
+    const isProjected = Boolean(row?.isProjected);
 
     return {
-      id: row.id != null ? `DLV-${row.id}` : "DLV-NA",
-      rawId: row.id ?? null,
-      agentId: row.agent_id ?? null,
+      id: deliveryId != null ? `DLV-${deliveryId}` : "DLV-NA",
+      rawId: isProjected ? null : row.id ?? null,
+      agentId: isProjected ? projectedAgentId : row.agent_id ?? null,
       customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
-      agentName: agent.agent_name || "Unassigned",
+      agentName: resolvedAgent.agent_name || "Unassigned",
       route,
       buildingName,
       wingOrFloor,
@@ -428,7 +495,8 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
         : "SUBSCRIPTION",
       approvalStatus,
       needsApproval: approvalStatus === "PENDING",
-      isAssigned: row.agent_id != null,
+      isAssigned: isProjected ? projectedAgentId != null : row.agent_id != null,
+      isProjected,
       hasOpenIssue: issueMeta.hasOpenIssue,
       customerIssue: issueMeta.customerIssue,
       issueStatus: issueMeta.issueStatus,
@@ -532,7 +600,7 @@ const sendScheduledDeliveryAlert = async ({
   }
 };
 
-export const getAdminDeliveries = async ({ dairyId = null, limit } = {}) => {
+export const getAdminDeliveries = async ({ dairyId = null, limit, date = null } = {}) => {
   const resolvedLimit = resolveLimit(limit);
 
   let deliveriesQuery = supabase
@@ -548,24 +616,87 @@ export const getAdminDeliveries = async ({ dairyId = null, limit } = {}) => {
     deliveriesQuery = deliveriesQuery.eq("dairy_id", dairyId);
   }
 
+  if (isValidDateString(date)) {
+    deliveriesQuery = deliveriesQuery.eq("delivery_date", date);
+  }
+
   const { data: deliveries, error: deliveriesError } = await deliveriesQuery;
   if (deliveriesError) throw deliveriesError;
+  const deliveryRows = Array.isArray(deliveries) ? deliveries : [];
 
-  if (!Array.isArray(deliveries) || deliveries.length === 0) {
+  let projectedRows = [];
+  let subscriptionByCustomer;
+
+  if (isValidDateString(date)) {
+    subscriptionByCustomer = await getLatestActiveSubscriptionsForDairy({ dairyId });
+    const existingSubscriptionCustomerIds = new Set(
+      deliveryRows
+        .filter((row) => !String(row?.notes || "").includes("[ONE_TIME_ORDER]"))
+        .map((row) => row.customer_id)
+        .filter(Boolean)
+    );
+    const targetWeekday = getWeekdayForDate(date);
+
+    projectedRows = [...subscriptionByCustomer.entries()]
+      .filter(([customerId, subscription]) => {
+        if (!customerId || !subscription?.dairy_id) return false;
+        if (existingSubscriptionCustomerIds.has(customerId)) return false;
+        if (subscription?.start_date && String(subscription.start_date) > date) return false;
+
+        const selectedDays = normalizeDeliveryDays(subscription?.delivery_days);
+        if (selectedDays.length > 0) {
+          if (!targetWeekday || !selectedDays.includes(targetWeekday)) return false;
+        }
+
+        return true;
+      })
+      .map(([customerId, subscription]) => ({
+        projectionKey: `projected-${customerId}-${date}`,
+        id: null,
+        customer_id: customerId,
+        dairy_id: subscription.dairy_id,
+        agent_id: null,
+        projectedAgentId: subscription.assigned_agent_id || null,
+        delivery_date: date,
+        milk_type: subscription.milk_type || "Milk",
+        quantity_liters: subscription.quantity_liters ?? null,
+        status: "PENDING",
+        approval_status: "APPROVED",
+        notes: "[PROJECTED_SUBSCRIPTION_DELIVERY]",
+        created_at: `${date}T00:00:00.000Z`,
+        customer_issue_text: null,
+        customer_issue_status: null,
+        customer_issue_reported_at: null,
+        customer_issue_admin_action: null,
+        customer_issue_resolved_at: null,
+        isProjected: true,
+      }));
+  } else {
+    subscriptionByCustomer = await getSubscriptionMapForCustomers({
+      customerIds: [...new Set(deliveryRows.map((row) => row.customer_id).filter(Boolean))],
+      dairyId,
+    });
+  }
+
+  const combinedRows = [...deliveryRows, ...projectedRows];
+  if (combinedRows.length === 0) {
     return { deliveries: [] };
   }
 
-  const customerIds = [...new Set(deliveries.map((row) => row.customer_id).filter(Boolean))];
-  const agentIds = [...new Set(deliveries.map((row) => row.agent_id).filter(Boolean))];
+  const customerIds = [...new Set(combinedRows.map((row) => row.customer_id).filter(Boolean))];
+  const agentIds = [
+    ...new Set(
+      combinedRows
+        .flatMap((row) => [row.agent_id, row.projectedAgentId])
+        .filter(Boolean)
+    ),
+  ];
 
-  const [{ customersById, agentsById }, subscriptionByCustomer] = await Promise.all([
-    getCustomerAndAgentMaps({ customerIds, agentIds }),
-    getSubscriptionMapForCustomers({ customerIds, dairyId }),
-  ]);
+  const { customersById, agentsById } = await getCustomerAndAgentMaps({ customerIds, agentIds });
 
   return {
     deliveries: mapDeliveries({
-      deliveries,
+      deliveries: combinedRows,
       customersById,
       agentsById,
       subscriptionByCustomer,
