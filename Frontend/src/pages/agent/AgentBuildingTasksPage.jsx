@@ -6,8 +6,14 @@ import DeliveryProofModal from "../../components/agent/DeliveryProofModal";
 import FailedReasonModal from "../../components/agent/FailedReasonModal";
 import {
   fetchAssignedAgentDeliveries,
+  flushAgentOfflineQueue,
   updateAssignedAgentDeliveryStatus,
 } from "../../api/agent/agent.api";
+import {
+  getCachedAssignedAgentDeliveries,
+  getPendingAgentSyncCount,
+  subscribeToAgentOfflineState,
+} from "../../api/agent/offlineSync";
 import {
   buildBuildingTaskGroups,
   buildFloorGroups,
@@ -76,10 +82,12 @@ const AgentBuildingTasksPage = () => {
   const params = useParams();
   const buildingName = decodeURIComponent(params.buildingName || "");
 
-  const [deliveries, setDeliveries] = useState([]);
+  const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries({ today: true }));
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [failedDelivery, setFailedDelivery] = useState(null);
   const [proofDelivery, setProofDelivery] = useState(null);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingAgentSyncCount());
 
   useEffect(() => {
     const loadDeliveries = async () => {
@@ -91,6 +99,37 @@ const AgentBuildingTasksPage = () => {
       }
     };
     loadDeliveries();
+  }, []);
+
+  useEffect(() => {
+    const reload = async () => {
+      setIsOnline(true);
+      await flushAgentOfflineQueue();
+      setPendingSyncCount(getPendingAgentSyncCount());
+      try {
+        const payload = await fetchAssignedAgentDeliveries({ today: true });
+        setDeliveries(payload || []);
+      } catch (_err) {}
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setPendingSyncCount(getPendingAgentSyncCount());
+    };
+
+    const unsubscribe = subscribeToAgentOfflineState(() => {
+      setPendingSyncCount(getPendingAgentSyncCount());
+      setDeliveries(getCachedAssignedAgentDeliveries({ today: true }));
+    });
+
+    window.addEventListener("online", reload);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", reload);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   const buildingDeliveries = useMemo(
@@ -174,6 +213,14 @@ const AgentBuildingTasksPage = () => {
             Flats and customers arranged floor by floor
           </p>
         </section>
+
+        {!isOnline || pendingSyncCount > 0 ? (
+          <div className="rounded-[22px] border border-[#E7DAC6] bg-white px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-[#8B5E34] shadow-sm">
+            {!isOnline
+              ? `Offline mode${pendingSyncCount > 0 ? ` • ${pendingSyncCount} updates waiting` : ""}`
+              : `${pendingSyncCount} updates waiting to sync`}
+          </div>
+        ) : null}
 
         {buildingSummary && (
           <section className="rounded-[28px] border border-[#EDE8DF] bg-white p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">

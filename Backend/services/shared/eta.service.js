@@ -61,6 +61,22 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
   return R * c;
 };
 
+const buildRoutePath = (agentLat, agentLng, customerLat, customerLng) => {
+  if (
+    !Number.isFinite(Number(agentLat)) ||
+    !Number.isFinite(Number(agentLng)) ||
+    !Number.isFinite(Number(customerLat)) ||
+    !Number.isFinite(Number(customerLng))
+  ) {
+    return [];
+  }
+
+  return [
+    { lat: Number(agentLat), lng: Number(agentLng) },
+    { lat: Number(customerLat), lng: Number(customerLng) },
+  ];
+};
+
 /**
  * Get time of day category for ML
  */
@@ -223,6 +239,8 @@ export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
           lat: agentLat,
           lng: agentLng,
         },
+        customerLocation: null,
+        routePath: [],
       };
     }
 
@@ -258,6 +276,11 @@ export const updateDeliveryETA = async (deliveryId, agentLat, agentLng) => {
         lat: agentLat,
         lng: agentLng,
       },
+      customerLocation: {
+        lat: customerLat,
+        lng: customerLng,
+      },
+      routePath: buildRoutePath(agentLat, agentLng, customerLat, customerLng),
       lastUpdated: new Date().toISOString(),
     };
   } catch (error) {
@@ -287,12 +310,42 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
       throw unauthorizedError;
     }
 
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("latitude, longitude")
+      .eq("id", data.customer_id)
+      .single();
+
+    if (customerError && !isMissingColumnError(customerError)) {
+      throw customerError;
+    }
+
+    const agentLat = Number(data.agent_current_lat);
+    const agentLng = Number(data.agent_current_lng);
+    const customerLat = Number(customer?.latitude);
+    const customerLng = Number(customer?.longitude);
+    const customerLocation =
+      Number.isFinite(customerLat) && Number.isFinite(customerLng)
+        ? { lat: customerLat, lng: customerLng }
+        : null;
+    const remainingDistance =
+      Number.isFinite(agentLat) &&
+      Number.isFinite(agentLng) &&
+      Number.isFinite(customerLat) &&
+      Number.isFinite(customerLng)
+        ? parseFloat(calculateDistance(agentLat, agentLng, customerLat, customerLng).toFixed(2))
+        : null;
+    const routePath = buildRoutePath(agentLat, agentLng, customerLat, customerLng);
+
     // Check if ETA is still valid (location updated within last 10 minutes)
     if (!data.agent_location_updated_at) {
       return {
         status: data.status,
         eta: null,
         remainingMinutes: null,
+        remainingDistance,
+        customerLocation,
+        routePath,
         message: "Agent location not available. ETA will be updated soon.",
       };
     }
@@ -306,6 +359,9 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
         status: data.status,
         eta: data.estimated_arrival_time,
         remainingMinutes: null,
+        remainingDistance,
+        customerLocation,
+        routePath,
         message: "Agent location update pending...",
       };
     }
@@ -319,12 +375,14 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
       status: data.status,
       eta: data.estimated_arrival_time,
       remainingMinutes,
-      remainingDistance: null,
+      remainingDistance,
       lastUpdated: data.agent_location_updated_at,
       agentLocation: data.agent_current_lat ? {
         lat: data.agent_current_lat,
         lng: data.agent_current_lng,
       } : null,
+      customerLocation,
+      routePath,
     };
   } catch (error) {
     console.error("Error getting delivery ETA:", error);

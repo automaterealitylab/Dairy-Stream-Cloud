@@ -4,11 +4,12 @@ import { X, Package, MapPin, Phone, User, Building2, CheckCircle, XCircle } from
 const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFailed }) => {
   if (!delivery) return null;
 
+  const normalizedStatus = String(delivery?.status || '').toUpperCase();
   const requiresPaymentCollection =
-    Boolean(delivery?.requiresPaymentCollection) && String(delivery?.status || '').toUpperCase() === 'PENDING';
+    Boolean(delivery?.requiresPaymentCollection) && ['PENDING', 'OUT_FOR_DELIVERY'].includes(normalizedStatus);
   const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
   const amountDue = Number(delivery?.amountDue || 0);
-  const isPending = String(delivery?.status || '').toUpperCase() === 'PENDING';
+  const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(normalizedStatus);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">

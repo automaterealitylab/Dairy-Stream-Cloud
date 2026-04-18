@@ -1,4 +1,10 @@
 import client from "../client";
+import {
+  fetchAssignedAgentDeliveriesWithOffline,
+  flushAgentOfflineQueue,
+  primeAgentOfflineSync,
+  updateAssignedAgentDeliveryStatusWithOffline,
+} from "./offlineSync";
 
 export const fetchAgentDashboard = async () => {
   const { data } = await client.get("/agent/dashboard");
@@ -6,10 +12,8 @@ export const fetchAgentDashboard = async () => {
 };
 
 export const fetchAssignedAgentDeliveries = async ({ today = false } = {}) => {
-  const { data } = await client.get("/agent/deliveries/assigned", {
-    params: { today },
-  });
-  return data?.deliveries || [];
+  primeAgentOfflineSync();
+  return fetchAssignedAgentDeliveriesWithOffline({ today });
 };
 
 export const fetchAgentDeliveryHistory = async () => {
@@ -69,8 +73,9 @@ export const updateAssignedAgentDeliveryStatus = async ({
   proofImage = "",
   collectionMethod = "",
 } = {}) => {
-  if (!deliveryId) throw new Error("deliveryId is required");
-  const { data } = await client.patch(`/agent/deliveries/${deliveryId}/status`, {
+  primeAgentOfflineSync();
+  return updateAssignedAgentDeliveryStatusWithOffline({
+    deliveryId,
     status,
     reason,
     proofType,
@@ -78,5 +83,6 @@ export const updateAssignedAgentDeliveryStatus = async ({
     proofImage,
     collectionMethod,
   });
-  return data;
 };
+
+export { flushAgentOfflineQueue };

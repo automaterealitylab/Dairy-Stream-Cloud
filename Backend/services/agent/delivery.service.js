@@ -112,6 +112,7 @@ const normalizeCoordinate = (value) => {
 const normalizeStatusForCard = (status) => {
   const value = String(status || "").trim().toUpperCase();
   if (value === "DELIVERED" || value === "COMPLETED") return "COMPLETED";
+  if (value === "IN_TRANSIT" || value === "OUT_FOR_DELIVERY") return "OUT_FOR_DELIVERY";
   if (
     value === "FAILED" ||
     value === "CANCELLED" ||

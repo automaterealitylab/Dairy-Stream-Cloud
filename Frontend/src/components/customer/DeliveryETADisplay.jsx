@@ -4,6 +4,7 @@ import {
   CircleMarker,
   MapContainer,
   Marker,
+  Polyline,
   TileLayer,
   useMap,
 } from "react-leaflet";
@@ -53,11 +54,79 @@ const MapUpdater = ({ center }) => {
   return null;
 };
 
+const MapBoundsUpdater = ({ points }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!Array.isArray(points) || points.length < 2) return;
+    map.fitBounds(points, { padding: [36, 36] });
+  }, [map, points]);
+
+  return null;
+};
+
+const ROAD_ROUTE_PRECISION = 5;
+
+const buildRouteCacheKey = (agentCoordinates, customerCoordinates) => {
+  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) return null;
+
+  return [
+    agentCoordinates[0].toFixed(ROAD_ROUTE_PRECISION),
+    agentCoordinates[1].toFixed(ROAD_ROUTE_PRECISION),
+    customerCoordinates[0].toFixed(ROAD_ROUTE_PRECISION),
+    customerCoordinates[1].toFixed(ROAD_ROUTE_PRECISION),
+  ].join(":");
+};
+
+const roadRouteCache = new Map();
+
+const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => {
+  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) {
+    return [];
+  }
+
+  const cacheKey = buildRouteCacheKey(agentCoordinates, customerCoordinates);
+  if (cacheKey && roadRouteCache.has(cacheKey)) {
+    return roadRouteCache.get(cacheKey);
+  }
+
+  const [agentLat, agentLng] = agentCoordinates;
+  const [customerLat, customerLng] = customerCoordinates;
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/` +
+    `${agentLng},${agentLat};${customerLng},${customerLat}` +
+    `?overview=full&geometries=geojson`;
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Road route request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const geometry = payload?.routes?.[0]?.geometry?.coordinates;
+  const routePoints = Array.isArray(geometry)
+    ? geometry
+        .map((point) => {
+          const lng = Number(point?.[0]);
+          const lat = Number(point?.[1]);
+          return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+        })
+        .filter(Boolean)
+    : [];
+
+  if (cacheKey) {
+    roadRouteCache.set(cacheKey, routePoints);
+  }
+
+  return routePoints;
+};
+
 const DeliveryETADisplay = ({ deliveryId }) => {
   const cachedEta = getCachedDeliveryETA(deliveryId);
   const [etaData, setEtaData] = useState(cachedEta);
   const [loading, setLoading] = useState(() => !cachedEta);
   const [error, setError] = useState(null);
+  const [roadRoute, setRoadRoute] = useState([]);
 
   useEffect(() => {
     if (!deliveryId) {
@@ -103,6 +172,57 @@ const DeliveryETADisplay = ({ deliveryId }) => {
     return () => clearInterval(interval);
   }, [deliveryId]);
 
+  const normalizedStatus = normalizeEtaStatus(etaData?.status);
+  const agentCoordinates =
+    Number.isFinite(Number(etaData?.agentLocation?.lat)) &&
+    Number.isFinite(Number(etaData?.agentLocation?.lng))
+      ? [Number(etaData.agentLocation.lat), Number(etaData.agentLocation.lng)]
+      : null;
+  const customerCoordinates =
+    Number.isFinite(Number(etaData?.customerLocation?.lat)) &&
+    Number.isFinite(Number(etaData?.customerLocation?.lng))
+      ? [Number(etaData.customerLocation.lat), Number(etaData.customerLocation.lng)]
+      : null;
+  const routeCoordinates = Array.isArray(etaData?.routePath)
+    ? etaData.routePath
+        .map((point) => {
+          const lat = Number(point?.lat);
+          const lng = Number(point?.lng);
+          return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+        })
+        .filter(Boolean)
+    : [agentCoordinates, customerCoordinates].filter(Boolean);
+  const resolvedRouteCoordinates =
+    roadRoute.length >= 2 ? roadRoute : routeCoordinates;
+  const shouldShowLiveLocation = normalizedStatus === "OUT_FOR_DELIVERY";
+
+  useEffect(() => {
+    if (!shouldShowLiveLocation || !agentCoordinates || !customerCoordinates) {
+      setRoadRoute([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    fetchRoadRoute(agentCoordinates, customerCoordinates, controller.signal)
+      .then((points) => {
+        setRoadRoute(Array.isArray(points) ? points : []);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        console.error("Road route fetch failed:", err);
+        setRoadRoute([]);
+      });
+
+    return () => controller.abort();
+  }, [
+    shouldShowLiveLocation,
+    agentCoordinates?.[0],
+    agentCoordinates?.[1],
+    customerCoordinates?.[0],
+    customerCoordinates?.[1],
+  ]);
+
   if (loading) {
     return (
       <div className="mt-6 rounded-[18px] border border-[#EFD7B3] bg-[#FFF8EC] p-4">
@@ -120,14 +240,6 @@ const DeliveryETADisplay = ({ deliveryId }) => {
   }
 
   if (!etaData) return null;
-
-  const normalizedStatus = normalizeEtaStatus(etaData.status);
-  const agentCoordinates =
-    Number.isFinite(Number(etaData?.agentLocation?.lat)) &&
-    Number.isFinite(Number(etaData?.agentLocation?.lng))
-      ? [Number(etaData.agentLocation.lat), Number(etaData.agentLocation.lng)]
-      : null;
-  const shouldShowLiveLocation = normalizedStatus === "OUT_FOR_DELIVERY";
 
   if (normalizedStatus === "DELIVERED") {
     return (
@@ -235,6 +347,11 @@ const DeliveryETADisplay = ({ deliveryId }) => {
               ? `${agentCoordinates[0].toFixed(6)}, ${agentCoordinates[1].toFixed(6)}`
               : "Agent live location will appear here after the order goes out for delivery."}
           </p>
+          {shouldShowLiveLocation && resolvedRouteCoordinates.length >= 2 ? (
+            <p className="mt-2 text-xs font-semibold text-[#B8641A]">
+              Showing the shortest road path from the agent&apos;s current location to your home.
+            </p>
+          ) : null}
         </div>
 
         {shouldShowLiveLocation && agentCoordinates ? (
@@ -249,6 +366,7 @@ const DeliveryETADisplay = ({ deliveryId }) => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapUpdater center={agentCoordinates} />
+            <MapBoundsUpdater points={resolvedRouteCoordinates} />
             <CircleMarker
               center={agentCoordinates}
               radius={28}
@@ -259,6 +377,29 @@ const DeliveryETADisplay = ({ deliveryId }) => {
               }}
             />
             <Marker position={agentCoordinates} />
+            {customerCoordinates ? (
+              <CircleMarker
+                center={customerCoordinates}
+                radius={20}
+                pathOptions={{
+                  color: "#4A7C2F",
+                  fillColor: "#DDE8D1",
+                  fillOpacity: 0.7,
+                  weight: 2,
+                }}
+              />
+            ) : null}
+            {customerCoordinates ? <Marker position={customerCoordinates} /> : null}
+            {resolvedRouteCoordinates.length >= 2 ? (
+              <Polyline
+                positions={resolvedRouteCoordinates}
+                pathOptions={{
+                  color: "#B8641A",
+                  weight: 4,
+                  opacity: 0.85,
+                }}
+              />
+            ) : null}
           </MapContainer>
         ) : (
           <div className="flex h-[240px] items-center justify-center bg-[#FBF7F0] px-6 text-center text-sm font-medium text-[#8B7355]">

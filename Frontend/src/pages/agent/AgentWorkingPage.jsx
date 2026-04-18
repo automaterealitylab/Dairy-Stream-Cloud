@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Home, List, History, Package, User } from "lucide-react";
-import { fetchAssignedAgentDeliveries } from "../../api/agent/agent.api";
+import { fetchAssignedAgentDeliveries, flushAgentOfflineQueue } from "../../api/agent/agent.api";
+import {
+  getCachedAssignedAgentDeliveries,
+  getPendingAgentSyncCount,
+  subscribeToAgentOfflineState,
+} from "../../api/agent/offlineSync";
 import { buildBuildingTaskGroups } from "../../utils/agentTaskGrouping";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -49,8 +54,10 @@ const BuildingTaskCard = ({ group, onOpen }) => (
 
 const AgentWorkingPage = () => {
   const navigate = useNavigate();
-  const [deliveries, setDeliveries] = useState([]);
+  const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries({ today: true }));
   const [filter, setFilter] = useState("ALL");
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingAgentSyncCount());
 
   useEffect(() => {
     const loadDeliveries = async () => {
@@ -64,11 +71,45 @@ const AgentWorkingPage = () => {
     loadDeliveries();
   }, []);
 
+  useEffect(() => {
+    const reload = async () => {
+      setIsOnline(true);
+      await flushAgentOfflineQueue();
+      setPendingSyncCount(getPendingAgentSyncCount());
+      try {
+        const payload = await fetchAssignedAgentDeliveries({ today: true });
+        setDeliveries(payload || []);
+      } catch (_err) {}
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setPendingSyncCount(getPendingAgentSyncCount());
+    };
+
+    const unsubscribe = subscribeToAgentOfflineState(() => {
+      setPendingSyncCount(getPendingAgentSyncCount());
+      setDeliveries(getCachedAssignedAgentDeliveries({ today: true }));
+    });
+
+    window.addEventListener("online", reload);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", reload);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   const filteredDeliveries = useMemo(
     () =>
       deliveries.filter((delivery) => {
         if (filter === "ALL") return true;
-        return delivery.status === filter;
+        if (filter === "PENDING") {
+          return ["PENDING", "OUT_FOR_DELIVERY"].includes(String(delivery?.status || "").toUpperCase());
+        }
+        return String(delivery?.status || "").toUpperCase() === filter;
       }),
     [deliveries, filter]
   );
@@ -81,7 +122,7 @@ const AgentWorkingPage = () => {
   const stats = {
     all: deliveries.length,
     completed: deliveries.filter((d) => d.status === "COMPLETED").length,
-    pending: deliveries.filter((d) => d.status === "PENDING").length,
+    pending: deliveries.filter((d) => ["PENDING", "OUT_FOR_DELIVERY"].includes(String(d?.status || "").toUpperCase())).length,
     failed: deliveries.filter((d) => d.status === "FAILED").length,
   };
 
@@ -97,6 +138,14 @@ const AgentWorkingPage = () => {
             Open a building to see flats and customers floor by floor
           </p>
         </section>
+
+        {!isOnline || pendingSyncCount > 0 ? (
+          <div className="rounded-[22px] border border-[#E7DAC6] bg-white px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-[#8B5E34] shadow-sm">
+            {!isOnline
+              ? `Offline mode${pendingSyncCount > 0 ? ` • ${pendingSyncCount} updates waiting` : ""}`
+              : `${pendingSyncCount} updates waiting to sync`}
+          </div>
+        ) : null}
 
         <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
           {[

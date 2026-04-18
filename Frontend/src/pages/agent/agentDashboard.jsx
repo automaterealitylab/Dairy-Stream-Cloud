@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth.jsx";
 import {
@@ -31,10 +31,22 @@ import {
   Truck,
 } from "lucide-react";
 
-import { fetchAssignedAgentDeliveries, fetchAgentProfile } from "../../api/agent/agent.api";
-import { startDelivery } from "../../api/agent/location.js";
+import {
+  fetchAssignedAgentDeliveries,
+  fetchAgentProfile,
+  flushAgentOfflineQueue,
+} from "../../api/agent/agent.api";
+import {
+  getCachedAgentLocation,
+  getCachedAssignedAgentDeliveries,
+  getPendingAgentSyncCount,
+  storeAgentLocation,
+  subscribeToAgentOfflineState,
+} from "../../api/agent/offlineSync";
+import { startDelivery, updateAgentLocation } from "../../api/agent/location.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
+const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
 const SLOT_META = {
   MORNING: {
     label: "Morning",
@@ -73,6 +85,72 @@ const MapController = ({ center, zoom, trigger }) => {
   }, [center, zoom, trigger, map]);
 
   return null;
+};
+
+const MapBoundsController = ({ points }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!Array.isArray(points) || points.length < 2) return;
+    map.fitBounds(points, { padding: [32, 32] });
+  }, [map, points]);
+
+  return null;
+};
+
+const ROAD_ROUTE_PRECISION = 5;
+const roadRouteCache = new Map();
+
+const buildRouteCacheKey = (agentCoordinates, customerCoordinates) => {
+  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) return null;
+
+  return [
+    agentCoordinates[0].toFixed(ROAD_ROUTE_PRECISION),
+    agentCoordinates[1].toFixed(ROAD_ROUTE_PRECISION),
+    customerCoordinates[0].toFixed(ROAD_ROUTE_PRECISION),
+    customerCoordinates[1].toFixed(ROAD_ROUTE_PRECISION),
+  ].join(":");
+};
+
+const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => {
+  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) {
+    return [];
+  }
+
+  const cacheKey = buildRouteCacheKey(agentCoordinates, customerCoordinates);
+  if (cacheKey && roadRouteCache.has(cacheKey)) {
+    return roadRouteCache.get(cacheKey);
+  }
+
+  const [agentLat, agentLng] = agentCoordinates;
+  const [customerLat, customerLng] = customerCoordinates;
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/` +
+    `${agentLng},${agentLat};${customerLng},${customerLat}` +
+    `?overview=full&geometries=geojson`;
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Road route request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const geometry = payload?.routes?.[0]?.geometry?.coordinates;
+  const routePoints = Array.isArray(geometry)
+    ? geometry
+        .map((point) => {
+          const lng = Number(point?.[0]);
+          const lat = Number(point?.[1]);
+          return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+        })
+        .filter(Boolean)
+    : [];
+
+  if (cacheKey) {
+    roadRouteCache.set(cacheKey, routePoints);
+  }
+
+  return routePoints;
 };
 
 const getDeliveryCoordinates = (delivery) => {
@@ -187,16 +265,16 @@ const getDeliveryScheduleState = (delivery, now = new Date()) => {
   if (now < slotStart) {
     return {
       phase: "UPCOMING_TODAY",
-      isStartable: false,
-      helperText: `${slotMeta.label} slot starts at ${delivery?.slotWindow || "-"}`,
+      isStartable: true,
+      helperText: `${slotMeta.label} slot starts at ${delivery?.slotWindow || "-"}, but you can start delivery now`,
     };
   }
 
   if (now > slotEnd) {
     return {
       phase: "ENDED_TODAY",
-      isStartable: false,
-      helperText: `${slotMeta.label} slot ended for today`,
+      isStartable: true,
+      helperText: `${slotMeta.label} slot ended for today, but you can still mark it out for delivery`,
     };
   }
 
@@ -239,17 +317,24 @@ const AgentDashboard = () => {
   const { logout } = useAuth();
 
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
-  const [deliveries, setDeliveries] = useState([]);
+  const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries());
   const [agentProfile, setAgentProfile] = useState({ name: "", dairyName: "" });
-  const [agentLocation, setAgentLocation] = useState(null);
+  const [agentLocation, setAgentLocation] = useState(() => {
+    const cachedLocation = getCachedAgentLocation();
+    return cachedLocation ? [cachedLocation.lat, cachedLocation.lng] : null;
+  });
   const [mapView, setMapView] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(15);
   const [recenterTrigger, setRecenterTrigger] = useState(0);
-  const [isOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [hasAutoFocusedDestination, setHasAutoFocusedDestination] = useState(false);
   const [startingDelivery, setStartingDelivery] = useState(false);
   const [startDeliveryMessage, setStartDeliveryMessage] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [roadRoute, setRoadRoute] = useState([]);
+  const [deliveryRunStartedAt, setDeliveryRunStartedAt] = useState(null);
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingAgentSyncCount());
+  const lastLocationSyncAtRef = useRef(0);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -286,6 +371,7 @@ const AgentDashboard = () => {
         (pos) => {
           const coords = [pos.coords.latitude, pos.coords.longitude];
           setAgentLocation(coords);
+          storeAgentLocation({ lat: coords[0], lng: coords[1] });
         },
         (err) => console.error("GPS Error:", err.message),
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -317,11 +403,75 @@ const AgentDashboard = () => {
     return () => window.clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      await flushAgentOfflineQueue();
+      setPendingSyncCount(getPendingAgentSyncCount());
+      await loadDashboard();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setPendingSyncCount(getPendingAgentSyncCount());
+    };
+
+    const unsubscribe = subscribeToAgentOfflineState(() => {
+      setPendingSyncCount(getPendingAgentSyncCount());
+    });
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    try {
+      const storedValue = localStorage.getItem(DELIVERY_RUN_STORAGE_KEY);
+      if (!storedValue) return;
+      const parsed = JSON.parse(storedValue);
+      if (parsed?.date === getLocalDateKey(new Date())) {
+        setDeliveryRunStartedAt(parsed.date);
+      } else {
+        localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
+      }
+    } catch (_err) {
+      localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
+    }
+  }, []);
+
   const now = useMemo(() => new Date(nowTick), [nowTick]);
   const todayKey = useMemo(() => getLocalDateKey(now), [now]);
   const todayDeliveries = useMemo(
     () => deliveries.filter((delivery) => String(delivery?.date || "") === todayKey),
     [deliveries, todayKey]
+  );
+  const todayOpenDeliveries = useMemo(
+    () =>
+      todayDeliveries
+        .filter((delivery) => {
+          const status = String(delivery?.status || "").toUpperCase();
+          return status === "PENDING" || status === "OUT_FOR_DELIVERY";
+        })
+        .sort((left, right) => {
+          const leftStatus = String(left?.status || "").toUpperCase();
+          const rightStatus = String(right?.status || "").toUpperCase();
+          if (leftStatus !== rightStatus) {
+            return leftStatus === "OUT_FOR_DELIVERY" ? -1 : 1;
+          }
+          return compareScheduledDeliveries(left, right);
+        }),
+    [todayDeliveries]
+  );
+  const outForDeliveryItems = useMemo(
+    () =>
+      todayOpenDeliveries.filter((delivery) => String(delivery?.status || "").toUpperCase() === "OUT_FOR_DELIVERY"),
+    [todayOpenDeliveries]
   );
   const pendingUpcomingDeliveries = useMemo(
     () =>
@@ -334,12 +484,18 @@ const AgentDashboard = () => {
         .sort(compareScheduledDeliveries),
     [deliveries, todayKey]
   );
+  const isDeliveryRunActive = useMemo(() => {
+    if (outForDeliveryItems.length > 0) return true;
+    return deliveryRunStartedAt === todayKey && todayOpenDeliveries.length > 0;
+  }, [deliveryRunStartedAt, outForDeliveryItems.length, todayKey, todayOpenDeliveries.length]);
   const startableDelivery = useMemo(
     () =>
       pendingUpcomingDeliveries.find((delivery) => getDeliveryScheduleState(delivery, now).isStartable) || null,
     [now, pendingUpcomingDeliveries]
   );
-  const nextTask = startableDelivery || pendingUpcomingDeliveries[0] || null;
+  const nextTask = isDeliveryRunActive
+    ? todayOpenDeliveries[0] || null
+    : startableDelivery || pendingUpcomingDeliveries[0] || null;
   const nextTaskSchedule = useMemo(
     () => (nextTask ? getDeliveryScheduleState(nextTask, now) : null),
     [nextTask, now]
@@ -348,7 +504,7 @@ const AgentDashboard = () => {
     () => ({
       totalAssigned: todayDeliveries.length,
       completed: todayDeliveries.filter((d) => d.status === "COMPLETED").length,
-      pending: todayDeliveries.filter((d) => d.status === "PENDING").length,
+      pending: todayDeliveries.filter((d) => ["PENDING", "OUT_FOR_DELIVERY"].includes(String(d?.status || "").toUpperCase())).length,
       failed: todayDeliveries.filter((d) => d.status === "FAILED").length,
     }),
     [todayDeliveries]
@@ -357,6 +513,12 @@ const AgentDashboard = () => {
   useEffect(() => {
     setStats(statsForToday);
   }, [statsForToday]);
+
+  useEffect(() => {
+    if (todayOpenDeliveries.length > 0) return;
+    setDeliveryRunStartedAt(null);
+    localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
+  }, [todayOpenDeliveries.length]);
 
   const completionPercentage =
     stats.totalAssigned > 0 ? Math.round((stats.completed / stats.totalAssigned) * 100) : 0;
@@ -374,6 +536,11 @@ const AgentDashboard = () => {
     () => getDistanceInMeters(agentLocation, nextTaskCoordinates),
     [agentLocation, nextTaskCoordinates]
   );
+  const routeCoordinates = useMemo(() => {
+    if (!isDeliveryRunActive) return [];
+    if (roadRoute.length >= 2) return roadRoute;
+    return [agentLocation, nextTaskCoordinates].filter(Boolean);
+  }, [agentLocation, isDeliveryRunActive, nextTaskCoordinates, roadRoute]);
 
   useEffect(() => {
     if (hasAutoFocusedDestination) return;
@@ -410,6 +577,45 @@ const AgentDashboard = () => {
     setZoomLevel(getAutoZoomLevel(distanceToNextTask));
   }, [agentLocation, distanceToNextTask, nextTaskCoordinates]);
 
+  useEffect(() => {
+    if (!isDeliveryRunActive || !agentLocation || !nextTaskCoordinates) {
+      setRoadRoute([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    fetchRoadRoute(agentLocation, nextTaskCoordinates, controller.signal)
+      .then((points) => {
+        setRoadRoute(Array.isArray(points) ? points : []);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        console.error("Agent road route fetch failed:", err);
+        setRoadRoute([]);
+      });
+
+    return () => controller.abort();
+  }, [
+    agentLocation?.[0],
+    agentLocation?.[1],
+    isDeliveryRunActive,
+    nextTaskCoordinates?.[0],
+    nextTaskCoordinates?.[1],
+  ]);
+
+  useEffect(() => {
+    if (!isDeliveryRunActive || !nextTask?.id || !agentLocation) return;
+
+    const nowTs = Date.now();
+    if (nowTs - lastLocationSyncAtRef.current < 15000) return;
+    lastLocationSyncAtRef.current = nowTs;
+
+    updateAgentLocation(nextTask.id, agentLocation[0], agentLocation[1]).catch((err) => {
+      console.error("Agent location sync failed:", err);
+    });
+  }, [agentLocation, isDeliveryRunActive, nextTask?.id]);
+
   const handleMarkOutForDelivery = useCallback(async () => {
     if (!startableDelivery?.id) {
       setStartDeliveryMessage("No pending delivery is available to start.");
@@ -425,14 +631,16 @@ const AgentDashboard = () => {
       setStartingDelivery(true);
       setStartDeliveryMessage("");
       await startDelivery(startableDelivery.id, agentLocation[0], agentLocation[1]);
-      setStartDeliveryMessage("Marked out for delivery.");
+      setDeliveryRunStartedAt(todayKey);
+      localStorage.setItem(DELIVERY_RUN_STORAGE_KEY, JSON.stringify({ date: todayKey }));
+      setStartDeliveryMessage("Delivering. Keep going until today's deliveries are completed or failed.");
       await loadDashboard();
     } catch (err) {
       setStartDeliveryMessage(err?.message || "Failed to mark this delivery out for delivery.");
     } finally {
       setStartingDelivery(false);
     }
-  }, [agentLocation, loadDashboard, startableDelivery]);
+  }, [agentLocation, loadDashboard, startableDelivery, todayKey]);
 
   return (
     <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 pt-5 text-[#2C1A0E]">
@@ -466,7 +674,11 @@ const AgentDashboard = () => {
                 <LogOut size={12} />
                 Logout
               </button>
-              {startableDelivery?.id ? (
+              {isDeliveryRunActive ? (
+                <div className="rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
+                  Delivering
+                </div>
+              ) : startableDelivery?.id ? (
                 <button
                   type="button"
                   onClick={handleMarkOutForDelivery}
@@ -476,11 +688,11 @@ const AgentDashboard = () => {
                   <Truck size={12} />
                   {startingDelivery ? "Starting..." : "Out for Delivery"}
                 </button>
-              ) : nextTask ? (
+              ) : (
                 <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
-                  {nextTask?.date && String(nextTask.date) > todayKey ? "Next delivery tomorrow" : "No active slot"}
+                  No Delivery
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
           <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
@@ -490,6 +702,14 @@ const AgentDashboard = () => {
         {startDeliveryMessage ? (
           <div className="rounded-[20px] border border-[#E7DAC6] bg-[#FFF8EF] px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-[#8B5E34] shadow-sm">
             {startDeliveryMessage}
+          </div>
+        ) : null}
+
+        {!isOnline || pendingSyncCount > 0 ? (
+          <div className="rounded-[20px] border border-[#E7DAC6] bg-white px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-[#8B5E34] shadow-sm">
+            {!isOnline
+              ? `Offline mode active${pendingSyncCount > 0 ? ` • ${pendingSyncCount} updates waiting to sync` : ""}`
+              : `${pendingSyncCount} updates waiting to sync`}
           </div>
         ) : null}
 
@@ -576,6 +796,7 @@ const AgentDashboard = () => {
                   />
 
                   <MapController center={mapView} zoom={zoomLevel} trigger={recenterTrigger} />
+                  <MapBoundsController points={routeCoordinates} />
 
                   <CircleMarker
                     center={agentLocation}
@@ -628,10 +849,10 @@ const AgentDashboard = () => {
                     );
                   })}
 
-                  {nextTaskCoordinates && agentLocation && (
+                  {routeCoordinates.length >= 2 && (
                     <Polyline
-                      positions={[agentLocation, nextTaskCoordinates]}
-                      pathOptions={{ color: "#B8641A", dashArray: "8, 8", weight: 3, opacity: 0.8 }}
+                      positions={routeCoordinates}
+                      pathOptions={{ color: "#B8641A", weight: 4, opacity: 0.85 }}
                     />
                   )}
                 </MapContainer>
@@ -647,7 +868,9 @@ const AgentDashboard = () => {
           </div>
 
           <p className="mt-2 text-xs font-medium text-[#8B7355]">
-            Follow the highlighted route to your next stop.
+            {isDeliveryRunActive
+              ? "Follow the highlighted route to your next stop."
+              : "Route path will appear after you mark the delivery out for delivery."}
           </p>
         </section>
 
@@ -670,7 +893,11 @@ const AgentDashboard = () => {
                 </p>
               ) : null}
               {nextTaskSchedule?.helperText ? (
-                <p className="mt-2 text-xs font-semibold text-[#8B7355]">{nextTaskSchedule.helperText}</p>
+                <p className="mt-2 text-xs font-semibold text-[#8B7355]">
+                  {isDeliveryRunActive
+                    ? "Delivery run is active. Keep updating each stop as delivered or failed."
+                    : nextTaskSchedule.helperText}
+                </p>
               ) : null}
               {nextTask && (
                 <p
@@ -685,7 +912,9 @@ const AgentDashboard = () => {
             {nextTask && (
               <div className="rounded-[20px] border border-[#F0D9B9] bg-white px-4 py-3 text-center shadow-sm">
                 <p className="text-lg font-black text-[#B8641A]">
-                  {startableDelivery?.id && String(startableDelivery.id) === String(nextTask.id)
+                  {isDeliveryRunActive
+                    ? "Delivering"
+                    : startableDelivery?.id && String(startableDelivery.id) === String(nextTask.id)
                     ? "Ready"
                     : nextTask?.date && String(nextTask.date) > todayKey
                     ? "Tomorrow"
