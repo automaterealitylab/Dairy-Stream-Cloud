@@ -13,8 +13,9 @@ export const fetchAdminDeliveries = async (req, res) => {
   try {
     const dairyId = req.admin?.dairyId || null;
     const limit = Number(req.query.limit || 1000);
+    const date = typeof req.query.date === "string" ? req.query.date : null;
 
-    const result = await getAdminDeliveries({ dairyId, limit });
+    const result = await getAdminDeliveries({ dairyId, limit, date });
     res.json(result);
   } catch (err) {
     console.error("ADMIN DELIVERIES ERROR:", err.message);
