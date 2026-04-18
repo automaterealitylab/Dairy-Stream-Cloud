@@ -22,7 +22,15 @@ export const verifyOtpApi = async (payload) => {
 };
 
 // ===============================
-// 3. ADMIN LOGIN
+// 3. TOKEN VALIDATION (For Persistent Login)
+// ===============================
+export const validateTokenApi = async () => {
+  const { data } = await client.get("/auth/me");
+  return data;
+};
+
+// ===============================
+// 4. ADMIN LOGIN
 // ===============================
 export const adminLoginApi = async (payload) => {
   const { data } = await client.post("/auth/admin/login", payload);
@@ -40,7 +48,7 @@ export const resetAdminPasswordWithOtpApi = async (payload) => {
 };
 
 // ===============================
-// 4. AGENT LOGIN
+// 5. AGENT LOGIN
 // ===============================
 export const agentLoginApi = async (payload) => {
   const { data } = await client.post("/auth/agent/login", payload);

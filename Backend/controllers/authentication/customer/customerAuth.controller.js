@@ -5,6 +5,7 @@ import {
   customerOtpLoginService,
   determineRedirectPath
 } from "../../../services/authentication/customerAuth.service.js";
+import { supabase } from "../../../config/supabase.js";
 
 // ==========================================
 // 1. REGISTRATION (Public)
@@ -169,6 +170,109 @@ export const verifyOtpLoginAuth = async (req, res) => {
     return res.status(401).json({
       success: false,
       message: "Invalid OTP or Login Failed",
+      error: err.message,
+    });
+  }
+};
+
+// ==========================================
+// 4. VALIDATE TOKEN (For Persistent Login)
+// ==========================================
+export const validateTokenAuth = async (req, res) => {
+  try {
+    const decoded = req.user;
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+
+    let userData = null;
+
+    // Fetch user data based on role
+    if (decoded.role === "CUSTOMER") {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, customer_name, email, phone_number")
+        .eq("id", decoded.id)
+        .single();
+
+      if (error || !data) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      userData = {
+        id: data.id,
+        name: data.customer_name,
+        email: data.email,
+        mobile: data.phone_number,
+        role: "CUSTOMER"
+      };
+    } else if (decoded.role === "ADMIN") {
+      const { data, error } = await supabase
+        .from("admins")
+        .select("id, name, email, phone, phone_number")
+        .eq("id", decoded.id)
+        .single();
+
+      if (error || !data) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      userData = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        mobile: data.phone || data.phone_number,
+        role: "ADMIN"
+      };
+    } else if (decoded.role === "AGENT" || decoded.role === "STAFF") {
+      const { data, error } = await supabase
+        .from("agents")
+        .select("id, agent_name, email, phone, phone_number")
+        .eq("id", decoded.id)
+        .single();
+
+      if (error || !data) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      userData = {
+        id: data.id,
+        name: data.agent_name,
+        email: data.email,
+        mobile: data.phone || data.phone_number,
+        role: decoded.role
+      };
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid user role",
+      });
+    }
+
+    // Return user info
+    return res.status(200).json({
+      success: true,
+      user: userData,
+      role: userData.role,
+    });
+
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: "Token validation failed",
       error: err.message,
     });
   }

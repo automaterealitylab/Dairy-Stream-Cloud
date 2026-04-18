@@ -22,8 +22,11 @@ import {
 import {
   requestOtpAuth,
   verifyOtpLoginAuth,
-  // loginCustomerAuth
+  validateTokenAuth,
 } from "../controllers/authentication/customer/customerAuth.controller.js";
+
+// Middleware
+import { verifyToken } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -45,5 +48,8 @@ router.post("/agent/forgot-password/reset", resetAgentPasswordWithOtp);
 // router.post("/login/password", loginCustomerAuth); // Handles Customer Password Login
 router.post("/login/otp", requestOtpAuth);         // Request OTP
 router.post("/login/otp/verify", verifyOtpLoginAuth); // Verify OTP
+
+// 4. Token Validation (For Persistent Login)
+router.get("/me", verifyToken, validateTokenAuth);
 
 export default router;
