@@ -32,6 +32,34 @@ const formatDateRange = (fromDate, toDate) => {
   return formatDate(fromDate || toDate);
 };
 
+const normalizeProductText = (value) =>
+  String(value || "")
+    .replace(/\s*[\uFFFD\u00B7\u2022]+\s*/g, " | ")
+    .replace(/\s*\|\s*/g, " | ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const splitProductLabel = (value) => {
+  const normalized = normalizeProductText(value);
+  if (!normalized) {
+    return { primary: "-", secondary: "" };
+  }
+
+  const parts = normalized
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    return { primary: normalized, secondary: "" };
+  }
+
+  return {
+    primary: parts[0],
+    secondary: parts.slice(1).join(" | "),
+  };
+};
+
 const SectionTable = ({ title, rows, accent = "bg-[#F8F3EC]" }) => {
   const hasRows = Array.isArray(rows) && rows.length > 0;
 
@@ -54,19 +82,32 @@ const SectionTable = ({ title, rows, accent = "bg-[#F8F3EC]" }) => {
         </thead>
         <tbody>
           {hasRows ? (
-            rows.map((row, index) => (
-              <tr key={`${title}-${row.product}-${index}`} className="text-[14px] font-semibold text-[#2C1A0E]">
-                <td className="border-b border-[#F3EBDD] px-5 py-3">{row.product}</td>
-                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">
-                  {formatDateRange(row.fromDate, row.toDate)}
-                </td>
-                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{formatQty(row.qtyPerDay)}</td>
-                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{row.days}</td>
-                <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{formatQty(row.totalQty)}</td>
-                <td className="border-b border-[#F3EBDD] px-5 py-3 text-right">{formatQty(row.rate)}</td>
-                <td className="border-b border-[#F3EBDD] px-5 py-3 text-right font-black">{formatQty(row.amount)}</td>
-              </tr>
-            ))
+            rows.map((row, index) => {
+              const productLabel = splitProductLabel(row.product);
+
+              return (
+                <tr key={`${title}-${row.product}-${index}`} className="text-[14px] font-semibold text-[#2C1A0E]">
+                  <td className="border-b border-[#F3EBDD] px-5 py-3">
+                    <div className="leading-tight">
+                      <div>{productLabel.primary}</div>
+                      {productLabel.secondary ? (
+                        <div className="mt-1 text-[12px] font-bold text-[#8B7355]">
+                          {productLabel.secondary}
+                        </div>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">
+                    {formatDateRange(row.fromDate, row.toDate)}
+                  </td>
+                  <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{formatQty(row.qtyPerDay)}</td>
+                  <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{row.days}</td>
+                  <td className="border-b border-[#F3EBDD] px-5 py-3 text-center">{formatQty(row.totalQty)}</td>
+                  <td className="border-b border-[#F3EBDD] px-5 py-3 text-right">{formatQty(row.rate)}</td>
+                  <td className="border-b border-[#F3EBDD] px-5 py-3 text-right font-black">{formatQty(row.amount)}</td>
+                </tr>
+              );
+            })
           ) : (
             <tr className="text-[14px] font-semibold text-[#8B7355]">
               <td colSpan={7} className="border-b border-[#F3EBDD] px-5 py-5 text-center">
@@ -158,15 +199,11 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
     if (previousDueAmount > 0) {
       rows.push({ label: "Previous Due Added", amount: previousDueAmount });
     }
-    if (creditAdjustmentAmount > 0) {
-      rows.push({ label: "Credit / Adjustment Applied", amount: -creditAdjustmentAmount });
-    }
     if (rows.length === 0) {
       rows.push({ label: "Current Bill", amount: totalDue });
     }
     return rows;
   }, [
-    creditAdjustmentAmount,
     otherProductsTotal,
     previousDueAmount,
     subscriptionTotal,
@@ -306,11 +343,12 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
               <p className="mt-2 text-sm font-semibold text-[#8B7355]">{loadError}</p>
             </div>
           ) : (
-            <div className="mx-auto origin-top scale-[0.56] shadow-2xl sm:scale-[0.7] lg:scale-[0.84] xl:scale-100">
-              <div
-                ref={invoiceRef}
-                className="flex min-h-[297mm] w-[210mm] flex-col overflow-hidden border border-[#E8DFD0] bg-white text-[#2C1A0E]"
-              >
+            <div className="flex w-full justify-center">
+              <div className="origin-top scale-[0.56] shadow-2xl sm:scale-[0.7] lg:scale-[0.84] xl:scale-100">
+                <div
+                  ref={invoiceRef}
+                  className="flex min-h-[297mm] w-[210mm] flex-col overflow-hidden border border-[#E8DFD0] bg-white text-[#2C1A0E]"
+                >
                 <div className="bg-gradient-to-r from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] px-14 py-12 text-white">
                   <div className="flex items-start justify-between gap-8">
                     <div className="max-w-[60%]">
@@ -468,6 +506,7 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
                     <span>DairyStream Billing System</span>
                     <span>{resolvedBilling?.billingPeriod || "-"}</span>
                   </div>
+                </div>
                 </div>
               </div>
             </div>

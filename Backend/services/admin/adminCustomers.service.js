@@ -143,7 +143,11 @@ const buildBillSectionRows = async (deliveries = [], rateCache = new Map()) => {
   const grouped = new Map();
 
   for (const delivery of deliveries) {
-    const product = String(delivery?.milk_type || "Milk").trim() || "Milk";
+    const productParts = [
+      String(delivery?.milk_type || "Milk").trim() || "Milk",
+      String(delivery?.delivery_slot || "").trim(),
+    ].filter(Boolean);
+    const product = productParts.join(" - ");
     const key = product.toLowerCase();
     const quantity = Number(toNumber(delivery?.quantity_liters, 0).toFixed(2));
     const amount = await resolveDeliveryAmount(delivery, rateCache);

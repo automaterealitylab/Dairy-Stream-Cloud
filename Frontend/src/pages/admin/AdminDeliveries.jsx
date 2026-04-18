@@ -45,9 +45,48 @@ const formatDate = (value) => {
     year: "numeric",
   });
 };
+const cleanMetaText = (value) =>
+  String(value || "")
+    .replace(/\s*[\uFFFD\u00B7\u2022]+\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const buildDeliveryMeta = (delivery) => {
+  const parts = [];
+
+  if (delivery?.wingOrFloor) {
+    parts.push(`Wing ${cleanMetaText(delivery.wingOrFloor)}`);
+  }
+
+  const quantity = cleanMetaText(delivery?.quantity);
+  if (quantity && quantity !== "-") {
+    parts.push(quantity);
+  }
+
+  const slot = cleanMetaText(delivery?.slot);
+  if (slot && slot !== "-") {
+    parts.push(slot);
+  }
+
+  const date = formatDate(delivery?.date);
+  if (date && date !== "-") {
+    parts.push(date);
+  }
+
+  return parts;
+};
 
 const getTodayDateInput = () => {
   const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const getRelativeDateInput = (dayOffset = 0) => {
+  const now = new Date();
+  now.setDate(now.getDate() + dayOffset);
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
@@ -72,8 +111,8 @@ const FeedbackBanner = ({ feedback }) => {
   if (!feedback?.message) return null;
   const isSuccess = feedback.type === "success";
   return (
-    <div className={`mt-4 p-3 rounded-lg text-sm font-medium border ${isSuccess ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"}`}>
-      {isSuccess ? "✓ " : "✕ "} {feedback.message}
+    <div className={`mt-4 rounded-lg border p-3 text-sm font-medium ${isSuccess ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"}`}>
+      {isSuccess ? "OK " : "X "} {feedback.message}
     </div>
   );
 };
@@ -87,8 +126,19 @@ export default function AdminDeliveries() {
     "Quality issue escalated to dairy team",
     "Customer contacted and issue clarified",
   ];
+  const DELIVERY_SECTIONS = [
+    { key: "ALL", label: "All Deliveries" },
+    { key: "PENDING", label: "Delivery Pending" },
+    { key: "DELIVERED", label: "Delivered" },
+    { key: "APPROVAL_PENDING", label: "Approval Pending" },
+  ];
+  const quickDateOptions = [
+    { key: "today", label: "Today", value: getRelativeDateInput(0) },
+    { key: "tomorrow", label: "Tomorrow", value: getRelativeDateInput(1) },
+  ];
 
   const [activeTab, setActiveTab] = useState("bulk"); // 'bulk' | 'single'
+  const [activeSection, setActiveSection] = useState("ALL");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -129,7 +179,6 @@ export default function AdminDeliveries() {
 
   // Filters State
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState(getTodayDateInput());
   const [agentFilter, setAgentFilter] = useState("ALL");
   const [routeFilter, setRouteFilter] = useState("ALL");
@@ -139,7 +188,7 @@ export default function AdminDeliveries() {
   const pageSize = 25;
 
   const loadDeliveries = async () => {
-    const response = await fetchAdminDeliveries();
+    const response = await fetchAdminDeliveries({ date: dateFilter });
     setDeliveries(Array.isArray(response?.deliveries) ? response.deliveries : []);
   };
 
@@ -157,7 +206,7 @@ export default function AdminDeliveries() {
       setLoading(true);
       try {
         const [deliveryData, optionsData] = await Promise.all([
-          fetchAdminDeliveries(),
+          fetchAdminDeliveries({ date: dateFilter }),
           fetchAdminDeliverySchedulingOptions(),
         ]);
         if (!active) return;
@@ -177,7 +226,7 @@ export default function AdminDeliveries() {
     };
     load();
     return () => { active = false; };
-  }, []);
+  }, [dateFilter]);
 
   // --- Memos ---
   const selectedScheduleCustomer = useMemo(() => {
@@ -202,17 +251,32 @@ export default function AdminDeliveries() {
     return { agents, routes };
   }, [deliveries]);
 
-  const filteredAndSortedDeliveries = useMemo(() => {
+  const baseFilteredDeliveries = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = deliveries.filter((d) => {
+    return deliveries.filter((d) => {
       const searchableText = `${d.id} ${d.customerName} ${d.agentName} ${d.route} ${d.buildingName} ${d.wingOrFloor} ${d.roomNo} ${d.deliveryType}`.toLowerCase();
       return (
         (!q || searchableText.includes(q)) &&
-        (statusFilter === "ALL" || d.status === statusFilter) &&
         (!dateFilter || d.date === dateFilter) &&
         (agentFilter === "ALL" || d.agentName === agentFilter) &&
         (routeFilter === "ALL" || d.route === routeFilter)
       );
+    });
+  }, [deliveries, search, dateFilter, agentFilter, routeFilter]);
+
+  const stats = useMemo(() => ({
+    total: baseFilteredDeliveries.length,
+    pending: baseFilteredDeliveries.filter((d) => d.status === "PENDING" && d.approvalStatus !== "PENDING").length,
+    delivered: baseFilteredDeliveries.filter((d) => d.status === "DELIVERED" || d.status === "COMPLETED").length,
+    pendingApproval: baseFilteredDeliveries.filter((d) => d.approvalStatus === "PENDING").length,
+  }), [baseFilteredDeliveries]);
+
+  const filteredAndSortedDeliveries = useMemo(() => {
+    const filtered = baseFilteredDeliveries.filter((d) => {
+      if (activeSection === "PENDING") return d.status === "PENDING" && d.approvalStatus !== "PENDING";
+      if (activeSection === "DELIVERED") return d.status === "DELIVERED" || d.status === "COMPLETED";
+      if (activeSection === "APPROVAL_PENDING") return d.approvalStatus === "PENDING";
+      return true;
     });
 
     return [...filtered].sort((a, b) => {
@@ -224,15 +288,7 @@ export default function AdminDeliveries() {
       else if (sortBy === "quantity") comp = toQuantityValue(a.quantity) - toQuantityValue(b.quantity);
       return sortOrder === "asc" ? comp : -comp;
     });
-  }, [deliveries, search, statusFilter, dateFilter, agentFilter, routeFilter, sortBy, sortOrder]);
-
-  const stats = useMemo(() => ({
-    total: filteredAndSortedDeliveries.length,
-    delivered: filteredAndSortedDeliveries.filter(d => d.status === "DELIVERED").length,
-    pending: filteredAndSortedDeliveries.filter(d => d.status === "PENDING").length,
-    failed: filteredAndSortedDeliveries.filter(d => d.status === "FAILED").length,
-    pendingApproval: filteredAndSortedDeliveries.filter(d => d.approvalStatus === "PENDING").length,
-  }), [filteredAndSortedDeliveries]);
+  }, [activeSection, baseFilteredDeliveries, sortBy, sortOrder]);
 
   const paginatedDeliveries = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -303,8 +359,9 @@ export default function AdminDeliveries() {
   };
 
   const resetFilters = () => {
-    setSearch(""); setStatusFilter("ALL"); setDateFilter(getTodayDateInput()); setAgentFilter("ALL");
+    setSearch(""); setDateFilter(getTodayDateInput()); setAgentFilter("ALL");
     setRouteFilter("ALL"); setSortBy("date"); setSortOrder("desc"); setPage(1);
+    setActiveSection("ALL");
   };
 
   const handleApproveOne = async (delivery) => {
@@ -420,7 +477,7 @@ export default function AdminDeliveries() {
       setAssignTargetDelivery(null);
       setSelectedAssignAgentId("");
     } catch (err) {
-      setSingleFeedback({ type: "error", message: err?.message || "Failed to assign delivery partner." });
+      setSingleFeedback({ type: "error", message: err?.message || "Failed to Assign Partner." });
     } finally {
       setAssigningId(null);
     }
@@ -435,203 +492,116 @@ export default function AdminDeliveries() {
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
           {/* Page Header */}
-          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-center">
             <div>
-              <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Delivery Management</h1>
-              <p className="text-sm text-[#8B7355]">Approve buy-once and subscription extra orders, then route today&apos;s deliveries by building, wing/floor, and room.</p>
+              <h1 className="text-3xl text-[#2C1A0E]" style={adminHeadingFont}>Delivery Management</h1>
+              <p className="text-xs text-[#8B7355]">Track all deliveries, pending runs, completed drops, and approval queue.</p>
             </div>
             
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[ 
-                { label: "Total", val: stats.total, color: "text-slate-700" },
-                { label: "Delivered", val: stats.delivered, color: "text-green-600" },
-                { label: "Pending", val: stats.pending, color: "text-amber-600" },
-                { label: "Failed", val: stats.failed, color: "text-red-600" },
-                { label: "Approval Pending", val: stats.pendingApproval, color: "text-indigo-600" }
+            {/* Delivery Sections */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { key: "ALL", label: "All Deliveries", val: stats.total, color: "text-slate-700" },
+                { key: "PENDING", label: "Delivery Pending", val: stats.pending, color: "text-amber-600" },
+                { key: "DELIVERED", label: "Delivered", val: stats.delivered, color: "text-green-600" },
+                { key: "APPROVAL_PENDING", label: "Approval Pending", val: stats.pendingApproval, color: "text-indigo-600" }
               ].map((item) => (
-                <div key={item.label} className="min-w-[100px] rounded-xl border border-[#EDE8DF] bg-white/95 p-3 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#C4A882]">{item.label}</p>
-                  <p className={`text-xl font-bold ${item.color}`}>{item.val}</p>
-                </div>
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setActiveSection(item.key);
+                    setPage(1);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-left transition-all ${
+                    activeSection === item.key
+                      ? "border-[#B8641A] bg-[#FFF8EF] shadow-[0_8px_18px_rgba(184,100,26,0.10)]"
+                      : "border-[#EDE8DF] bg-white/95 hover:border-[#D9C2A2]"
+                  }`}
+                >
+                  <span className="text-[11px] font-bold text-[#6F604B]">{item.label}</span>
+                  <span className={`rounded-full bg-white px-2 py-0.5 text-xs font-bold ${item.color}`}>{item.val}</span>
+                </button>
               ))}
             </div>
           </div>
 
           {loadError ? <FeedbackBanner feedback={{ type: "error", message: loadError }} /> : null}
-
-          {/* Scheduling Section */}
-          <section className="mb-8 overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-            <div className="flex border-b border-[#F2EDE4] bg-[#FFFDF8]">
-              <button 
-                onClick={() => setActiveTab("bulk")}
-                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "bulk" ? "border-b-2 border-[#B8641A] bg-white text-[#B8641A]" : "text-[#8B7355] hover:bg-[#FDF6EC]"}`}
-              >
-                Bulk Distribution Run
-              </button>
-              <button 
-                onClick={() => setActiveTab("single")}
-                className={`px-6 py-4 text-sm font-bold transition-all ${activeTab === "single" ? "border-b-2 border-[#B8641A] bg-white text-[#B8641A]" : "text-[#8B7355] hover:bg-[#FDF6EC]"}`}
-              >
-                Single Exception
-              </button>
-            </div>
-
-            <div className="p-6">
-              {activeTab === "bulk" ? (
-                <form onSubmit={handleScheduleBulk} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Distribution Date</label>
-                      <input type="date" value={bulkForm.deliveryDate} onChange={(e) => setBulkForm(p => ({...p, deliveryDate: e.target.value}))} className="pro-input w-full" required />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Assigned Agent</label>
-                      <select value={bulkForm.agentId} onChange={(e) => setBulkForm(p => ({...p, agentId: e.target.value}))} className="pro-input w-full text-sm">
-                        <option value="">Auto-Assign (Based on Route)</option>
-                        {scheduleOptions.agents.map(a => (
-                          <option key={a.id} value={a.id} disabled={!a.isActive}>
-                            {a.name} ({a.route}) - {a.status || "ACTIVE"} / {a.availability || "AVAILABLE"}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Slot</label>
-                        <select value={bulkForm.slot} onChange={(e) => setBulkForm(p => ({...p, slot: e.target.value}))} className="pro-input w-full text-sm">
-                          <option value="ALL">All Slots</option>
-                          <option value="MORNING">Morning</option>
-                          <option value="EVENING">Evening</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Route</label>
-                        <select value={bulkForm.route} onChange={(e) => setBulkForm(p => ({...p, route: e.target.value}))} className="pro-input w-full text-sm">
-                          <option value="ALL">All Routes</option>
-                          {bulkRoutes.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <textarea value={bulkForm.notes} onChange={(e) => setBulkForm(p => ({...p, notes: e.target.value}))} placeholder="Notes for this distribution run..." className="pro-input w-full h-20 text-sm" />
-                  
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                  <div className="text-sm font-medium text-blue-700 bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
-                    Eligible customers found: <span className="font-bold">{bulkPreviewCount}</span>
-                  </div>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleApproveAll}
-                      disabled={approvingAll || stats.pendingApproval === 0}
-                      className="pro-btn-dark w-full sm:w-auto px-5 py-2.5"
-                    >
-                      {approvingAll ? "Approving..." : "Approve All Orders"}
-                    </button>
-                    <button type="submit" disabled={bulkSubmitting || bulkPreviewCount === 0} className="pro-btn-primary w-full sm:w-auto px-8 py-2.5">
-                      {bulkSubmitting ? "Processing..." : "Start Distribution Run"}
-                    </button>
-                  </div>
-                </div>
-                <FeedbackBanner feedback={bulkFeedback} />
-                {bulkSummary ? (
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {[
-                      { label: "Eligible", value: bulkSummary.eligibleCustomers || 0 },
-                      { label: "Created", value: bulkSummary.createdCount || 0 },
-                      { label: "Existing", value: bulkSummary.skippedExistingCount || 0 },
-                      { label: "Filtered Out", value: bulkSummary.skippedByFilterCount || 0 },
-                      { label: "No Dairy", value: bulkSummary.skippedNoDairyCount || 0 },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-2xl border border-[#EFE7DA] bg-[#FFF9F1] px-4 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B79A74]">{item.label}</p>
-                        <p className="mt-1 text-lg font-bold text-[#2C1A0E]">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                </form>
-              ) : (
-                <form onSubmit={handleScheduleSingle} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Search Customer</label>
-                      <select value={singleForm.customerId} onChange={(e) => setSingleForm(p => ({...p, customerId: e.target.value}))} className="pro-input w-full text-sm" required>
-                        <option value="">Select Subscribed Customer</option>
-                        {scheduleOptions.customers.map(c => <option key={c.id} value={c.id}>{c.name} — {c.route} ({c.quantityLiters}L)</option>)}
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Date</label>
-                        <input type="date" value={singleForm.deliveryDate} onChange={(e) => setSingleForm(p => ({...p, deliveryDate: e.target.value}))} className="pro-input w-full" required />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Agent</label>
-                        <select value={singleForm.agentId} onChange={(e) => setSingleForm(p => ({...p, agentId: e.target.value}))} className="pro-input w-full text-sm">
-                          <option value="">Auto-Assign</option>
-                          {scheduleOptions.agents.map(a => (
-                            <option key={a.id} value={a.id} disabled={!a.isActive}>
-                              {a.name} - {a.status || "ACTIVE"} / {a.availability || "AVAILABLE"}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  {selectedScheduleCustomer ? (
-                    <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                      {selectedScheduleCustomer.route || "-"} • {selectedScheduleCustomer.room || "-"} • {selectedScheduleCustomer.milkType} {selectedScheduleCustomer.quantityLiters}L
-                    </div>
-                  ) : null}
-                  <textarea value={singleForm.notes} onChange={(e) => setSingleForm(p => ({...p, notes: e.target.value}))} placeholder="Special instructions for this specific delivery..." className="pro-input w-full h-20 text-sm" />
-                  
-                  <div className="flex justify-end pt-2">
-                    <button type="submit" disabled={singleSubmitting} className="pro-btn-dark w-full sm:w-64 py-2.5">
-                      {singleSubmitting ? "Scheduling..." : "Create Exception Delivery"}
-                    </button>
-                  </div>
-                  <FeedbackBanner feedback={singleFeedback} />
-                </form>
-              )}
-            </div>
-          </section>
-
           {/* Delivery Log Section */}
           <div className="overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-            <div className="flex flex-col items-center justify-between gap-4 border-b border-[#F2EDE4] bg-[#FFFDF8] p-4 lg:flex-row">
-              <div className="relative w-full lg:w-96">
-                <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
-                <input 
-                  value={search} 
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Filter by ID, Customer, Agent or Route..." 
-                  className="pro-input w-full pl-10 text-sm py-2" 
-                />
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="pro-input text-[13px] py-1.5 flex-1 lg:flex-none">
-                  <option value="ALL">All Status</option>
-                  <option value="DELIVERED">Delivered</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="FAILED">Failed</option>
-                </select>
-                <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className="pro-input text-[13px] py-1.5 flex-1 lg:flex-none">
-                  <option value="ALL">All Agents</option>
-                  {filterOptions.agents.map((agent) => (
-                    <option key={agent} value={agent}>{agent}</option>
-                  ))}
-                </select>
-                <select value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)} className="pro-input text-[13px] py-1.5 flex-1 lg:flex-none">
-                  <option value="ALL">All Buildings</option>
-                  {filterOptions.routes.map((route) => (
-                    <option key={route} value={route}>{route}</option>
-                  ))}
-                </select>
-                <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="pro-input text-[13px] py-1.5 flex-1 lg:flex-none" />
-                <button onClick={resetFilters} className="text-xs font-bold text-blue-600 hover:text-blue-800 px-3 uppercase tracking-wider transition-colors">
+            <div className="border-b border-[#F2EDE4] bg-[#FFFDF8] p-4">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_220px_auto] lg:items-end">
+                <label className="block min-w-0">
+                  <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                    Search
+                  </span>
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="ID, customer, agent or route"
+                    className="pro-input text-sm"
+                  />
+                </label>
+
+                <label className="block min-w-0">
+                  <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                    Agent
+                  </span>
+                  <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className="pro-input text-[13px]">
+                    <option value="ALL">All Agents</option>
+                    {filterOptions.agents.map((agent) => (
+                      <option key={agent} value={agent}>{agent}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block min-w-0">
+                  <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                    Building
+                  </span>
+                  <select value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)} className="pro-input text-[13px]">
+                    <option value="ALL">All Buildings</option>
+                    {filterOptions.routes.map((route) => (
+                      <option key={route} value={route}>{route}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block min-w-0">
+                  <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                    Date
+                  </span>
+                  <div className="mb-2 flex flex-wrap gap-2 px-1">
+                    {quickDateOptions.map((option) => {
+                      const isActive = dateFilter === option.value;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setDateFilter(option.value)}
+                          className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] transition ${
+                            isActive
+                              ? "border-[#B8641A] bg-[#FFF1DE] text-[#B8641A]"
+                              : "border-[#E5D9C7] bg-white text-[#8B7355] hover:border-[#D8B58A] hover:text-[#A25A1B]"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="pro-input text-[13px]"
+                  />
+                </label>
+
+                <button
+                  onClick={resetFilters}
+                  className="h-[42px] rounded-xl border border-[#D8C9B2] bg-white px-4 text-[11px] font-black uppercase tracking-[0.16em] text-[#8B5E34] transition hover:border-[#B8641A] hover:bg-[#FFF5E8] hover:text-[#B8641A]"
+                >
                   Reset Filters
                 </button>
               </div>
@@ -646,50 +616,52 @@ export default function AdminDeliveries() {
                 <button onClick={resetFilters} className="mt-2 text-blue-600 underline text-sm">Clear all filters</button>
               </div>
             ) : (
-              <div className="space-y-5 p-5">
+              <div className="space-y-3 p-4">
                 {groupedTodayDeliveries.map((group) => (
-                  <section key={group.buildingName} className="rounded-3xl border border-[#EFE7DA] bg-[#FFFCF7] shadow-sm overflow-hidden">
-                    <div className="flex flex-col gap-2 border-b border-[#F2EDE4] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#C4A882]">Building</p>
-                        <h3 className="text-xl font-bold text-[#2C1A0E]">{group.buildingName}</h3>
+                  <section key={group.buildingName} className="overflow-hidden rounded-xl border border-[#EFE7DA] bg-white shadow-sm">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#F2EDE4] bg-[#FFFDF8] px-4 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">Building</p>
+                        <h3 className="truncate text-sm font-bold text-[#2C1A0E]">{group.buildingName}</h3>
                       </div>
-                      <div className="text-sm text-[#8B7355]">
-                        Today&apos;s stops: <span className="font-bold text-[#2C1A0E]">{group.deliveries.length}</span>
+                      <div className="shrink-0 text-[11px] text-[#8B7355]">
+                        Stops: <span className="font-bold text-[#2C1A0E]">{group.deliveries.length}</span>
                       </div>
                     </div>
 
                     <div className="divide-y divide-[#F3EEE5]">
                       {group.deliveries.map((d) => (
-                        <article key={d.id} className="grid gap-4 px-5 py-4 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
-                          <div>
-                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#B8641A]">
-                              {d.wingOrFloor ? `Wing / Floor ${d.wingOrFloor}` : "Wing / Floor -"} • Room {d.roomNo || "-"}
+                        <article key={d.id} className="grid gap-2 px-4 py-2.5 lg:grid-cols-[1.6fr_0.8fr_0.8fr_auto] lg:items-center">
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-bold uppercase tracking-[0.12em] text-[#2C1A0E]">
+                              Flat {d.roomNo || "-"}
                             </p>
-                            <p className="mt-1 text-base font-bold text-slate-900">{d.customerName}</p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              {d.deliveryType} • {d.quantity} • {d.slot || "-"}
+                            <p className="mt-0.5 truncate text-[11px] text-slate-600">
+                              {buildDeliveryMeta(d).join(" | ")}
                             </p>
-                            <p className="text-xs text-slate-500">{formatDate(d.date)} • ID {d.id}</p>
+                            {d.isProjected ? (
+                              <p className="mt-1 truncate text-[11px] font-semibold text-[#B8641A]">
+                                Projected from active subscription for this date
+                              </p>
+                            ) : null}
                             {d.hasOpenIssue ? (
-                              <p className="mt-2 text-xs font-semibold text-rose-700">
+                              <p className="mt-1 truncate text-[11px] font-semibold text-rose-700">
                                 Issue: {d.customerIssue || "Reported by customer"}
                               </p>
                             ) : null}
                             {!d.hasOpenIssue && d.issueStatus === "RESOLVED" && d.issueAdminAction ? (
-                              <p className="mt-2 text-xs font-semibold text-emerald-700">
+                              <p className="mt-1 truncate text-[11px] font-semibold text-emerald-700">
                                 Action taken: {d.issueAdminAction}
                               </p>
                             ) : null}
                           </div>
 
-                          <div>
-                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Assigned Agent</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-800">{d.agentName || "Unassigned"}</p>
-                            <p className="text-xs text-slate-500">{d.locationLabel}</p>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Agent</p>
+                            <p className="mt-0.5 truncate text-sm font-semibold text-slate-800">{d.agentName || "Unassigned"}</p>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
                               d.approvalStatus === "PENDING"
                                 ? "bg-indigo-100 text-indigo-700 border-indigo-200"
@@ -701,12 +673,14 @@ export default function AdminDeliveries() {
                           </div>
 
                           <div className="flex justify-start lg:justify-end">
-                            {d.hasOpenIssue ? (
+                            {d.isProjected ? (
+                              <span className="text-[10px] font-medium text-[#B8641A]">Projected</span>
+                            ) : d.hasOpenIssue ? (
                               <button
                                 type="button"
                                 onClick={() => openResolveIssueModal(d)}
                                 disabled={resolvingIssueId === d.rawId}
-                                className="px-3 py-1.5 rounded bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 disabled:bg-rose-300"
+                                className="rounded bg-rose-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-rose-700 disabled:bg-rose-300"
                               >
                                 {resolvingIssueId === d.rawId ? "Resolving..." : "Resolve Issue"}
                               </button>
@@ -715,21 +689,21 @@ export default function AdminDeliveries() {
                                 type="button"
                                 onClick={() => handleApproveOne(d)}
                                 disabled={approvingId === d.rawId}
-                                className="px-3 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:bg-indigo-300"
+                                className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-indigo-700 disabled:bg-indigo-300"
                               >
-                                {approvingId === d.rawId ? "Approving..." : "Approve & Assign"}
+                                {approvingId === d.rawId ? "Approving..." : "Approve"}
                               </button>
                             ) : !d.isAssigned ? (
                               <button
                                 type="button"
                                 onClick={() => handleAssignPartner(d)}
                                 disabled={assigningId === d.rawId}
-                                className="px-3 py-1.5 rounded bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:bg-blue-300"
+                                className="rounded bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-700 disabled:bg-blue-300"
                               >
-                                {assigningId === d.rawId ? "Assigning..." : "Assign Delivery Partner"}
+                                {assigningId === d.rawId ? "Assigning..." : "Assign Partner"}
                               </button>
                             ) : (
-                              <span className="text-xs text-slate-400 font-medium">Assignment ready</span>
+                              <span className="text-[10px] font-medium text-slate-400">Ready</span>
                             )}
                           </div>
                         </article>
@@ -739,24 +713,23 @@ export default function AdminDeliveries() {
                 ))}
               </div>
             )}
-
             {/* Pagination */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-6 py-4">
               <span className="text-xs font-medium text-slate-500">
                 Showing {Math.min(filteredAndSortedDeliveries.length, (page - 1) * pageSize + 1)} - {Math.min(page * pageSize, filteredAndSortedDeliveries.length)} of {filteredAndSortedDeliveries.length}
               </span>
               <div className="flex gap-2">
-                <button 
-                  disabled={page === 1} 
-                  onClick={() => setPage(p => p - 1)}
-                  className="px-3 py-1 text-xs font-bold border rounded bg-white hover:bg-slate-50 disabled:opacity-50 transition-all"
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="rounded border bg-white px-3 py-1 text-xs font-bold transition-all hover:bg-slate-50 disabled:opacity-50"
                 >
                   Prev
                 </button>
-                <button 
-                  disabled={page === totalPages} 
-                  onClick={() => setPage(p => p + 1)}
-                  className="px-3 py-1 text-xs font-bold border rounded bg-white hover:bg-slate-50 disabled:opacity-50 transition-all"
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded border bg-white px-3 py-1 text-xs font-bold transition-all hover:bg-slate-50 disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -767,12 +740,12 @@ export default function AdminDeliveries() {
       </main>
 
       {assignModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Assign Delivery Partner</h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="mt-1 text-xs text-slate-500">
                   Delivery: {assignTargetDelivery?.id || "-"}
                 </p>
               </div>
@@ -783,18 +756,18 @@ export default function AdminDeliveries() {
                   setAssignTargetDelivery(null);
                   setSelectedAssignAgentId("");
                 }}
-                className="text-slate-500 hover:text-slate-700 text-sm font-medium"
+                className="text-sm font-medium text-slate-500 hover:text-slate-700"
               >
                 Close
               </button>
             </div>
 
-            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto p-6">
               {scheduleOptions.agents.map((agent) => (
                 <label
                   key={agent.id}
-                  className={`flex items-center justify-between gap-3 border rounded-xl px-4 py-3 ${
-                    !agent.isActive ? "bg-slate-50 border-slate-200 opacity-70" : "border-slate-200 hover:border-blue-300"
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
+                    !agent.isActive ? "border-slate-200 bg-slate-50 opacity-70" : "border-slate-200 hover:border-blue-300"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -813,12 +786,12 @@ export default function AdminDeliveries() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${
                       agent.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                     }`}>
                       {agent.isActive ? "Active" : "Inactive"}
                     </span>
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${
                       String(agent.availability || "").toUpperCase() === "BUSY"
                         ? "bg-amber-100 text-amber-700"
                         : "bg-blue-100 text-blue-700"
@@ -830,7 +803,7 @@ export default function AdminDeliveries() {
               ))}
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-2">
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-6 py-4">
               <button
                 type="button"
                 onClick={() => {
@@ -838,7 +811,7 @@ export default function AdminDeliveries() {
                   setAssignTargetDelivery(null);
                   setSelectedAssignAgentId("");
                 }}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
               >
                 Cancel
               </button>
@@ -846,7 +819,7 @@ export default function AdminDeliveries() {
                 type="button"
                 onClick={handleConfirmAssignPartner}
                 disabled={assigningId === assignTargetDelivery?.rawId || !selectedAssignAgentId}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold disabled:bg-blue-300"
+                className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:bg-blue-300"
               >
                 {assigningId === assignTargetDelivery?.rawId ? "Assigning..." : "Assign Partner"}
               </button>
@@ -854,7 +827,6 @@ export default function AdminDeliveries() {
           </div>
         </div>
       )}
-
       {resolveModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
           <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
@@ -942,3 +914,4 @@ export default function AdminDeliveries() {
     </div>
   );
 }
+

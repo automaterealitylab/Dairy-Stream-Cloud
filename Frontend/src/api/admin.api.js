@@ -192,9 +192,9 @@ export const registerDairyApi = async (dairyData) => {
   return data;
 };
 
-export const fetchAdminDeliveries = async ({ limit = 1000 } = {}) => {
+export const fetchAdminDeliveries = async ({ limit = 1000, date = "" } = {}) => {
   const { data } = await client.get("/admin/deliveries", {
-    params: { limit },
+    params: { limit, ...(date ? { date } : {}) },
   });
   return data;
 };
