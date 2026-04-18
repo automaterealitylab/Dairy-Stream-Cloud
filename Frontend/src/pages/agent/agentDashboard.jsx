@@ -33,6 +33,8 @@ import {
   LocateFixed,
   LogOut,
   Truck,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import {
@@ -51,6 +53,7 @@ import { startDelivery, updateAgentLocation } from "../../api/agent/location.js"
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
+const SPEECH_MUTED_STORAGE_KEY = "agent-dashboard-speech-muted";
 const SLOT_META = {
   MORNING: {
     label: "Morning",
@@ -261,29 +264,6 @@ const getDistanceInMeters = (from, to) => {
   return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const getBearingInDegrees = (from, to) => {
-  if (!from || !to) return null;
-
-  const [fromLat, fromLng] = from;
-  const [toLat, toLng] = to;
-  const toRadians = (value) => (value * Math.PI) / 180;
-  const toDegrees = (value) => (value * 180) / Math.PI;
-  const lat1 = toRadians(fromLat);
-  const lat2 = toRadians(toLat);
-  const deltaLng = toRadians(toLng - fromLng);
-  const y = Math.sin(deltaLng) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
-  const bearing = toDegrees(Math.atan2(y, x));
-
-  return (bearing + 360) % 360;
-};
-
-const getCompassDirectionLabel = (bearing) => {
-  if (!Number.isFinite(bearing)) return "";
-  const labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return labels[Math.round(bearing / 45) % labels.length];
-};
-
 const getTurnInstructionLabel = (instruction) => {
   const text = String(instruction?.text || "").trim();
   if (!text) return "Follow route";
@@ -297,6 +277,14 @@ const getTurnInstructionLabel = (instruction) => {
   if (/arrive/i.test(text)) return "Reach destination";
 
   return text;
+};
+
+const getTurnInstructionIcon = (instruction) => {
+  const text = String(instruction?.text || "").trim();
+  if (/u-turn/i.test(text)) return Undo2;
+  if (/turn right|keep right/i.test(text)) return CornerUpRight;
+  if (/turn left|keep left/i.test(text)) return CornerUpLeft;
+  return ArrowUp;
 };
 
 const getTurnInstructionDetail = (instruction, fallbackDelivery) => {
@@ -475,6 +463,10 @@ const AgentDashboard = () => {
   const [secondaryRoadRoutes, setSecondaryRoadRoutes] = useState([]);
   const [deliveryRunStartedAt, setDeliveryRunStartedAt] = useState(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingAgentSyncCount());
+  const [isSpeechMuted, setIsSpeechMuted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(SPEECH_MUTED_STORAGE_KEY) === "true";
+  });
   const lastLocationSyncAtRef = useRef(0);
   const spokenInstructionRef = useRef({ key: "", threshold: null });
 
@@ -714,13 +706,13 @@ const AgentDashboard = () => {
   const visibleMapDeliveries = routeDeliveries.length > 0 ? routeDeliveries : deliveriesWithCoordinates;
   const nearestRouteDelivery = routeDeliveries[0] || null;
   const nearestRouteCoordinates = nearestRouteDelivery?.coordinates || null;
-  const nextDirectionBearing = useMemo(
-    () => getBearingInDegrees(agentLocation, nearestRouteCoordinates),
-    [agentLocation, nearestRouteCoordinates]
-  );
   const nextDirectionLabel = useMemo(
-    () => getCompassDirectionLabel(nextDirectionBearing),
-    [nextDirectionBearing]
+    () => getTurnInstructionLabel(primaryRouteStats.instructions?.primary),
+    [primaryRouteStats.instructions]
+  );
+  const NextDirectionIcon = useMemo(
+    () => getTurnInstructionIcon(primaryRouteStats.instructions?.primary),
+    [primaryRouteStats.instructions]
   );
   const nextDisplayTask = nearestRouteDelivery || nextTask || null;
   const nextDisplayTaskCoordinates = nextDisplayTask?.coordinates || getDeliveryCoordinates(nextDisplayTask);
@@ -891,10 +883,25 @@ const AgentDashboard = () => {
   }, [agentLocation, isDeliveryRunActive, nextTask?.id]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(SPEECH_MUTED_STORAGE_KEY, String(isSpeechMuted));
+
+    if (isSpeechMuted && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, [isSpeechMuted]);
+
+  useEffect(() => {
     if (!isDeliveryRunActive || typeof window === "undefined" || !("speechSynthesis" in window)) {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
+      spokenInstructionRef.current = { key: "", threshold: null };
+      return;
+    }
+
+    if (isSpeechMuted) {
+      window.speechSynthesis.cancel();
       spokenInstructionRef.current = { key: "", threshold: null };
       return;
     }
@@ -931,7 +938,7 @@ const AgentDashboard = () => {
       key: routeKey,
       threshold: matchedThreshold,
     };
-  }, [isDeliveryRunActive, nearestRouteDelivery?.id, primaryRouteStats.instructions]);
+  }, [isDeliveryRunActive, isSpeechMuted, nearestRouteDelivery?.id, primaryRouteStats.instructions]);
 
   const handleMarkOutForDelivery = useCallback(async () => {
     if (!startableDelivery?.id) {
@@ -971,6 +978,19 @@ const AgentDashboard = () => {
   const handleOpenHomeSection = useCallback(() => {
     setActiveSection(ActiveNavLabel.HOME);
   }, []);
+
+  const handleOpenDeliveryTask = useCallback(
+    (delivery) => {
+      if (!delivery?.id) return;
+      const buildingName = String(delivery.buildingName || delivery.building_name || "").trim();
+      if (!buildingName) return;
+
+      navigate(`/agent/working/building/${encodeURIComponent(buildingName)}`, {
+        state: { selectedDeliveryId: String(delivery.id) },
+      });
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     if (location.state?.section === ActiveNavLabel.MAP) {
@@ -1021,41 +1041,38 @@ const AgentDashboard = () => {
             activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[320px]"
           }`}
         >
-          {isDeliveryRunActive &&
-          (primaryRouteStats.instructions?.primary || Number.isFinite(nextDirectionBearing)) ? (
-            <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-[#E7DAC6] bg-white/95 px-3 py-1.5 shadow-[0_10px_24px_rgba(92,61,30,0.14)] backdrop-blur-sm">
-              <div className="flex items-start gap-2">
-                <div className="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2]">
-                  <div
-                    className="h-0 w-0 border-l-[6px] border-r-[6px] border-b-[14px] border-l-transparent border-r-transparent border-b-[#B8641A]"
-                    style={{ transform: `rotate(${nextDirectionBearing || 0}deg)` }}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black uppercase text-[#A88763]">
-                    {nextDirectionLabel ? `Next ${nextDirectionLabel}` : "Next Turn"}
-                  </p>
-                  <p className="mt-0.5 text-[11px] font-black leading-tight text-[#2C1A0E]">
-                    {primaryRouteStats.instructions?.primary?.distanceLabel
-                      ? `After ${primaryRouteStats.instructions.primary.distanceLabel}, ${primaryRouteStats.instructions.primary.text}`
-                      : "Follow the highlighted route"}
-                  </p>
-                  {primaryRouteStats.instructions?.secondary ? (
-                    <p className="mt-0.5 text-[10px] font-semibold leading-tight text-[#8B7355]">
-                      Then after {primaryRouteStats.instructions.secondary.distanceLabel},{" "}
-                      {primaryRouteStats.instructions.secondary.text.toLowerCase()}
+            {isDeliveryRunActive && primaryRouteStats.instructions?.primary ? (
+              <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-[#E7DAC6] bg-white/95 px-3 py-1 shadow-[0_10px_24px_rgba(92,61,30,0.14)] backdrop-blur-sm">
+                <div className="flex items-start gap-1.5">
+                  <div className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]">
+                    <NextDirectionIcon size={14} strokeWidth={2.4} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase text-[#A88763]">
+                      {nextDirectionLabel ? `Next ${nextDirectionLabel}` : "Next Turn"}
                     </p>
+                  <p className="text-[11px] font-black leading-tight text-[#2C1A0E]">
+                      {primaryRouteStats.instructions?.primary?.distanceLabel
+                        ? `After ${primaryRouteStats.instructions.primary.distanceLabel}, ${primaryRouteStats.instructions.primary.text}`
+                        : "Follow the highlighted route"}
+                    </p>
+                    {primaryRouteStats.instructions?.secondary ? (
+                      <p className="text-[10px] font-semibold leading-tight text-[#8B7355]">
+                        Then after {primaryRouteStats.instructions.secondary.distanceLabel},{" "}
+                        {primaryRouteStats.instructions.secondary.text.toLowerCase()}
+                      </p>
                   ) : null}
                 </div>
               </div>
             </div>
           ) : null}
 
-          {agentLocation ? (
-            <MapContainer center={agentLocation} zoom={15} scrollWheelZoom className="h-full w-full">
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                maxNativeZoom={19}
+            {agentLocation ? (
+              <div className="relative h-full w-full">
+                <MapContainer center={agentLocation} zoom={15} scrollWheelZoom className="h-full w-full">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  maxNativeZoom={19}
                 maxZoom={19}
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
@@ -1101,21 +1118,28 @@ const AgentDashboard = () => {
                       iconSize: [isNearestDestination ? 18 : 14, isNearestDestination ? 18 : 14],
                       iconAnchor: [isNearestDestination ? 9 : 7, isNearestDestination ? 9 : 7],
                     })}
-                  >
-                    <Popup>
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
-                        <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
-                        <p className="text-[10px] font-semibold text-[#B8641A]">
-                          {isNearestDestination
-                            ? "Nearest customer on your route"
-                            : isNextDestination
-                              ? "Next scheduled delivery"
-                              : "Customer delivery pin"}
-                        </p>
-                      </div>
-                    </Popup>
-                  </Marker>
+                    >
+                      <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDeliveryTask(delivery)}
+                          className="space-y-0.5 text-left leading-tight"
+                        >
+                          <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
+                          <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
+                          <p className="text-[10px] font-semibold text-[#B8641A]">
+                            {isNearestDestination
+                              ? "Nearest customer on your route"
+                              : isNextDestination
+                                ? "Next scheduled delivery"
+                                : "Customer delivery pin"}
+                          </p>
+                          <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
+                            Tap to open task
+                          </p>
+                        </button>
+                      </Popup>
+                    </Marker>
                 );
               })}
 
@@ -1126,7 +1150,7 @@ const AgentDashboard = () => {
                 />
               )}
 
-              {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map(
+                {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map(
                 (segment, index) => (
                   <Polyline
                     key={segment.id || `secondary-route-${index}`}
@@ -1140,7 +1164,17 @@ const AgentDashboard = () => {
                   />
                 )
               )}
-            </MapContainer>
+                </MapContainer>
+                <button
+                  type="button"
+                  onClick={() => setIsSpeechMuted((value) => !value)}
+                  className="absolute left-[10px] top-[78px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D4B896] bg-white text-[#5F4426] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#FFF8EF]"
+                  title={isSpeechMuted ? "Unmute voice directions" : "Mute voice directions"}
+                  aria-label={isSpeechMuted ? "Unmute voice directions" : "Mute voice directions"}
+                >
+                  {isSpeechMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </button>
+              </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#B8641A] border-t-transparent" />
@@ -1162,7 +1196,7 @@ const AgentDashboard = () => {
 
   return (
     <div
-      className={`bg-[#FFFDF7] px-4 pt-5 text-[#2C1A0E] ${
+      className={`bg-[#FFFDF7] px-4 text-[#2C1A0E] ${
         activeSection === ActiveNavLabel.MAP ? "h-screen overflow-hidden pb-24" : "min-h-screen pb-32"
       }`}
     >
