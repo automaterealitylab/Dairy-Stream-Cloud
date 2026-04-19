@@ -17,6 +17,23 @@ const safeJsonParse = (value, fallback) => {
   }
 };
 
+const buildUnauthorizedError = () => {
+  const error = new Error("Unauthorized");
+  error.response = { status: 401, data: { message: "Unauthorized" } };
+  return error;
+};
+
+const isUnauthorizedError = (error) => Number(error?.response?.status) === 401;
+
+const hasAgentAuth = () => {
+  const storedUser = safeJsonParse(localStorage.getItem("user"), null);
+  const fallbackRole = String(storedUser?.role || localStorage.getItem("userRole") || "").toUpperCase();
+  return Boolean(
+    localStorage.getItem("agentToken") ||
+      ((fallbackRole === "AGENT" || fallbackRole === "STAFF") && storedUser?.token)
+  );
+};
+
 const getStoredAgentIdentity = () => {
   const storedUser = safeJsonParse(localStorage.getItem("user"), null);
   return (
@@ -284,6 +301,7 @@ export const primeAgentOfflineSync = (onOnline) => {
     onlineListenerAttached = true;
 
     window.addEventListener("online", async () => {
+      if (!hasAgentAuth()) return;
       try {
         await flushAgentOfflineQueue();
       } finally {
@@ -294,14 +312,21 @@ export const primeAgentOfflineSync = (onOnline) => {
     });
   }
 
+  if (!hasAgentAuth()) return;
+
   if (navigator.onLine && getPendingAgentSyncCount() > 0) {
     flushAgentOfflineQueue().catch((error) => {
+      if (isUnauthorizedError(error)) return;
       console.error("Agent offline sync bootstrap failed:", error);
     });
   }
 };
 
 export const fetchAssignedAgentDeliveriesWithOffline = async ({ today = false } = {}) => {
+  if (!hasAgentAuth()) {
+    throw buildUnauthorizedError();
+  }
+
   try {
     const { data } = await client.get("/agent/deliveries/assigned", {
       params: { today },
@@ -319,6 +344,7 @@ export const fetchAssignedAgentDeliveriesWithOffline = async ({ today = false } 
 
 export const startDeliveryWithOffline = async (deliveryId, latitude, longitude) => {
   if (!deliveryId) throw new Error("deliveryId is required");
+  if (!hasAgentAuth()) throw buildUnauthorizedError();
 
   const action = createQueuedAction("START_DELIVERY", {
     deliveryId,
@@ -358,6 +384,7 @@ export const updateAssignedAgentDeliveryStatusWithOffline = async ({
   collectionMethod = "",
 } = {}) => {
   if (!deliveryId) throw new Error("deliveryId is required");
+  if (!hasAgentAuth()) throw buildUnauthorizedError();
 
   const action = createQueuedAction("UPDATE_DELIVERY_STATUS", {
     deliveryId,
@@ -393,6 +420,7 @@ export const updateAssignedAgentDeliveryStatusWithOffline = async ({
 
 export const updateAgentLocationWithOffline = async (deliveryId, latitude, longitude) => {
   if (!deliveryId) throw new Error("deliveryId is required");
+  if (!hasAgentAuth()) throw buildUnauthorizedError();
 
   storeAgentLocation({ lat: latitude, lng: longitude });
 
@@ -425,6 +453,10 @@ export const updateAgentLocationWithOffline = async (deliveryId, latitude, longi
 };
 
 export const flushAgentOfflineQueue = async () => {
+  if (!hasAgentAuth()) {
+    throw buildUnauthorizedError();
+  }
+
   if (!navigator.onLine) {
     return { synced: false, pending: getPendingAgentSyncCount() };
   }
@@ -441,6 +473,9 @@ export const flushAgentOfflineQueue = async () => {
         queue = queue.slice(1);
         setActionQueue(queue);
       } catch (error) {
+        if (isUnauthorizedError(error)) {
+          throw error;
+        }
         if (isNetworkError(error)) {
           return { synced: false, pending: queue.length };
         }
@@ -456,6 +491,9 @@ export const flushAgentOfflineQueue = async () => {
       });
       storeAssignedAgentDeliveries(data?.deliveries || []);
     } catch (error) {
+      if (isUnauthorizedError(error)) {
+        throw error;
+      }
       if (!isNetworkError(error)) {
         console.error("Agent delivery refresh after sync failed:", error);
       }

@@ -129,7 +129,7 @@ const AgentWorkingPage = () => {
   return (
     <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 text-[#2C1A0E]">
       <div className="mx-auto max-w-md space-y-5">
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+        <section className="-mb-3 -mt-1 rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Task Queue</p>
           <h1 className="mt-2 text-[28px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
             Building Tasks

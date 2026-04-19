@@ -433,6 +433,8 @@ const ActiveNavLabel = {
   MAP: "MAP",
 };
 
+const isUnauthorizedError = (error) => Number(error?.response?.status) === 401;
+
 const AgentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -469,16 +471,31 @@ const AgentDashboard = () => {
   });
   const lastLocationSyncAtRef = useRef(0);
   const spokenInstructionRef = useRef({ key: "", threshold: null });
+  const authRedirectTriggeredRef = useRef(false);
+
+  const handleAgentAuthFailure = useCallback(
+    (error) => {
+      if (!isUnauthorizedError(error) || authRedirectTriggeredRef.current) {
+        return false;
+      }
+
+      authRedirectTriggeredRef.current = true;
+      logout();
+      return true;
+    },
+    [logout]
+  );
 
   const loadDashboard = useCallback(async () => {
     try {
       const assigned = await fetchAssignedAgentDeliveries();
       const resolved = assigned || [];
       setDeliveries(resolved);
-    } catch (_err) {
+    } catch (error) {
+      if (handleAgentAuthFailure(error)) return;
       setDeliveries([]);
     }
-  }, []);
+  }, [handleAgentAuthFailure]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -523,11 +540,13 @@ const AgentDashboard = () => {
           ...prev,
           name: profile?.name || prev.name,
         }));
-      } catch (_err) {}
+      } catch (error) {
+        handleAgentAuthFailure(error);
+      }
     };
 
     loadAgentProfile();
-  }, []);
+  }, [handleAgentAuthFailure]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -540,7 +559,11 @@ const AgentDashboard = () => {
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      await flushAgentOfflineQueue();
+      try {
+        await flushAgentOfflineQueue();
+      } catch (error) {
+        if (handleAgentAuthFailure(error)) return;
+      }
       setPendingSyncCount(getPendingAgentSyncCount());
       await loadDashboard();
     };
@@ -562,7 +585,7 @@ const AgentDashboard = () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadDashboard]);
+  }, [handleAgentAuthFailure, loadDashboard]);
 
   useEffect(() => {
     try {
@@ -877,10 +900,11 @@ const AgentDashboard = () => {
     if (nowTs - lastLocationSyncAtRef.current < 15000) return;
     lastLocationSyncAtRef.current = nowTs;
 
-    updateAgentLocation(nextTask.id, agentLocation[0], agentLocation[1]).catch((err) => {
-      console.error("Agent location sync failed:", err);
+    updateAgentLocation(nextTask.id, agentLocation[0], agentLocation[1]).catch((error) => {
+      if (handleAgentAuthFailure(error)) return;
+      console.error("Agent location sync failed:", error);
     });
-  }, [agentLocation, isDeliveryRunActive, nextTask?.id]);
+  }, [agentLocation, handleAgentAuthFailure, isDeliveryRunActive, nextTask?.id]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1038,26 +1062,26 @@ const AgentDashboard = () => {
       <div className="min-h-0 flex-1 overflow-hidden rounded-[22px] border border-[#E7DAC6]">
         <div
           className={`relative z-0 flex w-full items-center justify-center bg-[#F8F1E7] ${
-            activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[320px]"
+            activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[360px]"
           }`}
         >
             {isDeliveryRunActive && primaryRouteStats.instructions?.primary ? (
-              <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-[#E7DAC6] bg-white/95 px-3 py-1 shadow-[0_10px_24px_rgba(92,61,30,0.14)] backdrop-blur-sm">
+              <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-white/75 bg-white/90 px-3 py-1 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
                 <div className="flex items-start gap-1.5">
                   <div className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]">
                     <NextDirectionIcon size={14} strokeWidth={2.4} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase text-[#A88763]">
+                  <div className="min-w-0 space-y-0">
+                    <p className="m-0 text-[9px] font-black uppercase leading-none text-[#A88763]">
                       {nextDirectionLabel ? `Next ${nextDirectionLabel}` : "Next Turn"}
                     </p>
-                  <p className="text-[11px] font-black leading-tight text-[#2C1A0E]">
+                  <p className="m-0 text-[11px] font-black leading-[1.15] text-[#2C1A0E]">
                       {primaryRouteStats.instructions?.primary?.distanceLabel
                         ? `After ${primaryRouteStats.instructions.primary.distanceLabel}, ${primaryRouteStats.instructions.primary.text}`
                         : "Follow the highlighted route"}
                     </p>
                     {primaryRouteStats.instructions?.secondary ? (
-                      <p className="text-[10px] font-semibold leading-tight text-[#8B7355]">
+                      <p className="m-0 text-[10px] font-semibold leading-[1.15] text-[#8B7355]">
                         Then after {primaryRouteStats.instructions.secondary.distanceLabel},{" "}
                         {primaryRouteStats.instructions.secondary.text.toLowerCase()}
                       </p>
@@ -1101,10 +1125,10 @@ const AgentDashboard = () => {
                 const isNextDestination = String(delivery.id) === String(nextTask?.id);
                 const markerColor =
                   delivery.status === "COMPLETED"
-                    ? "#4A7C2F"
+                    ? "#6BB071"
                     : isNearestDestination
-                      ? "#B8641A"
-                      : "#C86A2B";
+                      ? "#6BB071"
+                      : "#6BB071";
 
                 return (
                   <Marker
@@ -1127,7 +1151,7 @@ const AgentDashboard = () => {
                         >
                           <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
                           <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
-                          <p className="text-[10px] font-semibold text-[#B8641A]">
+                          <p className="text-[10px] font-semibold text-[#6BB071]">
                             {isNearestDestination
                               ? "Nearest customer on your route"
                               : isNextDestination
@@ -1146,7 +1170,7 @@ const AgentDashboard = () => {
               {routeCoordinates.length >= 2 && (
                 <Polyline
                   positions={routeCoordinates}
-                  pathOptions={{ color: "#B8641A", weight: 4, opacity: 0.85 }}
+                  pathOptions={{ color: "#5c87ea", weight: 5, opacity: 0.9 }}
                 />
               )}
 
@@ -1156,9 +1180,9 @@ const AgentDashboard = () => {
                     key={segment.id || `secondary-route-${index}`}
                     positions={segment.points}
                     pathOptions={{
-                      color: "#D9903D",
+                      color: "#191970",
                       weight: 3,
-                      opacity: 0.75,
+                      opacity: 0.8,
                       dashArray: "8 10",
                     }}
                   />
@@ -1174,6 +1198,13 @@ const AgentDashboard = () => {
                 >
                   {isSpeechMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                 </button>
+                <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[600] rounded-[16px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
+                  <p className="text-[11px] font-semibold leading-snug text-[#6B5B3E]">
+                    {isDeliveryRunActive
+                      ? "Solid line shows the nearest customer. Dotted lines show the remaining customers on your route."
+                      : "The map highlights the nearest customer and previews the rest of the route."}
+                  </p>
+                </div>
               </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
@@ -1186,11 +1217,6 @@ const AgentDashboard = () => {
         </div>
       </div>
 
-      <p className="mt-2 text-xs font-medium text-[#8B7355]">
-        {isDeliveryRunActive
-          ? "Solid line shows the nearest customer. Dotted lines show the remaining customers on your route."
-          : "The map highlights the nearest customer and previews the rest of the route."}
-      </p>
     </section>
   );
 
