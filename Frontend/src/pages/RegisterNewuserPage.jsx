@@ -17,6 +17,7 @@ import {
   LocateFixed,
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.png";
+import { useGeolocationAutoRetry } from "../hooks/useGeolocationAutoRetry.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DEFAULT_MAP_CENTER = [18.5204, 73.8567];
@@ -209,6 +210,13 @@ const CustomerRegister = () => {
       detectCurrentLocation({ showToast: false, pinIfMissing: true });
     }
   }, [currentStep]);
+
+  useGeolocationAutoRetry({
+    enabled: currentStep === 3 && !gpsLocation && !locating,
+    onRetry: () => {
+      detectCurrentLocation({ showToast: false, pinIfMissing: true });
+    },
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();

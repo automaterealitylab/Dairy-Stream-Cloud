@@ -206,11 +206,46 @@ function App() {
           }
         />
 
-        <Route path="/agent/dashboard" element={<AgentDashboard />} />
-        <Route path="/agent/working" element={<AgentWorkingPage />} />
-        <Route path="/agent/working/building/:buildingName" element={<AgentBuildingTasksPage />} />
-        <Route path="/agent/profile" element={<AgentProfile />} />
-        <Route path="/agent/history" element={<AgentHistory />} />
+        <Route
+          path="/agent/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["AGENT", "STAFF"]}>
+              <AgentDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agent/working"
+          element={
+            <ProtectedRoute allowedRoles={["AGENT", "STAFF"]}>
+              <AgentWorkingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agent/working/building/:buildingName"
+          element={
+            <ProtectedRoute allowedRoles={["AGENT", "STAFF"]}>
+              <AgentBuildingTasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agent/profile"
+          element={
+            <ProtectedRoute allowedRoles={["AGENT", "STAFF"]}>
+              <AgentProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agent/history"
+          element={
+            <ProtectedRoute allowedRoles={["AGENT", "STAFF"]}>
+              <AgentHistory />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

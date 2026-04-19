@@ -50,6 +50,7 @@ import {
   subscribeToAgentOfflineState,
 } from "../../api/agent/offlineSync";
 import { startDelivery, updateAgentLocation } from "../../api/agent/location.js";
+import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
@@ -472,6 +473,7 @@ const AgentDashboard = () => {
   const lastLocationSyncAtRef = useRef(0);
   const spokenInstructionRef = useRef({ key: "", threshold: null });
   const authRedirectTriggeredRef = useRef(false);
+  const locationWatcherIdRef = useRef(null);
 
   const handleAgentAuthFailure = useCallback(
     (error) => {
@@ -480,10 +482,12 @@ const AgentDashboard = () => {
       }
 
       authRedirectTriggeredRef.current = true;
-      logout();
+      console.warn(
+        "Agent request returned 401 during dashboard refresh. Preserving local session and current page."
+      );
       return true;
     },
-    [logout]
+    []
   );
 
   const loadDashboard = useCallback(async () => {
@@ -496,6 +500,22 @@ const AgentDashboard = () => {
       setDeliveries([]);
     }
   }, [handleAgentAuthFailure]);
+
+  const startAgentLocationWatcher = useCallback(() => {
+    if (!navigator.geolocation || locationWatcherIdRef.current !== null) {
+      return;
+    }
+
+    locationWatcherIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = [pos.coords.latitude, pos.coords.longitude];
+        setAgentLocation(coords);
+        storeAgentLocation({ lat: coords[0], lng: coords[1] });
+      },
+      (err) => console.error("GPS Error:", err.message),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, []);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -517,19 +537,20 @@ const AgentDashboard = () => {
 
     loadDashboard();
 
-    if (navigator.geolocation) {
-      const watcher = navigator.geolocation.watchPosition(
-        (pos) => {
-          const coords = [pos.coords.latitude, pos.coords.longitude];
-          setAgentLocation(coords);
-          storeAgentLocation({ lat: coords[0], lng: coords[1] });
-        },
-        (err) => console.error("GPS Error:", err.message),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-      return () => navigator.geolocation.clearWatch(watcher);
-    }
-  }, [loadDashboard]);
+    startAgentLocationWatcher();
+
+    return () => {
+      if (locationWatcherIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(locationWatcherIdRef.current);
+        locationWatcherIdRef.current = null;
+      }
+    };
+  }, [loadDashboard, startAgentLocationWatcher]);
+
+  useGeolocationAutoRetry({
+    enabled: !agentLocation,
+    onRetry: startAgentLocationWatcher,
+  });
 
   useEffect(() => {
     const loadAgentProfile = async () => {

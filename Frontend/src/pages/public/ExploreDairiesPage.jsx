@@ -18,6 +18,7 @@ import {
 } from "../../api/public.api.js";
 import { fetchCustomerSubscription } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 
 const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -133,6 +134,11 @@ const ExploreDairiesPage = () => {
   useEffect(() => {
     handleInitLocation();
   }, [handleInitLocation]);
+
+  useGeolocationAutoRetry({
+    enabled: loadError === "LOCATION_OFF",
+    onRetry: handleInitLocation,
+  });
 
   // ---------- INFINITE SCROLL ----------
   useEffect(() => {

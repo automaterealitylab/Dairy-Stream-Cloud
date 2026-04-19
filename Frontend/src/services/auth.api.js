@@ -27,8 +27,33 @@ export const verifyOtpApi = async (payload) => {
 // ===============================
 // 3. TOKEN VALIDATION (For Persistent Login)
 // ===============================
-export const validateTokenApi = async () => {
-  const { data } = await client.get("/auth/me");
+export const validateTokenApi = async (roleHint) => {
+  let storedUser = null;
+  try {
+    storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    storedUser = null;
+  }
+
+  const normalizedRole = String(
+    roleHint || storedUser?.role || localStorage.getItem("userRole") || ""
+  ).toUpperCase();
+  const fallbackToken = storedUser?.token || null;
+
+  let token = null;
+  if (normalizedRole === "ADMIN") {
+    token = localStorage.getItem("adminToken") || (normalizedRole === "ADMIN" ? fallbackToken : null);
+  } else if (normalizedRole === "AGENT" || normalizedRole === "STAFF") {
+    token =
+      localStorage.getItem("agentToken") ||
+      ((normalizedRole === "AGENT" || normalizedRole === "STAFF") ? fallbackToken : null);
+  } else if (normalizedRole === "CUSTOMER") {
+    token = localStorage.getItem("token") || (normalizedRole === "CUSTOMER" ? fallbackToken : null);
+  }
+
+  const { data } = await client.get("/auth/me", {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
   return data;
 };
 

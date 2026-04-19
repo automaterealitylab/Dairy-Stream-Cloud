@@ -13,6 +13,7 @@ import {
 } from "../../api/customer/customer.api.js";
 import { buildCustomerAddress } from "../../utils/customerAddress.js";
 import toast from "react-hot-toast";
+import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DEFAULT_MAP_CENTER = [18.5204, 73.8567];
@@ -304,6 +305,13 @@ const CustomerProfile = () => {
       }
     );
   };
+
+  useGeolocationAutoRetry({
+    enabled: showModal && !locating,
+    onRetry: () => {
+      detectCurrentLocation({ showToast: false, pinIfMissing: false, centerOnGps: true });
+    },
+  });
 
   const saveProfile = async () => {
     const isAddressOnlyEditor = editorMode === "address";
