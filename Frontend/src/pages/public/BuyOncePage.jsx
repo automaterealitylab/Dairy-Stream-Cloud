@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Calendar, Clock3, MapPin, ShoppingBag, CheckCircle2, CreditCard } from "lucide-react";
+import { ArrowLeft, Calendar, Clock3, MapPin, ShoppingBag, CheckCircle2, CreditCard, Plus, Minus } from "lucide-react";
 import toast from "react-hot-toast";
 import { fetchPublicDairyById } from "../../api/public.api.js";
 import {
@@ -147,7 +147,7 @@ const BuyOncePage = () => {
   const [hasSubscriptionForThisDairy, setHasSubscriptionForThisDairy] = useState(false);
   const [form, setForm] = useState({
     milkType: "",
-    quantity: 1,
+    items: {},
     deliveryDate: isCustomerExtraFlow ? nextDayDeliveryDate : getDefaultBuyOnceDate(),
     slot: "Morning",
     paymentMethod: "PAY_NOW",
@@ -228,27 +228,49 @@ const BuyOncePage = () => {
 
   useEffect(() => {
     if (!dairy) return;
-    if (dairy.productItems.some((item) => item.name === form.milkType)) return;
+    if (dairy.productItems.some((item) => item.name === form.milkType) && Object.keys(form.items || {}).length > 0) return;
     const firstInStock = dairy.productItems.find((item) => !isProductOutOfStock(item.stockQuantity))?.name;
     const firstProduct = firstInStock || dairy.productItems[0]?.name;
     if (firstProduct) {
-      setForm((prev) => ({ ...prev, milkType: firstProduct }));
+      setForm((prev) => ({
+        ...prev,
+        milkType: firstProduct,
+        items:
+          Object.keys(prev.items || {}).length > 0
+            ? prev.items
+            : {
+                [firstProduct]: 1,
+              },
+      }));
     }
-  }, [dairy, form.milkType]);
+  }, [dairy, form.milkType, form.items]);
 
   const selectedProduct = useMemo(
     () => dairy?.productItems?.find((item) => item.name === form.milkType) || null,
     [dairy, form.milkType]
   );
 
-  const pricePerLiter = useMemo(() => Number(selectedProduct?.ratePerUnit || 0), [selectedProduct]);
+  const selectedItems = useMemo(
+    () =>
+      (dairy?.productItems || [])
+        .map((item) => ({
+          ...item,
+          quantity: Number(form.items?.[item.name] || 0),
+        }))
+        .filter((item) => item.quantity > 0),
+    [dairy, form.items]
+  );
+
   const totalPrice = useMemo(
-    () => Number(form.quantity || 0) * pricePerLiter,
-    [form.quantity, pricePerLiter]
+    () =>
+      selectedItems.reduce(
+        (sum, item) => sum + Number(item.quantity || 0) * Number(item.ratePerUnit || 0),
+        0
+      ),
+    [selectedItems]
   );
   const slotOptions = useMemo(() => getDeliverySlotOptions(form.deliveryDate), [form.deliveryDate]);
   const hasAvailableSlot = useMemo(() => slotOptions.some((slot) => slot.available), [slotOptions]);
-  const quantity = Number(form.quantity || 0);
   const availableStock = useMemo(() => {
     if (!selectedProduct) return 0;
     const stock = Number(selectedProduct.stockQuantity);
@@ -256,7 +278,16 @@ const BuyOncePage = () => {
   }, [selectedProduct]);
   const isStockLimited = Number.isFinite(availableStock);
   const isOutOfStock = isStockLimited && availableStock <= 0;
-  const exceedsStock = isStockLimited && quantity > availableStock;
+  const activeQuantity = Number(form.items?.[form.milkType] || 0);
+  const exceedsStock = isStockLimited && activeQuantity > availableStock;
+  const invalidStockItem = useMemo(
+    () =>
+      selectedItems.find((item) => {
+        const stock = Number(item.stockQuantity);
+        return Number.isFinite(stock) && item.quantity > stock;
+      }) || null,
+    [selectedItems]
+  );
 
   useEffect(() => {
     const selected = slotOptions.find((slot) => slot.id === form.slot);
@@ -366,11 +397,48 @@ const BuyOncePage = () => {
     response?.order?.payment?.id ||
     null;
 
-  const rollbackCancelledPayNowOrder = async ({ orderId, paymentId }) => {
-    if (!orderId || !paymentId) return false;
+  const toggleProductSelection = (productName) => {
+    setForm((prev) => {
+      const nextItems = { ...(prev.items || {}) };
+      if (Number(nextItems[productName] || 0) > 0) {
+        delete nextItems[productName];
+      } else {
+        nextItems[productName] = 1;
+      }
+
+      const remainingKeys = Object.keys(nextItems);
+      return {
+        ...prev,
+        milkType: remainingKeys.includes(prev.milkType) ? prev.milkType : remainingKeys[0] || productName,
+        items: nextItems,
+      };
+    });
+  };
+
+  const updateSelectedItemQuantity = (productName, nextValue) => {
+    const quantity = Number(nextValue);
+    setForm((prev) => {
+      const nextItems = { ...(prev.items || {}) };
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        delete nextItems[productName];
+      } else {
+        nextItems[productName] = quantity;
+      }
+
+      const remainingKeys = Object.keys(nextItems);
+      return {
+        ...prev,
+        milkType: remainingKeys.includes(prev.milkType) ? prev.milkType : remainingKeys[0] || "",
+        items: nextItems,
+      };
+    });
+  };
+
+  const rollbackCancelledPayNowOrder = async ({ orderId, orderIds, paymentId }) => {
+    if ((!orderId && (!Array.isArray(orderIds) || orderIds.length === 0)) || !paymentId) return false;
 
     try {
-      await cancelCustomerOneTimeOrder({ orderId, paymentId, removeFromHistory: true });
+      await cancelCustomerOneTimeOrder({ orderId, orderIds, paymentId, removeFromHistory: true });
       return true;
     } catch (err) {
       console.error("Failed to rollback cancelled one-time order:", err);
@@ -386,8 +454,8 @@ const BuyOncePage = () => {
       return;
     }
 
-    if (!selectedProduct) {
-      toast.error("No product selected");
+    if (!selectedItems.length) {
+      toast.error("Select at least one product");
       return;
     }
     if (hasSubscriptionForThisDairy && !isCustomerExtraFlow) {
@@ -412,13 +480,8 @@ const BuyOncePage = () => {
       return;
     }
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.error("Quantity must be greater than zero");
-      return;
-    }
-
-    if (isStockLimited && quantity > availableStock) {
-      toast.error(`Only ${availableStock} available for ${form.milkType}`);
+    if (invalidStockItem) {
+      toast.error(`Only ${invalidStockItem.stockQuantity} available for ${invalidStockItem.name}`);
       return;
     }
 
@@ -426,13 +489,14 @@ const BuyOncePage = () => {
       setSubmitting(true);
       const response = await createCustomerOneTimeOrder({
         dairyId: dairy.id,
-        milkType: form.milkType,
-        quantity,
+        items: selectedItems.map((item) => ({
+          milkType: item.name,
+          quantity: item.quantity,
+        })),
         deliveryDate: form.deliveryDate,
         slot: form.slot,
         paymentMethod: "PAY_NOW",
         address: form.address.trim(),
-        pricePerLiter,
         isExtraOrder: isCustomerExtraFlow,
         allowDuplicate,
       });
@@ -441,10 +505,11 @@ const BuyOncePage = () => {
       localStorage.setItem("guest_dairy_name", dairy.name);
       setShowDuplicateConfirm(false);
 
-      const orderId = response?.order?.id || null;
+      const orderIds = Array.isArray(response?.orderIds) ? response.orderIds : [];
+      const orderId = response?.order?.id || orderIds[0] || null;
       const paymentId = getOrderPaymentId(response);
       if (!orderId || !paymentId) {
-        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, orderIds, paymentId });
         if (rolledBack) {
           toast.error("Could not start payment. Order was not placed.");
         } else {
@@ -465,7 +530,7 @@ const BuyOncePage = () => {
           return;
         }
 
-        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, orderIds, paymentId });
         if (rolledBack) {
           toast.error(paymentErr?.message || "Payment cancelled. Order not placed.");
         } else {
@@ -483,7 +548,7 @@ const BuyOncePage = () => {
       }
 
       if (paymentResult?.dismissed || paymentResult?.failed) {
-        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+        const rolledBack = await rollbackCancelledPayNowOrder({ orderId, orderIds, paymentId });
         if (rolledBack) {
           toast.error("Payment cancelled. Order not placed.");
         } else {
@@ -492,7 +557,7 @@ const BuyOncePage = () => {
         return;
       }
 
-      const rolledBack = await rollbackCancelledPayNowOrder({ orderId, paymentId });
+      const rolledBack = await rollbackCancelledPayNowOrder({ orderId, orderIds, paymentId });
       if (rolledBack) {
         toast.error("Payment not completed. Order not placed.");
       } else {
@@ -561,7 +626,7 @@ const BuyOncePage = () => {
             <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center gap-2">
                 <ShoppingBag size={18} className="text-blue-600" />
-                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Select Product</h2>
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Select Products</h2>
               </div>
               <div className="p-6 grid grid-cols-2 sm:grid-cols-2 gap-3">
                 {dairy.productItems.map((item) => (
@@ -569,29 +634,79 @@ const BuyOncePage = () => {
                     key={item.id}
                     type="button"
                     disabled={isProductOutOfStock(item.stockQuantity)}
-                    onClick={() => setForm((prev) => ({ ...prev, milkType: item.name }))}
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, milkType: item.name }));
+                      toggleProductSelection(item.name);
+                    }}
                     className={`relative p-4 rounded-xl border-2 text-left transition-all group ${
                       isProductOutOfStock(item.stockQuantity)
                       ? "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
                       :
-                      form.milkType === item.name
+                      Number(form.items?.[item.name] || 0) > 0
                       ? "border-blue-600 bg-blue-50/50 ring-4 ring-blue-50"
                       : "border-slate-100 hover:border-slate-300 bg-white"
                     }`}
                   >
-                    {form.milkType === item.name && (
+                    {Number(form.items?.[item.name] || 0) > 0 && (
                       <CheckCircle2 size={18} className="absolute top-2 right-2 text-blue-600" />
                     )}
-                    <p className={`text-sm font-bold ${form.milkType === item.name ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
+                    <p className={`text-sm font-bold ${Number(form.items?.[item.name] || 0) > 0 ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
                     <p className="text-lg font-black text-slate-900 mt-1">Rs {item.ratePerUnit}<span className="text-[10px] text-slate-400 font-normal">/{item.unit}</span></p>
                     <p className={`text-[11px] mt-1 font-medium ${isProductOutOfStock(item.stockQuantity) ? "text-red-500" : "text-emerald-600"}`}>
                       Stock: {formatProductStockLabel(item.stockQuantity)}
+                    </p>
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      {Number(form.items?.[item.name] || 0) > 0 ? `${form.items?.[item.name]}L selected` : "Tap to add"}
                     </p>
                   </button>
                 ))}
               </div>
               {dairy.productItems.length === 0 && (
                 <div className="px-6 pb-6 text-sm text-red-600">No products available in this dairy right now.</div>
+              )}
+              {selectedItems.length > 0 && (
+                <div className="border-t border-slate-200 px-6 py-5 space-y-3 bg-slate-50/70">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-800">Selected Items</h3>
+                    <p className="text-xs text-slate-500">
+                      {selectedItems.length} product{selectedItems.length > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  {selectedItems.map((item) => (
+                    <div key={item.name} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-semibold text-slate-900">{item.name}</p>
+                          <p className="text-xs text-slate-500">Rs {item.ratePerUnit}/{item.unit}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedItemQuantity(item.name, item.quantity - 0.5)}
+                            className="rounded-full border border-slate-200 p-2 text-slate-500"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <input
+                            type="number"
+                            min="0.5"
+                            step="0.5"
+                            value={item.quantity}
+                            onChange={(e) => updateSelectedItemQuantity(item.name, e.target.value)}
+                            className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-center font-bold outline-none focus:border-blue-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedItemQuantity(item.name, item.quantity + 0.5)}
+                            className="rounded-full border border-slate-200 p-2 text-slate-500"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </section>
 
@@ -603,15 +718,9 @@ const BuyOncePage = () => {
               <div className="p-6 space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase ml-1">Quantity (Liters)</label>
-                    <div className="relative">
-                      <input
-                        type="number" min="0.5" step="0.5"
-                        value={form.quantity}
-                        onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
-                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 bg-white text-lg font-bold outline-none focus:border-blue-500 transition-all"
-                      />
-                      <span className="absolute right-4 top-3.5 text-slate-400 font-bold">Ltr</span>
+                    <label className="text-xs font-bold text-slate-500 uppercase ml-1">Products In Order</label>
+                    <div className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-lg font-bold text-slate-900">
+                      {selectedItems.length}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -638,7 +747,7 @@ const BuyOncePage = () => {
 
                 {selectedProduct && (
                   <p className={`text-xs font-semibold ${isOutOfStock || exceedsStock ? "text-red-600" : "text-emerald-600"}`}>
-                    Available stock: {isOutOfStock ? "Out of Stock" : Number.isFinite(availableStock) ? availableStock : "Unlimited"}
+                    Focused product stock: {isOutOfStock ? "Out of Stock" : Number.isFinite(availableStock) ? availableStock : "Unlimited"}
                   </p>
                 )}
 
@@ -679,10 +788,16 @@ const BuyOncePage = () => {
               </h3>
 
               <div className="space-y-4 border-b border-slate-800 pb-6 mb-6">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">{form.milkType} x {form.quantity}L</span>
-                  <span className="font-bold">Rs {totalPrice.toFixed(2)}</span>
-                </div>
+                {selectedItems.length > 0 ? (
+                  selectedItems.map((item) => (
+                    <div key={item.name} className="flex justify-between text-sm">
+                      <span className="text-slate-400">{item.name} x {item.quantity}L</span>
+                      <span className="font-bold">Rs {(item.quantity * item.ratePerUnit).toFixed(2)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-400">No products selected yet.</div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Delivery Fee</span>
                   <span className="text-green-400 font-bold uppercase text-[10px] bg-green-400/10 px-2 py-1 rounded">Free</span>
@@ -718,7 +833,7 @@ const BuyOncePage = () => {
 
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={submitting || (hasSubscriptionForThisDairy && !isCustomerExtraFlow) || !hasAvailableSlot || !selectedProduct || isOutOfStock || exceedsStock || dairy.productItems.length === 0}
+                disabled={submitting || (hasSubscriptionForThisDairy && !isCustomerExtraFlow) || !hasAvailableSlot || !selectedItems.length || Boolean(invalidStockItem) || dairy.productItems.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all transform active:scale-[0.98] disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
               >
                 {submitting
@@ -729,11 +844,11 @@ const BuyOncePage = () => {
                   ? "Pay & Add Extra"
                   : "Pay & Place Order"}
               </button>
-              {(isOutOfStock || exceedsStock) && (
+              {(invalidStockItem || !selectedItems.length) && (
                 <p className="mt-2 text-xs text-red-400 font-medium">
-                  {isOutOfStock
-                    ? `${form.milkType || "Selected product"} is out of stock`
-                    : "Requested quantity is more than available stock"}
+                  {invalidStockItem
+                    ? `${invalidStockItem.name} quantity is more than available stock`
+                    : "Select at least one product"}
                 </p>
               )}
             </div>
@@ -755,7 +870,7 @@ const BuyOncePage = () => {
           <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl p-6">
             <h3 className="text-lg font-bold text-slate-900">Same Order Found</h3>
             <p className="mt-2 text-sm text-slate-600">
-              This is the same order for the selected product/date. Do you want to order again or cancel?
+              One or more selected products already have an order for this date. Do you want to order again or cancel?
             </p>
             <div className="mt-5 flex gap-3 justify-end">
               <button

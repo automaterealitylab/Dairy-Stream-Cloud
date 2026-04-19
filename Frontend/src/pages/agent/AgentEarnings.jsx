@@ -90,7 +90,7 @@ const AgentEarnings = () => {
 
   return (
     <AgentLayout>
-      <div className="min-h-screen bg-[#FFFDF7] px-4 py-6 text-[#2C1A0E]">
+      <div className="min-h-screen bg-[#FFFDF7] px-4 pb-6 text-[#2C1A0E]">
         <div className="mx-auto max-w-6xl space-y-6">
           <section className="rounded-[32px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#2C1A0E_0%,#4A3820_58%,#6B4F2A_100%)] px-6 py-6 text-white shadow-[0_22px_50px_rgba(92,61,30,0.22)]">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/55">Earnings</p>

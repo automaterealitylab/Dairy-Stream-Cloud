@@ -29,7 +29,7 @@ const AgentLayout = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <main className="p-4">
+        <main className="px-4 pb-4">
           {children}
         </main>
       </div>

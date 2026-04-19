@@ -1,6 +1,27 @@
 import { updateDeliveryETA } from "../../services/shared/eta.service.js";
 import { supabase } from "../../config/supabase.js";
 
+const isMissingTableError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    (message.includes("table") && message.includes("could not find")) ||
+    (message.includes("relation") && message.includes("does not exist")) ||
+    message.includes("schema cache")
+  );
+};
+
+const isTransientFetchError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  const details = String(error?.details || "").toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("timeout") ||
+    details.includes("fetch failed") ||
+    details.includes("connect timeout") ||
+    details.includes("und_err_connect_timeout")
+  );
+};
+
 /**
  * Update agent location and calculate delivery ETA
  */
@@ -15,24 +36,52 @@ export const updateAgentLocation = async (req, res) => {
       });
     }
 
-    // Update ETA and location
-    const etaData = await updateDeliveryETA(deliveryId, latitude, longitude);
+    let etaData;
+    try {
+      etaData = await updateDeliveryETA(deliveryId, latitude, longitude);
+    } catch (etaError) {
+      if (!isTransientFetchError(etaError)) {
+        throw etaError;
+      }
 
-    // Save location to agent_locations table for analytics
-    await supabase.from("agent_locations").insert({
+      console.warn("ETA refresh skipped due to transient fetch error:", etaError?.message || etaError);
+      etaData = {
+        estimatedMinutes: null,
+        estimatedArrivalTime: null,
+        distance: null,
+        remainingMinutes: null,
+        remainingDistance: null,
+        confidence: "LOW",
+        lastUpdated: new Date().toISOString(),
+        agentLocation: {
+          lat: Number(latitude),
+          lng: Number(longitude),
+        },
+        customerLocation: null,
+        routePath: [],
+        message: "Location received. ETA refresh will retry on the next update.",
+      };
+    }
+
+    // Save location to agent_locations table for analytics.
+    // This insert is optional, so we log and continue if the table/schema is missing.
+    const { error: locationTrackError } = await supabase.from("agent_locations").insert({
       agent_id: agentId,
       delivery_id: deliveryId,
       latitude,
       longitude,
       recorded_at: new Date().toISOString(),
-    }).catch((err) => {
-      // Location tracking optional, don't fail if table doesn't exist
-      console.log("Could not save location track:", err.message);
     });
+
+    if (locationTrackError && !isMissingTableError(locationTrackError)) {
+      console.log("Could not save location track:", locationTrackError.message || locationTrackError);
+    }
 
     return res.json({
       success: true,
-      message: "Location updated and ETA calculated",
+      message: etaData?.estimatedArrivalTime
+        ? "Location updated and ETA calculated"
+        : "Location updated. ETA refresh pending.",
       ...etaData,
     });
   } catch (err) {

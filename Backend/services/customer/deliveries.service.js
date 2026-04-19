@@ -673,6 +673,21 @@ const parseDeliveryIdFromPaymentDescription = (description) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
+const paymentDescriptionIncludesDeliveryId = (description, orderId) => {
+  const text = String(description || "");
+  const normalizedId = Number(orderId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return false;
+  if (parseDeliveryIdFromPaymentDescription(text) === normalizedId) return true;
+
+  const bundleMatch = text.match(/delivery_ids=([0-9,\s]+)/i);
+  if (!bundleMatch) return false;
+
+  return bundleMatch[1]
+    .split(",")
+    .map((value) => Number(String(value || "").trim()))
+    .some((value) => value === normalizedId);
+};
+
 const findLinkedOneTimePayment = async ({
   customerId,
   orderId,
@@ -709,7 +724,7 @@ const findLinkedOneTimePayment = async ({
 
   const rows = Array.isArray(data) ? data : [];
   return (
-    rows.find((row) => parseDeliveryIdFromPaymentDescription(row?.description) === orderId) ||
+    rows.find((row) => paymentDescriptionIncludesDeliveryId(row?.description, orderId)) ||
     rows[0] ||
     null
   );
@@ -769,6 +784,44 @@ const getSavedCustomerAddress = async (customerId) => {
   return buildCustomerAddress(data);
 };
 
+const normalizeOneTimeOrderItems = (payload = {}) => {
+  const explicitItems = Array.isArray(payload?.items) ? payload.items : [];
+  if (explicitItems.length > 0) {
+    return explicitItems
+      .map((item) => ({
+        milkType: String(item?.milkType || item?.name || "").trim(),
+        quantity: toFiniteNumber(item?.quantity),
+      }))
+      .filter((item) => item.milkType);
+  }
+
+  return [
+    {
+      milkType: String(payload?.milkType || "").trim(),
+      quantity: toFiniteNumber(payload?.quantity),
+    },
+  ].filter((item) => item.milkType);
+};
+
+const mergeOneTimeOrderItems = (items = []) => {
+  const merged = new Map();
+
+  for (const item of items) {
+    const key = String(item?.milkType || "").trim().toLowerCase();
+    if (!key) continue;
+
+    const current = merged.get(key) || {
+      milkType: String(item?.milkType || "").trim(),
+      quantity: 0,
+    };
+
+    current.quantity = Number((current.quantity + Number(item?.quantity || 0)).toFixed(2));
+    merged.set(key, current);
+  }
+
+  return [...merged.values()];
+};
+
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
   await autoFailOverduePendingSubscriptionDeliveriesForCustomer({ customerId });
   await ensureCustomerSubscriptionDeliveryForDate({ customerId });
@@ -826,8 +879,7 @@ export const getCustomerDeliveries = async (customerId) => {
 
 export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const dairyId = Number(payload?.dairyId);
-  const milkType = String(payload?.milkType || "").trim();
-  const quantity = toFiniteNumber(payload?.quantity);
+  const normalizedItems = mergeOneTimeOrderItems(normalizeOneTimeOrderItems(payload));
   const deliveryDate = String(payload?.deliveryDate || "").trim();
   const allowDuplicate = toBoolean(payload?.allowDuplicate);
   const isExtraOrder = toBoolean(payload?.isExtraOrder);
@@ -841,11 +893,8 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   if (!Number.isFinite(dairyId) || dairyId <= 0) {
     throw new Error("Valid dairyId is required");
   }
-  if (!milkType) {
-    throw new Error("milkType is required");
-  }
-  if (!Number.isFinite(quantity) || quantity <= 0) {
-    throw new Error("quantity must be greater than zero");
+  if (!normalizedItems.length) {
+    throw new Error("At least one product is required");
   }
   if (!isValidDateString(deliveryDate)) {
     throw new Error("deliveryDate must be in YYYY-MM-DD format");
@@ -895,84 +944,118 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   if (paymentMethod === "MONTHLY_BILL" && !hasSubscriptionInSameDairy) {
     throw new Error("Add to subscription bill is available only for customers with an active subscription in this dairy");
   }
-
-  const selectedProduct = await getProductByNameForDairy({
-    dairyId,
-    productName: milkType,
-  });
-  if (!selectedProduct) {
-    throw new Error("Selected product is not available in this dairy");
-  }
-
-  const databaseRate = toFiniteNumber(selectedProduct?.rate_per_unit);
-  const resolvedPricePerLiter = Number.isFinite(databaseRate) && databaseRate > 0
-    ? databaseRate
-    : pricePerLiterInput;
-  if (!Number.isFinite(resolvedPricePerLiter) || resolvedPricePerLiter <= 0) {
-    throw new Error("Invalid product rate. Ask dairy admin to update product price.");
-  }
-
-  const { data: duplicate, error: duplicateError } = await supabase
-    .from("deliveries")
-    .select("id")
-    .eq("customer_id", customerId)
-    .eq("dairy_id", dairyId)
-    .eq("delivery_date", deliveryDate)
-    .eq("milk_type", milkType)
-    .in("status", ["PENDING", "DELIVERED"])
-    .limit(1)
-    .maybeSingle();
-
-  if (duplicateError) throw duplicateError;
-  if (duplicate && !allowDuplicate) {
-    throw new Error("A one-time order for this product/date already exists");
-  }
-
-  await reserveStockForOrder({
-    dairyId,
-    productId: selectedProduct.id,
-    quantity,
-  });
-
-  const deliveryNotes = appendDeliveryBillingMeta(
-    `[ONE_TIME_ORDER] slot=${slot}; payment=${paymentMethod}; address=${resolvedAddress}`,
-    {
-      paymentMethod,
-      unitPrice: resolvedPricePerLiter,
+  const preparedItems = [];
+  for (const item of normalizedItems) {
+    if (!item.milkType) {
+      throw new Error("Product name is required for each item");
     }
-  ).slice(0, 500);
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+      throw new Error(`Quantity must be greater than zero for ${item.milkType}`);
+    }
 
-  const { data: createdDelivery, error: createDeliveryError } = await supabase
-    .from("deliveries")
-    .insert({
-      customer_id: customerId,
-      dairy_id: dairyId,
-      delivery_date: deliveryDate,
-      milk_type: milkType,
-      quantity_liters: quantity,
-      status: "PENDING",
-      approval_status: "PENDING",
-      notes: deliveryNotes,
-    })
-    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, created_at")
-    .single();
-
-  if (createDeliveryError) {
-    await releaseStockForCancelledOrder({
+    const selectedProduct = await getProductByNameForDairy({
       dairyId,
-      milkType,
-      quantity,
+      productName: item.milkType,
     });
-    throw createDeliveryError;
+    if (!selectedProduct) {
+      throw new Error(`${item.milkType} is not available in this dairy`);
+    }
+
+    const databaseRate = toFiniteNumber(selectedProduct?.rate_per_unit);
+    const resolvedPricePerLiter =
+      Number.isFinite(databaseRate) && databaseRate > 0 ? databaseRate : pricePerLiterInput;
+    if (!Number.isFinite(resolvedPricePerLiter) || resolvedPricePerLiter <= 0) {
+      throw new Error(`Invalid product rate for ${item.milkType}. Ask dairy admin to update product price.`);
+    }
+
+    const { data: duplicate, error: duplicateError } = await supabase
+      .from("deliveries")
+      .select("id")
+      .eq("customer_id", customerId)
+      .eq("dairy_id", dairyId)
+      .eq("delivery_date", deliveryDate)
+      .eq("milk_type", item.milkType)
+      .in("status", ["PENDING", "DELIVERED"])
+      .limit(1)
+      .maybeSingle();
+
+    if (duplicateError) throw duplicateError;
+    if (duplicate && !allowDuplicate) {
+      throw new Error("A one-time order for this product/date already exists");
+    }
+
+    preparedItems.push({
+      milkType: item.milkType,
+      quantity: item.quantity,
+      productId: selectedProduct.id,
+      unitPrice: resolvedPricePerLiter,
+    });
   }
 
-  const amount = Number((quantity * resolvedPricePerLiter).toFixed(2));
+  const reservedItems = [];
+  const createdDeliveries = [];
+  try {
+    for (const item of preparedItems) {
+      await reserveStockForOrder({
+        dairyId,
+        productId: item.productId,
+        quantity: item.quantity,
+      });
+      reservedItems.push(item);
+    }
+
+    for (const item of preparedItems) {
+      const deliveryNotes = appendDeliveryBillingMeta(
+        `[ONE_TIME_ORDER] slot=${slot}; payment=${paymentMethod}; address=${resolvedAddress}`,
+        {
+          paymentMethod,
+          unitPrice: item.unitPrice,
+        }
+      ).slice(0, 500);
+
+      const { data: createdDelivery, error: createDeliveryError } = await supabase
+        .from("deliveries")
+        .insert({
+          customer_id: customerId,
+          dairy_id: dairyId,
+          delivery_date: deliveryDate,
+          milk_type: item.milkType,
+          quantity_liters: item.quantity,
+          status: "PENDING",
+          approval_status: "PENDING",
+          notes: deliveryNotes,
+        })
+        .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, created_at")
+        .single();
+
+      if (createDeliveryError) throw createDeliveryError;
+      createdDeliveries.push(createdDelivery);
+    }
+  } catch (error) {
+    for (const created of createdDeliveries) {
+      await supabase.from("deliveries").delete().eq("id", created.id).eq("customer_id", customerId);
+    }
+    for (const item of reservedItems) {
+      await releaseStockForCancelledOrder({
+        dairyId,
+        milkType: item.milkType,
+        quantity: item.quantity,
+      });
+    }
+    throw error;
+  }
+
+  const amount = Number(
+    preparedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2)
+  );
   let createdPayment = null;
   if (isStandaloneOneTimePaymentMethod(paymentMethod)) {
-    const paymentDescription = `One-time order: delivery_id=${createdDelivery.id}; ${milkType} ${quantity}L (${slot}) for ${deliveryDate}`.slice(
-      0,
-      300
-    );
+    const deliveryIds = createdDeliveries.map((item) => item.id).join(",");
+    const summaryLabel = preparedItems
+      .map((item) => `${item.milkType} ${item.quantity}L`)
+      .join(", ")
+      .slice(0, 180);
+    const paymentDescription = `One-time order bundle: delivery_ids=${deliveryIds}; ${summaryLabel} (${slot}) for ${deliveryDate}`.slice(0, 300);
 
     const { data: paymentRow, error: createPaymentError } = await supabase
       .from("payments")
@@ -989,11 +1072,16 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
       .single();
 
     if (createPaymentError) {
-      await releaseStockForCancelledOrder({
-        dairyId,
-        milkType,
-        quantity,
-      });
+      for (const created of createdDeliveries) {
+        await supabase.from("deliveries").delete().eq("id", created.id).eq("customer_id", customerId);
+      }
+      for (const item of reservedItems) {
+        await releaseStockForCancelledOrder({
+          dairyId,
+          milkType: item.milkType,
+          quantity: item.quantity,
+        });
+      }
       throw createPaymentError;
     }
 
@@ -1002,87 +1090,98 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
 
   return {
     order: {
-      id: createdDelivery.id,
+      id: createdDeliveries[0]?.id || null,
       dairyId,
       dairyName: dairy.dairy_name || "Dairy",
       deliveryDate,
-      milkType,
-      quantity,
+      milkType: preparedItems[0]?.milkType || "",
+      quantity: preparedItems[0]?.quantity || 0,
       slot,
-      status: createdDelivery.status || "PENDING",
-      approvalStatus: String(createdDelivery.approval_status || "PENDING").toUpperCase(),
+      status: createdDeliveries[0]?.status || "PENDING",
+      approvalStatus: String(createdDeliveries[0]?.approval_status || "PENDING").toUpperCase(),
     },
+    orders: createdDeliveries.map((delivery, index) => ({
+      id: delivery.id,
+      dairyId,
+      dairyName: dairy.dairy_name || "Dairy",
+      deliveryDate,
+      milkType: preparedItems[index]?.milkType || delivery.milk_type,
+      quantity: preparedItems[index]?.quantity || delivery.quantity_liters,
+      slot,
+      status: delivery.status || "PENDING",
+      approvalStatus: String(delivery.approval_status || "PENDING").toUpperCase(),
+    })),
+    orderIds: createdDeliveries.map((delivery) => delivery.id),
     payment: createdPayment,
   };
 };
 
 export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const orderId = toPositiveId(payload?.orderId);
+  const orderIds = Array.isArray(payload?.orderIds)
+    ? payload.orderIds.map((value) => toPositiveId(value)).filter(Boolean)
+    : [];
   const paymentId = toPositiveId(payload?.paymentId);
   const removeFromHistory = toBoolean(payload?.removeFromHistory);
+  const targetOrderIds = [...new Set([...(orderIds || []), ...(orderId ? [orderId] : [])])];
 
-  if (!orderId) {
+  if (!targetOrderIds.length) {
     throw new Error("Valid orderId is required");
   }
 
-  const { data: delivery, error: deliveryFetchError } = await supabase
+  const { data: deliveries, error: deliveryFetchError } = await supabase
     .from("deliveries")
     .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes")
-    .eq("id", orderId)
+    .in("id", targetOrderIds)
     .eq("customer_id", customerId)
-    .limit(1)
-    .maybeSingle();
+    .order("id", { ascending: true });
 
   if (deliveryFetchError) throw deliveryFetchError;
-  if (!delivery) {
+  if (!Array.isArray(deliveries) || deliveries.length !== targetOrderIds.length) {
     throw new Error("Order not found");
   }
 
-  if (!String(delivery?.notes || "").includes("[ONE_TIME_ORDER]")) {
-    throw new Error("Only one-time orders can be cancelled");
+  for (const delivery of deliveries) {
+    if (!String(delivery?.notes || "").includes("[ONE_TIME_ORDER]")) {
+      throw new Error("Only one-time orders can be cancelled");
+    }
+
+    const deliveryStatus = String(delivery?.status || "PENDING").toUpperCase();
+    const approvalStatus = String(delivery?.approval_status || "PENDING").toUpperCase();
+
+    if (deliveryStatus === "IN_TRANSIT") {
+      throw new Error("This order is already out for delivery and can no longer be cancelled");
+    }
+    if (deliveryStatus === "DELIVERED" || deliveryStatus === "COMPLETED") {
+      throw new Error("Delivered orders cannot be cancelled");
+    }
+    if (deliveryStatus === "FAILED") {
+      throw new Error("Failed orders cannot be cancelled");
+    }
+    if (deliveryStatus === "CANCELLED" || deliveryStatus === "CANCELED") {
+      throw new Error("This order has already been cancelled");
+    }
+    if (deliveryStatus !== "PENDING") {
+      throw new Error("Only pending one-time orders can be cancelled");
+    }
+    if (approvalStatus === "APPROVED") {
+      throw new Error("This order has already been approved and cannot be cancelled by the customer");
+    }
+    if (approvalStatus === "CANCELLED" || approvalStatus === "CANCELED") {
+      throw new Error("This order has already been cancelled");
+    }
+    if (approvalStatus !== "PENDING") {
+      throw new Error("Only approval-pending one-time orders can be cancelled");
+    }
   }
 
-  const deliveryStatus = String(delivery?.status || "PENDING").toUpperCase();
-  const approvalStatus = String(delivery?.approval_status || "PENDING").toUpperCase();
-
-  if (deliveryStatus === "IN_TRANSIT") {
-    throw new Error("This order is already out for delivery and can no longer be cancelled");
-  }
-
-  if (deliveryStatus === "DELIVERED" || deliveryStatus === "COMPLETED") {
-    throw new Error("Delivered orders cannot be cancelled");
-  }
-
-  if (deliveryStatus === "FAILED") {
-    throw new Error("Failed orders cannot be cancelled");
-  }
-
-  if (deliveryStatus === "CANCELLED" || deliveryStatus === "CANCELED") {
-    throw new Error("This order has already been cancelled");
-  }
-
-  if (deliveryStatus !== "PENDING") {
-    throw new Error("Only pending one-time orders can be cancelled");
-  }
-
-  if (approvalStatus === "APPROVED") {
-    throw new Error("This order has already been approved and cannot be cancelled by the customer");
-  }
-
-  if (approvalStatus === "CANCELLED" || approvalStatus === "CANCELED") {
-    throw new Error("This order has already been cancelled");
-  }
-
-  if (approvalStatus !== "PENDING") {
-    throw new Error("Only approval-pending one-time orders can be cancelled");
-  }
-
-  const paymentMethod = normalizeOneTimePaymentMethod(parseOneTimeNotes(delivery?.notes).paymentMethod);
+  const primaryDelivery = deliveries[0];
+  const paymentMethod = normalizeOneTimePaymentMethod(parseOneTimeNotes(primaryDelivery?.notes).paymentMethod);
   const payment = await findLinkedOneTimePayment({
     customerId,
-    orderId,
+    orderId: primaryDelivery?.id,
     paymentId,
-    dairyId: delivery?.dairy_id ?? null,
+    dairyId: primaryDelivery?.dairy_id ?? null,
   });
   const requiresStandalonePayment = isStandaloneOneTimePaymentMethod(paymentMethod);
   if (!payment && requiresStandalonePayment) {
@@ -1100,11 +1199,11 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
 
     walletCredit = await addAmountToCustomerWallet({
       customerId,
-      dairyId: delivery?.dairy_id ?? null,
+      dairyId: primaryDelivery?.dairy_id ?? null,
       amount: paidAmount,
       source: "ONE_TIME_ORDER_CANCEL",
       method: "WALLET",
-      description: `[ONE_TIME_ORDER_CANCEL] order_id=${orderId}; original_payment_id=${payment.id}; amount=${paidAmount}; reason=approval_pending`,
+      description: `[ONE_TIME_ORDER_CANCEL] order_ids=${targetOrderIds.join(",")}; original_payment_id=${payment.id}; amount=${paidAmount}; reason=approval_pending`,
     });
   }
 
@@ -1112,7 +1211,7 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     const { error: deleteDeliveryError } = await supabase
       .from("deliveries")
       .delete()
-      .eq("id", orderId)
+      .in("id", targetOrderIds)
       .eq("customer_id", customerId);
 
     if (deleteDeliveryError) throw deleteDeliveryError;
@@ -1134,13 +1233,25 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
       .update({
         status: "CANCELLED",
         approval_status: "CANCELLED",
-        notes: appendCustomerCancellationNote(delivery?.notes, "approval_pending"),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", orderId)
+      .in("id", targetOrderIds)
       .eq("customer_id", customerId);
 
     if (updateDeliveryError) throw updateDeliveryError;
+
+    for (const delivery of deliveries) {
+      const { error: notesUpdateError } = await supabase
+        .from("deliveries")
+        .update({
+          notes: appendCustomerCancellationNote(delivery?.notes, "approval_pending"),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", delivery.id)
+        .eq("customer_id", customerId);
+
+      if (notesUpdateError) throw notesUpdateError;
+    }
 
     if (payment?.id && paymentStatus !== "PAID") {
       const { error: updatePaymentError } = await supabase
@@ -1158,17 +1269,20 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     }
   }
 
-  await releaseStockForCancelledOrder({
-    dairyId: delivery?.dairy_id,
-    milkType: delivery?.milk_type,
-    quantity: delivery?.quantity_liters,
-  });
+  for (const delivery of deliveries) {
+    await releaseStockForCancelledOrder({
+      dairyId: delivery?.dairy_id,
+      milkType: delivery?.milk_type,
+      quantity: delivery?.quantity_liters,
+    });
+  }
 
   return {
     success: true,
     cancelled: true,
     removedFromHistory: removeFromHistory,
-    orderId,
+    orderId: primaryDelivery?.id || null,
+    orderIds: targetOrderIds,
     paymentId: payment?.id || paymentId || null,
     walletCredited: Boolean(walletCredit),
     creditedAmount: walletCredit?.creditedAmount || 0,
