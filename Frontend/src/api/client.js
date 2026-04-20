@@ -13,6 +13,13 @@ const client = axios.create({
 
 // Attach role-specific tokens so customer/admin APIs don't get mixed tokens.
 client.interceptors.request.use((config) => {
+  const existingAuthorization =
+    config.headers?.Authorization || config.headers?.authorization;
+
+  if (existingAuthorization) {
+    return config;
+  }
+
   const requestPath = String(config.url || "");
   const adminToken = localStorage.getItem("adminToken");
   const customerToken = localStorage.getItem("token");
@@ -35,7 +42,15 @@ client.interceptors.request.use((config) => {
   } else if (requestPath.startsWith("/agent")) {
     token = agentToken || ((fallbackRole === "AGENT" || fallbackRole === "STAFF") ? fallbackToken : null);
   } else {
-    token = adminToken || customerToken || agentToken || fallbackToken;
+    if (fallbackRole === "ADMIN") {
+      token = adminToken || fallbackToken || customerToken || agentToken;
+    } else if (fallbackRole === "AGENT" || fallbackRole === "STAFF") {
+      token = agentToken || fallbackToken || adminToken || customerToken;
+    } else if (fallbackRole === "CUSTOMER") {
+      token = customerToken || fallbackToken || adminToken || agentToken;
+    } else {
+      token = adminToken || customerToken || agentToken || fallbackToken;
+    }
   }
 
   if (token) {
