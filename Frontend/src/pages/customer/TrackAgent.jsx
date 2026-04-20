@@ -230,7 +230,7 @@ const TrackAgent = () => {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 pb-10 pt-5 shadow-sm sm:rounded-[32px] sm:p-9">
+        <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-6 shadow-sm sm:rounded-[32px] sm:p-9">
           <div className="mb-7">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
               Delivery Progress
@@ -239,41 +239,55 @@ const TrackAgent = () => {
               Order Journey
             </h3>
           </div>
-          <div className="relative flex justify-between items-center">
-            <div className="absolute top-1/2 left-0 h-1 w-full -translate-y-1/2 bg-[#F2EDE4] z-0"></div>
-            <div
-              className="absolute top-1/2 left-0 z-0 h-1 -translate-y-1/2 bg-[#B8641A] transition-all duration-700"
-              style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
-            ></div>
+          <div className="px-2 sm:px-6">
+            <div className="relative">
+              <div className="absolute left-[16.666%] right-[16.666%] top-1/2 z-0 h-1 -translate-y-1/2 bg-[#F2EDE4]"></div>
+              <div
+                className="absolute left-[16.666%] top-1/2 z-0 h-1 -translate-y-1/2 bg-[#B8641A] transition-all duration-700"
+                style={{ width: `${(currentStepIndex / (steps.length - 1)) * 66.666}%` }}
+              ></div>
 
-            {steps.map((step, index) => {
-              const isActive = index <= currentStepIndex;
-              const isCurrent = index === currentStepIndex;
+              <div className="relative z-10 grid grid-cols-3 items-center">
+                {steps.map((step, index) => {
+                  const isActive = index <= currentStepIndex;
+                  const isCurrent = index === currentStepIndex;
 
-              return (
-                <div key={step.label} className="relative z-10 flex flex-col items-center">
-                  <div
-                    className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300 sm:h-10 sm:w-10 ${
-                      isCurrent
-                        ? "bg-[#B8641A] ring-4 ring-[#FDE9C9] text-white"
-                        : isActive
-                        ? "bg-[#B8641A] text-white"
-                        : "bg-white border-2 border-[#EDE8DF] text-[#C4A882]"
-                    }`}
-                  >
-                    {isActive ? <CheckCircle2 size={20} /> : <div className="h-2 w-2 rounded-full bg-[#C4A882]"></div>}
-                  </div>
+                  return (
+                    <div key={step.label} className="flex min-w-0 justify-center">
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300 sm:h-10 sm:w-10 ${
+                          isCurrent
+                            ? "bg-[#B8641A] ring-4 ring-[#FDE9C9] text-white"
+                            : isActive
+                            ? "bg-[#B8641A] text-white"
+                            : "bg-white border-2 border-[#EDE8DF] text-[#C4A882]"
+                        }`}
+                      >
+                        {isActive ? <CheckCircle2 size={20} /> : <div className="h-2 w-2 rounded-full bg-[#C4A882]"></div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {steps.map((step, index) => {
+                const isActive = index <= currentStepIndex;
+
+                return (
                   <span
-                    className={`absolute -bottom-7 max-w-[70px] text-center text-[9px] font-black uppercase leading-tight tracking-tight sm:-bottom-8 sm:max-w-none sm:text-[10px] sm:whitespace-nowrap ${
+                    key={step.label}
+                    className={`mx-auto min-w-0 max-w-[78px] text-center text-[10px] font-black uppercase leading-snug tracking-normal sm:max-w-[140px] sm:text-xs ${
                       isActive ? "text-[#B8641A]" : "text-[#A88763]"
                     }`}
                   >
                     <span className="sm:hidden">{step.mobileLabel || step.label}</span>
                     <span className="hidden sm:inline">{step.label}</span>
                   </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 

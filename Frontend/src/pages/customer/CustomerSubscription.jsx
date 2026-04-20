@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
-import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X } from 'lucide-react';
+import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X, CircleX } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchPublicDairyById } from '../../api/public.api.js';
 import {
@@ -647,7 +647,7 @@ const Subscribe = () => {
                     <button
                       disabled={saving}
                       onClick={() => setShowUpdateModal(true)}
-                      className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#EDE8DF] bg-white px-5 py-2 text-sm font-medium text-[#B8641A] transition hover:bg-[#FFF8EC] disabled:opacity-50 sm:w-auto"
+                      className="group flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#EFD7B3] bg-white px-5 py-2 text-sm font-bold text-[#B8641A] shadow-[0_10px_22px_rgba(74,124,47,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF4E2] hover:shadow-[0_14px_28px_rgba(184,100,26,0.22)] focus:outline-none focus:ring-2 focus:ring-[#FDE9C9] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#EFD7B3] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(74,124,47,0.08)] sm:w-auto"
                     >
                       <Edit size={16} /> Update Plan
                     </button>
@@ -656,7 +656,7 @@ const Subscribe = () => {
                       <button
                         disabled={!canTogglePauseResume}
                         onClick={pause}
-                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#F0D1B2] bg-white px-5 py-2 text-sm font-medium text-[#C86A2B] transition hover:bg-[#FFF1E4] disabled:opacity-50 sm:w-auto"
+                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#F0D1B2] bg-white px-5 py-2 text-sm font-bold text-[#C86A2B] shadow-[0_10px_22px_rgba(200,106,43,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#C86A2B] hover:bg-[#FFF1E4] hover:shadow-[0_14px_28px_rgba(200,106,43,0.18)] focus:outline-none focus:ring-2 focus:ring-[#F8D8B6] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#F0D1B2] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(200,106,43,0.08)] sm:w-auto"
                       >
                         <PauseCircle size={16} /> Pause
                       </button>
@@ -664,7 +664,7 @@ const Subscribe = () => {
                       <button
                         disabled={!canTogglePauseResume}
                         onClick={resume}
-                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-white px-5 py-2 text-sm font-medium text-[#4A7C2F] transition hover:bg-[#EEF5E7] disabled:opacity-50 sm:w-auto"
+                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-white px-5 py-2 text-sm font-bold text-[#4A7C2F] shadow-[0_10px_22px_rgba(74,124,47,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#4A7C2F] hover:bg-[#EEF5E7] hover:shadow-[0_14px_28px_rgba(74,124,47,0.22)] focus:outline-none focus:ring-2 focus:ring-[#DDE8D1] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#DDE8D1] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(74,124,47,0.08)] sm:w-auto"
                       >
                         <PlayCircle size={16} /> Resume
                       </button>
@@ -673,8 +673,9 @@ const Subscribe = () => {
                     <button
                       disabled={saving}
                       onClick={() => setShowCancelModal(true)}
-                      className="min-h-[46px] w-full rounded-[14px] border border-[#F2D0C8] bg-white px-5 py-2 text-sm font-medium text-[#C0392B] transition hover:bg-[#FDECEA] disabled:opacity-50 sm:w-auto"
+                      className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#F2D0C8] bg-white px-5 py-2 text-sm font-bold text-[#C0392B] shadow-[0_10px_22px_rgba(192,57,43,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#C0392B] hover:bg-[#FDECEA] hover:shadow-[0_14px_28px_rgba(192,57,43,0.2)] focus:outline-none focus:ring-2 focus:ring-[#F2D0C8] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#F2D0C8] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(192,57,43,0.08)] sm:w-auto"
                     >
+                      <CircleX size={16} />
                       {isApprovedSubscription ? 'Close Subscription' : 'Cancel Subscription'}
                     </button>
                   </div>

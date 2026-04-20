@@ -382,43 +382,49 @@ const CustomerProfile = () => {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[#E8DED1] bg-white p-4 shadow-[0_12px_30px_rgba(84,52,16,0.04)] sm:rounded-[28px] sm:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="relative overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_62%,#6B4F2A_100%)] p-4 shadow-[0_18px_42px_rgba(44,26,14,0.14)] sm:rounded-[28px] sm:p-6">
+          <MapPin className="pointer-events-none absolute -bottom-4 right-2 h-24 w-24 text-white/10 sm:right-5 sm:h-32 sm:w-32" />
+          <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
               <div className="relative mx-auto sm:mx-0">
                 {profile.photo ? (
                   <img
                     src={profile.photo}
                     alt="profile"
-                    className="h-20 w-20 rounded-full object-cover ring-4 ring-[#FFF3CC] shadow-sm sm:h-28 sm:w-28"
+                    className="h-20 w-20 rounded-full object-cover ring-4 ring-[#FFF4E2] shadow-[0_14px_30px_rgba(0,0,0,0.22)] sm:h-28 sm:w-28"
                   />
                 ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-[#F7D36D] bg-[#FFF3CC] text-[30px] font-semibold text-[#A85012] sm:h-28 sm:w-28 sm:text-[40px]">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-[#F7D36D] bg-[#FFF4E2] text-[30px] font-semibold text-[#A85012] shadow-[0_14px_30px_rgba(0,0,0,0.18)] sm:h-28 sm:w-28 sm:text-[40px]">
                     {getInitials(profile.name)}
                   </div>
                 )}
-                <span className="absolute bottom-2 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#11B89A]" />
+                <span className="absolute bottom-2 right-0 h-4 w-4 rounded-full border-[3px] border-[#FFF4E2] bg-[#11B89A]" />
               </div>
 
               <div className="min-w-0 text-center sm:text-left">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#F3D4A6]">
+                  Customer Profile
+                </p>
                 <h3
-                  className="break-words text-[24px] font-semibold leading-tight text-[#18120F] sm:text-[40px]"
+                  className="break-words text-[24px] font-semibold leading-tight text-white sm:text-[40px]"
                   style={headingFont}
                 >
                   {profile.name}
                 </h3>
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                  <span className="rounded-full border border-[#F2CF73] bg-[#FFF3CC] px-3 py-1 text-xs font-medium text-[#B05D15] sm:px-4 sm:text-sm">
+                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80 sm:px-4 sm:text-sm">
                     Member of {profile.farm}
                   </span>
-                  <span className="text-sm text-[#B1A193]">{profile.memberSince}</span>
+                  <span className="rounded-full bg-[#FFF4E2] px-3 py-1 text-xs font-bold text-[#B8641A] sm:text-sm">
+                    {profile.memberSince}
+                  </span>
                 </div>
               </div>
             </div>
 
             <button
               onClick={openEditModal}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#1D1815] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#342B25] sm:w-auto sm:rounded-[16px] sm:px-6 sm:text-base"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-[14px] border border-white/15 bg-[#FFF4E2] px-5 py-2.5 text-sm font-bold text-[#B8641A] shadow-[0_14px_28px_rgba(0,0,0,0.12)] transition hover:-translate-y-0.5 hover:bg-[#FDE9C9] sm:w-auto sm:rounded-[16px] sm:px-6 sm:text-base"
             >
               <Edit size={18} />
               Edit Profile
@@ -647,27 +653,30 @@ const CustomerProfile = () => {
 
 const InfoCard = ({ icon, label, value, meta, actionLabel, onAction, full }) => (
   <div
-    className={`flex items-center gap-3 rounded-[20px] border border-[#E8DED1] bg-white p-4 shadow-[0_10px_24px_rgba(84,52,16,0.035)] sm:gap-4 sm:rounded-[22px] sm:p-5 ${full ? "md:col-span-2" : ""}`}
+    className={`group relative overflow-hidden rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-[0_12px_28px_rgba(100,72,35,0.06)] transition hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_18px_34px_rgba(100,72,35,0.1)] sm:rounded-[22px] sm:p-5 ${full ? "md:col-span-2" : ""}`}
   >
-    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#FFF1C4] text-[#C85C16] sm:h-12 sm:w-12 sm:rounded-[14px]">
-      {icon}
-    </div>
-    <div className="min-w-0 flex-1">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#B1A193]">{label}</p>
-        {actionLabel && onAction ? (
-          <button
-            type="button"
-            onClick={onAction}
-            className="inline-flex items-center gap-1 rounded-full border border-[#EFD7B3] bg-[#FFF8F0] px-2.5 py-1 text-[11px] font-semibold text-[#B8641A] transition hover:bg-[#FFF1DC]"
-          >
-            <Edit size={12} />
-            {actionLabel}
-          </button>
-        ) : null}
+    <div className="absolute inset-x-0 top-0 h-1 bg-[#B8641A]/70 opacity-70 transition group-hover:opacity-100" />
+    <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#FFF4E2] text-[#B8641A] transition group-hover:bg-[#B8641A] group-hover:text-white sm:h-12 sm:w-12 sm:rounded-[14px]">
+        {icon}
       </div>
-      <p className="mt-0.5 break-words text-[15px] font-semibold text-[#1F1713] sm:text-[16px]">{value}</p>
-      {meta ? <p className="mt-1 text-xs font-medium text-[#8B7355]">{meta}</p> : null}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C4A882]">{label}</p>
+          {actionLabel && onAction ? (
+            <button
+              type="button"
+              onClick={onAction}
+              className="inline-flex items-center gap-1 rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-2.5 py-1 text-[11px] font-bold text-[#B8641A] transition hover:border-[#D4B896] hover:bg-[#FDE9C9]"
+            >
+              <Edit size={12} />
+              {actionLabel}
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-1 break-words text-[15px] font-bold text-[#2C1A0E] sm:text-[16px]">{value}</p>
+        {meta ? <p className="mt-1 text-xs font-medium text-[#8B7355]">{meta}</p> : null}
+      </div>
     </div>
   </div>
 );

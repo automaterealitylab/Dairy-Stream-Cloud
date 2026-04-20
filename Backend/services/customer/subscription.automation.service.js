@@ -102,6 +102,29 @@ const appendAutoFailNote = (notesValue, reason = "Delivery auto-failed at end of
   return lines.join("\n");
 };
 
+const setNotesField = (notesValue, fieldName, fieldValue) => {
+  const notes = String(notesValue || "").trim();
+  const field = String(fieldName || "").trim();
+  const value = String(fieldValue || "-").trim() || "-";
+
+  if (!field) return notes;
+
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const fieldPattern = new RegExp(`(^|[;\\n]\\s*)${escapedField}=([^;\\n]*)`, "i");
+
+  if (fieldPattern.test(notes)) {
+    return notes.replace(fieldPattern, `$1${field}=${value}`);
+  }
+
+  if (!notes) {
+    return `${SUBSCRIPTION_DELIVERY_MARKER} ${field}=${value}`;
+  }
+
+  const lines = notes.split("\n");
+  lines[0] = `${lines[0]}; ${field}=${value}`;
+  return lines.join("\n");
+};
+
 const parseDeliveryIdFromPaymentDescription = (description) => {
   const text = String(description || "");
   const match = text.match(/delivery_id=(\d+)/i);
@@ -127,6 +150,27 @@ const syncExistingSubscriptionDeliveryAgent = async ({ deliveryId, assignedAgent
     .is("agent_id", null);
 
   if (error) throw error;
+};
+
+const syncExistingSubscriptionDeliverySlot = async ({ delivery, slot }) => {
+  if (!delivery?.id) return delivery;
+  if (isDeliveredStatus(delivery?.status)) return delivery;
+
+  const nextNotes = setNotesField(delivery?.notes, "slot", slot || "-");
+  if (nextNotes === String(delivery?.notes || "").trim()) return delivery;
+
+  const { data, error } = await supabase
+    .from("deliveries")
+    .update({
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", delivery.id)
+    .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes, agent_id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || { ...delivery, notes: nextNotes };
 };
 
 const getLatestDeliverableSubscription = async (customerId) => {
@@ -289,15 +333,26 @@ const ensureDailyDeliveryForSubscription = async ({
   });
 
   if (existing) {
+    let syncedDelivery = existing;
+
     if (!existing?.agent_id && subscription?.assigned_agent_id) {
       await syncExistingSubscriptionDeliveryAgent({
         deliveryId: existing.id,
         assignedAgentId: subscription.assigned_agent_id,
       });
+      syncedDelivery = {
+        ...syncedDelivery,
+        agent_id: subscription.assigned_agent_id,
+      };
     }
 
+    syncedDelivery = await syncExistingSubscriptionDeliverySlot({
+      delivery: syncedDelivery,
+      slot: subscription.delivery_slot,
+    });
+
     await ensureSubscriptionDeliveryBillingMeta({
-      delivery: existing,
+      delivery: syncedDelivery,
       paymentMethod: subscription.payment_method,
     });
     return { created: false, reason: "already_exists", deliveryId: existing.id };

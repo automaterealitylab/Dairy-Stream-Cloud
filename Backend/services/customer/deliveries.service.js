@@ -147,6 +147,15 @@ const parseOneTimeNotes = (notesValue) => {
   };
 };
 
+const parseNotesField = (notesValue, fieldName) => {
+  const notes = String(notesValue || "");
+  const field = String(fieldName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!field) return null;
+
+  const match = notes.match(new RegExp(`(?:^|[;\\n]\\s*)${field}=([^;\\n]+)`, "i"));
+  return match?.[1]?.trim() || null;
+};
+
 const parseLatestCustomerIssueFromNotes = (notesValue) => {
   const notes = String(notesValue || "");
   const lines = notes
@@ -333,9 +342,13 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
   const parsedNotes = parseOneTimeNotes(row?.notes);
   const parsedIssue = parseLatestCustomerIssue(row);
   const issueMeta = getIssueMeta(row);
-  const rowSlot = normalizeOneTimeSlot(row?.delivery_slot || row?.slot || parsedNotes.slotKey || "");
+  const rowSlot = normalizeOneTimeSlot(
+    row?.delivery_slot || row?.slot || parseNotesField(row?.notes, "slot") || parsedNotes.slotKey || ""
+  );
   const slotKey = VALID_ONE_TIME_SLOTS.has(rowSlot) ? rowSlot : null;
-  const slotLabel = slotKey ? toSlotLabel(slotKey) : String(row?.delivery_slot || row?.slot || "-");
+  const slotLabel = slotKey
+    ? toSlotLabel(slotKey)
+    : String(row?.delivery_slot || row?.slot || parseNotesField(row?.notes, "slot") || "-");
   const slotWindow = getSlotWindow(slotKey);
   const qty =
     row.quantity_liters ??
