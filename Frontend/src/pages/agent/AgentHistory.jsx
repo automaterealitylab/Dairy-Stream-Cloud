@@ -12,6 +12,7 @@ import {
   Home,
   List,
   History,
+  Map,
   User,
 } from "lucide-react";
 import { fetchAgentDeliveryHistory } from "../../api/agent/agent.api";
@@ -75,7 +76,7 @@ const AgentHistory = () => {
     );
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 pt-5 text-[#2C1A0E]">
+    <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 text-[#2C1A0E]">
       <div className="mx-auto max-w-md space-y-5">
         <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">History</p>
@@ -155,8 +156,13 @@ const AgentHistory = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-6 left-1/2 z-50 flex w-[92%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">
+      <div className="fixed bottom-6 left-1/2 z-50 flex w-[94%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">
         <NavTab icon={<Home size={18} />} label="Home" onClick={() => navigate("/agent/dashboard")} />
+        <NavTab
+          icon={<Map size={18} />}
+          label="Map"
+          onClick={() => navigate("/agent/dashboard", { state: { section: "MAP" } })}
+        />
         <NavTab icon={<List size={18} />} label="Tasks" onClick={() => navigate("/agent/working")} />
         <NavTab icon={<History size={18} />} label="History" active onClick={() => navigate("/agent/history")} />
         <NavTab icon={<User size={18} />} label="Profile" onClick={() => navigate("/agent/profile")} />

@@ -4,7 +4,10 @@ import client from "../api/client"; // ✅ Use the centralized client instead of
 // 1. DETECT USER (Gatekeeper)
 // ===============================
 export const detectUserApi = async (identifier, options = {}) => {
-  const { data } = await client.post("/auth/detect", { identifier, ...options });
+  const { data } = await client.post("/auth/detect", {
+    identifier,
+    ...options,
+  });
   return data;
 };
 
@@ -22,7 +25,40 @@ export const verifyOtpApi = async (payload) => {
 };
 
 // ===============================
-// 3. ADMIN LOGIN
+// 3. TOKEN VALIDATION (For Persistent Login)
+// ===============================
+export const validateTokenApi = async (roleHint) => {
+  let storedUser = null;
+  try {
+    storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    storedUser = null;
+  }
+
+  const normalizedRole = String(
+    roleHint || storedUser?.role || localStorage.getItem("userRole") || ""
+  ).toUpperCase();
+  const fallbackToken = storedUser?.token || null;
+
+  let token = null;
+  if (normalizedRole === "ADMIN") {
+    token = localStorage.getItem("adminToken") || (normalizedRole === "ADMIN" ? fallbackToken : null);
+  } else if (normalizedRole === "AGENT" || normalizedRole === "STAFF") {
+    token =
+      localStorage.getItem("agentToken") ||
+      ((normalizedRole === "AGENT" || normalizedRole === "STAFF") ? fallbackToken : null);
+  } else if (normalizedRole === "CUSTOMER") {
+    token = localStorage.getItem("token") || (normalizedRole === "CUSTOMER" ? fallbackToken : null);
+  }
+
+  const { data } = await client.get("/auth/me", {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  return data;
+};
+
+// ===============================
+// 4. ADMIN LOGIN
 // ===============================
 export const adminLoginApi = async (payload) => {
   const { data } = await client.post("/auth/admin/login", payload);
@@ -30,17 +66,23 @@ export const adminLoginApi = async (payload) => {
 };
 
 export const requestAdminPasswordResetOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/admin/forgot-password/request-otp", payload);
+  const { data } = await client.post(
+    "/auth/admin/forgot-password/request-otp",
+    payload,
+  );
   return data;
 };
 
 export const resetAdminPasswordWithOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/admin/forgot-password/reset", payload);
+  const { data } = await client.post(
+    "/auth/admin/forgot-password/reset",
+    payload,
+  );
   return data;
 };
 
 // ===============================
-// 4. AGENT LOGIN
+// 5. AGENT LOGIN
 // ===============================
 export const agentLoginApi = async (payload) => {
   const { data } = await client.post("/auth/agent/login", payload);
@@ -48,11 +90,17 @@ export const agentLoginApi = async (payload) => {
 };
 
 export const requestAgentPasswordResetOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/agent/forgot-password/request-otp", payload);
+  const { data } = await client.post(
+    "/auth/agent/forgot-password/request-otp",
+    payload,
+  );
   return data;
 };
 
 export const resetAgentPasswordWithOtpApi = async (payload) => {
-  const { data } = await client.post("/auth/agent/forgot-password/reset", payload);
+  const { data } = await client.post(
+    "/auth/agent/forgot-password/reset",
+    payload,
+  );
   return data;
 };

@@ -146,6 +146,15 @@ const getProductQuantityStep = (unit) => {
   return "1";
 };
 
+const getDefaultProductQuantity = (product, fallbackQuantity = "1") => {
+  const fallback = Number(fallbackQuantity);
+  if (Number.isFinite(fallback) && fallback > 0) {
+    return formatMeasureValue(fallback);
+  }
+
+  return getProductQuantityStep(product?.unit);
+};
+
 const formatMeasureValue = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "0";
@@ -348,8 +357,8 @@ export default function DairyCustomerDashboard() {
   const [addExtraProducts, setAddExtraProducts] = useState([]);
   const [showDuplicateExtraConfirm, setShowDuplicateExtraConfirm] = useState(false);
   const [addExtraForm, setAddExtraForm] = useState({
-    milkType: "",
-    quantity: "1",
+    selectedProducts: [],
+    quantities: {},
     paymentMethod: "PAY_NOW_ONLINE",
     address: "",
     slot: "Morning",
@@ -502,39 +511,62 @@ export default function DairyCustomerDashboard() {
       year: "numeric",
     }
   );
-  const preferredExtraProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
-  const preferredExtraQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
-  const selectedAddExtraProduct = useMemo(
-    () => addExtraProducts.find((item) => item.name === addExtraForm.milkType) || null,
-    [addExtraProducts, addExtraForm.milkType]
+  const selectedAddExtraProducts = useMemo(
+    () =>
+      (addExtraForm.selectedProducts || [])
+        .map((name) => addExtraProducts.find((item) => item.name === name))
+        .filter(Boolean),
+    [addExtraProducts, addExtraForm.selectedProducts]
   );
   const dailyDeliverySummary = getDailyDeliverySummary({ subscription, tomorrow, today });
-  const addExtraQuantity = Number(addExtraForm.quantity || 0);
-  const addExtraAvailableStock = useMemo(() => {
-    if (!selectedAddExtraProduct) return 0;
-    const stock = Number(selectedAddExtraProduct.stockQuantity);
-    return Number.isFinite(stock) ? stock : Number.POSITIVE_INFINITY;
-  }, [selectedAddExtraProduct]);
-  const isAddExtraStockLimited = Number.isFinite(addExtraAvailableStock);
-  const isAddExtraOutOfStock = isAddExtraStockLimited && addExtraAvailableStock <= 0;
-  const doesAddExtraExceedStock =
-    isAddExtraStockLimited && addExtraQuantity > addExtraAvailableStock;
-  const selectedAddExtraUnitShort = getProductUnitLabel(selectedAddExtraProduct?.unit, {
-    short: true,
-  });
-  const selectedAddExtraUnitLower = getProductUnitLabel(selectedAddExtraProduct?.unit, {
-    lowercase: true,
-  });
-  const selectedAddExtraQuantityStep = getProductQuantityStep(selectedAddExtraProduct?.unit);
+  const selectedAddExtraOrderLines = useMemo(
+    () =>
+      selectedAddExtraProducts.map((product) => {
+        const quantity = Number(addExtraForm.quantities?.[product.name] || 0);
+        const availableStock = Number(product.stockQuantity);
+        const stockQuantity = Number.isFinite(availableStock)
+          ? availableStock
+          : Number.POSITIVE_INFINITY;
+        const isStockLimited = Number.isFinite(stockQuantity);
+
+        return {
+          product,
+          quantity,
+          quantityValue: addExtraForm.quantities?.[product.name] || "",
+          availableStock: stockQuantity,
+          isOutOfStock: isStockLimited && stockQuantity <= 0,
+          exceedsStock: isStockLimited && quantity > stockQuantity,
+          lineTotal: Number((Number(product.ratePerUnit || 0) * Number(quantity || 0)).toFixed(2)),
+        };
+      }),
+    [addExtraForm.quantities, selectedAddExtraProducts]
+  );
+  const invalidAddExtraLine = selectedAddExtraOrderLines.find(
+    (line) =>
+      !Number.isFinite(line.quantity) ||
+      line.quantity <= 0 ||
+      line.isOutOfStock ||
+      line.exceedsStock
+  );
+  const selectedDuplicateExtraProductNames = selectedAddExtraProducts
+    .filter((product) =>
+      tomorrowExtraOrders.some(
+        (order) =>
+          String(order?.dairyId || "") === String(linkedExtraDairyId || "") &&
+          String(order?.product || "").trim().toLowerCase() === product.name.toLowerCase()
+      )
+    )
+    .map((product) => product.name);
   const addExtraTotal = Number(
-    (Number(selectedAddExtraProduct?.ratePerUnit || 0) * Number(addExtraForm.quantity || 0)).toFixed(2)
+    selectedAddExtraOrderLines
+      .reduce((sum, line) => sum + Number(line.lineTotal || 0), 0)
+      .toFixed(2)
   );
   const canSubmitAddExtraOrder =
     !addExtraLoading &&
     !addExtraSubmitting &&
-    Boolean(selectedAddExtraProduct) &&
-    !isAddExtraOutOfStock &&
-    !doesAddExtraExceedStock;
+    selectedAddExtraOrderLines.length > 0 &&
+    !invalidAddExtraLine;
 
   useEffect(() => {
     if (!subscription?.dairyId) {
@@ -684,8 +716,8 @@ export default function DairyCustomerDashboard() {
     setShowDuplicateExtraConfirm(false);
     setShowAddExtraModal(true);
     setAddExtraForm({
-      milkType: preferredProductName,
-      quantity: preferredQuantity,
+      selectedProducts: preferredProductName ? [preferredProductName] : [],
+      quantities: preferredProductName ? { [preferredProductName]: preferredQuantity } : {},
       paymentMethod: preferredPaymentMethod,
       address: preferredAddress,
       slot: preferredSlot,
@@ -697,10 +729,13 @@ export default function DairyCustomerDashboard() {
         addExtraProducts.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
         addExtraProducts[0]?.name ||
         "";
+      const defaultProductItem = addExtraProducts.find((item) => item.name === defaultProduct);
       setAddExtraForm((prev) => ({
         ...prev,
-        milkType: defaultProduct,
-        quantity: preferredQuantity,
+        selectedProducts: defaultProduct ? [defaultProduct] : [],
+        quantities: defaultProduct
+          ? { [defaultProduct]: getDefaultProductQuantity(defaultProductItem, preferredQuantity) }
+          : {},
         paymentMethod: preferredPaymentMethod,
         address: preferredAddress,
         slot: preferredSlot,
@@ -726,11 +761,14 @@ export default function DairyCustomerDashboard() {
         products.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
         products[0]?.name ||
         "";
+      const defaultProductItem = products.find((item) => item.name === defaultProduct);
 
       setAddExtraForm((prev) => ({
         ...prev,
-        milkType: defaultProduct,
-        quantity: preferredQuantity,
+        selectedProducts: defaultProduct ? [defaultProduct] : [],
+        quantities: defaultProduct
+          ? { [defaultProduct]: getDefaultProductQuantity(defaultProductItem, preferredQuantity) }
+          : {},
         paymentMethod: preferredPaymentMethod,
         address: preferredAddress,
         slot: preferredSlot,
@@ -756,16 +794,28 @@ export default function DairyCustomerDashboard() {
       setAddExtraError("No dairy is linked to your account.");
       return;
     }
-    if (!selectedAddExtraProduct) {
-      setAddExtraError("Please select a product.");
+    if (!selectedAddExtraOrderLines.length) {
+      setAddExtraError("Please select at least one product.");
       return;
     }
-    if (!Number.isFinite(addExtraQuantity) || addExtraQuantity <= 0) {
-      setAddExtraError("Quantity must be greater than zero.");
-      return;
+    if (invalidAddExtraLine) {
+      if (!Number.isFinite(invalidAddExtraLine.quantity) || invalidAddExtraLine.quantity <= 0) {
+        setAddExtraError(`Quantity must be greater than zero for ${invalidAddExtraLine.product.name}.`);
+        return;
+      }
+      if (invalidAddExtraLine.isOutOfStock) {
+        setAddExtraError(`${invalidAddExtraLine.product.name} is out of stock.`);
+        return;
+      }
+      if (invalidAddExtraLine.exceedsStock) {
+        setAddExtraError(
+          `Only ${invalidAddExtraLine.availableStock} available for ${invalidAddExtraLine.product.name}.`
+        );
+        return;
+      }
     }
-    if (doesAddExtraExceedStock) {
-      setAddExtraError(`Only ${addExtraAvailableStock} available for ${selectedAddExtraProduct.name}.`);
+    if (!allowDuplicate && selectedDuplicateExtraProductNames.length > 0) {
+      setShowDuplicateExtraConfirm(true);
       return;
     }
     if (!String(addExtraForm.address || "").trim() || String(addExtraForm.address || "").trim().length < 10) {
@@ -783,22 +833,26 @@ export default function DairyCustomerDashboard() {
     setAddExtraError("");
 
     try {
-      const response = await createCustomerOneTimeOrder({
-        dairyId: linkedExtraDairyId,
-        milkType: selectedAddExtraProduct.name,
-        quantity: addExtraQuantity,
-        deliveryDate: nextExtraDeliveryDate,
-        slot: addExtraForm.slot,
-        paymentMethod: getAddExtraOrderPaymentMethod(addExtraForm.paymentMethod),
-        address: addExtraForm.address.trim(),
-        pricePerLiter: Number(selectedAddExtraProduct.ratePerUnit || 0),
-        isExtraOrder: true,
-        allowDuplicate,
-      });
-
       setShowDuplicateExtraConfirm(false);
 
-      if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
+      for (const line of selectedAddExtraOrderLines) {
+        const response = await createCustomerOneTimeOrder({
+          dairyId: linkedExtraDairyId,
+          milkType: line.product.name,
+          quantity: line.quantity,
+          deliveryDate: nextExtraDeliveryDate,
+          slot: addExtraForm.slot,
+          paymentMethod: getAddExtraOrderPaymentMethod(addExtraForm.paymentMethod),
+          address: addExtraForm.address.trim(),
+          pricePerLiter: Number(line.product.ratePerUnit || 0),
+          isExtraOrder: true,
+          allowDuplicate,
+        });
+
+        if (addExtraForm.paymentMethod !== "PAY_NOW_ONLINE") {
+          continue;
+        }
+
         const orderId = response?.order?.id || null;
         const paymentId = getExtraOrderPaymentId(response);
 
@@ -810,7 +864,7 @@ export default function DairyCustomerDashboard() {
 
         let paymentResult = null;
         try {
-          paymentResult = await processExtraOnlinePayment(paymentId, selectedAddExtraProduct.name);
+          paymentResult = await processExtraOnlinePayment(paymentId, line.product.name);
         } catch (paymentErr) {
           if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
             showToast("Payment received but verification failed. Check Payments.", "warning");
@@ -826,10 +880,7 @@ export default function DairyCustomerDashboard() {
         }
 
         if (paymentResult?.paid) {
-          showToast("Extra order placed for tomorrow.", "success");
-          setShowAddExtraModal(false);
-          refreshDashboard().catch(() => {});
-          return;
+          continue;
         }
 
         if (paymentResult?.dismissed || paymentResult?.failed) {
@@ -845,10 +896,14 @@ export default function DairyCustomerDashboard() {
         return;
       }
 
+      const selectedCount = selectedAddExtraOrderLines.length;
+      const productText = `extra product${selectedCount === 1 ? "" : "s"}`;
       showToast(
         addExtraForm.paymentMethod === "PAY_NOW_CASH"
-          ? "Extra order placed for tomorrow. You can pay cash on delivery."
-          : "Extra order placed for tomorrow. It will be added to your subscription bill.",
+          ? `${selectedCount} ${productText} placed for tomorrow. You can pay cash on delivery.`
+          : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
+          ? `${selectedCount} ${productText} placed for tomorrow.`
+          : `${selectedCount} ${productText} placed for tomorrow. It will be added to your subscription bill.`,
         "success"
       );
       setShowAddExtraModal(false);
@@ -1417,7 +1472,7 @@ export default function DairyCustomerDashboard() {
                     </span>
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm text-[#8B7355]">
-                    Choose a product, set the quantity, and place it for {nextExtraDeliveryLabel}.
+                    Choose one or more products, set quantities, and place them for {nextExtraDeliveryLabel}.
                   </p>
                 </div>
 
@@ -1462,7 +1517,7 @@ export default function DairyCustomerDashboard() {
 
                       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {addExtraProducts.map((product) => {
-                          const isSelected = addExtraForm.milkType === product.name;
+                          const isSelected = addExtraForm.selectedProducts?.includes(product.name);
                           const isDisabled = isProductOutOfStock(product.stockQuantity);
 
                           return (
@@ -1471,10 +1526,28 @@ export default function DairyCustomerDashboard() {
                               type="button"
                               disabled={isDisabled}
                               onClick={() =>
-                                setAddExtraForm((prev) => ({
-                                  ...prev,
-                                  milkType: product.name,
-                                }))
+                                setAddExtraForm((prev) => {
+                                  const selectedProducts = prev.selectedProducts || [];
+                                  const quantities = { ...(prev.quantities || {}) };
+
+                                  if (selectedProducts.includes(product.name)) {
+                                    delete quantities[product.name];
+                                    return {
+                                      ...prev,
+                                      selectedProducts: selectedProducts.filter((name) => name !== product.name),
+                                      quantities,
+                                    };
+                                  }
+
+                                  return {
+                                    ...prev,
+                                    selectedProducts: [...selectedProducts, product.name],
+                                    quantities: {
+                                      ...quantities,
+                                      [product.name]: quantities[product.name] || getDefaultProductQuantity(product),
+                                    },
+                                  };
+                                })
                               }
                               className={`rounded-[18px] border px-4 py-3 text-left transition ${
                                 isDisabled
@@ -1494,6 +1567,11 @@ export default function DairyCustomerDashboard() {
                                 {isSelected && (
                                   <span className="rounded-full bg-[#B8641A] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
                                     Selected
+                                  </span>
+                                )}
+                                {!isSelected && !isDisabled && (
+                                  <span className="rounded-full border border-[#EDE8DF] bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7355]">
+                                    Add
                                   </span>
                                 )}
                               </div>
@@ -1525,35 +1603,92 @@ export default function DairyCustomerDashboard() {
                         <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EC] px-4 py-3 text-sm font-medium text-[#8B7355]">
                           Tomorrow delivery: Daily delivery ({dailyDeliverySummary}) +
                         </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
-                        Quantity ({selectedAddExtraUnitShort})
-                      </label>
-                      <input
-                        type="number"
-                        min={selectedAddExtraQuantityStep}
-                        step={selectedAddExtraQuantityStep}
-                        value={addExtraForm.quantity}
-                        onChange={(event) =>
-                          setAddExtraForm((prev) => ({
-                            ...prev,
-                            quantity: event.target.value,
-                          }))
-                        }
-                        className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
-                      />
-                      {selectedAddExtraProduct && (isAddExtraOutOfStock || doesAddExtraExceedStock) && (
-                        <p
-                          className="mt-2 text-xs font-semibold text-[#C0392B]"
-                        >
-                          {isAddExtraOutOfStock
-                            ? `${selectedAddExtraProduct.name} is out of stock`
-                            : doesAddExtraExceedStock
-                            ? `Requested quantity is more than available ${selectedAddExtraUnitLower} stock`
-                            : ""}
-                        </p>
-                      )}
-                    </div>
+                        <div>
+                          <label className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
+                            Selected Products
+                          </label>
+                          {selectedAddExtraOrderLines.length === 0 ? (
+                            <div className="rounded-[16px] border border-dashed border-[#E7DAC6] bg-white px-4 py-4 text-sm font-semibold text-[#8B7355]">
+                              Select products from the list to add them here.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {selectedAddExtraOrderLines.map((line) => {
+                                const unitShort = getProductUnitLabel(line.product.unit, { short: true });
+                                const unitLower = getProductUnitLabel(line.product.unit, { lowercase: true });
+                                const quantityStep = getProductQuantityStep(line.product.unit);
+
+                                return (
+                                  <div
+                                    key={line.product.id}
+                                    className="rounded-[16px] border border-[#EDE8DF] bg-white p-3"
+                                  >
+                                    <div className="mb-2 flex items-start justify-between gap-3">
+                                      <div>
+                                        <p className="text-sm font-bold text-[#2C1A0E]">
+                                          {line.product.name}
+                                        </p>
+                                        <p className="text-xs text-[#8B7355]">
+                                          Rs.{Number(line.product.ratePerUnit || 0).toFixed(2)} per {unitLower}
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setAddExtraForm((prev) => {
+                                            const quantities = { ...(prev.quantities || {}) };
+                                            delete quantities[line.product.name];
+                                            return {
+                                              ...prev,
+                                              selectedProducts: (prev.selectedProducts || []).filter(
+                                                (name) => name !== line.product.name
+                                              ),
+                                              quantities,
+                                            };
+                                          })
+                                        }
+                                        className="rounded-full border border-[#EDE8DF] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E]"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                                      <input
+                                        type="number"
+                                        min={quantityStep}
+                                        step={quantityStep}
+                                        value={line.quantityValue}
+                                        onChange={(event) =>
+                                          setAddExtraForm((prev) => ({
+                                            ...prev,
+                                            quantities: {
+                                              ...(prev.quantities || {}),
+                                              [line.product.name]: event.target.value,
+                                            },
+                                          }))
+                                        }
+                                        className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] px-3 py-2 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
+                                      />
+                                      <span className="min-w-8 text-sm font-bold text-[#8B7355]">
+                                        {unitShort}
+                                      </span>
+                                    </div>
+                                    {(line.isOutOfStock || line.exceedsStock) && (
+                                      <p className="mt-2 text-xs font-semibold text-[#C0392B]">
+                                        {line.isOutOfStock
+                                          ? `${line.product.name} is out of stock`
+                                          : `Requested quantity is more than available ${unitLower} stock`}
+                                      </p>
+                                    )}
+                                    <p className="mt-2 text-right text-xs font-bold text-[#B8641A]">
+                                      Rs.{Number.isFinite(line.lineTotal) ? line.lineTotal.toFixed(2) : "0.00"}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
 
                     <div>
                       <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
@@ -1597,8 +1732,8 @@ export default function DairyCustomerDashboard() {
                   <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
                     <div className="rounded-[18px] bg-[#2C2416] px-4 py-3 text-white">
                       <p className="hidden">
-                        Tomorrow delivery: Daily delivery + {addExtraForm.quantity || "0"}{" "}
-                        {selectedAddExtraUnitShort} • {nextExtraDeliveryLabel} • {addExtraForm.slot} slot
+                        Tomorrow delivery: Daily delivery + {selectedAddExtraOrderLines.length} extra product(s) -{" "}
+                        {nextExtraDeliveryLabel} - {addExtraForm.slot} slot
                       </p>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm text-white/70">Grand Total</span>
@@ -1620,11 +1755,11 @@ export default function DairyCustomerDashboard() {
                         <PlusCircle size={15} />
                       )}
                       {addExtraSubmitting
-                        ? "Placing extra order..."
+                        ? "Placing extra orders..."
                         : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
-                        ? "Pay & Add Extra"
+                        ? "Pay & Add Extras"
                         : addExtraForm.paymentMethod === "PAY_NOW_CASH"
-                        ? "Add Extra with Cash"
+                        ? "Add Extras with Cash"
                         : "Add to Subscription Bill"}
                     </button>
 
@@ -1665,10 +1800,15 @@ export default function DairyCustomerDashboard() {
                 Duplicate Order
               </p>
               <h4 className="mt-2 text-xl font-semibold text-[#2C1A0E]" style={headingFont}>
-                Same product already added for tomorrow
+                Some products are already added for tomorrow
               </h4>
               <p className="mt-2 text-sm text-[#8B7355]">
-                Do you want to place another extra order for the same product and date?
+                {selectedDuplicateExtraProductNames.length > 0
+                  ? `${selectedDuplicateExtraProductNames.join(", ")} already ${
+                      selectedDuplicateExtraProductNames.length === 1 ? "has" : "have"
+                    } an extra order for this date.`
+                  : "One or more selected products already have an extra order for this date."}{" "}
+                Do you want to place another extra order anyway?
               </p>
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -1685,7 +1825,7 @@ export default function DairyCustomerDashboard() {
                   onClick={() => handleSubmitExtraOrder(true)}
                   className="flex-1 rounded-[14px] bg-[#B8641A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:bg-[#D8C8B2]"
                 >
-                  {addExtraSubmitting ? "Ordering..." : "Order Again"}
+                  {addExtraSubmitting ? "Ordering..." : "Order Anyway"}
                 </button>
               </div>
             </div>
