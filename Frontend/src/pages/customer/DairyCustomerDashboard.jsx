@@ -562,6 +562,14 @@ export default function DairyCustomerDashboard() {
       .reduce((sum, line) => sum + Number(line.lineTotal || 0), 0)
       .toFixed(2)
   );
+  const formattedAddExtraTotal = `Rs.${Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}`;
+  const addExtraSubmitLabel = addExtraSubmitting
+    ? "Placing extra orders..."
+    : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
+    ? `Pay ${formattedAddExtraTotal} & Add Extras`
+    : addExtraForm.paymentMethod === "PAY_NOW_CASH"
+    ? `Add Extras for ${formattedAddExtraTotal} with Cash`
+    : `Add ${formattedAddExtraTotal} to Subscription Bill`;
   const canSubmitAddExtraOrder =
     !addExtraLoading &&
     !addExtraSubmitting &&
@@ -1621,14 +1629,14 @@ export default function DairyCustomerDashboard() {
                                 return (
                                   <div
                                     key={line.product.id}
-                                    className="rounded-[16px] border border-[#EDE8DF] bg-white p-3"
+                                    className="rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5"
                                   >
-                                    <div className="mb-2 flex items-start justify-between gap-3">
-                                      <div>
-                                        <p className="text-sm font-bold text-[#2C1A0E]">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-[13px] font-bold text-[#2C1A0E]">
                                           {line.product.name}
                                         </p>
-                                        <p className="text-xs text-[#8B7355]">
+                                        <p className="text-[11px] text-[#8B7355]">
                                           Rs.{Number(line.product.ratePerUnit || 0).toFixed(2)} per {unitLower}
                                         </p>
                                       </div>
@@ -1647,12 +1655,12 @@ export default function DairyCustomerDashboard() {
                                             };
                                           })
                                         }
-                                        className="rounded-full border border-[#EDE8DF] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E]"
+                                        className="rounded-full border border-[#EDE8DF] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E]"
                                       >
                                         Remove
                                       </button>
                                     </div>
-                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
                                       <input
                                         type="number"
                                         min={quantityStep}
@@ -1667,22 +1675,22 @@ export default function DairyCustomerDashboard() {
                                             },
                                           }))
                                         }
-                                        className="w-full rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] px-3 py-2 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
+                                        className="w-full rounded-[12px] border border-[#EDE8DF] bg-[#FFFDF7] px-3 py-2 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
                                       />
-                                      <span className="min-w-8 text-sm font-bold text-[#8B7355]">
+                                      <span className="min-w-7 text-xs font-bold text-[#8B7355]">
                                         {unitShort}
                                       </span>
+                                      <p className="text-right text-[11px] font-bold text-[#B8641A]">
+                                        Rs.{Number.isFinite(line.lineTotal) ? line.lineTotal.toFixed(2) : "0.00"}
+                                      </p>
                                     </div>
                                     {(line.isOutOfStock || line.exceedsStock) && (
-                                      <p className="mt-2 text-xs font-semibold text-[#C0392B]">
+                                      <p className="mt-1.5 text-[11px] font-semibold text-[#C0392B]">
                                         {line.isOutOfStock
                                           ? `${line.product.name} is out of stock`
                                           : `Requested quantity is more than available ${unitLower} stock`}
                                       </p>
                                     )}
-                                    <p className="mt-2 text-right text-xs font-bold text-[#B8641A]">
-                                      Rs.{Number.isFinite(line.lineTotal) ? line.lineTotal.toFixed(2) : "0.00"}
-                                    </p>
                                   </div>
                                 );
                               })}
@@ -1730,37 +1738,18 @@ export default function DairyCustomerDashboard() {
                       </div>
 
                   <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
-                    <div className="rounded-[18px] bg-[#2C2416] px-4 py-3 text-white">
-                      <p className="hidden">
-                        Tomorrow delivery: Daily delivery + {selectedAddExtraOrderLines.length} extra product(s) -{" "}
-                        {nextExtraDeliveryLabel} - {addExtraForm.slot} slot
-                      </p>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-white/70">Grand Total</span>
-                        <span className="text-[24px] font-bold leading-none sm:text-[26px]">
-                          Rs.{Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}
-                        </span>
-                      </div>
-                    </div>
-
                     <button
                       type="button"
                       onClick={() => handleSubmitExtraOrder(false)}
                       disabled={!canSubmitAddExtraOrder}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:bg-[#D8C8B2] disabled:text-white/70"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#B8641A_0%,#8F4D12_100%)] px-4 py-3.5 text-sm font-bold text-white shadow-[0_16px_30px_rgba(143,77,18,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_34px_rgba(143,77,18,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0"
                     >
                       {addExtraSubmitting ? (
                         <Loader2 size={15} className="animate-spin" />
                       ) : (
                         <PlusCircle size={15} />
                       )}
-                      {addExtraSubmitting
-                        ? "Placing extra orders..."
-                        : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
-                        ? "Pay & Add Extras"
-                        : addExtraForm.paymentMethod === "PAY_NOW_CASH"
-                        ? "Add Extras with Cash"
-                        : "Add to Subscription Bill"}
+                      <span>{addExtraSubmitLabel}</span>
                     </button>
 
                     <button
