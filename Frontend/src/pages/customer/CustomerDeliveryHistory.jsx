@@ -21,7 +21,6 @@ import {
   getCachedCustomerDeliveries,
 } from '../../api/customer/customer.api';
 
-const PREVIEW = 7;
 const headingFont = { fontFamily: "'Lora', serif" };
 const EMPTY_INSIGHTS = {
   monthLabel: '',
@@ -107,16 +106,101 @@ function getMonthBucket(dateStr) {
   }
 }
 
+function getDeliveryDateValue(delivery = {}) {
+  if (delivery?.deliveryDate) {
+    const parsed = new Date(`${delivery.deliveryDate}T00:00:00`);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  if (delivery?.date) {
+    const parsed = new Date(delivery.date);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return null;
+}
+
+function getDayKey(delivery = {}) {
+  if (delivery?.deliveryDate) return delivery.deliveryDate;
+
+  const parsed = getDeliveryDateValue(delivery);
+  if (!parsed) return String(delivery?.date || 'unknown-date');
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDayLabel(delivery = {}) {
+  const parsed = getDeliveryDateValue(delivery);
+  if (!parsed) return delivery?.date || 'Unknown date';
+
+  return parsed.toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+function getDeliverySummary(items = []) {
+  const delivered = items.filter((item) => String(item.status).toUpperCase() === 'DELIVERED').length;
+  const skipped = items.filter((item) => String(item.status).toUpperCase() === 'SKIPPED').length;
+  const failed = items.filter((item) => String(item.status).toUpperCase() === 'FAILED').length;
+  const cancelled = items.filter((item) => String(item.status).toUpperCase() === 'CANCELLED').length;
+  const pending = items.filter((item) =>
+    ['PENDING', 'PENDING_APPROVAL'].includes(String(item.status).toUpperCase())
+  ).length;
+
+  return [
+    delivered ? `${delivered} delivered` : '',
+    skipped ? `${skipped} skipped` : '',
+    failed ? `${failed} failed` : '',
+    cancelled ? `${cancelled} cancelled` : '',
+    pending ? `${pending} pending` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
+}
+
 function buildGroups(deliveries, view) {
   const map = new Map();
   deliveries.forEach((delivery) => {
-    const bucket = view === 'week' ? getWeekBucket(delivery.date) : getMonthBucket(delivery.date);
+    const bucketDate = delivery?.deliveryDate || delivery?.date;
+    const bucket = view === 'week' ? getWeekBucket(bucketDate) : getMonthBucket(bucketDate);
     if (!map.has(bucket.key)) {
-      map.set(bucket.key, { label: bucket.label, items: [] });
+      map.set(bucket.key, { key: bucket.key, label: bucket.label, items: [] });
     }
     map.get(bucket.key).items.push(delivery);
   });
-  return Array.from(map.values());
+
+  return Array.from(map.values()).map((group) => {
+    const dayMap = new Map();
+
+    group.items.forEach((delivery) => {
+      const dayKey = getDayKey(delivery);
+      if (!dayMap.has(dayKey)) {
+        dayMap.set(dayKey, {
+          key: dayKey,
+          label: formatDayLabel(delivery),
+          timestamp: getDeliveryDateValue(delivery)?.getTime() || 0,
+          items: [],
+        });
+      }
+
+      dayMap.get(dayKey).items.push(delivery);
+    });
+
+    return {
+      ...group,
+      days: Array.from(dayMap.values())
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map((day) => ({
+          ...day,
+          summary: getDeliverySummary(day.items),
+        })),
+    };
+  });
 }
 
 function toDeliveryViewState(data) {
@@ -227,51 +311,51 @@ function DeliveryRow({ item, muted = false, onCancel, isCancelling = false }) {
   );
 }
 
-function CollapsedSummary({ items, onExpand }) {
-  const delivered = items.filter((item) => String(item.status).toUpperCase() === 'DELIVERED').length;
-  const skipped = items.filter((item) => String(item.status).toUpperCase() === 'SKIPPED').length;
-  const failed = items.filter((item) => String(item.status).toUpperCase() === 'FAILED').length;
-  const cancelled = items.filter((item) => String(item.status).toUpperCase() === 'CANCELLED').length;
-  const pending = items.filter((item) =>
-    ['PENDING', 'PENDING_APPROVAL'].includes(String(item.status).toUpperCase())
-  ).length;
-
-  const parts = [
-    delivered ? `${delivered} delivered` : '',
-    skipped ? `${skipped} skipped` : '',
-    failed ? `${failed} failed` : '',
-    cancelled ? `${cancelled} cancelled` : '',
-    pending ? `${pending} pending` : '',
-  ]
-    .filter(Boolean)
-    .join(' | ');
+function DayDeliveryCard({ day, onCancel, cancellingOrderId }) {
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <button
-      onClick={onExpand}
-      className="flex w-full flex-col gap-2 px-4 py-3 text-left transition-colors hover:bg-[#FBF7F0] sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-3.5"
-    >
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1.5">
-          {delivered > 0 && <span className="h-2 w-2 rounded-full bg-[#4A7C2F]" />}
-          {skipped > 0 && <span className="h-2 w-2 rounded-full bg-[#C0392B]" />}
-          {failed > 0 && <span className="h-2 w-2 rounded-full bg-[#B42318]" />}
-          {pending > 0 && <span className="h-2 w-2 rounded-full bg-[#B8641A]" />}
+    <div className="overflow-hidden rounded-[18px] border border-[#EFE7DA] bg-white">
+      <button
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors hover:bg-[#FBF7F0] sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-[#2C1A0E]">{day.label}</span>
+            <span className="rounded-full bg-[#F7F1E7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#A88763]">
+              {day.items.length} {day.items.length === 1 ? 'delivery' : 'deliveries'}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[#8B7355]">
+            {day.summary || `${day.items.length} ${day.items.length === 1 ? 'delivery' : 'deliveries'}`}
+          </p>
         </div>
-        <span className="text-xs text-[#8B7355]">{parts}</span>
-      </div>
 
-      <span className="flex items-center gap-1 text-xs font-semibold text-[#C4A882]">
-        Show all <ChevronDown size={13} />
-      </span>
-    </button>
+        <span className="flex items-center gap-1 self-start text-xs font-semibold text-[#C4A882] sm:self-auto">
+          {isExpanded ? 'Hide products' : 'Show products'}
+          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-[#F2EDE4]">
+          {day.items.map((item, index) => (
+            <DeliveryRow
+              key={item.id ?? `${day.key}-${index}`}
+              item={item}
+              onCancel={onCancel}
+              isCancelling={String(cancellingOrderId) === String(item.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-function GroupBlock({ group, isFirst, onCancel, cancellingOrderId }) {
-  const [showMore, setShowMore] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const { label, items } = group;
+function GroupBlock({ group, onCancel, cancellingOrderId }) {
+  const { label, items, days } = group;
 
   return (
     <div className="mb-4 overflow-hidden rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7]">
@@ -282,57 +366,16 @@ function GroupBlock({ group, isFirst, onCancel, cancellingOrderId }) {
         <span className="text-[10px] text-[#C4A882]">{items.length} deliveries</span>
       </div>
 
-      {isFirst ? (
-        <>
-          {items.slice(0, showMore ? items.length : PREVIEW).map((item, index) => (
-            <DeliveryRow
-              key={item.id ?? index}
-              item={item}
-              muted={showMore && index >= PREVIEW}
-              onCancel={onCancel}
-              isCancelling={String(cancellingOrderId) === String(item.id)}
-            />
-          ))}
-
-          {items.length > PREVIEW && (
-            <button
-              onClick={() => setShowMore((prev) => !prev)}
-              className="flex w-full items-center justify-between border-t border-[#F2EDE4] px-4 py-3 transition-colors hover:bg-[#FBF7F0] sm:px-6 sm:py-3.5"
-            >
-              <span className="text-xs text-[#8B7355]">
-                {showMore ? 'Hide extra rows' : `${items.length - PREVIEW} more deliveries`}
-              </span>
-              {showMore ? (
-                <ChevronUp size={14} className="text-[#C4A882]" />
-              ) : (
-                <ChevronDown size={14} className="text-[#C4A882]" />
-              )}
-            </button>
-          )}
-        </>
-      ) : isExpanded ? (
-        <>
-          {items.map((item, index) => (
-            <DeliveryRow
-              key={item.id ?? index}
-              item={item}
-              muted
-              onCancel={onCancel}
-              isCancelling={String(cancellingOrderId) === String(item.id)}
-            />
-          ))}
-
-          <button
-            onClick={() => setIsExpanded(false)}
-            className="flex w-full items-center justify-between border-t border-[#F2EDE4] px-4 py-3 transition-colors hover:bg-[#FBF7F0] sm:px-6 sm:py-3.5"
-          >
-            <span className="text-xs text-[#8B7355]">Collapse</span>
-            <ChevronUp size={14} className="text-[#C4A882]" />
-          </button>
-        </>
-      ) : (
-        <CollapsedSummary items={items} onExpand={() => setIsExpanded(true)} />
-      )}
+      <div className="space-y-3 px-3 py-3 sm:px-4 sm:py-4">
+        {days.map((day) => (
+          <DayDeliveryCard
+            key={day.key}
+            day={day}
+            onCancel={onCancel}
+            cancellingOrderId={cancellingOrderId}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -686,11 +729,10 @@ export default function Deliveries() {
             </div>
 
             <div>
-              {groups.map((group, index) => (
+              {groups.map((group) => (
                 <GroupBlock
-                  key={group.label}
+                  key={group.key || group.label}
                   group={group}
-                  isFirst={index === 0}
                   onCancel={openCancelModal}
                   cancellingOrderId={cancellingOrderId}
                 />

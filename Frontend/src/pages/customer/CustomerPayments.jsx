@@ -458,6 +458,14 @@ export default function Payments() {
     Number(summary.overduePenaltyAmount || 0) > 0
       ? `${fmt(summary.overdueBaseAmount)} + ${fmt(summary.overduePenaltyAmount)}`
       : "Increases only after the 10th if unpaid";
+  const lastMonthBillText =
+    Number(summary.overdueBaseAmount || 0) > 0
+      ? `Last month bill: ${fmt(summary.overdueBaseAmount)}`
+      : "No unpaid bill from last month";
+  const overdueCarryForwardText =
+    Number(summary.overdueAmount || 0) > 0
+      ? "This overdue stays added until that bill is paid"
+      : "No overdue is being carried forward";
 
   return (
     <CustomerLayout>
@@ -589,6 +597,12 @@ export default function Payments() {
                 </p>
                 <p className="mt-1.5 text-[10px] leading-4 text-[#B89970] sm:mt-2 sm:text-[11px] sm:leading-5">
                   {overdueHelperText}
+                </p>
+                <p className="mt-1 text-[10px] font-semibold leading-4 text-[#8B7355] sm:text-[11px] sm:leading-5">
+                  {lastMonthBillText}
+                </p>
+                <p className="mt-1 text-[10px] leading-4 text-[#B89970] sm:text-[11px] sm:leading-5">
+                  {overdueCarryForwardText}
                 </p>
               </div>
 

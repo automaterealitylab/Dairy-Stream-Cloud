@@ -150,14 +150,16 @@ const TrackAgent = () => {
   if (loading) {
     return (
       <CustomerLayout>
-        <div className="rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF7] px-6 py-12 text-center shadow-sm">
-          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF4E2] text-[#B8641A]">
-            <Loader2 size={24} className="animate-spin" />
+        <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center px-2 py-6 sm:px-4">
+          <div className="w-full max-w-xl rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF7] px-6 py-12 text-center shadow-sm sm:px-8">
+            <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF4E2] text-[#B8641A]">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+            <h3 className="mt-4 text-lg font-bold text-[#2C1A0E]">Loading delivery tracking</h3>
+            <p className="mt-2 text-sm text-[#8B7355]">
+              Bringing in the latest route, status, and partner details.
+            </p>
           </div>
-          <h3 className="mt-4 text-lg font-bold text-[#2C1A0E]">Loading delivery tracking</h3>
-          <p className="mt-2 text-sm text-[#8B7355]">
-            Bringing in the latest route, status, and partner details.
-          </p>
         </div>
       </CustomerLayout>
     );
