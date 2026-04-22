@@ -35,6 +35,7 @@ import {
   Truck,
   Volume2,
   VolumeX,
+  Settings2,
 } from "lucide-react";
 
 import {
@@ -55,6 +56,8 @@ import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js"
 const headingFont = { fontFamily: "'Lora', serif" };
 const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
 const SPEECH_MUTED_STORAGE_KEY = "agent-dashboard-speech-muted";
+const MAP_DELIVERED_PATH_VISIBLE_KEY = "agent-map-show-delivered-path";
+const MAP_DAIRY_PATH_VISIBLE_KEY = "agent-map-show-dairy-path";
 const SLOT_META = {
   MORNING: {
     label: "Morning",
@@ -109,6 +112,7 @@ const MapBoundsController = ({ points }) => {
 const ROAD_ROUTE_PRECISION = 5;
 const MAX_ROUTE_PREVIEW_DISTANCE_METERS = 50000;
 const roadRouteCache = new Map();
+const roadDistanceTableCache = new Map();
 
 const formatInstructionDistance = (distanceInMeters) => {
   if (!Number.isFinite(distanceInMeters)) return "";
@@ -225,6 +229,58 @@ const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => 
   return routeData;
 };
 
+const fetchRoadDistanceTable = async (originCoordinates, deliveries, signal) => {
+  if (!Array.isArray(originCoordinates) || !Array.isArray(deliveries) || deliveries.length === 0) {
+    return {};
+  }
+
+  const validDeliveries = deliveries.filter((delivery) => Array.isArray(delivery?.coordinates));
+  if (validDeliveries.length === 0) return {};
+
+  const cacheKey = [
+    originCoordinates[0].toFixed(4),
+    originCoordinates[1].toFixed(4),
+    validDeliveries
+      .map(
+        (delivery) =>
+          `${delivery.id}:${delivery.coordinates[0].toFixed(4)}:${delivery.coordinates[1].toFixed(4)}`
+      )
+      .join("|"),
+  ].join("::");
+
+  if (roadDistanceTableCache.has(cacheKey)) {
+    return roadDistanceTableCache.get(cacheKey);
+  }
+
+  const [originLat, originLng] = originCoordinates;
+  const coordinatesParam = [
+    `${originLng},${originLat}`,
+    ...validDeliveries.map((delivery) => `${delivery.coordinates[1]},${delivery.coordinates[0]}`),
+  ].join(";");
+
+  const destinationsParam = validDeliveries.map((_, index) => index + 1).join(";");
+  const url =
+    `https://router.project-osrm.org/table/v1/driving/${coordinatesParam}` +
+    `?sources=0&destinations=${destinationsParam}&annotations=distance`;
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Road distance table request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const distanceRow = Array.isArray(payload?.distances?.[0]) ? payload.distances[0] : [];
+
+  const result = validDeliveries.reduce((accumulator, delivery, index) => {
+    const distanceMeters = Number(distanceRow[index]);
+    accumulator[String(delivery.id)] = Number.isFinite(distanceMeters) ? distanceMeters : null;
+    return accumulator;
+  }, {});
+
+  roadDistanceTableCache.set(cacheKey, result);
+  return result;
+};
+
 const getDeliveryCoordinates = (delivery) => {
   const lat = Number(
     delivery?.lat ??
@@ -241,6 +297,27 @@ const getDeliveryCoordinates = (delivery) => {
       delivery?.customerLongitude ??
       delivery?.location?.lng ??
       delivery?.location?.longitude
+  );
+
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+};
+
+const getDairyCoordinates = (source) => {
+  const lat = Number(
+    source?.dairyLat ??
+      source?.dairyLatitude ??
+      source?.dairyFarmLat ??
+      source?.dairyFarmLatitude ??
+      source?.dairy?.latitude ??
+      source?.dairy?.lat
+  );
+  const lng = Number(
+    source?.dairyLng ??
+      source?.dairyLongitude ??
+      source?.dairyFarmLng ??
+      source?.dairyFarmLongitude ??
+      source?.dairy?.longitude ??
+      source?.dairy?.lng
   );
 
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
@@ -443,7 +520,7 @@ const AgentDashboard = () => {
 
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
   const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries());
-  const [agentProfile, setAgentProfile] = useState({ name: "", dairyName: "" });
+  const [agentProfile, setAgentProfile] = useState({ name: "", dairyName: "", dairyCoordinates: null });
   const [agentLocation, setAgentLocation] = useState(() => {
     const cachedLocation = getCachedAgentLocation();
     return cachedLocation ? [cachedLocation.lat, cachedLocation.lng] : null;
@@ -464,11 +541,25 @@ const AgentDashboard = () => {
     instructions: null,
   });
   const [secondaryRoadRoutes, setSecondaryRoadRoutes] = useState([]);
+  const [completedRoadRoutes, setCompletedRoadRoutes] = useState([]);
+  const [dairyRoadRoute, setDairyRoadRoute] = useState([]);
+  const [nearestByRoadDeliveryId, setNearestByRoadDeliveryId] = useState(null);
   const [deliveryRunStartedAt, setDeliveryRunStartedAt] = useState(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingAgentSyncCount());
   const [isSpeechMuted, setIsSpeechMuted] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SPEECH_MUTED_STORAGE_KEY) === "true";
+  });
+  const [showMapSettings, setShowMapSettings] = useState(false);
+  const [showDeliveredPath, setShowDeliveredPath] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem(MAP_DELIVERED_PATH_VISIBLE_KEY);
+    return stored === null ? true : stored === "true";
+  });
+  const [showDairyPath, setShowDairyPath] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem(MAP_DAIRY_PATH_VISIBLE_KEY);
+    return stored === null ? true : stored === "true";
   });
   const lastLocationSyncAtRef = useRef(0);
   const spokenInstructionRef = useRef({ key: "", threshold: null });
@@ -531,6 +622,12 @@ const AgentDashboard = () => {
             parsed?.dairy?.name ||
             parsed?.user?.dairy?.name ||
             prev.dairyName,
+          dairyCoordinates:
+            getDairyCoordinates(parsed) ||
+            getDairyCoordinates(parsed?.user) ||
+            getDairyCoordinates(parsed?.dairy) ||
+            getDairyCoordinates(parsed?.user?.dairy) ||
+            prev.dairyCoordinates,
         }));
       } catch (_err) {}
     }
@@ -560,6 +657,8 @@ const AgentDashboard = () => {
         setAgentProfile((prev) => ({
           ...prev,
           name: profile?.name || prev.name,
+          dairyName: profile?.dairyName || prev.dairyName,
+          dairyCoordinates: getDairyCoordinates(profile) || prev.dairyCoordinates,
         }));
       } catch (error) {
         handleAgentAuthFailure(error);
@@ -717,7 +816,7 @@ const AgentDashboard = () => {
 
     return nextTask ? [nextTask] : [];
   }, [nextTask, todayDeliveries]);
-  const routeDeliveries = useMemo(() => {
+  const routeSourceDeliveries = useMemo(() => {
     const sourceItems = isDeliveryRunActive ? todayOpenDeliveries : mapCandidateDeliveries;
 
     return sourceItems
@@ -725,18 +824,37 @@ const AgentDashboard = () => {
         ...delivery,
         coordinates: getDeliveryCoordinates(delivery),
       }))
-      .filter((delivery) => Array.isArray(delivery.coordinates))
-      .sort((left, right) => {
-        const leftDistance = getDistanceInMeters(agentLocation, left.coordinates);
-        const rightDistance = getDistanceInMeters(agentLocation, right.coordinates);
+      .filter((delivery) => Array.isArray(delivery.coordinates));
+  }, [isDeliveryRunActive, mapCandidateDeliveries, todayOpenDeliveries]);
+  const completedMapDeliveries = useMemo(
+    () =>
+      todayDeliveries
+        .filter((delivery) => String(delivery?.status || "").toUpperCase() === "COMPLETED")
+        .map((delivery) => ({
+          ...delivery,
+          coordinates: getDeliveryCoordinates(delivery),
+        }))
+        .filter((delivery) => Array.isArray(delivery.coordinates)),
+    [todayDeliveries]
+  );
 
-        if (Number.isFinite(leftDistance) && Number.isFinite(rightDistance) && leftDistance !== rightDistance) {
-          return leftDistance - rightDistance;
-        }
+  const routeDeliveries = useMemo(() => {
+    const mappedDeliveries = routeSourceDeliveries;
 
-        return compareScheduledDeliveries(left, right);
-      })
-      .filter((delivery, index, items) => {
+    const orderedDeliveries = agentLocation
+      ? [...mappedDeliveries].sort((left, right) => {
+          const leftDistance = getDistanceInMeters(agentLocation, left.coordinates);
+          const rightDistance = getDistanceInMeters(agentLocation, right.coordinates);
+
+          if (Number.isFinite(leftDistance) && Number.isFinite(rightDistance) && leftDistance !== rightDistance) {
+            return leftDistance - rightDistance;
+          }
+
+          return compareScheduledDeliveries(left, right);
+        })
+      : mappedDeliveries.sort(compareScheduledDeliveries);
+
+    return orderedDeliveries.filter((delivery, index, items) => {
         if (!agentLocation) return true;
 
         const distanceFromAgent = getDistanceInMeters(agentLocation, delivery.coordinates);
@@ -746,9 +864,45 @@ const AgentDashboard = () => {
         const nearestDistance = getDistanceInMeters(agentLocation, items[0]?.coordinates);
         return index === 0 && Number.isFinite(nearestDistance);
       });
-  }, [agentLocation, isDeliveryRunActive, mapCandidateDeliveries, todayOpenDeliveries]);
-  const visibleMapDeliveries = routeDeliveries.length > 0 ? routeDeliveries : deliveriesWithCoordinates;
-  const nearestRouteDelivery = routeDeliveries[0] || null;
+  }, [agentLocation, routeSourceDeliveries]);
+  const roadRankingOrigin = useMemo(
+    () =>
+      Array.isArray(agentLocation)
+        ? [Number(agentLocation[0].toFixed(4)), Number(agentLocation[1].toFixed(4))]
+        : null,
+    [agentLocation?.[0], agentLocation?.[1]]
+  );
+  const roadRankingKey = useMemo(
+    () =>
+      routeDeliveries
+        .map(
+          (delivery) =>
+            `${delivery.id}:${delivery.coordinates?.[0]?.toFixed?.(4)}:${delivery.coordinates?.[1]?.toFixed?.(4)}`
+        )
+        .join("|"),
+    [routeDeliveries]
+  );
+  const roadRankingDeliveries = useMemo(
+    () =>
+      routeDeliveries.map((delivery) => ({
+        id: delivery.id,
+        coordinates: delivery.coordinates,
+      })),
+    [roadRankingKey, routeDeliveries]
+  );
+  const visibleMapDeliveries = useMemo(() => {
+    const merged = [...routeDeliveries, ...completedMapDeliveries];
+    const unique = new Map();
+    merged.forEach((delivery) => {
+      unique.set(String(delivery.id), delivery);
+    });
+    return [...unique.values()];
+  }, [completedMapDeliveries, routeDeliveries]);
+  const nearestRouteDelivery = useMemo(() => {
+    if (!Array.isArray(routeDeliveries) || routeDeliveries.length === 0) return null;
+    if (!nearestByRoadDeliveryId) return routeDeliveries[0] || null;
+    return routeDeliveries.find((delivery) => String(delivery.id) === String(nearestByRoadDeliveryId)) || routeDeliveries[0] || null;
+  }, [nearestByRoadDeliveryId, routeDeliveries]);
   const nearestRouteCoordinates = nearestRouteDelivery?.coordinates || null;
   const nextDirectionLabel = useMemo(
     () => getTurnInstructionLabel(primaryRouteStats.instructions?.primary),
@@ -768,6 +922,13 @@ const AgentDashboard = () => {
     agentProfile.dairyName ||
     deliveries.find((delivery) => delivery?.dairyFarmName)?.dairyFarmName ||
     "No dairy assigned";
+  const dairyCoordinates = useMemo(
+    () =>
+      agentProfile.dairyCoordinates ||
+      getDairyCoordinates(deliveries.find((delivery) => getDairyCoordinates(delivery))) ||
+      null,
+    [agentProfile.dairyCoordinates, deliveries]
+  );
   const distanceToNextTask = useMemo(
     () => getDistanceInMeters(agentLocation, nearestRouteCoordinates || nextTaskCoordinates),
     [agentLocation, nearestRouteCoordinates, nextTaskCoordinates]
@@ -796,9 +957,49 @@ const AgentDashboard = () => {
       secondaryRoadRoutes.length > 0
         ? secondaryRoadRoutes.flatMap((segment) => segment.points)
         : secondaryRouteSegments.flatMap((segment) => segment.points);
-    const deliveryPoints = routeDeliveries.map((delivery) => delivery.coordinates).filter(Boolean);
-    return [...primaryPoints, ...extraPoints, ...deliveryPoints, agentLocation].filter(Boolean);
-  }, [agentLocation, routeCoordinates, routeDeliveries, secondaryRoadRoutes, secondaryRouteSegments]);
+    const completedPoints = completedRoadRoutes.flatMap((segment) => segment.points);
+    const dairyRoutePoints = Array.isArray(dairyRoadRoute) ? dairyRoadRoute : [];
+    const deliveryPoints = visibleMapDeliveries.map((delivery) => delivery.coordinates).filter(Boolean);
+    return [...primaryPoints, ...extraPoints, ...completedPoints, ...dairyRoutePoints, ...deliveryPoints, dairyCoordinates, agentLocation].filter(Boolean);
+  }, [agentLocation, completedRoadRoutes, dairyCoordinates, dairyRoadRoute, routeCoordinates, secondaryRoadRoutes, secondaryRouteSegments, visibleMapDeliveries]);
+
+  useEffect(() => {
+    if (!roadRankingOrigin || roadRankingDeliveries.length === 0) {
+      setNearestByRoadDeliveryId(null);
+      return undefined;
+    }
+
+    if (roadRankingDeliveries.length === 1) {
+      setNearestByRoadDeliveryId(String(roadRankingDeliveries[0].id));
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    fetchRoadDistanceTable(roadRankingOrigin, roadRankingDeliveries, controller.signal)
+      .then((distanceMap) => {
+        let nearestId = null;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        roadRankingDeliveries.forEach((delivery) => {
+          const distance = distanceMap[String(delivery.id)];
+          if (!Number.isFinite(distance)) return;
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestId = String(delivery.id);
+          }
+        });
+
+        setNearestByRoadDeliveryId(nearestId || String(roadRankingDeliveries[0].id));
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        console.error("Nearest-by-road selection failed:", err);
+        setNearestByRoadDeliveryId(String(roadRankingDeliveries[0].id));
+      });
+
+    return () => controller.abort();
+  }, [roadRankingDeliveries, roadRankingKey, roadRankingOrigin]);
 
   useEffect(() => {
     if (hasAutoFocusedDestination) return;
@@ -915,6 +1116,72 @@ const AgentDashboard = () => {
   }, [activeSection, secondaryRouteSegments]);
 
   useEffect(() => {
+    if (activeSection !== ActiveNavLabel.MAP || !agentLocation || completedMapDeliveries.length === 0) {
+      setCompletedRoadRoutes([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      Promise.all(
+        completedMapDeliveries.map(async (delivery) => {
+          const roadRoute = await fetchRoadRoute(agentLocation, delivery.coordinates, controller.signal);
+          return {
+            id: `completed-${delivery.id}`,
+            points:
+              Array.isArray(roadRoute?.points) && roadRoute.points.length >= 2
+                ? roadRoute.points
+                : [agentLocation, delivery.coordinates].filter(Boolean),
+          };
+        })
+      )
+        .then((segments) => {
+          setCompletedRoadRoutes(Array.isArray(segments) ? segments : []);
+        })
+        .catch((err) => {
+          if (err?.name === "AbortError") return;
+          console.error("Completed road route fetch failed:", err);
+          setCompletedRoadRoutes(
+            completedMapDeliveries.map((delivery) => ({
+              id: `completed-${delivery.id}`,
+              points: [agentLocation, delivery.coordinates].filter(Boolean),
+            }))
+          );
+        });
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeSection, agentLocation?.[0], agentLocation?.[1], completedMapDeliveries]);
+
+  useEffect(() => {
+    if (activeSection !== ActiveNavLabel.MAP || !agentLocation || !dairyCoordinates) {
+      setDairyRoadRoute([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    fetchRoadRoute(agentLocation, dairyCoordinates, controller.signal)
+      .then((routeData) => {
+        if (Array.isArray(routeData?.points) && routeData.points.length >= 2) {
+          setDairyRoadRoute(routeData.points);
+          return;
+        }
+        setDairyRoadRoute([agentLocation, dairyCoordinates].filter(Boolean));
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        console.error("Dairy road route fetch failed:", err);
+        setDairyRoadRoute([agentLocation, dairyCoordinates].filter(Boolean));
+      });
+
+    return () => controller.abort();
+  }, [activeSection, agentLocation?.[0], agentLocation?.[1], dairyCoordinates?.[0], dairyCoordinates?.[1]]);
+
+  useEffect(() => {
     if (!isDeliveryRunActive || !nextTask?.id || !agentLocation) return;
 
     const nowTs = Date.now();
@@ -935,6 +1202,16 @@ const AgentDashboard = () => {
       window.speechSynthesis.cancel();
     }
   }, [isSpeechMuted]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MAP_DELIVERED_PATH_VISIBLE_KEY, String(showDeliveredPath));
+  }, [showDeliveredPath]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MAP_DAIRY_PATH_VISIBLE_KEY, String(showDairyPath));
+  }, [showDairyPath]);
 
   useEffect(() => {
     if (!isDeliveryRunActive || typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -1138,15 +1415,36 @@ const AgentDashboard = () => {
                 <Popup className="font-bold text-xs">Your Location</Popup>
               </CircleMarker>
 
+              {dairyCoordinates ? (
+                <Marker
+                  position={dairyCoordinates}
+                  icon={L.divIcon({
+                    className: "custom-div-icon",
+                    html:
+                      '<div style="background-color: #D93025; width: 16px; height: 16px; border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 4px 10px rgba(44,26,14,0.2);"></div>',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8],
+                  })}
+                >
+                  <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
+                    <div className="space-y-0.5 leading-tight">
+                      <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{dairyName}</p>
+                      <p className="m-0 text-[10px] font-semibold text-[#D93025]">Dairy location</p>
+                    </div>
+                  </Popup>
+                </Marker>
+              ) : null}
+
               {visibleMapDeliveries.map((delivery) => {
                 const coordinates = delivery.coordinates || getDeliveryCoordinates(delivery);
                 if (!coordinates) return null;
 
+                const isCompleted = String(delivery?.status || "").toUpperCase() === "COMPLETED";
                 const isNearestDestination = String(delivery.id) === String(nearestRouteDelivery?.id);
                 const isNextDestination = String(delivery.id) === String(nextTask?.id);
                 const markerColor =
-                  delivery.status === "COMPLETED"
-                    ? "#6BB071"
+                  isCompleted
+                    ? "#9CA3AF"
                     : isNearestDestination
                       ? "#6BB071"
                       : "#6BB071";
@@ -1172,8 +1470,10 @@ const AgentDashboard = () => {
                         >
                           <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
                           <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
-                          <p className="text-[10px] font-semibold text-[#6BB071]">
-                            {isNearestDestination
+                          <p className={`text-[10px] font-semibold ${isCompleted ? "text-[#6B7280]" : "text-[#6BB071]"}`}>
+                            {isCompleted
+                              ? "Delivered customer"
+                              : isNearestDestination
                               ? "Nearest customer on your route"
                               : isNextDestination
                                 ? "Next scheduled delivery"
@@ -1194,6 +1494,32 @@ const AgentDashboard = () => {
                   pathOptions={{ color: "#5c87ea", weight: 5, opacity: 0.9 }}
                 />
               )}
+
+              {showDairyPath && dairyRoadRoute.length >= 2 && (
+                <Polyline
+                  positions={dairyRoadRoute}
+                  pathOptions={{
+                    color: "#FCA5A5",
+                    weight: 4,
+                    opacity: 0.95,
+                    dashArray: "8 8",
+                  }}
+                />
+              )}
+
+              {showDeliveredPath &&
+                completedRoadRoutes.map((segment, index) => (
+                <Polyline
+                  key={segment.id || `completed-route-${index}`}
+                  positions={segment.points}
+                  pathOptions={{
+                    color: "#9CA3AF",
+                    weight: 3,
+                    opacity: 0.85,
+                    dashArray: "7 9",
+                  }}
+                />
+              ))}
 
                 {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map(
                 (segment, index) => (
@@ -1219,6 +1545,38 @@ const AgentDashboard = () => {
                 >
                   {isSpeechMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMapSettings((value) => !value)}
+                  className="absolute left-[10px] top-[114px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D4B896] bg-white text-[#5F4426] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#FFF8EF]"
+                  title="Map path settings"
+                  aria-label="Map path settings"
+                >
+                  <Settings2 size={16} />
+                </button>
+                {showMapSettings ? (
+                  <div className="absolute left-[46px] top-[114px] z-[610] w-[200px] rounded-[12px] border border-[#E7DAC6] bg-white/95 p-3 shadow-[0_10px_24px_rgba(44,26,14,0.16)] backdrop-blur-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8B7355]">Path Settings</p>
+                    <label className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#5F4426]">
+                      Delivered customer path
+                      <input
+                        type="checkbox"
+                        checked={showDeliveredPath}
+                        onChange={(event) => setShowDeliveredPath(event.target.checked)}
+                        className="h-4 w-4 accent-[#B8641A]"
+                      />
+                    </label>
+                    <label className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#5F4426]">
+                      Dairy location path
+                      <input
+                        type="checkbox"
+                        checked={showDairyPath}
+                        onChange={(event) => setShowDairyPath(event.target.checked)}
+                        className="h-4 w-4 accent-[#B8641A]"
+                      />
+                    </label>
+                  </div>
+                ) : null}
                 <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[600] rounded-[16px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
                   <p className="text-[11px] font-semibold leading-snug text-[#6B5B3E]">
                     {isDeliveryRunActive
