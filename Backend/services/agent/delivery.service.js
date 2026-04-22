@@ -154,6 +154,41 @@ const getRazorpayClient = () => {
   });
 };
 
+const getDairyLinkedAccountId = async (dairyId) => {
+  if (!dairyId) return null;
+
+  const { data, error } = await supabase
+    .from("dairies")
+    .select("id, dairy_name, razorpay_linked_account_id")
+    .eq("id", dairyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingColumnError(error)) {
+      const missingConfigError = new Error(
+        "Database is missing dairy Razorpay Route configuration. Run the latest migrations first."
+      );
+      missingConfigError.statusCode = 500;
+      throw missingConfigError;
+    }
+    throw error;
+  }
+
+  const linkedAccountId = String(data?.razorpay_linked_account_id || "").trim();
+  if (!linkedAccountId) {
+    const configError = new Error(
+      `Dairy ${data?.dairy_name || ""}`.trim()
+        ? `${data?.dairy_name} is not configured for direct Razorpay settlement yet.`
+        : "This dairy is not configured for direct Razorpay settlement yet."
+    );
+    configError.statusCode = 400;
+    throw configError;
+  }
+
+  return linkedAccountId;
+};
+
 const parseNotesField = (notes, field) => {
   const match = String(notes || "").match(new RegExp(`${field}=([^;\\n]+)`, "i"));
   return match?.[1]?.trim() || null;
@@ -514,6 +549,7 @@ export const createAgentOnlineCollectionQr = async ({
   }
 
   try {
+    const linkedAccountId = await getDairyLinkedAccountId(row.dairy_id);
     const linkPayload = {
       amount: Math.round(paymentMeta.amountDue * 100),
       currency: "INR",
@@ -531,6 +567,19 @@ export const createAgentOnlineCollectionQr = async ({
         customer_id: String(row.customer_id),
         dairy_id: String(row.dairy_id),
       },
+      transfers: [
+        {
+          account: linkedAccountId,
+          amount: Math.round(paymentMeta.amountDue * 100),
+          currency: "INR",
+          notes: {
+            delivery_id: String(row.id),
+            customer_id: String(row.customer_id),
+            dairy_id: String(row.dairy_id),
+            collection_mode: "AGENT_QR",
+          },
+        },
+      ],
     };
 
     const linkResponse = await axios.post("https://api.razorpay.com/v1/payment_links", linkPayload, {
@@ -611,10 +660,12 @@ export const createAgentOnlineCollectionOrder = async ({
   }
 
   const razorpay = getRazorpayClient();
+  const linkedAccountId = await getDairyLinkedAccountId(row.dairy_id);
   const order = await razorpay.orders.create({
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `agent_collect_${row.id}_${Date.now()}`.slice(0, 40),
+    partial_payment: false,
     notes: {
       delivery_id: String(row.id),
       payment_id: String(paymentRow.id),
@@ -622,6 +673,20 @@ export const createAgentOnlineCollectionOrder = async ({
       dairy_id: String(row.dairy_id),
       collection_mode: "AGENT_ONLINE",
     },
+    transfers: [
+      {
+        account: linkedAccountId,
+        amount: Math.round(amountInRupees * 100),
+        currency: "INR",
+        notes: {
+          delivery_id: String(row.id),
+          payment_id: String(paymentRow.id),
+          customer_id: String(row.customer_id),
+          dairy_id: String(row.dairy_id),
+          collection_mode: "AGENT_ONLINE",
+        },
+      },
+    ],
   });
 
   return {

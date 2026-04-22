@@ -494,13 +494,13 @@ const getRazorpayClient = () => {
   });
 };
 
-const getDairyBankDetails = async (dairyId) => {
+const getDairyPayoutDetails = async (dairyId) => {
   if (!dairyId) return null;
 
   const { data, error } = await supabase
     .from("dairies")
     .select(
-      "id, dairy_name, bank_account_holder_name, bank_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id"
+      "id, dairy_name, bank_account_holder_name, bank_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, razorpay_linked_account_id"
     )
     .eq("id", dairyId)
     .limit(1)
@@ -522,6 +522,41 @@ const getDairyBankDetails = async (dairyId) => {
     bankName: data.bank_name || null,
     bankBranch: data.bank_branch || null,
     upiId: data.upi_id || null,
+    razorpayLinkedAccountId: String(data.razorpay_linked_account_id || "").trim() || null,
+  };
+};
+
+const getRequiredDairyTransferConfig = async (dairyId) => {
+  const payoutDetails = await getDairyPayoutDetails(dairyId);
+  const linkedAccountId = String(payoutDetails?.razorpayLinkedAccountId || "").trim();
+
+  if (!linkedAccountId) {
+    const error = new Error(
+      "This dairy is not configured for direct Razorpay settlement yet. Save its razorpay_linked_account_id first."
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    beneficiary: payoutDetails,
+    linkedAccountId,
+  };
+};
+
+const buildOrderTransfers = async ({ dairyId, amountInRupees, notes = {} }) => {
+  const { beneficiary, linkedAccountId } = await getRequiredDairyTransferConfig(dairyId);
+
+  return {
+    beneficiary,
+    transfers: [
+      {
+        account: linkedAccountId,
+        amount: Math.round(Number(amountInRupees || 0) * 100),
+        currency: "INR",
+        notes,
+      },
+    ],
   };
 };
 
@@ -820,17 +855,28 @@ export const createCustomerPaymentOrder = async ({
     }
 
     const razorpay = getRazorpayClient();
-    const beneficiary = await getDairyBankDetails(effectiveDairyId);
+    const { beneficiary, transfers } = await buildOrderTransfers({
+      dairyId: effectiveDairyId,
+      amountInRupees,
+      notes: {
+        customer_id: String(customerId),
+        dairy_id: String(effectiveDairyId ?? ""),
+        payment_mode: "ALL",
+        month: getCurrentMonthKey(),
+      },
+    });
     const order = await razorpay.orders.create({
       amount: Math.round(amountInRupees * 100),
       currency: "INR",
       receipt: `cust_${customerId}_payall_${Date.now()}`.slice(0, 40),
+      partial_payment: false,
       notes: {
         customer_id: String(customerId),
         payment_mode: "ALL",
         dairy_id: String(effectiveDairyId ?? ""),
         month: getCurrentMonthKey(),
       },
+      transfers,
     });
 
     return {
@@ -867,18 +913,27 @@ export const createCustomerPaymentOrder = async ({
   }
 
   const razorpay = getRazorpayClient();
-  const beneficiary = await getDairyBankDetails(
-    pendingPayment.dairy_id || resolvedDairyId
-  );
+  const effectiveDairyId = pendingPayment.dairy_id || resolvedDairyId;
+  const { beneficiary, transfers } = await buildOrderTransfers({
+    dairyId: effectiveDairyId,
+    amountInRupees,
+    notes: {
+      customer_id: String(customerId),
+      payment_id: String(pendingPayment.id),
+      dairy_id: String(effectiveDairyId ?? ""),
+    },
+  });
   const order = await razorpay.orders.create({
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `cust_${customerId}_pay_${pendingPayment.id}_${Date.now()}`.slice(0, 40),
+    partial_payment: false,
     notes: {
       customer_id: String(customerId),
       payment_id: String(pendingPayment.id),
-      dairy_id: String(pendingPayment.dairy_id ?? resolvedDairyId ?? ""),
+      dairy_id: String(effectiveDairyId ?? ""),
     },
+    transfers,
   });
 
   return {
@@ -1211,7 +1266,7 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
   ]);
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId, paymentRows);
   const [beneficiary, deliveryStatusById] = await Promise.all([
-    getDairyBankDetails(resolvedDairyId),
+    getDairyPayoutDetails(resolvedDairyId),
     fetchCustomerDeliveryStatusById(customerId, resolvedDairyId),
   ]);
   const payableTillDate = Number(payableTillDateData?.payableTillDate || 0);

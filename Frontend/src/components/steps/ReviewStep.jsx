@@ -1,5 +1,5 @@
 import React from "react";
-import { Phone, Mail } from "lucide-react";
+import { Phone, Mail, Landmark, ShieldCheck } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
@@ -44,9 +44,20 @@ const ReviewStep = ({ formData, logoPreview }) => (
         </p>
       </div>
       <div className="rounded-[24px] border border-[#EFD7B3] bg-[#FFF4E2] p-6">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B8641A]">Settlement</p>
+        <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B8641A]">
+          <Landmark size={14} />
+          Settlement
+        </p>
         <p className="text-sm font-black text-[#2C1A0E]">{formData.bank_account_holder_name}</p>
-        <p className="text-xs font-bold text-[#8B7355]">A/C: {formData.bank_account_number}</p>
+        <p className="mt-1 text-xs font-bold text-[#8B7355]">A/C: {formData.bank_account_number}</p>
+        <p className="text-xs font-bold text-[#8B7355]">IFSC: {formData.bank_ifsc_code}</p>
+        <p className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B8641A]">
+          <ShieldCheck size={14} />
+          Razorpay Route
+        </p>
+        <p className="text-xs font-bold text-[#5C3D1E]">
+          {formData.razorpay_linked_account_id || "Not added yet"}
+        </p>
       </div>
     </div>
   </div>

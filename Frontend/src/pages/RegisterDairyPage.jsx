@@ -57,6 +57,7 @@ const RegisterDairyPage = () => {
     bank_name: "",
     bank_branch: "",
     upi_id: "",
+    razorpay_linked_account_id: "",
 
     selected_plan: "GROWTH",
 

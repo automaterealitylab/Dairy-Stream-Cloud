@@ -57,6 +57,7 @@ export const registerDairyService = async ({
   bank_name,
   bank_branch,
   upi_id,
+  razorpay_linked_account_id,
   imageUrl,
 }) => {
   try {
@@ -121,6 +122,7 @@ export const registerDairyService = async ({
         bank_name,
         bank_branch,
         upi_id,
+        razorpay_linked_account_id: String(razorpay_linked_account_id || "").trim() || null,
       })
       .select()
       .single();

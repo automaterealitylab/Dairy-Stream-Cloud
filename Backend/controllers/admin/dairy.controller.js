@@ -23,7 +23,7 @@ export const registerDairy = async (req, res) => {
       dairy_name, dairy_phone, dairy_email, address, city, state, pincode,
       latitude, longitude, owner_name, admin_email, password,
       bank_account_holder_name, bank_account_number, bank_ifsc_code,
-      bank_name, bank_branch, upi_id, selected_plan
+      bank_name, bank_branch, upi_id, razorpay_linked_account_id, selected_plan
     } = req.body;
 
     // 2. Logo Validation (Mandatory for Branding Recognition)
