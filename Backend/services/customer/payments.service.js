@@ -1301,11 +1301,9 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
   const currentMonthPendingAndOverdue = pendingCandidates.reduce((sum, item) => {
     return item.monthKey === currentMonthKey ? sum + toNumber(item.amount, 0) : sum;
   }, 0);
-  const fallbackLiveBillingSummaryAmount =
+  const liveBillingSummaryAmount =
     historicalPendingAndOverdue +
     Math.max(currentMonthPendingAndOverdue, toNumber(payableTillDate, 0));
-  const liveBillingSummaryAmount =
-    totalPendingAndOverdue > 0 ? totalPendingAndOverdue : fallbackLiveBillingSummaryAmount;
   const nearestDueInDays = pendingCandidates.reduce((nearest, item) => {
     const days = diffDaysFromToday(item.dueDate);
     if (days === null) return nearest;

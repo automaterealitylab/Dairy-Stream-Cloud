@@ -432,7 +432,7 @@ const buildLookupMaps = async (rows) => {
     dairyIds.length
       ? supabase
           .from("dairies")
-          .select("id, dairy_name, upi_id")
+          .select("id, dairy_name, upi_id, latitude, longitude")
           .in("id", dairyIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -451,6 +451,8 @@ const mapAssignedDelivery = (row, lookups) => {
   const dairy = lookups.dairiesById.get(row.dairy_id) || {};
   const latitude = normalizeCoordinate(customer.latitude);
   const longitude = normalizeCoordinate(customer.longitude);
+  const dairyLatitude = normalizeCoordinate(dairy.latitude);
+  const dairyLongitude = normalizeCoordinate(dairy.longitude);
   const parsedProof = parseDeliveryProof(row.notes);
   const deliveryType = getDeliveryTypeFromNotes(row.notes);
   const paymentMeta = parseOrderPaymentMeta(row.notes, row.quantity_liters);
@@ -482,6 +484,10 @@ const mapAssignedDelivery = (row, lookups) => {
     status: normalizeStatusForCard(row.status),
     dairyFarmId: row.dairy_id ?? null,
     dairyFarmName: dairy.dairy_name || "Dairy",
+    dairyLatitude,
+    dairyLongitude,
+    dairyLat: dairyLatitude,
+    dairyLng: dairyLongitude,
     farmPhoneNumber: "-",
     deliveryType,
     slot,
@@ -872,6 +878,18 @@ export const getAgentProfile = async ({ agentDbId, dairyId = null } = {}) => {
     .filter(Boolean);
 
   const availability = deriveAgentAvailability(agent);
+  let dairy = null;
+
+  if (agent.dairy_id) {
+    const { data, error } = await supabase
+      .from("dairies")
+      .select("id, dairy_name, latitude, longitude")
+      .eq("id", agent.dairy_id)
+      .maybeSingle();
+
+    if (error) throw error;
+    dairy = data || null;
+  }
 
   return {
     agentId: agent.agent_id || "",
@@ -886,6 +904,9 @@ export const getAgentProfile = async ({ agentDbId, dairyId = null } = {}) => {
     inactiveDaysRemaining: availability.inactiveDaysRemaining,
     joinedDate: agent.created_at || null,
     deliveryRoutes: routes,
+    dairyName: dairy?.dairy_name || "",
+    dairyLatitude: normalizeCoordinate(dairy?.latitude),
+    dairyLongitude: normalizeCoordinate(dairy?.longitude),
   };
 };
 
