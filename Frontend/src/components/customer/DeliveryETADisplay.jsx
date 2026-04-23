@@ -121,7 +121,11 @@ const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => 
   return routePoints;
 };
 
-const DeliveryETADisplay = ({ deliveryId }) => {
+const DeliveryETADisplay = ({
+  deliveryId,
+  statusHint = null,
+  initialAgentLocation = null,
+}) => {
   const cachedEta = getCachedDeliveryETA(deliveryId);
   const [etaData, setEtaData] = useState(cachedEta);
   const [loading, setLoading] = useState(() => !cachedEta);
@@ -172,12 +176,25 @@ const DeliveryETADisplay = ({ deliveryId }) => {
     return () => clearInterval(interval);
   }, [deliveryId]);
 
-  const normalizedStatus = normalizeEtaStatus(etaData?.status);
-  const agentCoordinates =
+  const normalizedEtaStatus = normalizeEtaStatus(etaData?.status);
+  const normalizedStatusHint = normalizeEtaStatus(statusHint);
+  const normalizedStatus =
+    normalizedEtaStatus === "DELIVERED" || normalizedEtaStatus === "FAILED"
+      ? normalizedEtaStatus
+      : normalizedStatusHint === "OUT_FOR_DELIVERY"
+      ? "OUT_FOR_DELIVERY"
+      : normalizedEtaStatus || normalizedStatusHint;
+  const etaAgentCoordinates =
     Number.isFinite(Number(etaData?.agentLocation?.lat)) &&
     Number.isFinite(Number(etaData?.agentLocation?.lng))
       ? [Number(etaData.agentLocation.lat), Number(etaData.agentLocation.lng)]
       : null;
+  const hintAgentCoordinates =
+    Number.isFinite(Number(initialAgentLocation?.lat)) &&
+    Number.isFinite(Number(initialAgentLocation?.lng))
+      ? [Number(initialAgentLocation.lat), Number(initialAgentLocation.lng)]
+      : null;
+  const agentCoordinates = etaAgentCoordinates || hintAgentCoordinates;
   const customerCoordinates =
     Number.isFinite(Number(etaData?.customerLocation?.lat)) &&
     Number.isFinite(Number(etaData?.customerLocation?.lng))

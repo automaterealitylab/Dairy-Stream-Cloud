@@ -372,7 +372,11 @@ const TrackAgent = () => {
                 Map And ETA
               </h3>
             </div>
-            <DeliveryETADisplay deliveryId={delivery.deliveryId} />
+            <DeliveryETADisplay
+              deliveryId={delivery.deliveryId}
+              statusHint={delivery?.status || null}
+              initialAgentLocation={delivery?.currentAgentLocation || null}
+            />
           </div>
         </div>
 

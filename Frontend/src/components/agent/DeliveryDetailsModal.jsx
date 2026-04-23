@@ -5,113 +5,120 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
   if (!delivery) return null;
 
   const normalizedStatus = String(delivery?.status || '').toUpperCase();
+  const actionStatus = normalizedStatus === "IN_TRANSIT" ? "OUT_FOR_DELIVERY" : normalizedStatus;
   const requiresPaymentCollection =
-    Boolean(delivery?.requiresPaymentCollection) && ['PENDING', 'OUT_FOR_DELIVERY'].includes(normalizedStatus);
+    Boolean(delivery?.requiresPaymentCollection) && ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
   const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
   const amountDue = Number(delivery?.amountDue || 0);
-  const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(normalizedStatus);
+  const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
+  const statusTone =
+    actionStatus === "COMPLETED"
+      ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
+      : actionStatus === "FAILED"
+      ? "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
+      : "border-[#F0D1B2] bg-[#FFF1E4] text-[#B8641A]";
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] ring-1 ring-white/40 shadow-[0_26px_64px_rgba(44,26,14,0.34)]"
+        onClick={(event) => event.stopPropagation()}
+      >
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-gray-800">Delivery Details</h3>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E7DAC6] bg-[#FFF8EF] px-5 py-4">
+          <h3 className="text-xl font-black text-[#2C1A0E]">Delivery Details</h3>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="rounded-full border border-[#E7DAC6] bg-white p-2 text-[#8B7355] transition hover:bg-[#FBF7F0]"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="space-y-4 p-5">
           {/* Status Badge */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Status</span>
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                delivery.status === 'COMPLETED'
-                  ? 'bg-green-100 text-green-700'
-                  : delivery.status === 'FAILED'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-yellow-100 text-yellow-700'
-              }`}
-            >
-              {delivery.status}
+          <div className="flex items-center justify-between rounded-[16px] border border-[#E7DAC6] bg-white px-3 py-2.5">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Status</span>
+            <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${statusTone}`}>
+              {actionStatus}
             </span>
           </div>
 
           {/* Delivery Info */}
           <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <Package className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Delivery Type</p>
-                <p className="font-semibold text-gray-800">{delivery.deliveryType || 'REGULAR'}</p>
+            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+              <Package className="mt-0.5 text-[#B8641A]" size={18} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Type</p>
+                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.deliveryType || 'REGULAR'}</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Package className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Payment</p>
+            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+              <Package className="mt-0.5 text-[#B8641A]" size={18} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Payment</p>
                 {requiresPaymentCollection ? (
                   <>
-                    <p className="font-semibold text-amber-700">Collection Required</p>
-                    <p className="text-sm text-gray-700 mt-1">
+                    <p className="mt-1 text-sm font-bold text-[#B8641A]">Collection Required</p>
+                    <p className="mt-1 text-sm text-[#6B5B3E]">
                       Collect {amountDue > 0 ? `Rs ${amountDue.toFixed(2)}` : 'due amount'} via Cash or Online while completing delivery.
                     </p>
                   </>
                 ) : paymentCollectionMethod ? (
-                  <p className="font-semibold text-green-700">Collected via {paymentCollectionMethod}</p>
+                  <p className="mt-1 text-sm font-bold text-[#4A7C2F]">Collected via {paymentCollectionMethod}</p>
                 ) : (
-                  <p className="font-semibold text-gray-800">No collection required</p>
+                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">No collection required</p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Package className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Quantity</p>
-                <p className="font-semibold text-gray-800">{delivery.quantity}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+                <Package className="mt-0.5 text-[#B8641A]" size={18} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Quantity</p>
+                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.quantity}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+                <User className="mt-0.5 text-[#B8641A]" size={18} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Customer Name</p>
+                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.customerName}</p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <User className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Customer Name</p>
-                <p className="font-semibold text-gray-800">{delivery.customerName}</p>
+            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+              <Phone className="mt-0.5 text-[#B8641A]" size={18} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Phone Number</p>
+                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.phoneNumber}</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Phone className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Phone Number</p>
-                <p className="font-semibold text-gray-800">{delivery.phoneNumber}</p>
+            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+              <MapPin className="mt-0.5 text-[#B8641A]" size={18} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Address</p>
+                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.address}</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <MapPin className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Delivery Address</p>
-                <p className="font-semibold text-gray-800">{delivery.address}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <Building2 className="text-blue-600 mt-1" size={20} />
-              <div>
-                <p className="text-sm text-gray-600">Dairy Farm</p>
-                <p className="font-semibold text-gray-800">
+            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+              <Building2 className="mt-0.5 text-[#B8641A]" size={18} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Dairy Farm</p>
+                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">
                   {delivery.dairyFarmName} (ID: {delivery.dairyFarmId})
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="mt-1 text-sm text-[#6B5B3E]">
                   Farm Phone: {delivery.farmPhoneNumber}
                 </p>
               </div>
@@ -120,31 +127,31 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
 
           {/* Failed Reason (if applicable) */}
           {delivery.status === 'FAILED' && delivery.failedReason && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-sm font-medium text-red-800 mb-1">Failed Reason:</p>
-              <p className="text-sm text-red-700">{delivery.failedReason}</p>
+            <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] p-4">
+              <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#C0392B]">Failed Reason</p>
+              <p className="text-sm text-[#A33A2B]">{delivery.failedReason}</p>
               {delivery.failedImage && (
                 <img
                   src={delivery.failedImage}
                   alt="Failed delivery"
-                  className="mt-3 rounded-lg max-h-48 w-full object-cover"
+                  className="mt-3 max-h-48 w-full rounded-[12px] object-cover"
                 />
               )}
             </div>
           )}
 
           {delivery.status === 'COMPLETED' && delivery.deliveryProofType && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-sm font-medium text-green-800 mb-1">Delivery Proof:</p>
-              <p className="text-sm text-green-700">{delivery.deliveryProofType}</p>
+            <div className="rounded-[16px] border border-[#DDE8D1] bg-[#EEF5E7] p-4">
+              <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#4A7C2F]">Delivery Proof</p>
+              <p className="text-sm font-semibold text-[#4A7C2F]">{delivery.deliveryProofType}</p>
               {delivery.deliveryProofValue && (
-                <p className="text-xs text-green-700 mt-1">{delivery.deliveryProofValue}</p>
+                <p className="mt-1 text-xs text-[#4A7C2F]">{delivery.deliveryProofValue}</p>
               )}
               {delivery.deliveryProofImage && (
                 <img
                   src={delivery.deliveryProofImage}
                   alt="Delivery proof"
-                  className="mt-3 rounded-lg max-h-48 w-full object-cover"
+                  className="mt-3 max-h-48 w-full rounded-[12px] object-cover"
                 />
               )}
             </div>
@@ -152,13 +159,13 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
         </div>
 
         {/* Footer */}
-        <div className="border-t px-6 py-4 space-y-3">
+        <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FFF8EF] px-5 py-4">
           {isPending && (onCompleteRequest || onMarkFailed) && (
             <div className="flex gap-2">
               {onCompleteRequest && (
                 <button
                   onClick={() => onCompleteRequest(delivery)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 font-medium text-white transition-colors hover:bg-green-700"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[14px] bg-[#4A7C2F] py-2.5 text-sm font-bold text-white transition hover:bg-[#3D6826]"
                 >
                   <CheckCircle size={18} />
                   {requiresPaymentCollection ? 'Collect & Complete' : 'Mark Delivered'}
@@ -167,7 +174,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               {onMarkFailed && (
                 <button
                   onClick={() => onMarkFailed(delivery)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2.5 font-medium text-white transition-colors hover:bg-red-700"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[14px] bg-[#C0392B] py-2.5 text-sm font-bold text-white transition hover:bg-[#A53024]"
                 >
                   <XCircle size={18} />
                   Mark Failed
@@ -177,7 +184,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
           )}
           <button
             onClick={onClose}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium transition-colors"
+            className="w-full rounded-[14px] border border-[#E7DAC6] bg-white py-2.5 text-sm font-bold text-[#8B7355] transition hover:bg-[#FBF7F0]"
           >
             Close
           </button>

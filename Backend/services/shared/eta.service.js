@@ -77,6 +77,73 @@ const buildRoutePath = (agentLat, agentLng, customerLat, customerLng) => {
   ];
 };
 
+const getLocalDateInput = (value = new Date()) => {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const resolveLatestAgentLocation = async ({ agentId, todayDate }) => {
+  if (!agentId) return null;
+
+  const { data: trackedLocation, error: trackedLocationError } = await supabase
+    .from("agent_locations")
+    .select("latitude, longitude, recorded_at")
+    .eq("agent_id", agentId)
+    .order("recorded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (trackedLocationError && !isMissingTableError(trackedLocationError) && !isMissingColumnError(trackedLocationError)) {
+    throw trackedLocationError;
+  }
+
+  const trackedLat = Number(trackedLocation?.latitude);
+  const trackedLng = Number(trackedLocation?.longitude);
+  if (Number.isFinite(trackedLat) && Number.isFinite(trackedLng)) {
+    return {
+      lat: trackedLat,
+      lng: trackedLng,
+      updatedAt: trackedLocation?.recorded_at || null,
+    };
+  }
+
+  for (const table of DELIVERY_TABLES) {
+    let query = supabase
+      .from(table)
+      .select("agent_current_lat, agent_current_lng, agent_location_updated_at")
+      .eq("agent_id", agentId)
+      .order("agent_location_updated_at", { ascending: false })
+      .limit(1);
+
+    if (todayDate) {
+      query = query.eq("delivery_date", todayDate);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      if (isMissingTableError(error) || isMissingColumnError(error)) {
+        continue;
+      }
+      throw error;
+    }
+
+    const lat = Number(data?.agent_current_lat);
+    const lng = Number(data?.agent_current_lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return {
+        lat,
+        lng,
+        updatedAt: data?.agent_location_updated_at || null,
+      };
+    }
+  }
+
+  return null;
+};
+
 /**
  * Get time of day category for ML
  */
@@ -322,6 +389,18 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
 
     const agentLat = Number(data.agent_current_lat);
     const agentLng = Number(data.agent_current_lng);
+    const fallbackAgentLocation = await resolveLatestAgentLocation({
+      agentId: data?.agent_id ?? null,
+      todayDate: getLocalDateInput(new Date()),
+    });
+    const effectiveAgentLat = Number.isFinite(agentLat) ? agentLat : Number(fallbackAgentLocation?.lat);
+    const effectiveAgentLng = Number.isFinite(agentLng) ? agentLng : Number(fallbackAgentLocation?.lng);
+    const effectiveAgentLocation =
+      Number.isFinite(effectiveAgentLat) && Number.isFinite(effectiveAgentLng)
+        ? { lat: effectiveAgentLat, lng: effectiveAgentLng }
+        : null;
+    const effectiveLastUpdated =
+      data.agent_location_updated_at || fallbackAgentLocation?.updatedAt || null;
     const customerLat = Number(customer?.latitude);
     const customerLng = Number(customer?.longitude);
     const customerLocation =
@@ -329,28 +408,29 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
         ? { lat: customerLat, lng: customerLng }
         : null;
     const remainingDistance =
-      Number.isFinite(agentLat) &&
-      Number.isFinite(agentLng) &&
+      Number.isFinite(effectiveAgentLat) &&
+      Number.isFinite(effectiveAgentLng) &&
       Number.isFinite(customerLat) &&
       Number.isFinite(customerLng)
-        ? parseFloat(calculateDistance(agentLat, agentLng, customerLat, customerLng).toFixed(2))
+        ? parseFloat(calculateDistance(effectiveAgentLat, effectiveAgentLng, customerLat, customerLng).toFixed(2))
         : null;
-    const routePath = buildRoutePath(agentLat, agentLng, customerLat, customerLng);
+    const routePath = buildRoutePath(effectiveAgentLat, effectiveAgentLng, customerLat, customerLng);
 
     // Check if ETA is still valid (location updated within last 10 minutes)
-    if (!data.agent_location_updated_at) {
+    if (!effectiveLastUpdated) {
       return {
         status: data.status,
         eta: null,
         remainingMinutes: null,
         remainingDistance,
+        agentLocation: effectiveAgentLocation,
         customerLocation,
         routePath,
         message: "Agent location not available. ETA will be updated soon.",
       };
     }
 
-    const lastUpdate = new Date(data.agent_location_updated_at);
+    const lastUpdate = new Date(effectiveLastUpdated);
     const now = new Date();
     const minutesSinceUpdate = (now - lastUpdate) / (1000 * 60);
 
@@ -360,6 +440,7 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
         eta: data.estimated_arrival_time,
         remainingMinutes: null,
         remainingDistance,
+        agentLocation: effectiveAgentLocation,
         customerLocation,
         routePath,
         message: "Agent location update pending...",
@@ -376,11 +457,8 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
       eta: data.estimated_arrival_time,
       remainingMinutes,
       remainingDistance,
-      lastUpdated: data.agent_location_updated_at,
-      agentLocation: data.agent_current_lat ? {
-        lat: data.agent_current_lat,
-        lng: data.agent_current_lng,
-      } : null,
+      lastUpdated: effectiveLastUpdated,
+      agentLocation: effectiveAgentLocation,
       customerLocation,
       routePath,
     };

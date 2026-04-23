@@ -168,20 +168,23 @@ const AgentProfile = () => {
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#A88763]">ID: {profile.agentId}</p>
 
             <div className="mt-6 flex flex-col items-center gap-3">
-              <div
-                className={`flex items-center gap-3 rounded-2xl border px-5 py-2.5 transition-all ${
+              <button
+                type="button"
+                onClick={handleToggleStatus}
+                disabled={statusSaving}
+                className={`flex items-center gap-3 rounded-2xl border px-5 py-2.5 transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 ${
                   isActive
                     ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
                     : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
                 }`}
               >
                 <span className="text-[11px] font-black uppercase tracking-[0.16em]">
-                  {isActive ? "Online" : "Offline"}
+                  {isActive ? "Active" : "Not Active"}
                 </span>
-                <button onClick={handleToggleStatus} disabled={statusSaving} className="transition-transform active:scale-90">
+                <span className="transition-transform">
                   {isActive ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
-                </button>
-              </div>
+                </span>
+              </button>
 
               {!isActive && profile?.inactiveUntil && (
                 <p className="rounded-full bg-[#FFF1E4] px-3 py-1 text-[9px] font-bold text-[#C86A2B]">
@@ -210,7 +213,10 @@ const AgentProfile = () => {
                 Set
               </button>
             </div>
-            <button onClick={() => setShowInactiveDaysInput(false)} className="mt-3 w-full text-[9px] font-bold uppercase text-white/55">
+            <button
+              onClick={() => setShowInactiveDaysInput(false)}
+              className="mt-3 w-full rounded-xl border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#A33A2B] transition hover:bg-[#F8DDD6]"
+            >
               Cancel
             </button>
           </div>
