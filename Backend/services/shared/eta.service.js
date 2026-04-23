@@ -144,6 +144,68 @@ const resolveLatestAgentLocation = async ({ agentId, todayDate }) => {
   return null;
 };
 
+const resolveAssignedAgentIdForDelivery = async (delivery = {}) => {
+  const directAgentId = Number(delivery?.agent_id);
+  if (Number.isFinite(directAgentId) && directAgentId > 0) {
+    return directAgentId;
+  }
+
+  const customerId = Number(delivery?.customer_id);
+  if (!Number.isFinite(customerId) || customerId <= 0) {
+    return null;
+  }
+
+  // First fallback: active subscription assignment.
+  const { data: subscription, error: subscriptionError } = await supabase
+    .from("subscriptions")
+    .select("assigned_agent_id, status, approval_status, updated_at")
+    .eq("customer_id", customerId)
+    .not("assigned_agent_id", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (subscriptionError && !isMissingTableError(subscriptionError) && !isMissingColumnError(subscriptionError)) {
+    throw subscriptionError;
+  }
+
+  const subscriptionAgentId = Number(subscription?.assigned_agent_id);
+  if (Number.isFinite(subscriptionAgentId) && subscriptionAgentId > 0) {
+    return subscriptionAgentId;
+  }
+
+  // Second fallback: any delivery row for this customer/date that has an agent_id.
+  const deliveryDate = String(delivery?.delivery_date || "").trim() || null;
+  for (const table of DELIVERY_TABLES) {
+    let query = supabase
+      .from(table)
+      .select("agent_id, updated_at")
+      .eq("customer_id", customerId)
+      .not("agent_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+
+    if (deliveryDate) {
+      query = query.eq("delivery_date", deliveryDate);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      if (isMissingTableError(error) || isMissingColumnError(error)) {
+        continue;
+      }
+      throw error;
+    }
+
+    const agentId = Number(data?.agent_id);
+    if (Number.isFinite(agentId) && agentId > 0) {
+      return agentId;
+    }
+  }
+
+  return null;
+};
+
 /**
  * Get time of day category for ML
  */
@@ -387,10 +449,11 @@ export const getDeliveryETA = async (deliveryId, customerId = null) => {
       throw customerError;
     }
 
+    const effectiveAgentId = await resolveAssignedAgentIdForDelivery(data);
     const agentLat = Number(data.agent_current_lat);
     const agentLng = Number(data.agent_current_lng);
     const fallbackAgentLocation = await resolveLatestAgentLocation({
-      agentId: data?.agent_id ?? null,
+      agentId: effectiveAgentId,
       todayDate: getLocalDateInput(new Date()),
     });
     const effectiveAgentLat = Number.isFinite(agentLat) ? agentLat : Number(fallbackAgentLocation?.lat);
