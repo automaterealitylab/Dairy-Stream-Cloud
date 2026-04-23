@@ -53,24 +53,18 @@ const getStatusMeta = (status) => {
   if (normalized === "DELIVERED") {
     return {
       badge: "bg-[#EEF5E7] text-[#4A7C2F]",
-      surface: "bg-[#EEF5E7] border-[#DDE8D1]",
       label: "Delivered",
-      helper: "Your order has reached you successfully.",
     };
   }
   if (normalized === "OUT_FOR_DELIVERY") {
     return {
       badge: "bg-[#FFF4E2] text-[#B8641A]",
-      surface: "bg-[#FFF8EC] border-[#EFD7B3]",
       label: "Out for delivery",
-      helper: "Track the delivery partner and ETA in real time.",
     };
   }
   return {
     badge: "bg-[#FBF7F0] text-[#8B7355]",
-    surface: "bg-[#FFFDF7] border-[#EDE8DF]",
     label: "Preparing delivery",
-    helper: "The order is assigned and waiting to start.",
   };
 };
 
@@ -194,7 +188,7 @@ const TrackAgent = () => {
         className="space-y-5 pb-8 sm:space-y-6 lg:space-y-8"
         style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4">
           <div className="flex items-start gap-3 sm:gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -217,18 +211,6 @@ const TrackAgent = () => {
                 partner from one place.
               </p>
             </div>
-          </div>
-
-          <div className={`rounded-[20px] border px-4 py-3 shadow-sm ${statusMeta.surface}`}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#A88763]">
-              Current Status
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusMeta.badge}`}>
-                {statusMeta.label}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-[#6B5B3E]">{statusMeta.helper}</p>
           </div>
         </div>
 
@@ -295,7 +277,7 @@ const TrackAgent = () => {
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="space-y-5 rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] p-5 shadow-sm sm:rounded-[32px] sm:p-8">
-            <div className="flex items-center justify-between gap-3">
+            <div>
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
                   Delivery Partner
@@ -304,9 +286,6 @@ const TrackAgent = () => {
                   Assigned Agent
                 </h3>
               </div>
-              <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusMeta.badge}`}>
-                {statusMeta.label}
-              </span>
             </div>
 
             <div className="flex items-center gap-4 rounded-[22px] border border-[#F2EDE4] bg-[#FBF7F0] p-4">
