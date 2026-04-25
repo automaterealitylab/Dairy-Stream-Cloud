@@ -81,20 +81,6 @@ function getCfg(status) {
   return STATUS_CFG[String(status || '').toUpperCase()] || STATUS_CFG.PENDING;
 }
 
-function getWeekBucket(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    const diff = Math.floor((Date.now() - d) / 86400000);
-    if (diff < 7) return { key: 'w0', label: 'This week' };
-    if (diff < 14) return { key: 'w1', label: 'Last week' };
-    if (diff < 21) return { key: 'w2', label: '2 weeks ago' };
-    if (diff < 28) return { key: 'w3', label: '3 weeks ago' };
-    return { key: 'w4', label: '4+ weeks ago' };
-  } catch {
-    return { key: 'w9', label: 'Earlier' };
-  }
-}
-
 function getMonthBucket(dateStr) {
   try {
     const d = new Date(dateStr);
@@ -163,11 +149,11 @@ function getDeliverySummary(items = []) {
     .join(' | ');
 }
 
-function buildGroups(deliveries, view) {
+function buildGroups(deliveries) {
   const map = new Map();
   deliveries.forEach((delivery) => {
     const bucketDate = delivery?.deliveryDate || delivery?.date;
-    const bucket = view === 'week' ? getWeekBucket(bucketDate) : getMonthBucket(bucketDate);
+    const bucket = getMonthBucket(bucketDate);
     if (!map.has(bucket.key)) {
       map.set(bucket.key, { key: bucket.key, label: bucket.label, items: [] });
     }
@@ -393,7 +379,7 @@ export default function Deliveries() {
   const [notice, setNotice] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
-  const [view, setView] = useState('week');
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   const applyDeliveryState = (data) => {
     const nextState = toDeliveryViewState(data);
@@ -433,7 +419,48 @@ export default function Deliveries() {
     load();
   }, []);
 
-  const groups = useMemo(() => buildGroups(deliveries, view), [deliveries, view]);
+  const monthOptions = useMemo(() => {
+    const uniqueMonths = new Map();
+
+    deliveries.forEach((delivery) => {
+      const bucketDate = delivery?.deliveryDate || delivery?.date;
+      const bucket = getMonthBucket(bucketDate);
+      if (!uniqueMonths.has(bucket.key)) {
+        uniqueMonths.set(bucket.key, {
+          value: bucket.key,
+          label: bucket.label,
+          timestamp: getDeliveryDateValue(delivery)?.getTime() || 0,
+        });
+      } else if ((getDeliveryDateValue(delivery)?.getTime() || 0) > uniqueMonths.get(bucket.key).timestamp) {
+        uniqueMonths.get(bucket.key).timestamp = getDeliveryDateValue(delivery)?.getTime() || 0;
+      }
+    });
+
+    return Array.from(uniqueMonths.values())
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(({ value, label }) => ({ value, label }));
+  }, [deliveries]);
+
+  useEffect(() => {
+    if (!monthOptions.length) {
+      setSelectedMonth('');
+      return;
+    }
+
+    setSelectedMonth((currentMonth) => {
+      if (monthOptions.some((option) => option.value === currentMonth)) {
+        return currentMonth;
+      }
+      return monthOptions[0].value;
+    });
+  }, [monthOptions]);
+
+  const filteredDeliveries = useMemo(() => {
+    if (!selectedMonth) return deliveries;
+    return deliveries.filter((delivery) => getMonthBucket(delivery?.deliveryDate || delivery?.date).key === selectedMonth);
+  }, [deliveries, selectedMonth]);
+
+  const groups = useMemo(() => buildGroups(filteredDeliveries), [filteredDeliveries]);
 
   const todayStatus = String(todayDelivery?.status || 'PENDING').toUpperCase();
   const todayCfg = getCfg(todayStatus);
@@ -711,20 +738,22 @@ export default function Deliveries() {
                 Recent Deliveries
               </p>
 
-              <div className="flex w-full gap-1 rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] p-1 sm:w-auto">
-                {['week', 'month'].map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => setView(value)}
-                    className={`flex-1 rounded-[10px] px-4 py-1.5 text-xs font-semibold capitalize transition-all sm:flex-none ${
-                      view === value
-                        ? 'bg-[#2C2416] text-white'
-                        : 'text-[#8B7355] hover:text-[#5C3D1E]'
-                    }`}
-                  >
-                    {value}
-                  </button>
-                ))}
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={selectedMonth}
+                  onChange={(event) => setSelectedMonth(event.target.value)}
+                  className="w-full appearance-none rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2 pr-10 text-xs font-semibold text-[#2C2416] outline-none transition focus:border-[#D4B896] sm:min-w-[180px]"
+                >
+                  {monthOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={15}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#8B7355]"
+                />
               </div>
             </div>
 
