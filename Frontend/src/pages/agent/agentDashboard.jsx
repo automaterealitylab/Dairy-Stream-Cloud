@@ -53,6 +53,12 @@ import {
 } from "../../api/agent/offlineSync";
 import { startDelivery, updateAgentLocation } from "../../api/agent/location.js";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
+import {
+  formatQuantity,
+  getProductLabel,
+  getQuantityValue,
+  isMilkProduct,
+} from "../../utils/agentTaskGrouping.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
@@ -876,6 +882,45 @@ const AgentDashboard = () => {
     }),
     [todayDeliveries]
   );
+  const carrySummary = useMemo(() => {
+    const sourceDeliveries = todayOpenDeliveries;
+    const milkTotals = new Map();
+    const extraTotals = new Map();
+    let totalMilkLiters = 0;
+
+    sourceDeliveries.forEach((delivery) => {
+      const productLabel = getProductLabel(delivery);
+      const quantityValue = getQuantityValue(delivery?.quantity);
+
+      if (isMilkProduct(delivery)) {
+        const liters = quantityValue > 0 ? quantityValue : 0;
+        totalMilkLiters += liters;
+        milkTotals.set(productLabel, (milkTotals.get(productLabel) || 0) + liters);
+      } else {
+        const units = quantityValue > 0 ? quantityValue : 1;
+        extraTotals.set(productLabel, (extraTotals.get(productLabel) || 0) + units);
+      }
+    });
+
+    return {
+      deliveryCount: sourceDeliveries.length,
+      totalMilkLiters,
+      milkTypes: [...milkTotals.entries()]
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([name, quantity]) => ({
+          name,
+          quantity,
+          label: `${name}: ${formatQuantity(quantity)} L`,
+        })),
+      extraProducts: [...extraTotals.entries()]
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([name, quantity]) => ({
+          name,
+          quantity,
+          label: `${name}: ${formatQuantity(quantity)}`,
+        })),
+    };
+  }, [todayOpenDeliveries]);
 
   useEffect(() => {
     setStats(statsForToday);
@@ -1476,8 +1521,8 @@ const AgentDashboard = () => {
   }, [agentLocation, location.pathname, location.state, navigate]);
 
   const mapContent = (
-    <section className="flex min-h-0 flex-1 flex-col rounded-[28px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-      <div className="mb-2.5 flex items-center justify-between gap-2">
+    <section className="flex min-h-0 flex-1 flex-col gap-2.5 px-0 py-0">
+      <div className="flex items-center justify-between gap-2 rounded-[18px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(92,61,30,0.07)]">
         <div className="flex items-center gap-2">
           <MapIcon size={16} className="text-[#B8641A]" />
           <div>
@@ -1874,62 +1919,75 @@ const AgentDashboard = () => {
           </div>
         </section>
 
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Milk To Carry</p>
+            </div>
+            <div className="rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] px-2.5 py-1.5 text-right">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6B8A4A]">Total Milk</p>
+              <p className="mt-0.5 text-base font-black text-[#2C1A0E]">{formatQuantity(carrySummary.totalMilkLiters)} L</p>
+            </div>
+          </div>
+
+          <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Milk Types</p>
+              {carrySummary.milkTypes.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {carrySummary.milkTypes.map((item) => (
+                    <p key={item.name} className="text-xs font-semibold text-[#2C1A0E]">
+                      {item.label}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No milk items</p>
+              )}
+            </div>
+
+            <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Extra Products</p>
+              {carrySummary.extraProducts.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {carrySummary.extraProducts.map((item) => (
+                    <p key={item.name} className="text-xs font-semibold text-[#2C1A0E]">
+                      {item.label}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No extra products</p>
+              )}
+            </div>
+          </div>
+        </section>
+
         </>
         ) : null}
 
         {activeSection === ActiveNavLabel.MAP ? mapContent : null}
 
         {activeSection === ActiveNavLabel.HOME ? (
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-5 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase text-[#A88763]">Next Delivery</p>
-          <div className="mt-3 flex items-start justify-between gap-3">
+          <div className="mt-2.5 flex items-start justify-between gap-2.5">
             <div className="min-w-0 flex-1">
               <h2 className="text-[24px] font-black leading-tight text-[#2C1A0E]" style={headingFont}>
                 {nextDisplayTask?.customerName || "No active tasks"}
               </h2>
-              <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
+              <p className="mt-1.5 text-sm font-semibold text-[#6B5B3E]">
                 {nextDisplayTask?.address || "Wait for your next assignment"}
               </p>
-              {nextDisplayTask?.date ? (
-                <p className="mt-2 text-[10px] font-black uppercase text-[#A88763]">
-                  {nextDisplayTask.date}
-                  {nextDisplayTask?.slot
-                    ? ` • ${nextDisplayTask.slot}${nextDisplayTask?.slotWindow ? ` (${nextDisplayTask.slotWindow})` : ""}`
-                    : ""}
-                </p>
-              ) : null}
               {nextDisplayTaskSchedule?.helperText ? (
-                <p className="mt-2 text-xs font-semibold text-[#8B7355]">
+                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">
                   {nextDisplayTaskSchedule.helperText}
                 </p>
               ) : null}
-              {nextDisplayTask && (
-                <p
-                  className={`mt-3 text-[10px] font-black uppercase ${
-                    nextDisplayTaskCoordinates ? "text-[#B8641A]" : "text-[#A88763]"
-                  }`}
-                >
-                  {nextDisplayTaskCoordinates ? "Customer pin is ready on map" : "Customer pin not saved yet"}
-                </p>
-              )}
             </div>
-            {nextDisplayTask && (
-              <div className="rounded-[20px] border border-[#F0D9B9] bg-white px-4 py-3 text-center shadow-sm">
-                <p className="text-lg font-black text-[#B8641A]">
-                  {isDeliveryRunActive
-                    ? "Delivering"
-                    : startableDelivery?.id && String(startableDelivery.id) === String(nextDisplayTask.id)
-                    ? "Ready"
-                    : nextDisplayTask?.date && String(nextDisplayTask.date) > todayKey
-                    ? "Tomorrow"
-                    : "Queued"}
-                </p>
-                <p className="text-[9px] font-black uppercase text-[#A88763]">Status</p>
-              </div>
-            )}
           </div>
 
-              <div className="mt-5 flex gap-3">
+              <div className="mt-3.5 flex gap-2.5">
                 <button
                   onClick={() => {
                     if (nextDisplayTaskCoordinates) {
@@ -1940,7 +1998,7 @@ const AgentDashboard = () => {
                     }
                   }}
                   disabled={!nextDisplayTaskCoordinates}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3.5 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
                 >
                   <Navigation size={18} fill="currentColor" />
                   {nextDisplayTaskCoordinates ? "Open Map" : "No Customer Pin"}
@@ -1972,3 +2030,4 @@ const AgentDashboard = () => {
 };
 
 export default AgentDashboard;
+

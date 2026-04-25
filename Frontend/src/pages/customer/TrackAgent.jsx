@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import TrackAgentMap from "../../components/TrackAgentMap.jsx";
@@ -14,6 +14,7 @@ import {
   MessageSquare,
   CheckCircle2,
   Loader2,
+  RefreshCw,
   Truck,
 } from "lucide-react";
 
@@ -104,17 +105,26 @@ const TrackAgent = () => {
     null;
   const [delivery, setDelivery] = useState(initialDelivery);
   const [loading, setLoading] = useState(() => !initialDelivery);
+  const [isRefreshingTracking, setIsRefreshingTracking] = useState(false);
+  const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const [error, setError] = useState("");
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    let cancelled = false;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-    const loadTrackingData = async ({ force = false, showSpinner = force || !initialDelivery } = {}) => {
+  const refreshTrackingData = useCallback(
+    async ({ force = false, showSpinner = false, silentError = false } = {}) => {
       try {
         if (showSpinner) {
           setLoading(true);
         }
-        setError("");
+        if (!silentError) {
+          setError("");
+        }
 
         const response = await fetchCustomerDeliveries({ force });
         const resolvedDelivery = resolveTrackedDelivery({
@@ -122,45 +132,56 @@ const TrackAgent = () => {
           targetOrderId: initialOrderId || null,
         });
 
-        if (!cancelled) {
+        if (isMountedRef.current) {
           setDelivery(resolvedDelivery);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (isMountedRef.current && !silentError) {
           setError(err?.message || "Unable to load tracking data.");
         }
       } finally {
-        if (!cancelled) {
+        if (isMountedRef.current && showSpinner) {
           setLoading(false);
         }
       }
-    };
+    },
+    [initialOrderId]
+  );
 
+  const handleRefreshLiveTracking = useCallback(async () => {
+    setIsRefreshingTracking(true);
+    await refreshTrackingData({ force: true, showSpinner: false });
+    if (isMountedRef.current) {
+      setMapRefreshKey((value) => value + 1);
+      setIsRefreshingTracking(false);
+    }
+  }, [refreshTrackingData]);
+
+  useEffect(() => {
     const needsRefresh = !initialDelivery;
 
     if (needsRefresh) {
-      loadTrackingData();
+      refreshTrackingData({ force: false, showSpinner: true });
     } else {
       setLoading(false);
-      loadTrackingData({ force: true, showSpinner: false });
+      refreshTrackingData({ force: true, showSpinner: false, silentError: true });
     }
 
     const intervalId = setInterval(() => {
-      loadTrackingData({ force: true, showSpinner: false });
+      refreshTrackingData({ force: true, showSpinner: false, silentError: true });
     }, 15000);
 
     const handleFocus = () => {
-      loadTrackingData({ force: true, showSpinner: false });
+      refreshTrackingData({ force: true, showSpinner: false, silentError: true });
     };
 
     window.addEventListener("focus", handleFocus);
 
     return () => {
-      cancelled = true;
       clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [initialDelivery, initialOrderId, location.state]);
+  }, [initialDelivery, location.state, refreshTrackingData]);
 
   const agent = delivery?.agent || null;
   const normalizedStatus = normalizeTrackingStatus(delivery?.status);
@@ -304,8 +325,8 @@ const TrackAgent = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-5 rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] p-5 shadow-sm sm:rounded-[32px] sm:p-8">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-3 rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-sm sm:rounded-[32px] sm:p-5">
             <div>
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
@@ -317,7 +338,7 @@ const TrackAgent = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 rounded-[22px] border border-[#F2EDE4] bg-[#FBF7F0] p-4">
+            <div className="flex items-center gap-3 rounded-[22px] border border-[#F2EDE4] bg-[#FBF7F0] p-3">
               <div className="relative">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-white text-[#A88763] shadow-sm">
                   <User size={30} />
@@ -339,7 +360,7 @@ const TrackAgent = () => {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-[22px] border border-[#F2EDE4] bg-white p-4">
+            <div className="space-y-2.5 rounded-[22px] border border-[#F2EDE4] bg-white p-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm text-[#8B7355]">Phone</span>
                 <span className="text-sm font-bold text-[#2C1A0E]">{agent?.phone || "-"}</span>
@@ -356,7 +377,7 @@ const TrackAgent = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <a
                 href={agent?.phone ? `tel:${agent.phone}` : "#"}
                 onClick={(event) => {
@@ -364,7 +385,7 @@ const TrackAgent = () => {
                     event.preventDefault();
                   }
                 }}
-                className={`flex min-h-[52px] items-center justify-center gap-3 rounded-[16px] px-4 py-3.5 text-sm font-bold transition-all sm:rounded-[18px] sm:py-4 ${
+                className={`flex min-h-[46px] items-center justify-center gap-3 rounded-[16px] px-4 py-3 text-sm font-bold transition-all sm:rounded-[18px] sm:py-3.5 ${
                   agent?.phone
                     ? "bg-[#4A7C2F] text-white shadow-lg shadow-[#DDE8D1] hover:bg-[#3F6B27]"
                     : "cursor-not-allowed bg-[#EDE8DF] text-[#8B7355]"
@@ -375,23 +396,35 @@ const TrackAgent = () => {
               <button
                 type="button"
                 disabled
-                className="flex min-h-[52px] cursor-not-allowed items-center justify-center gap-3 rounded-[16px] border border-[#EDE8DF] bg-[#FBF7F0] px-4 py-3.5 text-sm font-bold text-[#8B7355] sm:rounded-[18px] sm:py-4"
+                className="flex min-h-[46px] cursor-not-allowed items-center justify-center gap-3 rounded-[16px] border border-[#EDE8DF] bg-[#FBF7F0] px-4 py-3 text-sm font-bold text-[#8B7355] sm:rounded-[18px] sm:py-3.5"
               >
                 <MessageSquare size={20} /> Message Soon
               </button>
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] p-5 shadow-sm sm:rounded-[32px] sm:p-8">
-            <div className="mb-5">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-                Live Tracking
-              </p>
-              <h3 className="mt-2 text-xl font-semibold text-[#2C1A0E]" style={headingFont}>
-                Live Map
-              </h3>
+          <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-sm sm:rounded-[32px] sm:p-5">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+                  Live Tracking
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-[#2C1A0E]" style={headingFont}>
+                  Live Map
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleRefreshLiveTracking}
+                disabled={isRefreshingTracking}
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-[#EDE8DF] bg-white px-3 text-xs font-bold text-[#8B7355] transition hover:bg-[#FBF7F0] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <RefreshCw size={14} className={isRefreshingTracking ? "animate-spin" : ""} />
+                {isRefreshingTracking ? "Refreshing..." : "Refresh"}
+              </button>
             </div>
             <TrackAgentMap
+              key={`track-map-${resolvedOrderId}-${mapRefreshKey}`}
               orderId={resolvedOrderId}
               agentId={agent?.id || delivery?.agentId || null}
               initialPosition={delivery?.currentAgentLocation || null}

@@ -35,6 +35,14 @@ const toCoordinates = (value) => {
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
 };
 
+const toTimestamp = (value) => {
+  if (value === null || value === undefined) return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => {
   if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) {
     return [];
@@ -99,13 +107,28 @@ const TrackAgentMap = ({
         if (cancelled || !eta) return;
 
         const etaAgentCoordinates = toCoordinates(eta?.agentLocation);
+        const etaTimestamp = toTimestamp(eta?.lastUpdated);
         if (etaAgentCoordinates) {
           setPosition(etaAgentCoordinates);
+          setIsOffline(false);
+          setLastUpdatedAt((current) => {
+            const fallback = Date.now();
+            const next = etaTimestamp ?? fallback;
+            if (!Number.isFinite(current)) return next;
+            return Math.max(current, next);
+          });
         }
 
         const etaCustomerCoordinates = toCoordinates(eta?.customerLocation);
         if (etaCustomerCoordinates) {
           setCustomerCoordinates(etaCustomerCoordinates);
+        }
+
+        if (!etaAgentCoordinates && etaTimestamp) {
+          setLastUpdatedAt((current) => {
+            if (!Number.isFinite(current)) return etaTimestamp;
+            return Math.max(current, etaTimestamp);
+          });
         }
       } catch {
         // Keep map functional from sockets/initial props even if ETA fetch fails.
@@ -205,7 +228,7 @@ const TrackAgentMap = ({
 
   if (!canTrack) {
     return (
-      <div className="rounded-[18px] border border-[#EDE8DF] bg-[#FBF7F0] px-4 py-6 text-center text-sm text-[#8B7355]">
+      <div className="rounded-[18px] border border-[#EDE8DF] bg-[#FBF7F0] px-4 py-4 text-center text-sm text-[#8B7355]">
         Tracking becomes available once this order is out for delivery.
       </div>
     );
@@ -213,7 +236,7 @@ const TrackAgentMap = ({
 
   if (isOffline) {
     return (
-      <div className="rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-4 py-6 text-center">
+      <div className="rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-4 py-4 text-center">
         <p className="text-sm font-bold text-[#4A7C2F]">Agent is offline or delivery is completed.</p>
         {lastUpdatedAt ? (
           <p className="mt-1 text-xs text-[#4A7C2F]">
@@ -227,7 +250,7 @@ const TrackAgentMap = ({
   return (
     <div className="overflow-hidden rounded-[18px] border border-[#EDE8DF]">
       {!position ? (
-        <div className="bg-[#FBF7F0] px-4 py-6 text-center text-sm text-[#8B7355]">
+        <div className="bg-[#FBF7F0] px-4 py-4 text-center text-sm text-[#8B7355]">
           Waiting for agent location...
         </div>
       ) : null}

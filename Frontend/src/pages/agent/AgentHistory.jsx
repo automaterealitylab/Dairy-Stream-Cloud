@@ -78,12 +78,12 @@ const AgentHistory = () => {
   return (
     <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 text-[#2C1A0E]">
       <div className="mx-auto max-w-md space-y-5">
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">History</p>
-          <h1 className="mt-2 text-[28px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
+          <h1 className="mt-1 text-[26px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
             Delivery Archive
           </h1>
-          <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">Review past performance</p>
+          <p className="mt-1 text-sm font-semibold text-[#6B5B3E]">Review past performance</p>
         </section>
 
         <div className="group relative">
