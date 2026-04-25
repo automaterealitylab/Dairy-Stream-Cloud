@@ -43,6 +43,7 @@ import {
   fetchAgentProfile,
   flushAgentOfflineQueue,
 } from "../../api/agent/agent.api";
+import { ensureSocketConnection } from "../../socket";
 import {
   getCachedAgentLocation,
   getCachedAssignedAgentDeliveries,
@@ -516,7 +517,7 @@ const isUnauthorizedError = (error) => Number(error?.response?.status) === 401;
 const AgentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
   const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries());
@@ -565,6 +566,39 @@ const AgentDashboard = () => {
   const spokenInstructionRef = useRef({ key: "", threshold: null });
   const authRedirectTriggeredRef = useRef(false);
   const locationWatcherIdRef = useRef(null);
+  const joinedOrderIdsRef = useRef(new Set());
+  const liveOrderIdsRef = useRef([]);
+  const liveAgentIdRef = useRef(null);
+
+  const agentSocketId = useMemo(() => {
+    const directUser = user || {};
+    const directId =
+      directUser?.id ??
+      directUser?._id ??
+      directUser?.agentId ??
+      directUser?.agent_id ??
+      null;
+    if (directId != null && String(directId).trim()) {
+      return String(directId).trim();
+    }
+
+    try {
+      const parsed = JSON.parse(localStorage.getItem("user") || "{}");
+      const fallbackId =
+        parsed?.id ??
+        parsed?._id ??
+        parsed?.agentId ??
+        parsed?.agent_id ??
+        parsed?.user?.id ??
+        parsed?.user?._id ??
+        parsed?.user?.agentId ??
+        parsed?.user?.agent_id ??
+        null;
+      return fallbackId != null && String(fallbackId).trim() ? String(fallbackId).trim() : null;
+    } catch {
+      return null;
+    }
+  }, [user]);
 
   const handleAgentAuthFailure = useCallback(
     (error) => {
@@ -602,6 +636,30 @@ const AgentDashboard = () => {
         const coords = [pos.coords.latitude, pos.coords.longitude];
         setAgentLocation(coords);
         storeAgentLocation({ lat: coords[0], lng: coords[1] });
+
+        const connectedSocket = ensureSocketConnection();
+        const currentAgentId = liveAgentIdRef.current;
+        const currentOrderIds = Array.isArray(liveOrderIdsRef.current) ? liveOrderIdsRef.current : [];
+        const basePayload = {
+          lat: coords[0],
+          lng: coords[1],
+          timestamp: Date.now(),
+        };
+
+        if (currentAgentId) {
+          connectedSocket.emit("agent:locationUpdate", {
+            ...basePayload,
+            agentId: currentAgentId,
+          });
+        }
+
+        currentOrderIds.forEach((orderId) => {
+          connectedSocket.emit("agent:locationUpdate", {
+            ...basePayload,
+            orderId,
+            agentId: currentAgentId || undefined,
+          });
+        });
       },
       (err) => console.error("GPS Error:", err.message),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -640,6 +698,27 @@ const AgentDashboard = () => {
       if (locationWatcherIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(locationWatcherIdRef.current);
         locationWatcherIdRef.current = null;
+      }
+
+      if (joinedOrderIdsRef.current.size > 0 || liveAgentIdRef.current) {
+        const connectedSocket = ensureSocketConnection();
+        joinedOrderIdsRef.current.forEach((orderId) => {
+          connectedSocket.emit("agent:stopped", {
+            orderId,
+            agentId: liveAgentIdRef.current || undefined,
+            isOnline: false,
+            timestamp: Date.now(),
+          });
+          connectedSocket.emit("agent:leaveOrder", { orderId });
+        });
+        if (liveAgentIdRef.current) {
+          connectedSocket.emit("agent:stopped", {
+            agentId: liveAgentIdRef.current,
+            isOnline: false,
+            timestamp: Date.now(),
+          });
+          connectedSocket.emit("agent:leaveRoom", { agentId: liveAgentIdRef.current });
+        }
       }
     };
   }, [loadDashboard, startAgentLocationWatcher]);
@@ -750,6 +829,17 @@ const AgentDashboard = () => {
       todayOpenDeliveries.filter((delivery) => String(delivery?.status || "").toUpperCase() === "OUT_FOR_DELIVERY"),
     [todayOpenDeliveries]
   );
+  const liveTrackedOrderIds = useMemo(
+    () =>
+      deliveries
+        .filter((delivery) => {
+          const status = String(delivery?.status || "").toUpperCase();
+          return status === "OUT_FOR_DELIVERY" || status === "IN_TRANSIT";
+        })
+        .map((delivery) => String(delivery?.id || "").trim())
+        .filter(Boolean),
+    [deliveries]
+  );
   const pendingUpcomingDeliveries = useMemo(
     () =>
       deliveries
@@ -796,6 +886,49 @@ const AgentDashboard = () => {
     setDeliveryRunStartedAt(null);
     localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
   }, [todayOpenDeliveries.length]);
+
+  useEffect(() => {
+    liveOrderIdsRef.current = liveTrackedOrderIds;
+  }, [liveTrackedOrderIds]);
+
+  useEffect(() => {
+    liveAgentIdRef.current = agentSocketId || null;
+  }, [agentSocketId]);
+
+  useEffect(() => {
+    if (!agentSocketId) return undefined;
+    const connectedSocket = ensureSocketConnection();
+    connectedSocket.emit("agent:joinRoom", { agentId: agentSocketId });
+
+    return () => {
+      connectedSocket.emit("agent:leaveRoom", { agentId: agentSocketId });
+    };
+  }, [agentSocketId]);
+
+  useEffect(() => {
+    const connectedSocket = ensureSocketConnection();
+    const currentSet = new Set(liveTrackedOrderIds);
+
+    liveTrackedOrderIds.forEach((orderId) => {
+      if (!joinedOrderIdsRef.current.has(orderId)) {
+        connectedSocket.emit("agent:joinOrder", { orderId });
+      }
+    });
+
+    joinedOrderIdsRef.current.forEach((orderId) => {
+      if (!currentSet.has(orderId)) {
+        connectedSocket.emit("agent:stopped", {
+          orderId,
+          agentId: liveAgentIdRef.current || undefined,
+          isOnline: false,
+          timestamp: Date.now(),
+        });
+        connectedSocket.emit("agent:leaveOrder", { orderId });
+      }
+    });
+
+    joinedOrderIdsRef.current = currentSet;
+  }, [liveTrackedOrderIds]);
 
   const completionPercentage =
     stats.totalAssigned > 0 ? Math.round((stats.completed / stats.totalAssigned) * 100) : 0;
@@ -1277,6 +1410,16 @@ const AgentDashboard = () => {
       setStartingDelivery(true);
       setStartDeliveryMessage("");
       await startDelivery(startableDelivery.id, agentLocation[0], agentLocation[1]);
+      const connectedSocket = ensureSocketConnection();
+      const orderId = String(startableDelivery.id);
+      connectedSocket.emit("agent:joinOrder", { orderId });
+      connectedSocket.emit("agent:locationUpdate", {
+        orderId,
+        agentId: liveAgentIdRef.current || undefined,
+        lat: agentLocation[0],
+        lng: agentLocation[1],
+        timestamp: Date.now(),
+      });
       setDeliveryRunStartedAt(todayKey);
       localStorage.setItem(DELIVERY_RUN_STORAGE_KEY, JSON.stringify({ date: todayKey }));
       setStartDeliveryMessage("Delivering. Keep going until today's deliveries are completed or failed.");

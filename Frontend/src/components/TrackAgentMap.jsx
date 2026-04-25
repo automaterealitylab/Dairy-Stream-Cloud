@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { ensureSocketConnection } from "../socket";
+import { getDeliveryETA } from "../api/customer/notification";
 
 const DEFAULT_CENTER = [20.5937, 78.9629];
 
@@ -30,24 +31,131 @@ const MapPanner = ({ center }) => {
   return null;
 };
 
-const TrackAgentMap = ({ orderId, initialPosition = null, canTrack = true }) => {
+const MapBoundsUpdater = ({ points }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!Array.isArray(points) || points.length < 2) return;
+    map.fitBounds(points, { padding: [28, 28] });
+  }, [map, points]);
+
+  return null;
+};
+
+const toCoordinates = (value) => {
+  const lat = Number(value?.lat ?? value?.latitude);
+  const lng = Number(value?.lng ?? value?.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+};
+
+const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => {
+  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) {
+    return [];
+  }
+
+  const [agentLat, agentLng] = agentCoordinates;
+  const [customerLat, customerLng] = customerCoordinates;
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/` +
+    `${agentLng},${agentLat};${customerLng},${customerLat}` +
+    `?overview=full&geometries=geojson`;
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Road route request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const geometry = payload?.routes?.[0]?.geometry?.coordinates;
+  const routePoints = Array.isArray(geometry)
+    ? geometry
+        .map((point) => {
+          const lng = Number(point?.[0]);
+          const lat = Number(point?.[1]);
+          return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+        })
+        .filter(Boolean)
+    : [];
+
+  return routePoints;
+};
+
+const TrackAgentMap = ({
+  orderId,
+  agentId = null,
+  initialPosition = null,
+  customerPosition = null,
+  canTrack = true,
+}) => {
   const initialCoordinates =
     Number.isFinite(Number(initialPosition?.lat)) && Number.isFinite(Number(initialPosition?.lng))
       ? [Number(initialPosition.lat), Number(initialPosition.lng)]
       : null;
+  const initialCustomerCoordinates = toCoordinates(customerPosition);
 
   const [position, setPosition] = useState(initialCoordinates);
+  const [customerCoordinates, setCustomerCoordinates] = useState(initialCustomerCoordinates);
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [isOffline, setIsOffline] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const hydratedDeliveryRef = useRef(false);
 
   useEffect(() => {
     if (!orderId) return undefined;
+    if (hydratedDeliveryRef.current) return undefined;
+
+    let cancelled = false;
+
+    const hydrateFromEta = async () => {
+      try {
+        const eta = await getDeliveryETA(orderId, { force: true });
+        if (cancelled || !eta) return;
+
+        const etaAgentCoordinates = toCoordinates(eta?.agentLocation);
+        if (etaAgentCoordinates) {
+          setPosition(etaAgentCoordinates);
+        }
+
+        const etaCustomerCoordinates = toCoordinates(eta?.customerLocation);
+        if (etaCustomerCoordinates) {
+          setCustomerCoordinates(etaCustomerCoordinates);
+        }
+      } catch {
+        // Keep map functional from sockets/initial props even if ETA fetch fails.
+      } finally {
+        hydratedDeliveryRef.current = true;
+      }
+    };
+
+    hydrateFromEta();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (!orderId && !agentId) return undefined;
 
     const connectedSocket = ensureSocketConnection();
-    connectedSocket.emit("customer:trackOrder", { orderId });
+    if (orderId) {
+      connectedSocket.emit("customer:trackOrder", { orderId });
+    }
+    if (agentId) {
+      connectedSocket.emit("customer:watchAgent", { agentId });
+    }
 
-    const handleLocation = ({ orderId: incomingOrderId, lat, lng, timestamp, isOnline } = {}) => {
-      if (String(incomingOrderId) !== String(orderId)) return;
+    const handleLocation = ({
+      orderId: incomingOrderId,
+      agentId: incomingAgentId,
+      lat,
+      lng,
+      timestamp,
+      isOnline,
+    } = {}) => {
+      const matchesOrder = orderId ? String(incomingOrderId) === String(orderId) : true;
+      const matchesAgent = agentId ? String(incomingAgentId) === String(agentId) : true;
+      if (!matchesOrder && !matchesAgent) return;
       const latitude = Number(lat);
       const longitude = Number(lng);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -57,8 +165,10 @@ const TrackAgentMap = ({ orderId, initialPosition = null, canTrack = true }) => 
       setIsOffline(isOnline === false ? true : false);
     };
 
-    const handleOffline = ({ orderId: incomingOrderId, timestamp } = {}) => {
-      if (String(incomingOrderId) !== String(orderId)) return;
+    const handleOffline = ({ orderId: incomingOrderId, agentId: incomingAgentId, timestamp } = {}) => {
+      const matchesOrder = orderId ? String(incomingOrderId) === String(orderId) : true;
+      const matchesAgent = agentId ? String(incomingAgentId) === String(agentId) : true;
+      if (!matchesOrder && !matchesAgent) return;
       setIsOffline(true);
       setLastUpdatedAt(Number(timestamp) || Date.now());
     };
@@ -67,13 +177,44 @@ const TrackAgentMap = ({ orderId, initialPosition = null, canTrack = true }) => 
     connectedSocket.on("agent:offline", handleOffline);
 
     return () => {
-      connectedSocket.emit("customer:untrackOrder", { orderId });
+      if (orderId) {
+        connectedSocket.emit("customer:untrackOrder", { orderId });
+      }
+      if (agentId) {
+        connectedSocket.emit("customer:unwatchAgent", { agentId });
+      }
       connectedSocket.off("agent:location", handleLocation);
       connectedSocket.off("agent:offline", handleOffline);
     };
-  }, [orderId]);
+  }, [agentId, orderId]);
+
+  useEffect(() => {
+    if (!position || !customerCoordinates) {
+      setRouteCoordinates([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    fetchRoadRoute(position, customerCoordinates, controller.signal)
+      .then((points) => {
+        if (Array.isArray(points) && points.length >= 2) {
+          setRouteCoordinates(points);
+        } else {
+          setRouteCoordinates([position, customerCoordinates]);
+        }
+      })
+      .catch(() => {
+        setRouteCoordinates([position, customerCoordinates]);
+      });
+
+    return () => controller.abort();
+  }, [customerCoordinates, position]);
 
   const mapCenter = useMemo(() => position || DEFAULT_CENTER, [position]);
+  const mapBoundsPoints = useMemo(
+    () => [position, customerCoordinates].filter(Boolean),
+    [customerCoordinates, position]
+  );
 
   if (!canTrack) {
     return (
@@ -110,7 +251,45 @@ const TrackAgentMap = ({ orderId, initialPosition = null, canTrack = true }) => 
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapPanner center={mapCenter} />
-        {position ? <Marker position={position} /> : null}
+        <MapBoundsUpdater points={mapBoundsPoints} />
+        {position ? (
+          <>
+            <CircleMarker
+              center={position}
+              radius={20}
+              pathOptions={{
+                color: "#1D4ED8",
+                fillColor: "#60A5FA",
+                fillOpacity: 0.35,
+              }}
+            />
+            <Marker position={position} />
+          </>
+        ) : null}
+        {customerCoordinates ? (
+          <>
+            <CircleMarker
+              center={customerCoordinates}
+              radius={16}
+              pathOptions={{
+                color: "#4A7C2F",
+                fillColor: "#DDE8D1",
+                fillOpacity: 0.75,
+              }}
+            />
+            <Marker position={customerCoordinates} />
+          </>
+        ) : null}
+        {routeCoordinates.length >= 2 ? (
+          <Polyline
+            positions={routeCoordinates}
+            pathOptions={{
+              color: "#B8641A",
+              weight: 4,
+              opacity: 0.85,
+            }}
+          />
+        ) : null}
       </MapContainer>
 
       {lastUpdatedAt ? (

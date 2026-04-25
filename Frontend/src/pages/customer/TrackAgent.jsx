@@ -393,7 +393,9 @@ const TrackAgent = () => {
             </div>
             <TrackAgentMap
               orderId={resolvedOrderId}
+              agentId={agent?.id || delivery?.agentId || null}
               initialPosition={delivery?.currentAgentLocation || null}
+              customerPosition={delivery?.customerLocation || null}
               canTrack={canTrackLive}
             />
           </div>
