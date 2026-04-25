@@ -1196,9 +1196,11 @@ export default function DairyCustomerDashboard() {
               <div className="flex w-full flex-col gap-2 self-start lg:w-auto lg:min-w-[250px]">
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() =>
-                      navigate("/customer/dashboard/track/agent", { state: { delivery: today } })
-                    }
+                    onClick={() => {
+                      const orderId = String(today?.deliveryId || today?.id || "").trim();
+                      if (!orderId) return;
+                      navigate(`/customer/track/${orderId}`, { state: { delivery: today } });
+                    }}
                     disabled={
                       !today?.canTrackAgent ||
                       ["NOT_SUBSCRIBED", "NOT_SCHEDULED", "PENDING_APPROVAL", "FAILED", "CANCELLED"].includes(

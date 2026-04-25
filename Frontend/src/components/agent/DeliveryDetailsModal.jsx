@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Package, MapPin, Phone, User, Building2, CheckCircle, XCircle } from 'lucide-react';
+import { startDelivery, updateAgentLocation } from '../../api/agent/location';
+import { ensureSocketConnection } from '../../socket';
 
 const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFailed }) => {
-  if (!delivery) return null;
-
   const normalizedStatus = String(delivery?.status || '').toUpperCase();
   const actionStatus = normalizedStatus === "IN_TRANSIT" ? "OUT_FOR_DELIVERY" : normalizedStatus;
   const requiresPaymentCollection =
@@ -11,12 +11,143 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
   const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
   const amountDue = Number(delivery?.amountDue || 0);
   const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackingError, setTrackingError] = useState('');
+  const [lastCoordinates, setLastCoordinates] = useState(null);
+  const watchIdRef = useRef(null);
+  const activeOrderIdRef = useRef(null);
+
+  const emitOffline = (orderIdInput) => {
+    const orderId = String(orderIdInput || '').trim();
+    if (!orderId) return;
+    const connectedSocket = ensureSocketConnection();
+    connectedSocket.emit('agent:stopped', {
+      orderId,
+      isOnline: false,
+      timestamp: Date.now(),
+    });
+    connectedSocket.emit('agent:leaveOrder', { orderId });
+  };
+
+  const stopTracking = ({ announceOffline = true } = {}) => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+
+    if (announceOffline && activeOrderIdRef.current) {
+      emitOffline(activeOrderIdRef.current);
+    }
+
+    activeOrderIdRef.current = null;
+    setIsTracking(false);
+  };
+
+  const startTracking = async () => {
+    const orderId = String(delivery?.id || '').trim();
+    if (!orderId) return;
+
+    if (!navigator.geolocation) {
+      setTrackingError('Geolocation is not supported on this device.');
+      return;
+    }
+
+    setTrackingError('');
+
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+
+    const connectedSocket = ensureSocketConnection();
+    connectedSocket.emit('agent:joinOrder', { orderId });
+    activeOrderIdRef.current = orderId;
+
+    try {
+      const currentPosition = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
+
+      const lat = Number(currentPosition?.coords?.latitude);
+      const lng = Number(currentPosition?.coords?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error('Unable to read your current location.');
+      }
+
+      setLastCoordinates({ lat, lng });
+      await startDelivery(delivery.id, lat, lng);
+
+      connectedSocket.emit('agent:locationUpdate', {
+        orderId,
+        lat,
+        lng,
+        timestamp: Date.now(),
+        isOnline: true,
+      });
+
+      setIsTracking(true);
+
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        async (position) => {
+          const nextLat = Number(position?.coords?.latitude);
+          const nextLng = Number(position?.coords?.longitude);
+          if (!Number.isFinite(nextLat) || !Number.isFinite(nextLng)) return;
+
+          setLastCoordinates({ lat: nextLat, lng: nextLng });
+
+          updateAgentLocation(delivery.id, nextLat, nextLng).catch((err) => {
+            console.error('Failed to update agent location via API:', err);
+          });
+
+          ensureSocketConnection().emit('agent:locationUpdate', {
+            orderId,
+            lat: nextLat,
+            lng: nextLng,
+            timestamp: Date.now(),
+            isOnline: true,
+          });
+        },
+        (error) => {
+          const message = error?.message || 'Location access failed. Please enable location.';
+          setTrackingError(message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 20000,
+          maximumAge: 0,
+        }
+      );
+    } catch (error) {
+      setTrackingError(error?.message || 'Unable to start live location sharing.');
+      stopTracking({ announceOffline: false });
+      ensureSocketConnection().emit('agent:leaveOrder', { orderId });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopTracking({ announceOffline: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    if (actionStatus === 'COMPLETED' || actionStatus === 'FAILED') {
+      stopTracking({ announceOffline: true });
+    }
+  }, [actionStatus]);
+
   const statusTone =
     actionStatus === "COMPLETED"
       ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
       : actionStatus === "FAILED"
       ? "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
       : "border-[#F0D1B2] bg-[#FFF1E4] text-[#B8641A]";
+
+  if (!delivery) return null;
 
   return (
     <div
@@ -126,6 +257,46 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
           </div>
 
           {/* Failed Reason (if applicable) */}
+          {isPending && (
+            <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EF] p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#A88763]">
+                Live Location Sharing
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {!isTracking ? (
+                  <button
+                    onClick={startTracking}
+                    className="rounded-[12px] bg-[#4A7C2F] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#3D6826]"
+                  >
+                    Start Delivery
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => stopTracking({ announceOffline: true })}
+                    className="rounded-[12px] bg-[#C0392B] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#A53024]"
+                  >
+                    Stop / Delivered
+                  </button>
+                )}
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                    isTracking ? 'bg-[#EEF5E7] text-[#4A7C2F]' : 'bg-[#F2EDE4] text-[#8B7355]'
+                  }`}
+                >
+                  {isTracking ? 'Live' : 'Offline'}
+                </span>
+              </div>
+              {lastCoordinates ? (
+                <p className="mt-2 text-xs text-[#6B5B3E]">
+                  Current: {lastCoordinates.lat.toFixed(6)}, {lastCoordinates.lng.toFixed(6)}
+                </p>
+              ) : null}
+              {trackingError ? (
+                <p className="mt-2 text-xs font-semibold text-[#C0392B]">{trackingError}</p>
+              ) : null}
+            </div>
+          )}
+
           {delivery.status === 'FAILED' && delivery.failedReason && (
             <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] p-4">
               <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#C0392B]">Failed Reason</p>

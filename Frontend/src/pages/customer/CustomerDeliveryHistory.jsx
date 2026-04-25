@@ -231,12 +231,18 @@ function canCancelPendingOneTimeOrder(delivery = {}) {
   );
 }
 
-function DeliveryRow({ item, muted = false, onCancel, isCancelling = false }) {
+function isDeliveryOutForTracking(status) {
+  const normalizedStatus = String(status || '').toUpperCase();
+  return normalizedStatus === 'OUT_FOR_DELIVERY' || normalizedStatus === 'IN_TRANSIT';
+}
+
+function DeliveryRow({ item, muted = false, onCancel, onTrack, isCancelling = false }) {
   const cfg = getCfg(item.status);
   const Icon = cfg.icon;
   const hasIssue = Boolean(String(item?.customerIssue || '').trim());
   const hasAdminAction = Boolean(String(item?.issueAdminAction || '').trim());
   const canCancel = canCancelPendingOneTimeOrder(item);
+  const canTrack = isDeliveryOutForTracking(item?.status);
 
   return (
     <div
@@ -285,6 +291,14 @@ function DeliveryRow({ item, muted = false, onCancel, isCancelling = false }) {
                 {isCancelling ? 'Cancelling...' : 'Cancel Order'}
               </button>
             )}
+            {canTrack && (
+              <button
+                onClick={() => onTrack?.(item)}
+                className="rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FDE9C9]"
+              >
+                Track Agent
+              </button>
+            )}
           </div>
         </div>
 
@@ -303,6 +317,14 @@ function DeliveryRow({ item, muted = false, onCancel, isCancelling = false }) {
                 {isCancelling ? 'Cancelling...' : 'Cancel Order'}
               </button>
             )}
+            {canTrack && (
+              <button
+                onClick={() => onTrack?.(item)}
+                className="rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FDE9C9]"
+              >
+                Track Agent
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -311,7 +333,7 @@ function DeliveryRow({ item, muted = false, onCancel, isCancelling = false }) {
   );
 }
 
-function DayDeliveryCard({ day, onCancel, cancellingOrderId }) {
+function DayDeliveryCard({ day, onCancel, onTrack, cancellingOrderId }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -345,6 +367,7 @@ function DayDeliveryCard({ day, onCancel, cancellingOrderId }) {
               key={item.id ?? `${day.key}-${index}`}
               item={item}
               onCancel={onCancel}
+              onTrack={onTrack}
               isCancelling={String(cancellingOrderId) === String(item.id)}
             />
           ))}
@@ -354,7 +377,7 @@ function DayDeliveryCard({ day, onCancel, cancellingOrderId }) {
   );
 }
 
-function GroupBlock({ group, onCancel, cancellingOrderId }) {
+function GroupBlock({ group, onCancel, onTrack, cancellingOrderId }) {
   const { label, items, days } = group;
 
   return (
@@ -372,6 +395,7 @@ function GroupBlock({ group, onCancel, cancellingOrderId }) {
             key={day.key}
             day={day}
             onCancel={onCancel}
+            onTrack={onTrack}
             cancellingOrderId={cancellingOrderId}
           />
         ))}
@@ -437,7 +461,8 @@ export default function Deliveries() {
 
   const todayStatus = String(todayDelivery?.status || 'PENDING').toUpperCase();
   const todayCfg = getCfg(todayStatus);
-  const canTrack = !!todayDelivery?.canTrackAgent;
+  const canTrack =
+    Boolean(todayDelivery?.canTrackAgent) || isDeliveryOutForTracking(todayDelivery?.status);
   const todayHasIssue = Boolean(String(todayDelivery?.customerIssue || '').trim());
   const todayIssueStatus = String(todayDelivery?.issueStatus || '').toUpperCase();
   const todayHasAdminAction = Boolean(String(todayDelivery?.issueAdminAction || '').trim());
@@ -495,6 +520,12 @@ export default function Deliveries() {
   const openCancelModal = (delivery) => {
     setNotice(null);
     setCancelTarget(delivery || null);
+  };
+
+  const openLiveTrack = (delivery) => {
+    const orderId = String(delivery?.deliveryId || delivery?.id || '').trim();
+    if (!orderId) return;
+    navigate(`/customer/track/${orderId}`, { state: { delivery } });
   };
 
   const closeCancelModal = () => {
@@ -680,9 +711,7 @@ export default function Deliveries() {
 
               <div className="flex w-full flex-shrink-0 flex-col gap-2 sm:w-auto">
                 <button
-                  onClick={() =>
-                    navigate('/customer/dashboard/track/agent', { state: { delivery: todayDelivery } })
-                  }
+                  onClick={() => openLiveTrack(todayDelivery)}
                   disabled={!canTrack}
                   className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#FFF4E2] px-5 py-3 text-sm font-bold text-[#B8641A] transition hover:bg-[#FDE9C9] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 sm:w-auto"
                 >
@@ -734,6 +763,7 @@ export default function Deliveries() {
                   key={group.key || group.label}
                   group={group}
                   onCancel={openCancelModal}
+                  onTrack={openLiveTrack}
                   cancellingOrderId={cancellingOrderId}
                 />
               ))}

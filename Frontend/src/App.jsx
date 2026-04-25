@@ -93,6 +93,14 @@ function App() {
           }
         />
         <Route
+          path="/customer/track/:orderId"
+          element={
+            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+              <TrackAgent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/customer/dashboard/profile"
           element={
             <ProtectedRoute allowedRoles={["CUSTOMER"]}>
