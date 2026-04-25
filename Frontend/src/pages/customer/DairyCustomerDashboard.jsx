@@ -243,6 +243,14 @@ const getTodayDeliveryMeta = (delivery = {}) => {
     };
   }
 
+  if (status === "OUT_FOR_DELIVERY" || status === "IN_TRANSIT") {
+    return {
+      title: "Out for Delivery",
+      tone: "pending",
+      helperText: "Your order is scheduled and out for delivery.",
+    };
+  }
+
   if (status === "CANCELLED") {
     return {
       title: "Order Cancelled",

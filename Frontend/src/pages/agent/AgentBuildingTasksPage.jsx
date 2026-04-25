@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Building2, Home, History, List, Map, Package, User } from "lucide-react";
 import DeliveryDetailsModal from "../../components/agent/DeliveryDetailsModal";
@@ -145,6 +145,20 @@ const AgentBuildingTasksPage = () => {
 
   const floorGroups = useMemo(() => buildFloorGroups(buildingDeliveries), [buildingDeliveries]);
 
+  const resolveDeliveryForModal = useCallback((delivery) => {
+    const targetId = String(delivery?.id || "").trim();
+    if (!targetId) return null;
+
+    const latest = deliveries.find((item) => String(item?.id) === targetId) || delivery;
+    const normalizedStatus = String(latest?.status || "").toUpperCase();
+    const status = normalizedStatus === "IN_TRANSIT" ? "OUT_FOR_DELIVERY" : normalizedStatus || "PENDING";
+
+    return {
+      ...latest,
+      status,
+    };
+  }, [deliveries]);
+
   useEffect(() => {
     const selectedDeliveryId = String(location.state?.selectedDeliveryId || "").trim();
     if (!selectedDeliveryId || !buildingDeliveries.length) return;
@@ -154,9 +168,19 @@ const AgentBuildingTasksPage = () => {
     );
     if (!matchedDelivery) return;
 
-    setSelectedDelivery(matchedDelivery);
+    setSelectedDelivery(resolveDeliveryForModal(matchedDelivery));
     navigate(location.pathname, { replace: true, state: null });
-  }, [buildingDeliveries, location.pathname, location.state, navigate]);
+  }, [buildingDeliveries, location.pathname, location.state, navigate, resolveDeliveryForModal]);
+
+  useEffect(() => {
+    if (!selectedDelivery?.id) return;
+    const refreshed = resolveDeliveryForModal(selectedDelivery);
+    if (!refreshed) return;
+
+    if (String(refreshed?.status || "") !== String(selectedDelivery?.status || "")) {
+      setSelectedDelivery(refreshed);
+    }
+  }, [deliveries, selectedDelivery, resolveDeliveryForModal]);
 
   const handleCompleteWithProof = (delivery) => setProofDelivery(delivery);
 
@@ -307,7 +331,10 @@ const AgentBuildingTasksPage = () => {
                     <CustomerRow
                       key={customer.id}
                       customer={customer}
-                      onOpen={setSelectedDelivery}
+                      onOpen={(delivery) => {
+                        const resolved = resolveDeliveryForModal(delivery);
+                        setSelectedDelivery(resolved);
+                      }}
                     />
                   ))}
                 </div>
