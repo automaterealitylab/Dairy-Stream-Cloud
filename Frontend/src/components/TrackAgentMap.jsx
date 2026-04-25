@@ -1,24 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import L from "leaflet";
-import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { ensureSocketConnection } from "../socket";
 import { getDeliveryETA } from "../api/customer/notification";
 
 const DEFAULT_CENTER = [20.5937, 78.9629];
-
-const DefaultIcon = L.icon({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
 
 const MapPanner = ({ center }) => {
   const map = useMap();
@@ -253,32 +239,26 @@ const TrackAgentMap = ({
         <MapPanner center={mapCenter} />
         <MapBoundsUpdater points={mapBoundsPoints} />
         {position ? (
-          <>
-            <CircleMarker
-              center={position}
-              radius={20}
-              pathOptions={{
-                color: "#1D4ED8",
-                fillColor: "#60A5FA",
-                fillOpacity: 0.35,
-              }}
-            />
-            <Marker position={position} />
-          </>
+          <CircleMarker
+            center={position}
+            radius={20}
+            pathOptions={{
+              color: "#1D4ED8",
+              fillColor: "#60A5FA",
+              fillOpacity: 0.35,
+            }}
+          />
         ) : null}
         {customerCoordinates ? (
-          <>
-            <CircleMarker
-              center={customerCoordinates}
-              radius={16}
-              pathOptions={{
-                color: "#4A7C2F",
-                fillColor: "#DDE8D1",
-                fillOpacity: 0.75,
-              }}
-            />
-            <Marker position={customerCoordinates} />
-          </>
+          <CircleMarker
+            center={customerCoordinates}
+            radius={16}
+            pathOptions={{
+              color: "#4A7C2F",
+              fillColor: "#DDE8D1",
+              fillOpacity: 0.75,
+            }}
+          />
         ) : null}
         {routeCoordinates.length >= 2 ? (
           <Polyline
