@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
+import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { ensureSocketConnection } from "../socket";
 import { getDeliveryETA } from "../api/customer/notification";
@@ -241,23 +242,24 @@ const TrackAgentMap = ({
         {position ? (
           <CircleMarker
             center={position}
-            radius={20}
+            radius={10}
             pathOptions={{
-              color: "#1D4ED8",
+              color: "#2563EB",
               fillColor: "#60A5FA",
-              fillOpacity: 0.35,
+              fillOpacity: 0.7,
+              weight: 2,
             }}
           />
         ) : null}
         {customerCoordinates ? (
-          <CircleMarker
-            center={customerCoordinates}
-            radius={16}
-            pathOptions={{
-              color: "#4A7C2F",
-              fillColor: "#DDE8D1",
-              fillOpacity: 0.75,
-            }}
+          <Marker
+            position={customerCoordinates}
+            icon={L.divIcon({
+              className: "custom-div-icon",
+              html: '<div style="background-color: #6BB071; width: 14px; height: 14px; border-radius: 999px; box-shadow: 0 4px 10px rgba(44,26,14,0.16);"></div>',
+              iconSize: [14, 14],
+              iconAnchor: [7, 7],
+            })}
           />
         ) : null}
         {routeCoordinates.length >= 2 ? (
