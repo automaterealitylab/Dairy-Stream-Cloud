@@ -43,6 +43,7 @@ import {
   fetchAgentProfile,
   flushAgentOfflineQueue,
 } from "../../api/agent/agent.api";
+import { ensureSocketConnection } from "../../socket";
 import {
   getCachedAgentLocation,
   getCachedAssignedAgentDeliveries,
@@ -52,6 +53,12 @@ import {
 } from "../../api/agent/offlineSync";
 import { startDelivery, updateAgentLocation } from "../../api/agent/location.js";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
+import {
+  formatQuantity,
+  getProductLabel,
+  getQuantityValue,
+  isMilkProduct,
+} from "../../utils/agentTaskGrouping.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
@@ -516,7 +523,7 @@ const isUnauthorizedError = (error) => Number(error?.response?.status) === 401;
 const AgentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
   const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries());
@@ -565,6 +572,39 @@ const AgentDashboard = () => {
   const spokenInstructionRef = useRef({ key: "", threshold: null });
   const authRedirectTriggeredRef = useRef(false);
   const locationWatcherIdRef = useRef(null);
+  const joinedOrderIdsRef = useRef(new Set());
+  const liveOrderIdsRef = useRef([]);
+  const liveAgentIdRef = useRef(null);
+
+  const agentSocketId = useMemo(() => {
+    const directUser = user || {};
+    const directId =
+      directUser?.id ??
+      directUser?._id ??
+      directUser?.agentId ??
+      directUser?.agent_id ??
+      null;
+    if (directId != null && String(directId).trim()) {
+      return String(directId).trim();
+    }
+
+    try {
+      const parsed = JSON.parse(localStorage.getItem("user") || "{}");
+      const fallbackId =
+        parsed?.id ??
+        parsed?._id ??
+        parsed?.agentId ??
+        parsed?.agent_id ??
+        parsed?.user?.id ??
+        parsed?.user?._id ??
+        parsed?.user?.agentId ??
+        parsed?.user?.agent_id ??
+        null;
+      return fallbackId != null && String(fallbackId).trim() ? String(fallbackId).trim() : null;
+    } catch {
+      return null;
+    }
+  }, [user]);
 
   const handleAgentAuthFailure = useCallback(
     (error) => {
@@ -602,6 +642,30 @@ const AgentDashboard = () => {
         const coords = [pos.coords.latitude, pos.coords.longitude];
         setAgentLocation(coords);
         storeAgentLocation({ lat: coords[0], lng: coords[1] });
+
+        const connectedSocket = ensureSocketConnection();
+        const currentAgentId = liveAgentIdRef.current;
+        const currentOrderIds = Array.isArray(liveOrderIdsRef.current) ? liveOrderIdsRef.current : [];
+        const basePayload = {
+          lat: coords[0],
+          lng: coords[1],
+          timestamp: Date.now(),
+        };
+
+        if (currentAgentId) {
+          connectedSocket.emit("agent:locationUpdate", {
+            ...basePayload,
+            agentId: currentAgentId,
+          });
+        }
+
+        currentOrderIds.forEach((orderId) => {
+          connectedSocket.emit("agent:locationUpdate", {
+            ...basePayload,
+            orderId,
+            agentId: currentAgentId || undefined,
+          });
+        });
       },
       (err) => console.error("GPS Error:", err.message),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -640,6 +704,27 @@ const AgentDashboard = () => {
       if (locationWatcherIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(locationWatcherIdRef.current);
         locationWatcherIdRef.current = null;
+      }
+
+      if (joinedOrderIdsRef.current.size > 0 || liveAgentIdRef.current) {
+        const connectedSocket = ensureSocketConnection();
+        joinedOrderIdsRef.current.forEach((orderId) => {
+          connectedSocket.emit("agent:stopped", {
+            orderId,
+            agentId: liveAgentIdRef.current || undefined,
+            isOnline: false,
+            timestamp: Date.now(),
+          });
+          connectedSocket.emit("agent:leaveOrder", { orderId });
+        });
+        if (liveAgentIdRef.current) {
+          connectedSocket.emit("agent:stopped", {
+            agentId: liveAgentIdRef.current,
+            isOnline: false,
+            timestamp: Date.now(),
+          });
+          connectedSocket.emit("agent:leaveRoom", { agentId: liveAgentIdRef.current });
+        }
       }
     };
   }, [loadDashboard, startAgentLocationWatcher]);
@@ -750,6 +835,17 @@ const AgentDashboard = () => {
       todayOpenDeliveries.filter((delivery) => String(delivery?.status || "").toUpperCase() === "OUT_FOR_DELIVERY"),
     [todayOpenDeliveries]
   );
+  const liveTrackedOrderIds = useMemo(
+    () =>
+      deliveries
+        .filter((delivery) => {
+          const status = String(delivery?.status || "").toUpperCase();
+          return status === "OUT_FOR_DELIVERY" || status === "IN_TRANSIT";
+        })
+        .map((delivery) => String(delivery?.id || "").trim())
+        .filter(Boolean),
+    [deliveries]
+  );
   const pendingUpcomingDeliveries = useMemo(
     () =>
       deliveries
@@ -786,6 +882,45 @@ const AgentDashboard = () => {
     }),
     [todayDeliveries]
   );
+  const carrySummary = useMemo(() => {
+    const sourceDeliveries = todayOpenDeliveries;
+    const milkTotals = new Map();
+    const extraTotals = new Map();
+    let totalMilkLiters = 0;
+
+    sourceDeliveries.forEach((delivery) => {
+      const productLabel = getProductLabel(delivery);
+      const quantityValue = getQuantityValue(delivery?.quantity);
+
+      if (isMilkProduct(delivery)) {
+        const liters = quantityValue > 0 ? quantityValue : 0;
+        totalMilkLiters += liters;
+        milkTotals.set(productLabel, (milkTotals.get(productLabel) || 0) + liters);
+      } else {
+        const units = quantityValue > 0 ? quantityValue : 1;
+        extraTotals.set(productLabel, (extraTotals.get(productLabel) || 0) + units);
+      }
+    });
+
+    return {
+      deliveryCount: sourceDeliveries.length,
+      totalMilkLiters,
+      milkTypes: [...milkTotals.entries()]
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([name, quantity]) => ({
+          name,
+          quantity,
+          label: `${name}: ${formatQuantity(quantity)} L`,
+        })),
+      extraProducts: [...extraTotals.entries()]
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([name, quantity]) => ({
+          name,
+          quantity,
+          label: `${name}: ${formatQuantity(quantity)}`,
+        })),
+    };
+  }, [todayOpenDeliveries]);
 
   useEffect(() => {
     setStats(statsForToday);
@@ -796,6 +931,49 @@ const AgentDashboard = () => {
     setDeliveryRunStartedAt(null);
     localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
   }, [todayOpenDeliveries.length]);
+
+  useEffect(() => {
+    liveOrderIdsRef.current = liveTrackedOrderIds;
+  }, [liveTrackedOrderIds]);
+
+  useEffect(() => {
+    liveAgentIdRef.current = agentSocketId || null;
+  }, [agentSocketId]);
+
+  useEffect(() => {
+    if (!agentSocketId) return undefined;
+    const connectedSocket = ensureSocketConnection();
+    connectedSocket.emit("agent:joinRoom", { agentId: agentSocketId });
+
+    return () => {
+      connectedSocket.emit("agent:leaveRoom", { agentId: agentSocketId });
+    };
+  }, [agentSocketId]);
+
+  useEffect(() => {
+    const connectedSocket = ensureSocketConnection();
+    const currentSet = new Set(liveTrackedOrderIds);
+
+    liveTrackedOrderIds.forEach((orderId) => {
+      if (!joinedOrderIdsRef.current.has(orderId)) {
+        connectedSocket.emit("agent:joinOrder", { orderId });
+      }
+    });
+
+    joinedOrderIdsRef.current.forEach((orderId) => {
+      if (!currentSet.has(orderId)) {
+        connectedSocket.emit("agent:stopped", {
+          orderId,
+          agentId: liveAgentIdRef.current || undefined,
+          isOnline: false,
+          timestamp: Date.now(),
+        });
+        connectedSocket.emit("agent:leaveOrder", { orderId });
+      }
+    });
+
+    joinedOrderIdsRef.current = currentSet;
+  }, [liveTrackedOrderIds]);
 
   const completionPercentage =
     stats.totalAssigned > 0 ? Math.round((stats.completed / stats.totalAssigned) * 100) : 0;
@@ -1277,6 +1455,16 @@ const AgentDashboard = () => {
       setStartingDelivery(true);
       setStartDeliveryMessage("");
       await startDelivery(startableDelivery.id, agentLocation[0], agentLocation[1]);
+      const connectedSocket = ensureSocketConnection();
+      const orderId = String(startableDelivery.id);
+      connectedSocket.emit("agent:joinOrder", { orderId });
+      connectedSocket.emit("agent:locationUpdate", {
+        orderId,
+        agentId: liveAgentIdRef.current || undefined,
+        lat: agentLocation[0],
+        lng: agentLocation[1],
+        timestamp: Date.now(),
+      });
       setDeliveryRunStartedAt(todayKey);
       localStorage.setItem(DELIVERY_RUN_STORAGE_KEY, JSON.stringify({ date: todayKey }));
       setStartDeliveryMessage("Delivering. Keep going until today's deliveries are completed or failed.");
@@ -1333,8 +1521,8 @@ const AgentDashboard = () => {
   }, [agentLocation, location.pathname, location.state, navigate]);
 
   const mapContent = (
-    <section className="flex min-h-0 flex-1 flex-col rounded-[28px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-      <div className="mb-2.5 flex items-center justify-between gap-2">
+    <section className="flex min-h-0 flex-1 flex-col gap-2.5 px-0 py-0">
+      <div className="flex items-center justify-between gap-2 rounded-[18px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(92,61,30,0.07)]">
         <div className="flex items-center gap-2">
           <MapIcon size={16} className="text-[#B8641A]" />
           <div>
@@ -1731,62 +1919,75 @@ const AgentDashboard = () => {
           </div>
         </section>
 
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Milk To Carry</p>
+            </div>
+            <div className="rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] px-2.5 py-1.5 text-right">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6B8A4A]">Total Milk</p>
+              <p className="mt-0.5 text-base font-black text-[#2C1A0E]">{formatQuantity(carrySummary.totalMilkLiters)} L</p>
+            </div>
+          </div>
+
+          <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Milk Types</p>
+              {carrySummary.milkTypes.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {carrySummary.milkTypes.map((item) => (
+                    <p key={item.name} className="text-xs font-semibold text-[#2C1A0E]">
+                      {item.label}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No milk items</p>
+              )}
+            </div>
+
+            <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Extra Products</p>
+              {carrySummary.extraProducts.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {carrySummary.extraProducts.map((item) => (
+                    <p key={item.name} className="text-xs font-semibold text-[#2C1A0E]">
+                      {item.label}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No extra products</p>
+              )}
+            </div>
+          </div>
+        </section>
+
         </>
         ) : null}
 
         {activeSection === ActiveNavLabel.MAP ? mapContent : null}
 
         {activeSection === ActiveNavLabel.HOME ? (
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-5 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase text-[#A88763]">Next Delivery</p>
-          <div className="mt-3 flex items-start justify-between gap-3">
+          <div className="mt-2.5 flex items-start justify-between gap-2.5">
             <div className="min-w-0 flex-1">
               <h2 className="text-[24px] font-black leading-tight text-[#2C1A0E]" style={headingFont}>
                 {nextDisplayTask?.customerName || "No active tasks"}
               </h2>
-              <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
+              <p className="mt-1.5 text-sm font-semibold text-[#6B5B3E]">
                 {nextDisplayTask?.address || "Wait for your next assignment"}
               </p>
-              {nextDisplayTask?.date ? (
-                <p className="mt-2 text-[10px] font-black uppercase text-[#A88763]">
-                  {nextDisplayTask.date}
-                  {nextDisplayTask?.slot
-                    ? ` • ${nextDisplayTask.slot}${nextDisplayTask?.slotWindow ? ` (${nextDisplayTask.slotWindow})` : ""}`
-                    : ""}
-                </p>
-              ) : null}
               {nextDisplayTaskSchedule?.helperText ? (
-                <p className="mt-2 text-xs font-semibold text-[#8B7355]">
+                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">
                   {nextDisplayTaskSchedule.helperText}
                 </p>
               ) : null}
-              {nextDisplayTask && (
-                <p
-                  className={`mt-3 text-[10px] font-black uppercase ${
-                    nextDisplayTaskCoordinates ? "text-[#B8641A]" : "text-[#A88763]"
-                  }`}
-                >
-                  {nextDisplayTaskCoordinates ? "Customer pin is ready on map" : "Customer pin not saved yet"}
-                </p>
-              )}
             </div>
-            {nextDisplayTask && (
-              <div className="rounded-[20px] border border-[#F0D9B9] bg-white px-4 py-3 text-center shadow-sm">
-                <p className="text-lg font-black text-[#B8641A]">
-                  {isDeliveryRunActive
-                    ? "Delivering"
-                    : startableDelivery?.id && String(startableDelivery.id) === String(nextDisplayTask.id)
-                    ? "Ready"
-                    : nextDisplayTask?.date && String(nextDisplayTask.date) > todayKey
-                    ? "Tomorrow"
-                    : "Queued"}
-                </p>
-                <p className="text-[9px] font-black uppercase text-[#A88763]">Status</p>
-              </div>
-            )}
           </div>
 
-              <div className="mt-5 flex gap-3">
+              <div className="mt-3.5 flex gap-2.5">
                 <button
                   onClick={() => {
                     if (nextDisplayTaskCoordinates) {
@@ -1797,7 +1998,7 @@ const AgentDashboard = () => {
                     }
                   }}
                   disabled={!nextDisplayTaskCoordinates}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3.5 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
                 >
                   <Navigation size={18} fill="currentColor" />
                   {nextDisplayTaskCoordinates ? "Open Map" : "No Customer Pin"}
@@ -1829,3 +2030,4 @@ const AgentDashboard = () => {
 };
 
 export default AgentDashboard;
+

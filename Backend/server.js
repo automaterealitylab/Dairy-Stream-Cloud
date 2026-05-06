@@ -1,5 +1,7 @@
 import express from "express";
+import { createServer } from "http";
 import cors from "cors";
+import { Server as SocketIOServer } from "socket.io";
 import Razorpay from "razorpay";
 import cron from "node-cron";
 import "./config/loadEnv.js";
@@ -14,9 +16,11 @@ import {
   runDailySubscriptionAutomationForAllCustomers,
 } from "./services/customer/subscription.automation.service.js";
 import { runMonthEndSubscriptionBillingForAllCustomers } from "./services/customer/monthlyBilling.service.js";
+import { registerLocationSocketHandlers } from "./socket/locationHandler.js";
 
 // 3. Create App
 const app = express();
+const httpServer = createServer(app);
 
 // ======================
 // 🛡️ Middlewares
@@ -92,7 +96,16 @@ app.use((err, req, res, next) => {
 // ======================
 const PORT = process.env.PORT || 4000;
 
-const server = app.listen(PORT, () => {
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+registerLocationSocketHandlers(io);
+
+const server = httpServer.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
 
