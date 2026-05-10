@@ -513,6 +513,15 @@ const NavTab = ({ icon, label, active, onClick }) => (
   </button>
 );
 
+const GoogleMapsBadgeIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12 2C8.7 2 6 4.7 6 8c0 4.5 6 14 6 14s6-9.5 6-14c0-3.3-2.7-6-6-6z" fill="#EA4335" />
+    <path d="M12 2c-1.8 0-3.5.8-4.6 2.1l9.1 9.1c.9-1.3 1.5-3 1.5-5.2 0-3.3-2.7-6-6-6z" fill="#FBBC04" />
+    <path d="M6 8c0 4.5 6 14 6 14V8H6z" fill="#34A853" />
+    <circle cx="12" cy="8" r="2.6" fill="#4285F4" />
+  </svg>
+);
+
 const ActiveNavLabel = {
   HOME: "HOME",
   MAP: "MAP",
@@ -1502,6 +1511,75 @@ const AgentDashboard = () => {
     [navigate]
   );
 
+  const handleOpenGoogleMapsRoute = useCallback(
+    (delivery) => {
+      const destination = delivery?.coordinates || getDeliveryCoordinates(delivery);
+      if (!destination) return;
+
+      const [destinationLat, destinationLng] = destination;
+      const hasAgentLocation =
+        Array.isArray(agentLocation) &&
+        Number.isFinite(Number(agentLocation[0])) &&
+        Number.isFinite(Number(agentLocation[1]));
+
+      const directionsBaseUrl = "https://www.google.com/maps/dir/?api=1";
+      const destinationParam = `destination=${destinationLat},${destinationLng}`;
+      const travelModeParam = "travelmode=driving";
+      const originParam = hasAgentLocation
+        ? `&origin=${agentLocation[0]},${agentLocation[1]}`
+        : "";
+      const googleMapsUrl = `${directionsBaseUrl}&${destinationParam}${originParam}&${travelModeParam}`;
+
+      window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
+    },
+    [agentLocation]
+  );
+
+  const handleOpenGoogleMapsAllCustomers = useCallback(() => {
+    const customerCoordinates = (visibleMapDeliveries || [])
+      .map((delivery) => delivery?.coordinates || getDeliveryCoordinates(delivery))
+      .filter((coordinates) => Array.isArray(coordinates))
+      .filter(
+        (coordinates, index, items) =>
+          items.findIndex(
+            (item) =>
+              Number(item?.[0]).toFixed(6) === Number(coordinates?.[0]).toFixed(6) &&
+              Number(item?.[1]).toFixed(6) === Number(coordinates?.[1]).toFixed(6)
+          ) === index
+      );
+
+    if (customerCoordinates.length === 0) return;
+
+    const hasAgentLocation =
+      Array.isArray(agentLocation) &&
+      Number.isFinite(Number(agentLocation[0])) &&
+      Number.isFinite(Number(agentLocation[1]));
+    const toCoordinateParam = (coordinates) => `${coordinates[0]},${coordinates[1]}`;
+
+    if (customerCoordinates.length === 1) {
+      const singleDestinationUrl =
+        `https://www.google.com/maps/dir/?api=1&destination=${toCoordinateParam(customerCoordinates[0])}` +
+        `${hasAgentLocation ? `&origin=${toCoordinateParam(agentLocation)}` : ""}&travelmode=driving`;
+      window.open(singleDestinationUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const maxStops = 10;
+    const selectedStops = customerCoordinates.slice(0, maxStops);
+    const destination = selectedStops[selectedStops.length - 1];
+    const waypoints = selectedStops.slice(0, -1);
+    const waypointsParam =
+      waypoints.length > 0
+        ? `&waypoints=${encodeURIComponent(waypoints.map(toCoordinateParam).join("|"))}`
+        : "";
+    const allCustomersUrl =
+      `https://www.google.com/maps/dir/?api=1&destination=${toCoordinateParam(destination)}` +
+      `${hasAgentLocation ? `&origin=${toCoordinateParam(agentLocation)}` : ""}` +
+      `${waypointsParam}&travelmode=driving`;
+
+    window.open(allCustomersUrl, "_blank", "noopener,noreferrer");
+  }, [agentLocation, visibleMapDeliveries]);
+
   useEffect(() => {
     if (location.state?.section === ActiveNavLabel.MAP) {
       setActiveSection(ActiveNavLabel.MAP);
@@ -1651,11 +1729,7 @@ const AgentDashboard = () => {
                     })}
                     >
                       <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDeliveryTask(delivery)}
-                          className="space-y-0.5 text-left leading-tight"
-                        >
+                        <div className="space-y-1.5 text-left leading-tight">
                           <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
                           <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
                           <p className={`text-[10px] font-semibold ${isCompleted ? "text-[#6B7280]" : "text-[#6BB071]"}`}>
@@ -1668,9 +1742,25 @@ const AgentDashboard = () => {
                                 : "Customer delivery pin"}
                           </p>
                           <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
-                            Tap to open task
+                            Quick actions
                           </p>
-                        </button>
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeliveryTask(delivery)}
+                              className="inline-flex items-center justify-center rounded-[10px] border border-[#E7DAC6] bg-[#FFF8EF] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#8B5E34] transition hover:bg-[#FFF1E4]"
+                            >
+                              Open Task
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenGoogleMapsRoute(delivery)}
+                              className="inline-flex items-center justify-center rounded-[10px] border border-[#D9E7C8] bg-[#EEF5E7] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#4A7C2F] transition hover:bg-[#E6F2DB]"
+                            >
+                              Open in Google Maps
+                            </button>
+                          </div>
+                        </div>
                       </Popup>
                     </Marker>
                 );
@@ -1765,6 +1855,16 @@ const AgentDashboard = () => {
                     </label>
                   </div>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={handleOpenGoogleMapsAllCustomers}
+                  disabled={visibleMapDeliveries.length === 0}
+                  className="absolute left-[10px] top-[150px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D9E7C8] bg-[#EEF5E7] text-[#3D6F25] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Open all customers in Google Maps"
+                  aria-label="Open all customers in Google Maps"
+                >
+                  <GoogleMapsBadgeIcon size={18} />
+                </button>
                 <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[600] rounded-[16px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
                   <p className="text-[11px] font-semibold leading-snug text-[#6B5B3E]">
                     {isDeliveryRunActive
@@ -2002,6 +2102,14 @@ const AgentDashboard = () => {
                 >
                   <Navigation size={18} fill="currentColor" />
                   {nextDisplayTaskCoordinates ? "Open Map" : "No Customer Pin"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenGoogleMapsRoute(nextDisplayTask)}
+                  disabled={!nextDisplayTaskCoordinates}
+                  className="flex items-center justify-center gap-2 rounded-[18px] border border-[#D9E7C8] bg-[#EEF5E7] px-3 py-3 text-[11px] font-black uppercase text-[#4A7C2F] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Open in Google Maps
                 </button>
               </div>
             </section>
