@@ -494,6 +494,72 @@ const getRazorpayClient = () => {
   });
 };
 
+const getDirectDairyRazorpayAccount = async (dairyId) => {
+  if (!dairyId) return null;
+
+  const { data, error } = await supabase
+    .from("dairies")
+    .select("id, dairy_name, razorpay_key_id, razorpay_key_secret, payments_enabled")
+    .eq("id", dairyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingColumnError(error)) return null;
+    throw error;
+  }
+
+  const keyId = String(data?.razorpay_key_id || "").trim();
+  const keySecret = String(data?.razorpay_key_secret || "").trim();
+  if (!data?.payments_enabled || !keyId || !keySecret) return null;
+
+  return {
+    dairyId: data.id,
+    dairyName: data.dairy_name || "Dairy",
+    keyId,
+    keySecret,
+  };
+};
+
+const getRazorpayOrderContext = async ({ dairyId, amountInRupees, notes = {} }) => {
+  const directAccount = await getDirectDairyRazorpayAccount(dairyId);
+
+  if (directAccount) {
+    return {
+      razorpay: new Razorpay({
+        key_id: directAccount.keyId,
+        key_secret: directAccount.keySecret,
+      }),
+      keyId: directAccount.keyId,
+      beneficiary: {
+        dairyId: directAccount.dairyId,
+        dairyName: directAccount.dairyName,
+        paymentMode: "DIRECT_RAZORPAY",
+      },
+      transfers: null,
+    };
+  }
+
+  const { beneficiary, transfers } = await buildOrderTransfers({
+    dairyId,
+    amountInRupees,
+    notes,
+  });
+
+  return {
+    razorpay: getRazorpayClient(),
+    keyId: getRazorpayConfig().keyId,
+    beneficiary,
+    transfers,
+  };
+};
+
+const getRazorpayVerificationSecret = async (dairyId) => {
+  const directAccount = await getDirectDairyRazorpayAccount(dairyId);
+  if (directAccount?.keySecret) return directAccount.keySecret;
+  return getRazorpayConfig().keySecret;
+};
+
 const getDairyPayoutDetails = async (dairyId) => {
   if (!dairyId) return null;
 
@@ -854,33 +920,29 @@ export const createCustomerPaymentOrder = async ({
       throw new Error("Payment amount must be greater than zero");
     }
 
-    const razorpay = getRazorpayClient();
-    const { beneficiary, transfers } = await buildOrderTransfers({
+    const orderNotes = {
+      customer_id: String(customerId),
+      dairy_id: String(effectiveDairyId ?? ""),
+      payment_mode: "ALL",
+      month: getCurrentMonthKey(),
+    };
+    const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
       dairyId: effectiveDairyId,
       amountInRupees,
-      notes: {
-        customer_id: String(customerId),
-        dairy_id: String(effectiveDairyId ?? ""),
-        payment_mode: "ALL",
-        month: getCurrentMonthKey(),
-      },
+      notes: orderNotes,
     });
-    const order = await razorpay.orders.create({
+    const orderPayload = {
       amount: Math.round(amountInRupees * 100),
       currency: "INR",
       receipt: `cust_${customerId}_payall_${Date.now()}`.slice(0, 40),
       partial_payment: false,
-      notes: {
-        customer_id: String(customerId),
-        payment_mode: "ALL",
-        dairy_id: String(effectiveDairyId ?? ""),
-        month: getCurrentMonthKey(),
-      },
-      transfers,
-    });
+      notes: orderNotes,
+    };
+    if (transfers) orderPayload.transfers = transfers;
+    const order = await razorpay.orders.create(orderPayload);
 
     return {
-      keyId: getRazorpayConfig().keyId,
+      keyId,
       order,
       payment: {
         id: null,
@@ -912,32 +974,29 @@ export const createCustomerPaymentOrder = async ({
     throw new Error("Payment amount must be greater than zero");
   }
 
-  const razorpay = getRazorpayClient();
   const effectiveDairyId = pendingPayment.dairy_id || resolvedDairyId;
-  const { beneficiary, transfers } = await buildOrderTransfers({
+  const orderNotes = {
+    customer_id: String(customerId),
+    payment_id: String(pendingPayment.id),
+    dairy_id: String(effectiveDairyId ?? ""),
+  };
+  const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
     dairyId: effectiveDairyId,
     amountInRupees,
-    notes: {
-      customer_id: String(customerId),
-      payment_id: String(pendingPayment.id),
-      dairy_id: String(effectiveDairyId ?? ""),
-    },
+    notes: orderNotes,
   });
-  const order = await razorpay.orders.create({
+  const orderPayload = {
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `cust_${customerId}_pay_${pendingPayment.id}_${Date.now()}`.slice(0, 40),
     partial_payment: false,
-    notes: {
-      customer_id: String(customerId),
-      payment_id: String(pendingPayment.id),
-      dairy_id: String(effectiveDairyId ?? ""),
-    },
-    transfers,
-  });
+    notes: orderNotes,
+  };
+  if (transfers) orderPayload.transfers = transfers;
+  const order = await razorpay.orders.create(orderPayload);
 
   return {
-    keyId: getRazorpayConfig().keyId,
+    keyId,
     order,
     payment: {
       id: pendingPayment.id,
@@ -966,8 +1025,10 @@ export const verifyCustomerPayment = async ({
     throw new Error("Missing Razorpay verification fields");
   }
 
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const keySecret = await getRazorpayVerificationSecret(resolvedDairyId);
   const generatedSignature = crypto
-    .createHmac("sha256", getRazorpayConfig().keySecret)
+    .createHmac("sha256", keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
@@ -976,7 +1037,6 @@ export const verifyCustomerPayment = async ({
   }
 
   const paidAtIso = new Date().toISOString();
-  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   const payloadVariants = buildPaidUpdatePayloadVariants({
     paymentMethod: "RAZORPAY",
     paidAtIso,
@@ -1141,23 +1201,31 @@ export const createCustomerWalletTopupOrder = async ({
   }
 
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
-  const razorpay = getRazorpayClient();
-  const order = await razorpay.orders.create({
+  const orderNotes = {
+    customer_id: String(customerId),
+    payment_mode: "WALLET_TOPUP",
+    dairy_id: String(resolvedDairyId ?? ""),
+    amount_inr: String(amountInRupees),
+  };
+  const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
+    dairyId: resolvedDairyId,
+    amountInRupees,
+    notes: orderNotes,
+  });
+  const orderPayload = {
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `cust_${customerId}_wallet_${Date.now()}`.slice(0, 40),
-    notes: {
-      customer_id: String(customerId),
-      payment_mode: "WALLET_TOPUP",
-      dairy_id: String(resolvedDairyId ?? ""),
-      amount_inr: String(amountInRupees),
-    },
-  });
+    notes: orderNotes,
+  };
+  if (transfers) orderPayload.transfers = transfers;
+  const order = await razorpay.orders.create(orderPayload);
 
   return {
-    keyId: getRazorpayConfig().keyId,
+    keyId,
     order,
     amount: amountInRupees,
+    beneficiary,
   };
 };
 
@@ -1178,8 +1246,10 @@ export const verifyCustomerWalletTopup = async ({
     throw new Error("Wallet top-up amount must be greater than zero");
   }
 
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const keySecret = await getRazorpayVerificationSecret(resolvedDairyId);
   const generatedSignature = crypto
-    .createHmac("sha256", getRazorpayConfig().keySecret)
+    .createHmac("sha256", keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
@@ -1202,7 +1272,6 @@ export const verifyCustomerWalletTopup = async ({
     throw new Error("This wallet top-up has already been processed");
   }
 
-  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   const walletUpdate = await creditCustomerWalletBalance({
     customerId,
     amount: amountInRupees,

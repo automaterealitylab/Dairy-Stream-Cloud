@@ -1,5 +1,5 @@
 import React from "react";
-import { CreditCard, Landmark, ShieldCheck, UserCircle2 } from "lucide-react";
+import { ShieldCheck, UserCircle2 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
@@ -14,12 +14,12 @@ const sectionCardClassName =
 
 const OwnerBankStep = ({ formData, handleChange }) => (
   <div className="animate-in fade-in slide-in-from-right-4 p-5 sm:p-8">
-    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Ownership & Payouts</p>
+    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Ownership</p>
     <h2 className="mb-2 mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
-      Owner & Bank Information
+      Owner Information
     </h2>
     <p className="mb-6 text-sm text-[#8B7355]">
-      Fill this once to create the dairy admin account and add payout details for settlements.
+      Create the dairy admin account first. Payment setup can be completed after registration.
     </p>
 
     <div className="mb-6 rounded-[20px] border border-[#F0DFC7] bg-[linear-gradient(180deg,#FFF8EE_0%,#FFF6EA_100%)] p-4 sm:rounded-[22px]">
@@ -33,20 +33,19 @@ const OwnerBankStep = ({ formData, handleChange }) => (
               Before You Continue
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-[#8B7355]">
-              Use the left section for admin login details and the right section for bank settlement details.
+              These login details let the dairy owner manage customers, products, deliveries, and billing.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs font-semibold text-[#6A5137]">
-          <span className="rounded-full bg-white px-3 py-1.5">UPI optional</span>
-          <span className="rounded-full bg-white px-3 py-1.5">Razorpay ID for Route transfers</span>
-          <span className="rounded-full bg-white px-3 py-1.5">Can be updated later</span>
+          <span className="rounded-full bg-white px-3 py-1.5">Payment setup after launch</span>
+          <span className="rounded-full bg-white px-3 py-1.5">Razorpay guide included</span>
         </div>
       </div>
     </div>
 
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+    <div className="grid grid-cols-1 gap-4">
       <div className={`${sectionCardClassName} border-[#E7DAC6] bg-white`}>
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FBF2E8] text-[#B8641A]">
@@ -109,114 +108,6 @@ const OwnerBankStep = ({ formData, handleChange }) => (
                 onChange={handleChange}
                 placeholder="Re-enter password"
                 className={inputClassName}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className={`${sectionCardClassName} border-[#E7DAC6] bg-[#FBF7F0]`}>
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[#B8641A] shadow-sm">
-            <Landmark size={18} />
-          </div>
-          <div>
-            <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#5C3D1E]">
-              Settlement Account
-            </h3>
-            <p className="mt-1 text-sm text-[#8B7355]">
-              This is where dairy payouts and settlements are configured.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className={labelClassName}>Account Holder Name</label>
-            <input
-              type="text"
-              name="bank_account_holder_name"
-              value={formData.bank_account_holder_name}
-              onChange={handleChange}
-              placeholder="Name as per bank account"
-              className={inputClassName}
-            />
-          </div>
-
-          <div>
-            <label className={labelClassName}>Account Number</label>
-            <input
-              type="text"
-              name="bank_account_number"
-              value={formData.bank_account_number}
-              onChange={handleChange}
-              placeholder="Enter bank account number"
-              className={inputClassName}
-            />
-          </div>
-
-          <div>
-            <label className={labelClassName}>IFSC Code</label>
-            <input
-              type="text"
-              name="bank_ifsc_code"
-              value={formData.bank_ifsc_code}
-              onChange={handleChange}
-              placeholder="HDFC0001234"
-              className={`${inputClassName} uppercase`}
-            />
-          </div>
-
-          <div>
-            <label className={labelClassName}>Bank Name</label>
-            <input
-              type="text"
-              name="bank_name"
-              value={formData.bank_name}
-              onChange={handleChange}
-              placeholder="State Bank of India"
-              className={inputClassName}
-            />
-          </div>
-
-          <div>
-            <label className={labelClassName}>Branch</label>
-            <input
-              type="text"
-              name="bank_branch"
-              value={formData.bank_branch}
-              onChange={handleChange}
-              placeholder="Andheri East"
-              className={inputClassName}
-            />
-          </div>
-
-          <div>
-            <label className={labelClassName}>UPI ID</label>
-            <input
-              type="text"
-              name="upi_id"
-              value={formData.upi_id}
-              onChange={handleChange}
-              placeholder="dairyname@bank"
-              className={inputClassName}
-            />
-          </div>
-
-          <div>
-            <label className={labelClassName}>Razorpay Linked Account ID</label>
-            <div className="relative">
-              <CreditCard
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#B8641A]"
-              />
-              <input
-                type="text"
-                name="razorpay_linked_account_id"
-                value={formData.razorpay_linked_account_id}
-                onChange={handleChange}
-                placeholder="acc_xxxxxxxxxxxxx"
-                className="w-full rounded-[16px] border border-[#E7DAC6] bg-white py-4 pl-11 pr-5 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
               />
             </div>
           </div>

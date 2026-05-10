@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS public.dairies (
   bank_branch VARCHAR(255),
   upi_id VARCHAR(255),
   razorpay_linked_account_id VARCHAR(255),
+  razorpay_key_id VARCHAR(255),
+  razorpay_key_secret TEXT,
+  razorpay_onboarding_status VARCHAR(50) DEFAULT 'PENDING',
+  payments_enabled BOOLEAN DEFAULT FALSE,
   selected_plan VARCHAR(50) DEFAULT 'GROWTH',
   status VARCHAR(50) DEFAULT 'ACTIVE',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -46,6 +50,14 @@ ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS upi_id VARCHAR(255);
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS razorpay_linked_account_id VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS razorpay_key_id VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS razorpay_key_secret TEXT;
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS razorpay_onboarding_status VARCHAR(50) DEFAULT 'PENDING';
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS payments_enabled BOOLEAN DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_dairies_email ON public.dairies(dairy_email);
 CREATE INDEX IF NOT EXISTS idx_dairies_city ON public.dairies(city);

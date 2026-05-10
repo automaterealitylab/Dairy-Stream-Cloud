@@ -25,7 +25,10 @@ import {
   assignAdminCustomerPermanentPartner,
   upsertAdminCustomerSubscription,
 } from "../controllers/admin/adminCustomers.controller.js";
-import { registerDairy } from "../controllers/admin/dairy.controller.js";
+import {
+  registerDairy,
+  updateDairyRazorpaySetup,
+} from "../controllers/admin/dairy.controller.js";
 import { uploadSingleImage } from "../middleware/upload.middleware.js";
 import { addAgent, getUniqueAgentId } from "../controllers/admin/addAgent.controller.js";
 import { getUniqueBuildings } from "../controllers/shared/building.controller.js";
@@ -37,6 +40,7 @@ import {
 } from "../controllers/admin/adminAgent.controller.js";
 import {
   
+  collectOfflinePayment,
   changeFarmPlan,
   fetchPageData,
   updateStatus,
@@ -78,6 +82,7 @@ import {
 // ==========================================
 router.post("/", adminLogin); // Admin login route
 router.post("/register-dairy", uploadSingleImage, registerDairy); // Initial dairy registration with logo upload
+router.patch("/payment-setup/razorpay", verifyAdmin, updateDairyRazorpaySetup);
 
 // ==========================================
 // 2. DASHBOARD & CORE METRICS
@@ -135,7 +140,7 @@ router.put("/procurement/:id", verifyAdmin, updateProcurementLog); // Correct an
 // ==========================================
 router.get("/payments", verifyAdmin, fetchPageData); // Fetch payment ledger data
 router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
-router.post("/payments/offline-collect", verifyAdmin,); // Collect offline payment and add excess to wallet
+router.post("/payments/offline-collect", verifyAdmin, collectOfflinePayment); // Collect offline payment and add excess to wallet
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
 
 // ==========================================

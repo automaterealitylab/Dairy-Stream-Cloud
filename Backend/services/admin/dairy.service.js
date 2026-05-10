@@ -69,13 +69,16 @@ export const registerDairyService = async ({
     const sanitizedIfsc = normalizeIfsc(bank_ifsc_code); // ✅ No longer undefined
 
     // 1. Validation Logic
-    if (sanitizedAccountNumber.length < 8 || sanitizedAccountNumber.length > 20) {
+    if (
+      sanitizedAccountNumber &&
+      (sanitizedAccountNumber.length < 8 || sanitizedAccountNumber.length > 20)
+    ) {
       const inputError = new Error("Bank account number must be between 8 and 20 digits");
       inputError.statusCode = 400;
       throw inputError;
     }
 
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(sanitizedIfsc)) {
+    if (sanitizedIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(sanitizedIfsc)) {
       const inputError = new Error("Invalid IFSC code format");
       inputError.statusCode = 400;
       throw inputError;
@@ -116,12 +119,12 @@ export const registerDairyService = async ({
         owner_name,
         selected_plan,
         status: "ACTIVE",
-        bank_account_holder_name,
-        bank_account_number: sanitizedAccountNumber,
-        bank_ifsc_code: sanitizedIfsc,
-        bank_name,
-        bank_branch,
-        upi_id,
+        bank_account_holder_name: String(bank_account_holder_name || "").trim() || null,
+        bank_account_number: sanitizedAccountNumber || null,
+        bank_ifsc_code: sanitizedIfsc || null,
+        bank_name: String(bank_name || "").trim() || null,
+        bank_branch: String(bank_branch || "").trim() || null,
+        upi_id: String(upi_id || "").trim() || null,
         razorpay_linked_account_id: String(razorpay_linked_account_id || "").trim() || null,
       })
       .select()
@@ -167,4 +170,70 @@ export const registerDairyService = async ({
     console.error("❌ Dairy registration service error:", err.message);
     throw err;
   }
+};
+
+export const updateDairyRazorpaySetupService = async ({
+  dairyId,
+  razorpayKeyId,
+  razorpayKeySecret,
+}) => {
+  const normalizedDairyId = Number(dairyId);
+  const keyId = String(razorpayKeyId || "").trim();
+  const keySecret = String(razorpayKeySecret || "").trim();
+
+  if (!Number.isFinite(normalizedDairyId) || normalizedDairyId <= 0) {
+    const err = new Error("Valid dairy is required");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!/^rzp_(test|live)_[A-Za-z0-9]+$/.test(keyId)) {
+    const err = new Error("Invalid Razorpay Key ID");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const { data: existingDairy, error: existingError } = await supabase
+    .from("dairies")
+    .select("id, razorpay_key_secret")
+    .eq("id", normalizedDairyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(`Failed to read dairy Razorpay setup: ${existingError.message}`);
+  }
+
+  if (!existingDairy) {
+    const err = new Error("Dairy not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const secretToStore = keySecret || String(existingDairy.razorpay_key_secret || "").trim();
+
+  if (secretToStore.length < 8) {
+    const err = new Error("Invalid Razorpay Key Secret");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const { data, error } = await supabase
+    .from("dairies")
+    .update({
+      razorpay_key_id: keyId,
+      razorpay_key_secret: secretToStore,
+      razorpay_onboarding_status: "CONFIGURED",
+      payments_enabled: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", normalizedDairyId)
+    .select("id, dairy_name, razorpay_key_id, razorpay_onboarding_status, payments_enabled")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save Razorpay setup: ${error.message}`);
+  }
+
+  return data;
 };

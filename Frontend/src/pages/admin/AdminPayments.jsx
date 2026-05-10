@@ -3,7 +3,7 @@ import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import { 
   CreditCard, DollarSign, Calendar, TrendingUp, 
-  CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, Share2, X, Wallet
+  CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Eye, EyeOff, KeyRound, Loader2, Share2, ShieldCheck, X, Wallet
 } from "lucide-react";
 import toast from "react-hot-toast";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -11,6 +11,7 @@ import ManualPaymentModal from "../../components/admin/sections/ManualPaymentMod
 import {
   collectAdminOfflinePayment,
   fetchAdminPayments,
+  updateDairyRazorpaySetupApi,
   updateAdminFarmPlan,
 } from "../../api/admin.api.js";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
@@ -36,6 +37,12 @@ export default function AdminPayments() {
   const [pendingAutopayPlan, setPendingAutopayPlan] = useState(null);
   const [autopaySaving, setAutopaySaving] = useState(false);
   const [expandedPaymentGroups, setExpandedPaymentGroups] = useState({});
+  const [razorpaySaving, setRazorpaySaving] = useState(false);
+  const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
+  const [razorpayForm, setRazorpayForm] = useState({
+    razorpayKeyId: "",
+    razorpayKeySecret: "",
+  });
 
   const getAutopayStorageKey = (dairyId) =>
     `${AUTOPAY_STORAGE_PREFIX}:${dairyId || "default"}`;
@@ -186,6 +193,13 @@ export default function AdminPayments() {
         autopayEnabled: Boolean(storedAutopay?.enabled),
         autopayMethod: storedAutopay?.method || "",
         autopayConfiguredAt: storedAutopay?.configuredAt || null,
+        razorpayKeyId: farm?.razorpay_key_id || "",
+        razorpayStatus: farm?.razorpay_onboarding_status || "PENDING",
+        paymentsEnabled: Boolean(farm?.payments_enabled),
+      });
+      setRazorpayForm({
+        razorpayKeyId: farm?.razorpay_key_id || "",
+        razorpayKeySecret: "",
       });
 
       setRevenue(Number(data?.totalRevenue || 0));
@@ -239,6 +253,9 @@ export default function AdminPayments() {
         autopayEnabled: prev?.autopayEnabled || false,
         autopayMethod: prev?.autopayMethod || "",
         autopayConfiguredAt: prev?.autopayConfiguredAt || null,
+        razorpayKeyId: prev?.razorpayKeyId || "",
+        razorpayStatus: prev?.razorpayStatus || "PENDING",
+        paymentsEnabled: prev?.paymentsEnabled || false,
       }));
 
       toast.success(`${getPlanLabel(planName)} plan selected`);
@@ -309,6 +326,51 @@ export default function AdminPayments() {
     setAutopayModalOpen(false);
     setPendingAutopayPlan(null);
     setSelectedAutopayMethod("");
+  };
+
+  const handleRazorpayFormChange = (event) => {
+    const { name, value } = event.target;
+    setRazorpayForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const saveRazorpaySetup = async () => {
+    const keyId = razorpayForm.razorpayKeyId.trim();
+    const keySecret = razorpayForm.razorpayKeySecret.trim();
+
+    if (!keyId) {
+      toast.error("Enter Razorpay Key ID");
+      return;
+    }
+
+    if (!farmPlan?.paymentsEnabled && !keySecret) {
+      toast.error("Enter Razorpay Key Secret");
+      return;
+    }
+
+    try {
+      setRazorpaySaving(true);
+      const response = await updateDairyRazorpaySetupApi({
+        razorpayKeyId: keyId,
+        razorpayKeySecret: keySecret,
+      });
+      const setup = response?.data || response;
+      setFarmPlan((prev) => ({
+        ...prev,
+        razorpayKeyId: setup?.razorpay_key_id || keyId,
+        razorpayStatus: setup?.razorpay_onboarding_status || "CONFIGURED",
+        paymentsEnabled: setup?.payments_enabled ?? true,
+      }));
+      setRazorpayForm((prev) => ({
+        ...prev,
+        razorpayKeyId: setup?.razorpay_key_id || keyId,
+        razorpayKeySecret: "",
+      }));
+      toast.success("Razorpay keys saved for this dairy");
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "Failed to save Razorpay setup");
+    } finally {
+      setRazorpaySaving(false);
+    }
   };
 
   const planOptions = [
@@ -526,6 +588,76 @@ export default function AdminPayments() {
                 <p className="text-xs text-gray-500 mt-1 font-bold italic">{groupedPayments.filter(group => group.hasCollectibleItems).length} Customer Dues</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="mb-8 overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FDF6EC] text-[#B8641A]">
+                <KeyRound size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>Dairy Razorpay Keys</h3>
+                <p className="mt-1 text-sm font-semibold text-[#8B7355]">
+                  Store this dairy's Razorpay credentials for customer checkout and wallet payments.
+                </p>
+              </div>
+            </div>
+            <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${
+              farmPlan?.paymentsEnabled
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-amber-200 bg-amber-50 text-amber-700"
+            }`}>
+              <ShieldCheck size={13} />
+              {farmPlan?.paymentsEnabled ? farmPlan?.razorpayStatus || "CONFIGURED" : "Needs Setup"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">Key ID</span>
+              <input
+                type="text"
+                name="razorpayKeyId"
+                value={razorpayForm.razorpayKeyId}
+                onChange={handleRazorpayFormChange}
+                placeholder="rzp_live_xxxxxxxxxxxxx"
+                className="w-full rounded-[16px] border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">Key Secret</span>
+              <div className="relative">
+                <input
+                  type={showRazorpaySecret ? "text" : "password"}
+                  name="razorpayKeySecret"
+                  value={razorpayForm.razorpayKeySecret}
+                  onChange={handleRazorpayFormChange}
+                  placeholder={farmPlan?.paymentsEnabled ? "Leave blank to keep existing secret" : "Paste Razorpay key secret"}
+                  className="w-full rounded-[16px] border border-[#E7DAC6] bg-white py-3 pl-4 pr-11 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowRazorpaySecret((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] transition hover:text-[#5C3D1E]"
+                  title={showRazorpaySecret ? "Hide secret" : "Show secret"}
+                >
+                  {showRazorpaySecret ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            <button
+              type="button"
+              onClick={saveRazorpaySetup}
+              disabled={razorpaySaving}
+              className="inline-flex h-[46px] items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] px-5 text-[11px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#9F5414] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {razorpaySaving ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+              Save Keys
+            </button>
           </div>
         </div>
 

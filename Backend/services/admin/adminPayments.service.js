@@ -24,7 +24,7 @@ export const getFarmSubscription = async ({ adminId, dairyId }) => {
   const { data: dairy, error } = await supabase
     .from("dairies")
     .select(
-      "id, selected_plan, status, updated_at, bank_account_holder_name, bank_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, razorpay_linked_account_id"
+      "id, selected_plan, status, updated_at, bank_account_holder_name, bank_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, razorpay_linked_account_id, razorpay_key_id, razorpay_onboarding_status, payments_enabled"
     )
     .eq("id", resolvedDairyId)
     .limit(1)

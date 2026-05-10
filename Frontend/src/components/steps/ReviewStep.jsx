@@ -1,5 +1,5 @@
 import React from "react";
-import { Phone, Mail, Landmark, ShieldCheck } from "lucide-react";
+import { Phone, Mail, ShieldCheck } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
@@ -10,7 +10,7 @@ const ReviewStep = ({ formData, logoPreview }) => (
       Review Your Dairy Setup
     </h2>
     <p className="text-sm text-[#8B7355]">
-      Double-check the brand, location, and payout details before launching the dairy account.
+      Double-check the brand, location, owner access, products, and plan before launching the dairy account.
     </p>
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div className="col-span-2 flex flex-col items-start gap-4 rounded-[24px] border border-[#E7DAC6] bg-[#FBF7F0] p-5 sm:flex-row sm:items-center sm:rounded-[32px] sm:p-6">
@@ -45,18 +45,13 @@ const ReviewStep = ({ formData, logoPreview }) => (
       </div>
       <div className="rounded-[24px] border border-[#EFD7B3] bg-[#FFF4E2] p-6">
         <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B8641A]">
-          <Landmark size={14} />
-          Settlement
-        </p>
-        <p className="text-sm font-black text-[#2C1A0E]">{formData.bank_account_holder_name}</p>
-        <p className="mt-1 text-xs font-bold text-[#8B7355]">A/C: {formData.bank_account_number}</p>
-        <p className="text-xs font-bold text-[#8B7355]">IFSC: {formData.bank_ifsc_code}</p>
-        <p className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B8641A]">
           <ShieldCheck size={14} />
-          Razorpay Route
+          Owner Access
         </p>
+        <p className="text-sm font-black text-[#2C1A0E]">{formData.owner_name || "Owner name"}</p>
+        <p className="mt-1 text-xs font-bold text-[#8B7355]">{formData.admin_email || "Admin email"}</p>
         <p className="text-xs font-bold text-[#5C3D1E]">
-          {formData.razorpay_linked_account_id || "Not added yet"}
+          Razorpay credentials will be added after this registration is complete.
         </p>
       </div>
     </div>

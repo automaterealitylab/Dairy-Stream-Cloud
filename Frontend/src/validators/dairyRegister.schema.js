@@ -4,8 +4,6 @@ import { z } from "zod";
 
 const phoneRegex = /^[6-9]\d{9}$/;
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/;
-const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-const upiRegex = /^[\w.-]+@[\w]+$/;
 const pincodeRegex = /^[1-9][0-9]{5}$/;
 
 /* ---------- STEP 1 : BRAND ---------- */
@@ -35,15 +33,10 @@ export const ownerSchema = z.object({
   owner_name: z.string().min(2,"Owner name required"),
   admin_email: z.string().email("Invalid email"),
   password: z.string().min(6,"Password must be 6+ characters"),
-
-  bank_account_holder_name: z.string().min(2),
-  bank_account_number: z.string().min(6),
-  bank_ifsc_code: z.string().regex(ifscRegex,"Invalid IFSC"),
-
-  bank_name: z.string().optional(),
-  bank_branch: z.string().optional(),
-
-  upi_id: z.string().regex(upiRegex,"Invalid UPI ID").optional().or(z.literal(""))
+  confirmPassword: z.string().min(6,"Confirm password")
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
 
 /* ---------- STEP 4 : PRODUCTS ---------- */
