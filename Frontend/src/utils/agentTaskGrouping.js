@@ -36,8 +36,8 @@ export const getProductLabel = (delivery = {}) => {
     normalizeText(delivery.product) ||
     normalizeText(delivery.productName) ||
     normalizeText(delivery.milkType) ||
-    normalizeText(delivery.itemName) ||
-    "Milk"
+    normalizeText(delivery.milk_type) ||
+    normalizeText(delivery.itemName)
   );
 };
 
@@ -93,8 +93,9 @@ export const compareFlatLabels = (left, right) => {
 
 export const isMilkProduct = (delivery = {}) => {
   const productType = normalizeText(delivery.type || delivery.productType).toUpperCase();
+  const hasMilkTypeField = Boolean(normalizeText(delivery.milkType) || normalizeText(delivery.milk_type));
   const productLabel = getProductLabel(delivery).toUpperCase();
-  return productType === "MILK" || productLabel.includes("MILK");
+  return hasMilkTypeField || productType === "MILK" || productLabel.includes("MILK");
 };
 
 export const buildBuildingTaskGroups = (deliveries = []) => {
@@ -114,7 +115,7 @@ export const buildBuildingTaskGroups = (deliveries = []) => {
     }
 
     const group = groups.get(buildingName);
-    const quantity = getQuantityValue(delivery.quantity);
+    const quantity = getQuantityValue(delivery.quantity ?? delivery.quantity_liters);
     const productLabel = getProductLabel(delivery);
 
     group.deliveries.push(delivery);

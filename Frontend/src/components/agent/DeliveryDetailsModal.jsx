@@ -256,47 +256,6 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
             </div>
           </div>
 
-          {/* Failed Reason (if applicable) */}
-          {isPending && (
-            <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EF] p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#A88763]">
-                Live Location Sharing
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {!isTracking ? (
-                  <button
-                    onClick={startTracking}
-                    className="rounded-[12px] bg-[#4A7C2F] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#3D6826]"
-                  >
-                    Start Delivery
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => stopTracking({ announceOffline: true })}
-                    className="rounded-[12px] bg-[#C0392B] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#A53024]"
-                  >
-                    Stop / Delivered
-                  </button>
-                )}
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
-                    isTracking ? 'bg-[#EEF5E7] text-[#4A7C2F]' : 'bg-[#F2EDE4] text-[#8B7355]'
-                  }`}
-                >
-                  {isTracking ? 'Live' : 'Offline'}
-                </span>
-              </div>
-              {lastCoordinates ? (
-                <p className="mt-2 text-xs text-[#6B5B3E]">
-                  Current: {lastCoordinates.lat.toFixed(6)}, {lastCoordinates.lng.toFixed(6)}
-                </p>
-              ) : null}
-              {trackingError ? (
-                <p className="mt-2 text-xs font-semibold text-[#C0392B]">{trackingError}</p>
-              ) : null}
-            </div>
-          )}
-
           {delivery.status === 'FAILED' && delivery.failedReason && (
             <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] p-4">
               <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#C0392B]">Failed Reason</p>

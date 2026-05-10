@@ -28,23 +28,23 @@ const BuildingTaskCard = ({ group, onOpen }) => (
   <button
     type="button"
     onClick={onOpen}
-    className="w-full rounded-[22px] border border-[#EDE8DF] bg-white p-3 text-left shadow-[0_12px_28px_rgba(92,61,30,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(92,61,30,0.1)]"
+    className="w-full rounded-[22px] border border-[#EDE8DF] bg-white px-3 py-2 text-left shadow-[0_12px_28px_rgba(92,61,30,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(92,61,30,0.1)]"
   >
-    <div className="flex items-start justify-between gap-2.5">
+    <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Building Task</p>
-        <h3 className="mt-1.5 text-lg font-black leading-tight text-[#2C1A0E]">{group.buildingName}</h3>
-        <p className="mt-0.5 text-[13px] font-semibold text-[#6B5B3E]">
+        <h3 className="mt-1 text-lg font-black leading-tight text-[#2C1A0E]">{group.buildingName}</h3>
+        <p className="mt-0 text-[13px] font-semibold leading-tight text-[#6B5B3E]">
           {group.deliveries.length} {group.deliveries.length === 1 ? "delivery" : "deliveries"}
         </p>
       </div>
-      <div className="rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] px-2.5 py-1.5 text-right">
+      <div className="rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] px-2 py-1 text-right">
         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6B8A4A]">Drops</p>
-        <p className="mt-0.5 text-base font-black text-[#2C1A0E]">{group.deliveries.length}</p>
+        <p className="mt-0 text-base font-black leading-none text-[#2C1A0E]">{group.deliveries.length}</p>
       </div>
     </div>
-    <div className="mt-3 flex items-center justify-between rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EF] px-3 py-2">
-      <p className="text-[13px] font-semibold text-[#6B5B3E]">
+    <div className="mt-2 flex items-center justify-between rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EF] px-2.5 py-1.5">
+      <p className="text-[13px] font-semibold leading-tight text-[#6B5B3E]">
         {group.deliveries.length} {group.deliveries.length === 1 ? "delivery" : "deliveries"}
       </p>
       <ChevronRight size={18} className="shrink-0 text-[#B8641A]" />
@@ -147,7 +147,7 @@ const AgentWorkingPage = () => {
           </div>
         ) : null}
 
-        <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
+        <div className="grid grid-cols-4 gap-1.5 py-1">
           {[
             { key: "ALL", label: "All", count: stats.all },
             { key: "PENDING", label: "Pending", count: stats.pending },
@@ -157,15 +157,15 @@ const AgentWorkingPage = () => {
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key)}
-              className={`flex whitespace-nowrap items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] transition ${
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] transition ${
                 filter === tab.key
                   ? "border-[#B8641A] bg-[#B8641A] text-white shadow-lg shadow-[#F2D9B8]"
                   : "border-[#E7DAC6] bg-white text-[#8B7355]"
               }`}
             >
-              {tab.label}
+              <span className="truncate">{tab.label}</span>
               <span
-                className={`rounded-full px-2 py-0.5 text-[9px] ${
+                className={`rounded-full px-1.5 py-0.5 text-[8px] ${
                   filter === tab.key ? "bg-white/20 text-white" : "bg-[#F8F1E7] text-[#A88763]"
                 }`}
               >

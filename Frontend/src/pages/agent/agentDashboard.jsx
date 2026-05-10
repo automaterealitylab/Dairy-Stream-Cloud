@@ -1732,6 +1732,7 @@ const AgentDashboard = () => {
                         <div className="space-y-1.5 text-left leading-tight">
                           <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
                           <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
+                          <p className="text-[10px] font-semibold text-[#5F4426]">{getProductLabel(delivery)}</p>
                           <p className={`text-[10px] font-semibold ${isCompleted ? "text-[#6B7280]" : "text-[#6BB071]"}`}>
                             {isCompleted
                               ? "Delivered customer"
@@ -2020,14 +2021,8 @@ const AgentDashboard = () => {
         </section>
 
         <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Milk To Carry</p>
-            </div>
-            <div className="rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] px-2.5 py-1.5 text-right">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6B8A4A]">Total Milk</p>
-              <p className="mt-0.5 text-base font-black text-[#2C1A0E]">{formatQuantity(carrySummary.totalMilkLiters)} L</p>
-            </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Milk To Carry</p>
           </div>
 
           <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2079,6 +2074,11 @@ const AgentDashboard = () => {
               <p className="mt-1.5 text-sm font-semibold text-[#6B5B3E]">
                 {nextDisplayTask?.address || "Wait for your next assignment"}
               </p>
+              {nextDisplayTask ? (
+                <p className="mt-1 text-xs font-semibold text-[#5F4426]">
+                  {getProductLabel(nextDisplayTask)}
+                </p>
+              ) : null}
               {nextDisplayTaskSchedule?.helperText ? (
                 <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">
                   {nextDisplayTaskSchedule.helperText}

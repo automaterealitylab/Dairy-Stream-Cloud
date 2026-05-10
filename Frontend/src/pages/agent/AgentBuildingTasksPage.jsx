@@ -19,7 +19,9 @@ import {
   buildFloorGroups,
   formatQuantity,
   getBuildingName,
+  getQuantityValue,
   getProductLabel,
+  isMilkProduct,
 } from "../../utils/agentTaskGrouping";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -48,6 +50,40 @@ const getStatusTone = (status) => {
   }
 };
 
+const getCustomerProductSummary = (delivery = {}) => {
+  const primaryLabel = getProductLabel(delivery);
+  const primaryQuantity = getQuantityValue(delivery?.quantity ?? delivery?.quantity_liters);
+  const primaryIsMilk = isMilkProduct(delivery);
+  const baseQuantity = primaryIsMilk
+    ? `${formatQuantity(primaryQuantity)} L`
+    : `x ${formatQuantity(primaryQuantity || 1)}`;
+
+  const segments = [`Milk type: ${primaryLabel || "-"}`, `Quantity: ${baseQuantity}`];
+
+  const extras = Array.isArray(delivery?.extraProducts)
+    ? delivery.extraProducts
+    : Array.isArray(delivery?.extras)
+      ? delivery.extras
+      : Array.isArray(delivery?.addOns)
+        ? delivery.addOns
+        : Array.isArray(delivery?.orderItems)
+          ? delivery.orderItems
+          : [];
+
+  extras.forEach((extra) => {
+    const label = String(
+      extra?.name || extra?.product || extra?.productName || extra?.itemName || extra?.label || ""
+    ).trim();
+    if (!label || label.toLowerCase() === String(primaryLabel || "").toLowerCase()) return;
+
+    const qty = getQuantityValue(extra?.quantity ?? extra?.qty ?? extra?.units ?? 1);
+    segments.push(`${label} x ${formatQuantity(qty || 1)}`);
+  });
+
+  const extrasText = segments.slice(2).join(", ");
+  return extrasText ? `${segments[0]} | ${segments[1]} | Extras: ${extrasText}` : `${segments[0]} | ${segments[1]}`;
+};
+
 const CustomerRow = ({ customer, onOpen }) => {
   const delivery = customer.delivery;
 
@@ -55,14 +91,14 @@ const CustomerRow = ({ customer, onOpen }) => {
     <button
       type="button"
       onClick={() => onOpen(delivery)}
-      className="w-full rounded-[24px] border border-[#EDE8DF] bg-white p-4 text-left shadow-[0_14px_35px_rgba(92,61,30,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(92,61,30,0.11)]"
+      className="w-full rounded-[24px] border border-[#EDE8DF] bg-white px-3 py-2.5 text-left shadow-[0_14px_35px_rgba(92,61,30,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(92,61,30,0.11)]"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">
             Flat {customer.flatLabel}
           </p>
-          <h3 className="mt-1 text-base font-black text-[#2C1A0E]">{customer.customerName}</h3>
+          <h3 className="mt-0.5 text-base font-black leading-tight text-[#2C1A0E]">{customer.customerName}</h3>
         </div>
         <span
           className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${getStatusTone(
@@ -72,7 +108,9 @@ const CustomerRow = ({ customer, onOpen }) => {
           {delivery?.status || "PENDING"}
         </span>
       </div>
-      <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">{getProductLabel(delivery)}</p>
+      <p className="mt-1 truncate whitespace-nowrap text-sm font-semibold leading-tight text-[#6B5B3E]">
+        {getCustomerProductSummary(delivery)}
+      </p>
     </button>
   );
 };
@@ -234,7 +272,7 @@ const AgentBuildingTasksPage = () => {
   return (
     <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 text-[#2C1A0E]">
       <div className="mx-auto max-w-md space-y-5">
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <button
             type="button"
             onClick={() => navigate("/agent/working")}
@@ -243,11 +281,11 @@ const AgentBuildingTasksPage = () => {
             <ArrowLeft size={14} />
             Back
           </button>
-          <p className="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Building Details</p>
-          <h1 className="mt-2 text-[28px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
+          <p className="mt-2.5 text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Building Details</p>
+          <h1 className="mt-1.5 text-[28px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
             {buildingName || "Building"}
           </h1>
-          <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">
+          <p className="mt-1 text-sm font-semibold leading-tight text-[#6B5B3E]">
             Flats and customers arranged floor by floor
           </p>
         </section>
@@ -266,35 +304,35 @@ const AgentBuildingTasksPage = () => {
               <Building2 size={18} className="text-[#B8641A]" />
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Delivery Summary</p>
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div className="rounded-[18px] border border-[#E7DAC6] bg-[#FFF8EF] px-3 py-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">
+            <div className="mt-3 flex gap-1.5">
+              <div className="min-w-0 flex-1 rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EF] px-2 py-1.5">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#A88763]">
                   Deliveries
                 </p>
-                <p className="mt-1.5 text-base font-black text-[#2C1A0E]">
+                <p className="mt-0.5 text-sm font-black leading-none text-[#2C1A0E]">
                   {buildingSummary.deliveries.length}
                 </p>
-                <p className="mt-0.5 text-[11px] font-semibold text-[#6B5B3E]">
+                <p className="mt-0 text-[10px] font-semibold leading-tight text-[#6B5B3E]">
                   Total milk {formatQuantity(buildingSummary.milkTotal)} L
                 </p>
               </div>
 
-              <div className="rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-3 py-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6B8A4A]">
+              <div className="min-w-0 flex-1 rounded-[16px] border border-[#DDE8D1] bg-[#EEF5E7] px-2 py-1.5">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#6B8A4A]">
                   Milk Types
                 </p>
-                <p className="mt-1.5 text-[12px] font-black leading-snug text-[#2C1A0E]">
+                <p className="mt-0.5 text-[11px] font-black leading-tight text-[#2C1A0E]">
                   {buildingSummary.milkTypes.length
                     ? buildingSummary.milkTypes.map((item) => item.label).join(", ")
                     : "No milk items"}
                 </p>
               </div>
 
-              <div className="rounded-[18px] border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#B8641A]">
+              <div className="min-w-0 flex-1 rounded-[16px] border border-[#F0D9B9] bg-[#FFF4E2] px-2 py-1.5">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#B8641A]">
                   Other Products
                 </p>
-                <p className="mt-1.5 text-[12px] font-black leading-snug text-[#2C1A0E]">
+                <p className="mt-0.5 text-[11px] font-black leading-tight text-[#2C1A0E]">
                   {buildingSummary.otherProducts.length
                     ? buildingSummary.otherProducts.map((item) => item.label).join(", ")
                     : "No extra products"}
@@ -314,9 +352,9 @@ const AgentBuildingTasksPage = () => {
             floorGroups.map((floor) => (
               <section
                 key={floor.floorLabel}
-                className="rounded-[28px] border border-[#EDE8DF] bg-[#FFFCF7] p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]"
+                className="rounded-[28px] border border-[#EDE8DF] bg-[#FFFCF7] p-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]"
               >
-                <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Floor</p>
                     <h2 className="mt-1 text-lg font-black text-[#2C1A0E]">{floor.floorLabel}</h2>
@@ -326,7 +364,7 @@ const AgentBuildingTasksPage = () => {
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {floor.customers.map((customer) => (
                     <CustomerRow
                       key={customer.id}
