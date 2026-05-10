@@ -192,6 +192,11 @@ export const registerDairyApi = async (dairyData) => {
   return data;
 };
 
+export const updateDairyRazorpaySetupApi = async (payload) => {
+  const { data } = await client.patch("/admin/payment-setup/razorpay", payload);
+  return data;
+};
+
 export const fetchAdminDeliveries = async ({ limit = 1000, date = "" } = {}) => {
   const { data } = await client.get("/admin/deliveries", {
     params: { limit, ...(date ? { date } : {}) },
