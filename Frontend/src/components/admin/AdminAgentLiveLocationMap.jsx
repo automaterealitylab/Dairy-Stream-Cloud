@@ -6,6 +6,13 @@ import { ensureSocketConnection } from "../../socket";
 import { fetchAdminDeliveries } from "../../api/admin.api";
 
 const DEFAULT_CENTER = [20.5937, 78.9629];
+const getTodayDateInput = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
 
 const MapPanner = ({ center, followTrigger }) => {
   const map = useMap();
@@ -242,7 +249,10 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
 
     const loadDeliveries = async () => {
       try {
-        const response = await fetchAdminDeliveries({ limit: 1000 });
+        const response = await fetchAdminDeliveries({
+          limit: 1000,
+          date: getTodayDateInput(),
+        });
         const items = Array.isArray(response?.deliveries)
           ? response.deliveries
           : Array.isArray(response?.data)

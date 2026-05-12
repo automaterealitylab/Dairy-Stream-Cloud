@@ -222,12 +222,12 @@ const pickLatestSubscriptionByCustomer = (subscriptions, dairyId, { activeOnly =
   return byCustomer;
 };
 
-const getCustomerAndAgentMaps = async ({ customerIds, agentIds }) => {
-  const [customersResp, agentsResp] = await Promise.all([
+const getCustomerAndAgentMaps = async ({ customerIds, agentIds, dairyIds = [] }) => {
+  const [customersResp, agentsResp, dairiesResp] = await Promise.all([
     customerIds.length > 0
       ? supabase
           .from("customers")
-          .select("id, customer_name, building_name, wing, room_no")
+          .select("id, customer_name, building_name, wing, room_no, latitude, longitude")
           .in("id", customerIds)
       : Promise.resolve({ data: [], error: null }),
     agentIds.length > 0
@@ -236,14 +236,22 @@ const getCustomerAndAgentMaps = async ({ customerIds, agentIds }) => {
           .select("id, agent_name, building, status, inactive_until")
           .in("id", agentIds)
       : Promise.resolve({ data: [], error: null }),
+    dairyIds.length > 0
+      ? supabase
+          .from("dairies")
+          .select("id, dairy_name, latitude, longitude")
+          .in("id", dairyIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (customersResp.error) throw customersResp.error;
   if (agentsResp.error) throw agentsResp.error;
+  if (dairiesResp.error) throw dairiesResp.error;
 
   return {
     customersById: new Map((customersResp.data || []).map((row) => [row.id, row])),
     agentsById: new Map((agentsResp.data || []).map((row) => [row.id, row])),
+    dairiesById: new Map((dairiesResp.data || []).map((row) => [row.id, row])),
   };
 };
 
@@ -449,10 +457,17 @@ const autoAssignDeliveryIfPossible = async ({ delivery, dairyId = null } = {}) =
   };
 };
 
-const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCustomer }) => {
+const mapDeliveries = ({
+  deliveries,
+  customersById,
+  agentsById,
+  dairiesById,
+  subscriptionByCustomer,
+}) => {
   return (deliveries || []).map((row) => {
     const customer = customersById.get(row.customer_id) || {};
     const agent = agentsById.get(row.agent_id) || {};
+    const dairy = dairiesById.get(row.dairy_id) || {};
     const subscription = subscriptionByCustomer.get(row.customer_id) || {};
 
     const quantity = row.quantity_liters ?? subscription.quantity_liters ?? null;
@@ -477,6 +492,15 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
       agentId: isProjected ? projectedAgentId : row.agent_id ?? null,
       customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
       agentName: resolvedAgent.agent_name || "Unassigned",
+      latitude: Number.isFinite(Number(customer.latitude)) ? Number(customer.latitude) : null,
+      longitude: Number.isFinite(Number(customer.longitude)) ? Number(customer.longitude) : null,
+      customerLat: Number.isFinite(Number(customer.latitude)) ? Number(customer.latitude) : null,
+      customerLng: Number.isFinite(Number(customer.longitude)) ? Number(customer.longitude) : null,
+      dairyName: dairy.dairy_name || null,
+      dairyLatitude: Number.isFinite(Number(dairy.latitude)) ? Number(dairy.latitude) : null,
+      dairyLongitude: Number.isFinite(Number(dairy.longitude)) ? Number(dairy.longitude) : null,
+      dairyLat: Number.isFinite(Number(dairy.latitude)) ? Number(dairy.latitude) : null,
+      dairyLng: Number.isFinite(Number(dairy.longitude)) ? Number(dairy.longitude) : null,
       route,
       buildingName,
       wingOrFloor,
@@ -691,14 +715,20 @@ export const getAdminDeliveries = async ({ dairyId = null, limit, date = null } 
         .filter(Boolean)
     ),
   ];
+  const dairyIds = [...new Set(combinedRows.map((row) => row.dairy_id).filter(Boolean))];
 
-  const { customersById, agentsById } = await getCustomerAndAgentMaps({ customerIds, agentIds });
+  const { customersById, agentsById, dairiesById } = await getCustomerAndAgentMaps({
+    customerIds,
+    agentIds,
+    dairyIds,
+  });
 
   return {
     deliveries: mapDeliveries({
       deliveries: combinedRows,
       customersById,
       agentsById,
+      dairiesById,
       subscriptionByCustomer,
     }),
   };
@@ -934,9 +964,10 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
 
   if (createError) throw createError;
 
-  const { customersById, agentsById } = await getCustomerAndAgentMaps({
+  const { customersById, agentsById, dairiesById } = await getCustomerAndAgentMaps({
     customerIds: [createdDelivery.customer_id],
     agentIds: createdDelivery.agent_id ? [createdDelivery.agent_id] : [],
+    dairyIds: createdDelivery.dairy_id ? [createdDelivery.dairy_id] : [],
   });
 
   const subscriptionByCustomer = new Map([[createdDelivery.customer_id, activeSubscription]]);
@@ -945,6 +976,7 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     deliveries: [createdDelivery],
     customersById,
     agentsById,
+    dairiesById,
     subscriptionByCustomer,
   });
 
