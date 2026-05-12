@@ -88,9 +88,16 @@ const CustomerRow = ({ customer, onOpen }) => {
   const delivery = customer.delivery;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(delivery)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(delivery);
+        }
+      }}
       className="w-full rounded-[24px] border border-[#EDE8DF] bg-white px-3 py-2.5 text-left shadow-[0_14px_35px_rgba(92,61,30,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(92,61,30,0.11)]"
     >
       <div className="flex items-start justify-between gap-2">
@@ -111,7 +118,7 @@ const CustomerRow = ({ customer, onOpen }) => {
       <p className="mt-1 truncate whitespace-nowrap text-sm font-semibold leading-tight text-[#6B5B3E]">
         {getCustomerProductSummary(delivery)}
       </p>
-    </button>
+    </div>
   );
 };
 

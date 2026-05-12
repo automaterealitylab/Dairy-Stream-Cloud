@@ -16,6 +16,15 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
   const [lastCoordinates, setLastCoordinates] = useState(null);
   const watchIdRef = useRef(null);
   const activeOrderIdRef = useRef(null);
+  const customerPhone = String(
+    delivery?.phoneNumber ||
+      delivery?.phone_number ||
+      delivery?.customerPhone ||
+      delivery?.customer_phone ||
+      delivery?.mobile ||
+      ""
+  ).trim();
+  const dialNumber = customerPhone.replace(/[^\d+]/g, "");
 
   const emitOffline = (orderIdInput) => {
     const orderId = String(orderIdInput || '').trim();
@@ -228,10 +237,19 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
 
             <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
               <Phone className="mt-0.5 text-[#B8641A]" size={18} />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Phone Number</p>
-                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.phoneNumber}</p>
+                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{customerPhone || "-"}</p>
               </div>
+              {dialNumber ? (
+                <a
+                  href={`tel:${dialNumber}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#DDE8D1] bg-[#EEF5E7] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#4A7C2F] transition hover:bg-[#E6F2DB]"
+                >
+                  <Phone size={12} />
+                  Call
+                </a>
+              ) : null}
             </div>
 
             <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">

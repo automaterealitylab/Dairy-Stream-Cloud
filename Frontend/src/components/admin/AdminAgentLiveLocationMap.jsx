@@ -6,6 +6,7 @@ import { ensureSocketConnection } from "../../socket";
 import { fetchAdminDeliveries } from "../../api/admin.api";
 
 const DEFAULT_CENTER = [20.5937, 78.9629];
+const LIVE_STALE_MS = 60 * 1000;
 const getTodayDateInput = () => {
   const now = new Date();
   const y = now.getFullYear();
@@ -184,6 +185,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   const [dairyRoadRoute, setDairyRoadRoute] = useState([]);
   const [nearestByRoadDeliveryId, setNearestByRoadDeliveryId] = useState(null);
   const [followTrigger, setFollowTrigger] = useState(0);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const filteredDeliveries = useMemo(() => {
     const normalizedAgentId = String(agentId || "").trim();
@@ -348,6 +350,11 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   }, []);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => setNowTick(Date.now()), 10000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
     if (!agentId) return undefined;
 
     const connectedSocket = ensureSocketConnection();
@@ -379,6 +386,13 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
       connectedSocket.off("agent:offline", handleOffline);
     };
   }, [agentId]);
+
+  const isLive = useMemo(() => {
+    if (isOffline) return false;
+    if (!Array.isArray(agentPosition)) return false;
+    if (!Number.isFinite(Number(lastUpdatedAt))) return false;
+    return nowTick - Number(lastUpdatedAt) <= LIVE_STALE_MS;
+  }, [agentPosition, isOffline, lastUpdatedAt, nowTick]);
 
   useEffect(() => {
     if (!roadRankingOrigin || roadRankingDeliveries.length === 0) {
@@ -429,7 +443,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
         setPrimaryRoadRoute(Array.isArray(points) ? points : []);
       })
       .catch(() => {
-        setPrimaryRoadRoute([agentPosition, nearestPendingDelivery.coordinates].filter(Boolean));
+        // Keep last successful road route to avoid straight-line fallback.
       });
 
     return () => controller.abort();
@@ -468,16 +482,18 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
             points:
               Array.isArray(roadRoute) && roadRoute.length >= 2
                 ? roadRoute
-                : segment.points,
+                : [],
           };
         })
       )
-        .then((segments) => setSecondaryRoadRoutes(Array.isArray(segments) ? segments : []))
+        .then((segments) =>
+          setSecondaryRoadRoutes(
+            Array.isArray(segments) ? segments.filter((segment) => segment.points.length >= 2) : []
+          )
+        )
         .catch((err) => {
           if (err?.name === "AbortError") return;
-          setSecondaryRoadRoutes(
-            secondaryRouteSegments.map((segment) => ({ id: segment.id, points: segment.points }))
-          );
+          // Keep last successful road routes to avoid straight-line fallback.
         });
     }, 250);
 
@@ -501,12 +517,12 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
           const points = await fetchRoadRoute(agentPosition, delivery.coordinates, controller.signal);
           return {
             id: String(delivery.id),
-            points: Array.isArray(points) && points.length >= 2 ? points : [agentPosition, delivery.coordinates],
+            points: Array.isArray(points) && points.length >= 2 ? points : [],
           };
         } catch {
           return {
             id: String(delivery.id),
-            points: [agentPosition, delivery.coordinates].filter(Boolean),
+            points: [],
           };
         }
       })
@@ -533,7 +549,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
         setDairyRoadRoute(Array.isArray(points) ? points : []);
       })
       .catch(() => {
-        setDairyRoadRoute([agentPosition, dairyCoordinates].filter(Boolean));
+        // Keep last successful road route to avoid straight-line fallback.
       });
 
     return () => controller.abort();
@@ -547,7 +563,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
         <span>Pending: {pendingDeliveries.length}</span>
         <span>Delivered: {deliveredDeliveries.length}</span>
         <span>Total Mapped Pins: {mappedDeliveries.length}</span>
-        {isOffline ? <span className="text-[#A85734]">Agent offline</span> : <span className="text-[#4A7C2F]">Live</span>}
+        {isLive ? <span className="text-[#4A7C2F]">Live</span> : <span className="text-[#A85734]">Agent offline</span>}
         {lastUpdatedAt ? <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span> : null}
       </div>
 
