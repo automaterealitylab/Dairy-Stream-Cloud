@@ -199,22 +199,17 @@ const TrackAgentMap = ({
   }, [agentId, orderId]);
 
   useEffect(() => {
-    if (!position || !customerCoordinates) {
-      setRouteCoordinates([]);
-      return undefined;
-    }
+    if (!position || !customerCoordinates) return undefined;
 
     const controller = new AbortController();
     fetchRoadRoute(position, customerCoordinates, controller.signal)
       .then((points) => {
         if (Array.isArray(points) && points.length >= 2) {
           setRouteCoordinates(points);
-        } else {
-          setRouteCoordinates([position, customerCoordinates]);
         }
       })
       .catch(() => {
-        setRouteCoordinates([position, customerCoordinates]);
+        // Keep the last successful road route to avoid showing straight-line fallback.
       });
 
     return () => controller.abort();

@@ -138,6 +138,40 @@ const fetchRoadRoute = async (fromCoordinates, toCoordinates, signal) => {
     : [];
 };
 
+const fetchRoadDistanceTable = async (originCoordinates, deliveries, signal) => {
+  if (!Array.isArray(originCoordinates) || !Array.isArray(deliveries) || deliveries.length === 0) {
+    return {};
+  }
+
+  const validDeliveries = deliveries.filter((delivery) => Array.isArray(delivery?.coordinates));
+  if (validDeliveries.length === 0) return {};
+
+  const [originLat, originLng] = originCoordinates;
+  const coordinatesParam = [
+    `${originLng},${originLat}`,
+    ...validDeliveries.map((delivery) => `${delivery.coordinates[1]},${delivery.coordinates[0]}`),
+  ].join(";");
+
+  const destinationsParam = validDeliveries.map((_, index) => index + 1).join(";");
+  const url =
+    `https://router.project-osrm.org/table/v1/driving/${coordinatesParam}` +
+    `?sources=0&destinations=${destinationsParam}&annotations=distance`;
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Road distance table request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const distanceRow = Array.isArray(payload?.distances?.[0]) ? payload.distances[0] : [];
+
+  return validDeliveries.reduce((accumulator, delivery, index) => {
+    const distanceMeters = Number(distanceRow[index]);
+    accumulator[String(delivery.id)] = Number.isFinite(distanceMeters) ? distanceMeters : null;
+    return accumulator;
+  }, {});
+};
+
 const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   const [agentPosition, setAgentPosition] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
@@ -145,8 +179,10 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [primaryRoadRoute, setPrimaryRoadRoute] = useState([]);
   const [secondaryRouteSegments, setSecondaryRouteSegments] = useState([]);
+  const [secondaryRoadRoutes, setSecondaryRoadRoutes] = useState([]);
   const [completedRoadRoutes, setCompletedRoadRoutes] = useState([]);
   const [dairyRoadRoute, setDairyRoadRoute] = useState([]);
+  const [nearestByRoadDeliveryId, setNearestByRoadDeliveryId] = useState(null);
   const [followTrigger, setFollowTrigger] = useState(0);
 
   const filteredDeliveries = useMemo(() => {
@@ -221,21 +257,26 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   }, [filteredDeliveries]);
 
   const nearestPendingDelivery = useMemo(() => {
-    if (!agentPosition || pendingDeliveries.length === 0) return null;
-
-    let nearest = pendingDeliveries[0];
-    let nearestDistance = getDistanceInMeters(agentPosition, nearest.coordinates);
-
-    pendingDeliveries.slice(1).forEach((delivery) => {
-      const distance = getDistanceInMeters(agentPosition, delivery.coordinates);
-      if (distance < nearestDistance) {
-        nearest = delivery;
-        nearestDistance = distance;
-      }
-    });
-
-    return nearest;
-  }, [agentPosition, pendingDeliveries]);
+    if (!Array.isArray(pendingDeliveries) || pendingDeliveries.length === 0) return null;
+    if (!nearestByRoadDeliveryId) {
+      if (!agentPosition) return pendingDeliveries[0] || null;
+      let nearest = pendingDeliveries[0];
+      let nearestDistance = getDistanceInMeters(agentPosition, nearest.coordinates);
+      pendingDeliveries.slice(1).forEach((delivery) => {
+        const distance = getDistanceInMeters(agentPosition, delivery.coordinates);
+        if (distance < nearestDistance) {
+          nearest = delivery;
+          nearestDistance = distance;
+        }
+      });
+      return nearest;
+    }
+    return (
+      pendingDeliveries.find((delivery) => String(delivery.id) === String(nearestByRoadDeliveryId)) ||
+      pendingDeliveries[0] ||
+      null
+    );
+  }, [agentPosition, nearestByRoadDeliveryId, pendingDeliveries]);
 
   const orderedPendingDeliveries = useMemo(() => {
     if (!nearestPendingDelivery) return pendingDeliveries;
@@ -243,6 +284,32 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
     const remaining = pendingDeliveries.filter((delivery) => String(delivery.id) !== nearestId);
     return [nearestPendingDelivery, ...remaining];
   }, [nearestPendingDelivery, pendingDeliveries]);
+
+  const roadRankingOrigin = useMemo(
+    () =>
+      Array.isArray(agentPosition)
+        ? [Number(agentPosition[0].toFixed(4)), Number(agentPosition[1].toFixed(4))]
+        : null,
+    [agentPosition?.[0], agentPosition?.[1]]
+  );
+  const roadRankingDeliveries = useMemo(
+    () =>
+      pendingDeliveries.map((delivery) => ({
+        id: delivery.id,
+        coordinates: delivery.coordinates,
+      })),
+    [pendingDeliveries]
+  );
+  const roadRankingKey = useMemo(
+    () =>
+      roadRankingDeliveries
+        .map(
+          (delivery) =>
+            `${delivery.id}:${delivery.coordinates?.[0]?.toFixed?.(4)}:${delivery.coordinates?.[1]?.toFixed?.(4)}`
+        )
+        .join("|"),
+    [roadRankingDeliveries]
+  );
 
   useEffect(() => {
     let active = true;
@@ -314,6 +381,42 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   }, [agentId]);
 
   useEffect(() => {
+    if (!roadRankingOrigin || roadRankingDeliveries.length === 0) {
+      setNearestByRoadDeliveryId(null);
+      return undefined;
+    }
+
+    if (roadRankingDeliveries.length === 1) {
+      setNearestByRoadDeliveryId(String(roadRankingDeliveries[0].id));
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    fetchRoadDistanceTable(roadRankingOrigin, roadRankingDeliveries, controller.signal)
+      .then((distanceMap) => {
+        let nearestId = null;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        roadRankingDeliveries.forEach((delivery) => {
+          const distance = distanceMap[String(delivery.id)];
+          if (!Number.isFinite(distance)) return;
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestId = String(delivery.id);
+          }
+        });
+
+        setNearestByRoadDeliveryId(nearestId || String(roadRankingDeliveries[0].id));
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setNearestByRoadDeliveryId(String(roadRankingDeliveries[0].id));
+      });
+
+    return () => controller.abort();
+  }, [roadRankingDeliveries, roadRankingKey, roadRankingOrigin]);
+
+  useEffect(() => {
     if (!agentPosition || !nearestPendingDelivery?.coordinates) {
       setPrimaryRoadRoute([]);
       return undefined;
@@ -347,6 +450,42 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
       .filter((segment) => segment.points.length >= 2);
     setSecondaryRouteSegments(segments);
   }, [orderedPendingDeliveries]);
+
+  useEffect(() => {
+    if (secondaryRouteSegments.length === 0) {
+      setSecondaryRoadRoutes([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      Promise.all(
+        secondaryRouteSegments.map(async (segment) => {
+          const [fromCoordinates, toCoordinates] = segment.points;
+          const roadRoute = await fetchRoadRoute(fromCoordinates, toCoordinates, controller.signal);
+          return {
+            id: segment.id,
+            points:
+              Array.isArray(roadRoute) && roadRoute.length >= 2
+                ? roadRoute
+                : segment.points,
+          };
+        })
+      )
+        .then((segments) => setSecondaryRoadRoutes(Array.isArray(segments) ? segments : []))
+        .catch((err) => {
+          if (err?.name === "AbortError") return;
+          setSecondaryRoadRoutes(
+            secondaryRouteSegments.map((segment) => ({ id: segment.id, points: segment.points }))
+          );
+        });
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [secondaryRouteSegments]);
 
   useEffect(() => {
     if (!agentPosition || deliveredDeliveries.length === 0) {
@@ -505,7 +644,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
             />
           ))}
 
-          {secondaryRouteSegments.map((segment) => (
+          {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map((segment) => (
             <Polyline
               key={segment.id}
               positions={segment.points}

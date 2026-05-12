@@ -63,7 +63,9 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           const status = Number(error?.response?.status || 0);
-          console.log("Token validation failed:", error.message);
+          if (status !== 401 && status !== 403) {
+            console.log("Token validation failed:", error.message);
+          }
 
           // Only clear auth when the backend explicitly rejects the token.
           if (status === 401 || status === 403) {
