@@ -9,6 +9,14 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const isValidatedSession = (response) => {
+      if (!response || typeof response !== "object") return false;
+      if (response.success === true) return true;
+      if (response.user && typeof response.user === "object") return true;
+      if (response.id || response.email || response.role || response.userType) return true;
+      return false;
+    };
+
     const validateStoredToken = async () => {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
@@ -34,13 +42,13 @@ export const AuthProvider = ({ children }) => {
 
           // Try to validate the token with the backend using the correct role token.
           const response = await validateTokenApi(parsedUser?.role);
-          if (response.success) {
+          if (isValidatedSession(response)) {
             // Token is valid, update user with fresh data and preserve token/role.
             const nextUser = {
               ...parsedUser,
-              ...response.user,
+              ...(response.user || response),
               token: parsedUser?.token,
-              role: response.role || response.user?.role || parsedUser?.role,
+              role: response.role || response.user?.role || response.userType || parsedUser?.role,
             };
             setUser(nextUser);
             localStorage.setItem("user", JSON.stringify(nextUser));

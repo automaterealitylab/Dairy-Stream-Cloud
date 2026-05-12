@@ -19,6 +19,10 @@ const MapPanner = ({ center, followTrigger }) => {
 };
 
 const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
+const normalizeName = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
 const isDeliveredStatus = (status) => {
   const normalized = normalizeStatus(status);
@@ -26,21 +30,37 @@ const isDeliveredStatus = (status) => {
 };
 
 const getDeliveryCoordinates = (delivery) => {
+  const directCustomerLocation = delivery?.customerLocation || delivery?.customer_location || null;
+  const nestedCustomer = delivery?.customer || delivery?.customerDetails || null;
+  const geoCoordinates = delivery?.location?.coordinates || nestedCustomer?.location?.coordinates || null;
+
   const lat = Number(
     delivery?.lat ??
       delivery?.latitude ??
       delivery?.customerLat ??
       delivery?.customerLatitude ??
+      delivery?.customer_lat ??
+      directCustomerLocation?.lat ??
+      directCustomerLocation?.latitude ??
+      nestedCustomer?.lat ??
+      nestedCustomer?.latitude ??
       delivery?.location?.lat ??
-      delivery?.location?.latitude
+      delivery?.location?.latitude ??
+      (Array.isArray(geoCoordinates) ? geoCoordinates?.[1] : undefined)
   );
   const lng = Number(
     delivery?.lng ??
       delivery?.longitude ??
       delivery?.customerLng ??
       delivery?.customerLongitude ??
+      delivery?.customer_lng ??
+      directCustomerLocation?.lng ??
+      directCustomerLocation?.longitude ??
+      nestedCustomer?.lng ??
+      nestedCustomer?.longitude ??
       delivery?.location?.lng ??
-      delivery?.location?.longitude
+      delivery?.location?.longitude ??
+      (Array.isArray(geoCoordinates) ? geoCoordinates?.[0] : undefined)
   );
 
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
@@ -124,7 +144,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
 
   const filteredDeliveries = useMemo(() => {
     const normalizedAgentId = String(agentId || "").trim();
-    const normalizedAgentName = String(agentName || "").trim().toLowerCase();
+    const normalizedAgentName = normalizeName(agentName);
     if (!normalizedAgentId && !normalizedAgentName) return [];
 
     return (deliveries || []).filter((delivery) => {
@@ -148,11 +168,18 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
         delivery?.agent?.name,
         delivery?.agent?.full_name,
       ]
-        .map((value) => String(value || "").trim().toLowerCase())
+        .map((value) => normalizeName(value))
         .filter(Boolean);
 
       const byId = normalizedAgentId ? candidateIds.includes(normalizedAgentId) : false;
-      const byName = normalizedAgentName ? candidateNames.includes(normalizedAgentName) : false;
+      const byName = normalizedAgentName
+        ? candidateNames.some(
+            (name) =>
+              name === normalizedAgentName ||
+              name.includes(normalizedAgentName) ||
+              normalizedAgentName.includes(name)
+          )
+        : false;
       return byId || byName;
     });
   }, [agentId, agentName, deliveries]);
@@ -370,6 +397,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
       <div className="flex flex-wrap items-center gap-3 rounded-[14px] border border-[#EDE8DF] bg-[#FBF7F0] px-3 py-2 text-xs font-semibold text-[#6B5B3E]">
         <span>Pending: {pendingDeliveries.length}</span>
         <span>Delivered: {deliveredDeliveries.length}</span>
+        <span>Total Mapped Pins: {mappedDeliveries.length}</span>
         {isOffline ? <span className="text-[#A85734]">Agent offline</span> : <span className="text-[#4A7C2F]">Live</span>}
         {lastUpdatedAt ? <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span> : null}
       </div>
