@@ -8,10 +8,19 @@ const parseCsv = (value) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const DEFAULT_CORS_ORIGINS = [
+  "https://dairy-stream-cloud-fronten.onrender.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
 export const getAllowedCorsOrigins = () => {
-  const configured = parseCsv(process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN);
-  if (configured.length) return configured;
-  return ["http://localhost:5173", "http://localhost:3000"];
+  const configured = [
+    ...parseCsv(process.env.CORS_ORIGINS),
+    ...parseCsv(process.env.FRONTEND_ORIGIN),
+    ...parseCsv(process.env.FRONTEND_URL),
+  ];
+  return [...new Set([...DEFAULT_CORS_ORIGINS, ...configured])];
 };
 
 export const secureHeaders = (req, res, next) => {
