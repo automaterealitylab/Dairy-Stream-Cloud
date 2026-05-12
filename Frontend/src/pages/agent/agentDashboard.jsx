@@ -105,17 +105,6 @@ const MapController = ({ center, zoom, trigger }) => {
   return null;
 };
 
-const MapBoundsController = ({ points }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!Array.isArray(points) || points.length < 2) return;
-    map.fitBounds(points, { padding: [32, 32] });
-  }, [map, points]);
-
-  return null;
-};
-
 const ROAD_ROUTE_PRECISION = 5;
 const MAX_ROUTE_PREVIEW_DISTANCE_METERS = 50000;
 const roadRouteCache = new Map();
@@ -1138,18 +1127,6 @@ const AgentDashboard = () => {
       }))
       .filter((segment) => segment.points.length >= 2);
   }, [routeDeliveries]);
-  const mapBoundsPoints = useMemo(() => {
-    const primaryPoints = Array.isArray(routeCoordinates) ? routeCoordinates : [];
-    const extraPoints =
-      secondaryRoadRoutes.length > 0
-        ? secondaryRoadRoutes.flatMap((segment) => segment.points)
-        : secondaryRouteSegments.flatMap((segment) => segment.points);
-    const completedPoints = completedRoadRoutes.flatMap((segment) => segment.points);
-    const dairyRoutePoints = Array.isArray(dairyRoadRoute) ? dairyRoadRoute : [];
-    const deliveryPoints = visibleMapDeliveries.map((delivery) => delivery.coordinates).filter(Boolean);
-    return [...primaryPoints, ...extraPoints, ...completedPoints, ...dairyRoutePoints, ...deliveryPoints, dairyCoordinates, agentLocation].filter(Boolean);
-  }, [agentLocation, completedRoadRoutes, dairyCoordinates, dairyRoadRoute, routeCoordinates, secondaryRoadRoutes, secondaryRouteSegments, visibleMapDeliveries]);
-
   useEffect(() => {
     if (!roadRankingOrigin || roadRankingDeliveries.length === 0) {
       setNearestByRoadDeliveryId(null);
@@ -1666,8 +1643,6 @@ const AgentDashboard = () => {
               />
 
               <MapController center={mapView} zoom={zoomLevel} trigger={recenterTrigger} />
-              <MapBoundsController points={mapBoundsPoints} />
-
               <CircleMarker
                 center={agentLocation}
                 radius={10}
