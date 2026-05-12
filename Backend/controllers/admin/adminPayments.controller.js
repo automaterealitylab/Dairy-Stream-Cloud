@@ -63,3 +63,61 @@ export const collectOfflinePayment = async (req, res) => {
     res.status(400).json({ error: err.message || "Failed to record offline payment" });
   }
 };
+
+export const fetchPaymentVerifications = async (req, res) => {
+  try {
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const data = await paymentService.getPaymentVerificationQueue({
+      dairyId,
+      status: req.query.status || "PENDING",
+      limit: Number(req.query.limit || 50),
+    });
+
+    res.json({ success: true, verifications: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to load payment verifications" });
+  }
+};
+
+export const approvePaymentVerification = async (req, res) => {
+  try {
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const result = await paymentService.approvePaymentVerification({
+      verificationId: Number(req.params.id),
+      dairyId,
+      adminId: req.admin.id,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to approve payment verification" });
+  }
+};
+
+export const rejectPaymentVerification = async (req, res) => {
+  try {
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const verification = await paymentService.rejectPaymentVerification({
+      verificationId: Number(req.params.id),
+      dairyId,
+      adminId: req.admin.id,
+      reason: req.body?.reason,
+    });
+
+    res.json({ success: true, verification });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to reject payment verification" });
+  }
+};

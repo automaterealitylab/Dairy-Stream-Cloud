@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ArrowLeft, Eye, EyeOff, ExternalLink, Loader2, PlayCircle, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   brandSchema,
   locationSchema,
   ownerSchema,
   productSchema,
 } from "../validators/dairyRegister.schema";
-import { registerDairyApi, updateDairyRazorpaySetupApi } from "../api/admin.api";
+import { registerDairyApi } from "../api/admin.api";
 
 import BrandStep from "../components/steps/BrandStep";
 import LocationStep from "../components/steps/LocationStep";
@@ -18,20 +18,11 @@ import PlanStep from "../components/steps/PlanStep";
 import ReviewStep from "../components/steps/ReviewStep";
 import StepperHeader from "../components/steps/StepperHeader";
 
-const headingFont = { fontFamily: "'Lora', serif" };
-
 const RegisterDairyPage = () => {
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [showRazorpaySetup, setShowRazorpaySetup] = useState(false);
-  const [savingRazorpay, setSavingRazorpay] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
-  const [razorpaySetup, setRazorpaySetup] = useState({
-    razorpay_key_id: "",
-    razorpay_key_secret: "",
-  });
 
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
@@ -229,45 +220,11 @@ async (pos) => {
         }
       }
 
-      setShowRazorpaySetup(true);
+      navigate("/admin/AdminDashboard", { replace: true });
     } catch (err) {
       toast.error(err.message || "Registration failed");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRazorpaySetupChange = (e) => {
-    const { name, value } = e.target;
-    setRazorpaySetup((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const goToDashboard = () => {
-    setShowRazorpaySetup(false);
-    navigate("/admin/AdminDashboard", { replace: true });
-  };
-
-  const handleSaveRazorpaySetup = async () => {
-    const keyId = razorpaySetup.razorpay_key_id.trim();
-    const keySecret = razorpaySetup.razorpay_key_secret.trim();
-
-    if (!keyId || !keySecret) {
-      toast.error("Enter both Razorpay Key ID and Key Secret");
-      return;
-    }
-
-    setSavingRazorpay(true);
-    try {
-      await updateDairyRazorpaySetupApi({
-        razorpayKeyId: keyId,
-        razorpayKeySecret: keySecret,
-      });
-      toast.success("Razorpay setup saved");
-      goToDashboard();
-    } catch (err) {
-      toast.error(err.response?.data?.error || err.response?.data?.message || err.message || "Failed to save Razorpay setup");
-    } finally {
-      setSavingRazorpay(false);
     }
   };
 
@@ -363,144 +320,6 @@ async (pos) => {
           </button>
         </div>
       </div>
-
-      {showRazorpaySetup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2C1A0E]/55 px-4 py-6 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[24px] border border-[#E7DAC6] bg-[#FFFDF7] shadow-[0_24px_80px_rgba(44,26,14,0.28)] sm:rounded-[30px]">
-            <div className="flex items-start justify-between border-b border-[#E7DAC6] p-5 sm:p-6">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
-                  Payment Setup
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
-                  Create Your Razorpay Account
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm text-[#8B7355]">
-                  Watch the guide, create a Razorpay merchant account for this dairy, then paste the Key ID and Key Secret here.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={goToDashboard}
-                className="rounded-full p-2 text-[#8B7355] transition hover:bg-[#F4E8D8] hover:text-[#5C3D1E]"
-                title="Skip for now"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr] sm:p-6">
-              <div className="space-y-4">
-                <div className="overflow-hidden rounded-[18px] border border-[#E7DAC6] bg-[#2C2416]">
-                  <video
-                    controls
-                    className="aspect-video w-full bg-[#2C2416]"
-                    poster="/icons/icon-512.png"
-                  >
-                    <source src="/videos/razorpay-setup-guide.mp4" type="video/mp4" />
-                    Your browser cannot play this guide video.
-                  </video>
-                </div>
-
-                <div className="rounded-[18px] border border-[#F0DFC7] bg-[#FFF8EE] p-4">
-                  <div className="flex items-start gap-3">
-                    <PlayCircle className="mt-0.5 text-[#B8641A]" size={20} />
-                    <div>
-                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#5C3D1E]">
-                        Guide Checklist
-                      </h3>
-                      <p className="mt-2 text-sm text-[#8B7355]">
-                        Sign up on Razorpay, complete KYC, open Dashboard settings, create API keys, then copy the Key ID and Key Secret.
-                      </p>
-                      <a
-                        href="https://dashboard.razorpay.com/app/website-app-settings/api-keys"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[#B8641A] hover:underline"
-                      >
-                        Open Razorpay API Keys <ExternalLink size={14} />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-[#E7DAC6] bg-white p-4 sm:p-5">
-                <div className="mb-5 flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FBF2E8] text-[#B8641A]">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#5C3D1E]">
-                      Razorpay Credentials
-                    </h3>
-                    <p className="mt-1 text-sm text-[#8B7355]">
-                      The secret is saved on the backend only and is never shown to customers.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-[#A88763]">
-                      Key ID
-                    </label>
-                    <input
-                      type="text"
-                      name="razorpay_key_id"
-                      value={razorpaySetup.razorpay_key_id}
-                      onChange={handleRazorpaySetupChange}
-                      placeholder="rzp_live_xxxxxxxxxxxxx"
-                      className="w-full rounded-[16px] border border-[#E7DAC6] bg-white px-5 py-4 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-[#A88763]">
-                      Key Secret
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showSecret ? "text" : "password"}
-                        name="razorpay_key_secret"
-                        value={razorpaySetup.razorpay_key_secret}
-                        onChange={handleRazorpaySetupChange}
-                        placeholder="Paste Razorpay key secret"
-                        className="w-full rounded-[16px] border border-[#E7DAC6] bg-white py-4 pl-5 pr-12 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSecret((value) => !value)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
-                        title={showSecret ? "Hide secret" : "Show secret"}
-                      >
-                        {showSecret ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveRazorpaySetup}
-                    disabled={savingRazorpay}
-                    className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] px-6 py-4 font-black text-white transition hover:bg-[#3E6928] disabled:cursor-not-allowed disabled:bg-[#BFD4AF]"
-                  >
-                    {savingRazorpay ? <Loader2 className="animate-spin" size={20} /> : "Save & Continue"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={goToDashboard}
-                    className="w-full rounded-[16px] border border-[#E7DAC6] bg-[#FBF7F0] px-6 py-3 text-sm font-bold text-[#8B7355] transition hover:bg-[#F5E8D8] hover:text-[#5C3D1E]"
-                  >
-                    Skip for now
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

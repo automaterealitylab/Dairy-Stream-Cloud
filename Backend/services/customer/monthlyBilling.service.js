@@ -234,6 +234,49 @@ const buildMonthlyBillDescription = ({ monthKey, deliveredCount, subscriptionCou
     300
   );
 
+const upsertMonthlyBillRecord = async ({
+  customerId,
+  dairyId,
+  monthKey,
+  totalAmount,
+  dueDate,
+  status,
+  deliveredCount,
+  subscriptionCount,
+}) => {
+  const billNumber = `DS-${dairyId}-${customerId}-${monthKey}`.slice(0, 60);
+  const payload = {
+    customer_id: customerId,
+    dairy_id: dairyId,
+    billing_month: monthKey,
+    bill_number: billNumber,
+    subtotal: totalAmount,
+    total_amount: totalAmount,
+    due_amount: totalAmount,
+    status,
+    due_date: dueDate,
+    invoice_payload: {
+      deliveredCount,
+      subscriptionCount,
+      generatedBy: "monthlyBilling.service",
+    },
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("monthly_bills")
+    .upsert(payload, { onConflict: "customer_id,dairy_id,billing_month" })
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error) || isMissingColumnError(error)) return null;
+    throw error;
+  }
+
+  return data?.id || null;
+};
+
 const fetchSubscriptionPaymentMethods = async (customerId) => {
   const data = await fetchRowsByCandidateCustomerColumns({
     table: "subscriptions",
@@ -408,12 +451,12 @@ export const syncCustomerMonthlyBills = async (customerId) => {
     if (totalAmount <= 0) continue;
 
     const dueDate = getSubscriptionBillDueDate(group.monthKey);
+    const billStatus = dueDate && dueDate < todayIso ? "OVERDUE" : "PENDING";
     const description = buildMonthlyBillDescription({
       monthKey: group.monthKey,
       deliveredCount: group.deliveredRows.length,
       subscriptionCount,
     });
-
     const monthPayments = existingByKey.get(`${group.dairyId}:${group.monthKey}`) || [];
     const paidAmount = monthPayments.reduce((sum, row) => {
       const status = String(row?.status || "PENDING").toUpperCase();
@@ -426,16 +469,28 @@ export const syncCustomerMonthlyBills = async (customerId) => {
 
     if (remainingAmount <= 0) continue;
 
+    const monthlyBillId = await upsertMonthlyBillRecord({
+      customerId,
+      dairyId: group.dairyId,
+      monthKey: group.monthKey,
+      totalAmount: remainingAmount,
+      dueDate,
+      status: billStatus,
+      deliveredCount: group.deliveredRows.length,
+      subscriptionCount,
+    });
+
     if (existingOpenRow?.id) {
 
       const { error: updateError } = await supabase
         .from("payments")
         .update({
           amount: remainingAmount,
-          status: dueDate && dueDate < todayIso ? "OVERDUE" : "PENDING",
+          status: billStatus,
           method: String(paymentMethod || "UPI").trim().toUpperCase(),
           description,
           due_date: dueDate,
+          monthly_bill_id: monthlyBillId,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingOpenRow.id)
@@ -450,10 +505,11 @@ export const syncCustomerMonthlyBills = async (customerId) => {
       customer_id: customerId,
       dairy_id: group.dairyId,
       amount: remainingAmount,
-      status: dueDate && dueDate < todayIso ? "OVERDUE" : "PENDING",
+      status: billStatus,
       method: String(paymentMethod || "UPI").trim().toUpperCase(),
       description,
       due_date: dueDate,
+      monthly_bill_id: monthlyBillId,
     });
 
     if (insertError) throw insertError;

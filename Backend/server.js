@@ -2,9 +2,9 @@ import express from "express";
 import { createServer } from "http";
 import cors from "cors";
 import { Server as SocketIOServer } from "socket.io";
-import Razorpay from "razorpay";
 import cron from "node-cron";
 import "./config/loadEnv.js";
+import { validateRuntimeEnv } from "./config/envValidation.js";
 
 // 2. Import Configuration & Routes
 // ✅ Points to your root config.js
@@ -12,22 +12,65 @@ import { supabase } from "./config/supabase.js";
 // ✅ Points to your central Route Hub
 import routes from "./routes/index.route.js"; 
 import {
+  botProtection,
+  csrfProtection,
+  getAllowedCorsOrigins,
+  requestFingerprinting,
+  secureHeaders,
+  ssrfGuard,
+  validateApiSignature,
+} from "./middleware/security.middleware.js";
+import {
+  correlationMiddleware,
+  globalErrorHandler,
+  notFoundHandler,
+} from "./middleware/observability.middleware.js";
+import {
   autoFailPendingSubscriptionDeliveriesForDate,
   runDailySubscriptionAutomationForAllCustomers,
 } from "./services/customer/subscription.automation.service.js";
 import { runMonthEndSubscriptionBillingForAllCustomers } from "./services/customer/monthlyBilling.service.js";
 import { registerLocationSocketHandlers } from "./socket/locationHandler.js";
+import { isQueueEnabled } from "./services/marketplace/queue.service.js";
+import { logger } from "./utils/logger.js";
+import { acquireRedisLock } from "./config/redis.js";
+import { processQueuedWhatsAppNotifications } from "./services/shared/whatsapp.service.js";
 
 // 3. Create App
+validateRuntimeEnv();
 const app = express();
 const httpServer = createServer(app);
 
 // ======================
 // 🛡️ Middlewares
 // ======================
-app.use(cors()); // Allow Frontend access
-app.use(express.json({ limit: "10mb" })); // Parse JSON bodies
+app.use(secureHeaders);
+app.use(correlationMiddleware);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      return callback(null, getAllowedCorsOrigins().includes(origin));
+    },
+    credentials: true,
+  })
+);
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      if (String(req.originalUrl || "").includes("/api/webhooks/raw")) {
+        req.rawBody = Buffer.from(buf);
+      }
+    },
+  })
+); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(requestFingerprinting);
+app.use(botProtection);
+app.use(ssrfGuard);
+app.use(validateApiSignature);
+app.use(csrfProtection);
 
 // ======================
 // 🏥 Health Check Routes
@@ -63,12 +106,43 @@ app.get("/supabase-health", async (req, res) => {
   }
 });
 
+const shutdown = async () => {
+  logger.info("server_shutdown_started");
+  await Promise.all(localWorkers.map((worker) => worker.close()));
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10_000).unref();
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
+app.get("/healthz", (req, res) => {
+  res.json({
+    status: "ok",
+    uptimeSeconds: Number(process.uptime().toFixed(0)),
+    queuesEnabled: isQueueEnabled(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/readyz", async (req, res) => {
+  try {
+    const { error } = await supabase.from("customers").select("id").limit(1);
+    if (error) throw error;
+    res.json({ status: "ready", timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: "not_ready", error: err.message });
+  }
+});
+
 // ======================
 // 🚦 API Routes (The Hub)
 // ======================
 // This mounts all your routes at /api
 // e.g., /api/admin/addagent, /api/auth/login
 app.use('/api', routes);
+app.use(notFoundHandler);
+app.use(globalErrorHandler);
 
 // ======================
 // ⚠️ Global Error Handler
@@ -108,6 +182,9 @@ registerLocationSocketHandlers(io);
 const server = httpServer.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
+
+const localWorkers =
+  [];
 
 const runSubscriptionAutomation = async () => {
   try {
@@ -168,6 +245,27 @@ cron.schedule("0 0 * * *", runSubscriptionAutoFail, {
 });
 
 cron.schedule("59 23 * * *", runMonthEndSubscriptionBilling, {
+  timezone: "Asia/Kolkata",
+});
+
+const runWhatsAppNotificationQueue = async () => {
+  const lock = await acquireRedisLock({
+    key: "whatsapp-notification-queue",
+    ttlMs: 55_000,
+    owner: `api:${process.pid}`,
+  });
+  if (!lock.acquired) return;
+
+  try {
+    await processQueuedWhatsAppNotifications({ limit: 25 });
+  } catch (err) {
+    console.error("WHATSAPP_QUEUE ERROR:", err?.message || err);
+  } finally {
+    await lock.release();
+  }
+};
+
+cron.schedule("*/5 * * * *", runWhatsAppNotificationQueue, {
   timezone: "Asia/Kolkata",
 });
 

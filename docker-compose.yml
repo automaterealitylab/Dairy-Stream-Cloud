@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ./Backend
+    env_file:
+      - ./Backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379
+      REDIS_ENABLED: "true"
+      START_QUEUE_WORKERS_IN_API: "false"
+    ports:
+      - "4000:4000"
+    depends_on:
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  marketplace-worker:
+    build:
+      context: ./Backend
+    command: ["node", "workers/marketplace.worker.js"]
+    env_file:
+      - ./Backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379
+      REDIS_ENABLED: "true"
+    depends_on:
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:

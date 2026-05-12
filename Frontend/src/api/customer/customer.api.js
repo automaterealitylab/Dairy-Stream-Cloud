@@ -265,6 +265,46 @@ export const createCustomerPaymentOrder = async (payload = {}) => {
   return data;
 };
 
+export const createCustomerUpiPaymentIntent = async (payload = {}) => {
+  const { data } = await client.post("/customer/payments/upi-intent", payload);
+  return data;
+};
+
+export const submitCustomerUpiPaymentVerification = async (payload = {}) => {
+  const hasScreenshot = Boolean(payload?.screenshotFile);
+
+  if (hasScreenshot) {
+    const formData = new FormData();
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || key === "screenshotFile") return;
+      formData.append(key, value);
+    });
+    formData.append("image", payload.screenshotFile);
+
+    const { data } = await client.post("/customer/payments/verify-upi", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    invalidateCustomerDashboardCache();
+    invalidateCustomerReadCache("payments");
+    return data;
+  }
+
+  const { data } = await client.post("/customer/payments/verify-upi", payload);
+  invalidateCustomerDashboardCache();
+  invalidateCustomerReadCache("payments");
+  return data;
+};
+
+export const previewCustomerPaymentScreenshotOcr = async (screenshotFile) => {
+  const formData = new FormData();
+  formData.append("image", screenshotFile);
+
+  const { data } = await client.post("/customer/payments/ocr-preview", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+};
+
 export const verifyCustomerPayment = async (payload) => {
   const { data } = await client.post("/customer/payments/verify", payload);
   invalidateCustomerDashboardCache();
@@ -281,6 +321,23 @@ export const verifyCustomerWalletTopup = async (payload) => {
   const { data } = await client.post("/customer/payments/wallet/verify", payload);
   invalidateCustomerDashboardCache();
   invalidateCustomerReadCache("payments");
+  return data;
+};
+
+export const fetchCustomerInvoices = async ({ limit = 24 } = {}) => {
+  const { data } = await client.get("/customer/invoices", { params: { limit } });
+  return data?.invoices || [];
+};
+
+export const fetchCustomerInvoiceDetail = async (id) => {
+  const { data } = await client.get(`/customer/invoices/${id}`);
+  return data?.invoice || data;
+};
+
+export const getCustomerInvoicePdfUrl = (id) => `/customer/invoices/${id}/pdf`;
+
+export const shareCustomerInvoiceWhatsApp = async (id, payload = {}) => {
+  const { data } = await client.post(`/customer/invoices/${id}/share-whatsapp`, payload);
   return data;
 };
 

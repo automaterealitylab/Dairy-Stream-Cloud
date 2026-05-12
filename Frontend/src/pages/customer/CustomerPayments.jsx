@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   CalendarDays,
   ChevronDown,
@@ -18,12 +19,11 @@ import {
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import {
-  createCustomerPaymentOrder,
-  createCustomerWalletTopupOrder,
+  createCustomerUpiPaymentIntent,
   fetchCustomerPayments,
   getCachedCustomerPayments,
-  verifyCustomerPayment,
-  verifyCustomerWalletTopup,
+  previewCustomerPaymentScreenshotOcr,
+  submitCustomerUpiPaymentVerification,
 } from "../../api/customer/customer.api.js";
 
 const bodyFont = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
@@ -206,6 +206,11 @@ export default function Payments() {
   const [walletTopupAmount, setWalletTopupAmount] = useState("250");
   const [walletTopupLoading, setWalletTopupLoading] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [upiIntent, setUpiIntent] = useState(null);
+  const [upiForm, setUpiForm] = useState({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+  const [ocrPreview, setOcrPreview] = useState(null);
+  const [ocrPreviewing, setOcrPreviewing] = useState(false);
+  const [submittingVerification, setSubmittingVerification] = useState(false);
   const [error, setError] = useState(null);
   const [showAll, setShowAll] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -289,17 +294,6 @@ export default function Payments() {
     };
   }, [walletModalOpen]);
 
-  const loadRazorpay = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) return resolve(true);
-
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-
   const handlePayNow = async (payment, { payAll = false } = {}) => {
     try {
       if (!payAll && !payment?.id) throw new Error("No pending payment selected.");
@@ -308,88 +302,71 @@ export default function Payments() {
       setPayingPaymentId(payAll ? "__ALL__" : payment.id);
       setError(null);
 
-      if (!(await loadRazorpay())) throw new Error("Could not load payment gateway.");
-
-      const orderPayload = await createCustomerPaymentOrder(
+      const intentPayload = await createCustomerUpiPaymentIntent(
         payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
       );
-      const { title } = parseTitle(orderPayload.payment?.title || "");
-
-      const checkout = new window.Razorpay({
-        key: orderPayload.keyId,
-        amount: orderPayload.order.amount,
-        currency: orderPayload.order.currency,
-        name: "Dairy Stream",
-        description: title,
-        order_id: orderPayload.order.id,
-        handler: async (res) => {
-          await verifyCustomerPayment({
-            paymentId: payment?.id,
-            payAll,
-            includeRunningDue: payAll ? false : undefined,
-            razorpay_order_id: res.razorpay_order_id,
-            razorpay_payment_id: res.razorpay_payment_id,
-            razorpay_signature: res.razorpay_signature,
-          });
-          await loadPayments({ force: true });
-        },
-        theme: { color: "#2C1A0E" },
-      });
-
-      checkout.on("payment.failed", (res) => {
-        setError(res?.error?.description || "Payment failed. Please try again.");
-      });
-
-      checkout.open();
+      setUpiIntent({ ...intentPayload, payAll, paymentId: payment?.id || null });
+      setUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+      setOcrPreview(null);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Unable to start payment.");
+      setError(err?.response?.data?.message || err?.message || "Unable to start UPI payment.");
     } finally {
       setPayingPaymentId(null);
     }
   };
 
   const handleWalletTopup = async () => {
+    setWalletTopupLoading(false);
+    setError("Wallet top-up through gateway is disabled. Pay bills directly to the dairy UPI ID.");
+  };
+
+  const handleSubmitUpiVerification = async () => {
     try {
-      const amount = Number(Number(walletTopupAmount || 0).toFixed(2));
-      if (!Number.isFinite(amount) || amount < 10) {
-        throw new Error("Minimum wallet top-up amount is 10.");
+      if (!upiIntent) return;
+      if (!String(upiForm.utrNumber || "").trim()) {
+        throw new Error("Enter the UTR/reference number after payment.");
       }
 
-      setWalletTopupLoading(true);
+      setSubmittingVerification(true);
       setError(null);
-
-      if (!(await loadRazorpay())) throw new Error("Could not load payment gateway.");
-
-      const orderPayload = await createCustomerWalletTopupOrder({ amount });
-      const checkout = new window.Razorpay({
-        key: orderPayload.keyId,
-        amount: orderPayload.order.amount,
-        currency: orderPayload.order.currency,
-        name: "Dairy Stream",
-        description: `Wallet Top-up ${fmt(amount)}`,
-        order_id: orderPayload.order.id,
-        handler: async (res) => {
-          await verifyCustomerWalletTopup({
-            amount,
-            razorpay_order_id: res.razorpay_order_id,
-            razorpay_payment_id: res.razorpay_payment_id,
-            razorpay_signature: res.razorpay_signature,
-          });
-          await loadPayments({ force: true });
-          setWalletModalOpen(false);
-        },
-        theme: { color: "#2C1A0E" },
+      await submitCustomerUpiPaymentVerification({
+        paymentId: upiIntent.paymentId || "",
+        payAll: upiIntent.payAll ? "true" : "false",
+        includeRunningDue: upiIntent.payAll ? "false" : "true",
+        amount: upiIntent.amount,
+        utrNumber: upiForm.utrNumber,
+        payerUpiId: upiForm.payerUpiId,
+        screenshotFile: upiForm.screenshotFile,
       });
-
-      checkout.on("payment.failed", (res) => {
-        setError(res?.error?.description || "Wallet top-up failed. Please try again.");
-      });
-
-      checkout.open();
+      setUpiIntent(null);
+      await loadPayments({ force: true });
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Unable to start wallet top-up.");
+      setError(err?.response?.data?.message || err?.message || "Unable to submit verification.");
     } finally {
-      setWalletTopupLoading(false);
+      setSubmittingVerification(false);
+    }
+  };
+
+  const handleScreenshotSelected = async (file) => {
+    setUpiForm((prev) => ({ ...prev, screenshotFile: file || null }));
+    setOcrPreview(null);
+    if (!file) return;
+
+    try {
+      setOcrPreviewing(true);
+      const result = await previewCustomerPaymentScreenshotOcr(file);
+      const extracted = result?.extracted || {};
+      setOcrPreview(result?.ocr || null);
+      setUpiForm((prev) => ({
+        ...prev,
+        utrNumber: extracted.utrNumber || prev.utrNumber,
+        payerUpiId: extracted.payerUpiId || prev.payerUpiId,
+        screenshotFile: file,
+      }));
+    } catch (err) {
+      setOcrPreview({ status: "FAILED", error: err?.response?.data?.message || err?.message });
+    } finally {
+      setOcrPreviewing(false);
     }
   };
 
@@ -548,7 +525,7 @@ export default function Payments() {
                       <CreditCard size={15} />
                     )}
                     {payingPaymentId === "__ALL__"
-                      ? "Opening checkout..."
+                      ? "Preparing UPI..."
                       : `Pay Now ${fmt(summary.monthlyDue)}`}
                   </button>
                 </div>
@@ -820,7 +797,7 @@ export default function Payments() {
                                       ) : (
                                         <CreditCard size={10} />
                                       )}
-                                      {payingPaymentId === payment.id ? "Opening..." : "Pay Bill"}
+                                      {payingPaymentId === payment.id ? "Preparing..." : "Pay Bill"}
                                     </button>
                                   )}
                                 </div>
@@ -881,7 +858,7 @@ export default function Payments() {
                                   ) : (
                                     <CreditCard size={12} />
                                   )}
-                                  {payingPaymentId === payment.id ? "Opening..." : "Pay Bill"}
+                                  {payingPaymentId === payment.id ? "Preparing..." : "Pay Bill"}
                                 </button>
                               )}
                             </div>
@@ -913,6 +890,140 @@ export default function Payments() {
           </div>
         </div>
       </div>
+
+      {upiIntent && (
+        <div className="fixed inset-0 z-[92] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
+          <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px]">
+            <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
+                  Direct UPI Payment
+                </p>
+                <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
+                  Pay {fmt(upiIntent.amount)} to {upiIntent.beneficiary?.dairyName || "Dairy"}
+                </h3>
+                <p className="mt-1 text-sm text-[#8B7355]">
+                  Complete payment in your UPI app, then submit the UTR/reference number for dairy verification.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpiIntent(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8]"
+                aria-label="Close UPI payment"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <div className="grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <div className="rounded-2xl border border-[#EDE8DF] bg-[#FFFDF8] p-4 text-center">
+                <div className="mx-auto inline-flex rounded-xl bg-white p-3 shadow-sm">
+                  <QRCodeSVG value={upiIntent.upiLink} size={196} includeMargin />
+                </div>
+                <p className="mt-3 break-words text-xs font-semibold text-[#7B6247]">
+                  {upiIntent.beneficiary?.upiId}
+                </p>
+                <p className="mt-1 text-[11px] text-[#B89970]">Scan with any UPI app</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ["UPI App", upiIntent.intents?.upi],
+                    ["Google Pay", upiIntent.intents?.googlePay],
+                    ["PhonePe", upiIntent.intents?.phonePe],
+                    ["Paytm", upiIntent.intents?.paytm],
+                  ].map(([label, href]) => (
+                    <a
+                      key={label}
+                      href={href}
+                      className="rounded-xl border border-[#E5DCCF] bg-[#FAFAF7] px-3 py-3 text-center text-xs font-black text-[#5C3D1E] no-underline transition hover:border-[#B8641A] hover:bg-[#FFF3E2]"
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </div>
+
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                    UTR / Reference Number
+                  </span>
+                  <input
+                    value={upiForm.utrNumber}
+                    onChange={(event) =>
+                      setUpiForm((prev) => ({ ...prev, utrNumber: event.target.value.toUpperCase() }))
+                    }
+                    placeholder="Enter UPI reference number"
+                    className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                    Your UPI ID Optional
+                  </span>
+                  <input
+                    value={upiForm.payerUpiId}
+                    onChange={(event) => setUpiForm((prev) => ({ ...prev, payerUpiId: event.target.value }))}
+                    placeholder="name@bank"
+                    className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                    Payment Screenshot Optional
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(event) =>
+                      handleScreenshotSelected(event.target.files?.[0] || null)
+                    }
+                    className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E]"
+                  />
+                </label>
+
+                {(ocrPreviewing || ocrPreview) && (
+                  <div className="rounded-xl border border-[#E7DAC6] bg-[#FFF8F0] px-4 py-3 text-xs text-[#6B5135]">
+                    {ocrPreviewing ? (
+                      <span className="inline-flex items-center gap-2 font-bold">
+                        <Loader2 size={13} className="animate-spin" />
+                        Reading screenshot...
+                      </span>
+                    ) : (
+                      <>
+                        <p className="font-black uppercase tracking-[0.12em] text-[#B8641A]">
+                          OCR {ocrPreview?.status || "READY"}
+                        </p>
+                        <p className="mt-1 leading-5">
+                          Confidence {Number(ocrPreview?.confidence || 0)}%
+                          {ocrPreview?.extracted?.appName ? ` • ${ocrPreview.extracted.appName}` : ""}
+                          {ocrPreview?.extracted?.amount ? ` • ${fmt(ocrPreview.extracted.amount)}` : ""}
+                        </p>
+                        {ocrPreview?.error ? (
+                          <p className="mt-1 text-[#C53030]">{ocrPreview.error}</p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSubmitUpiVerification}
+                  disabled={submittingVerification}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2C1A0E] px-5 py-3 text-sm font-black text-white transition hover:bg-[#B8641A] disabled:bg-[#D8C8B2]"
+                >
+                  {submittingVerification ? <Loader2 size={15} className="animate-spin" /> : <CreditCard size={15} />}
+                  Submit For Verification
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {walletModalOpen && (
         <div
@@ -1038,7 +1149,7 @@ export default function Payments() {
                   ) : (
                     <Plus size={14} />
                   )}
-                  {walletTopupLoading ? "Opening checkout..." : walletTopupButtonLabel}
+                  {walletTopupLoading ? "Preparing..." : walletTopupButtonLabel}
                 </button>
               </div>
             </div>

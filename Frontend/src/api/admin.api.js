@@ -192,9 +192,26 @@ export const registerDairyApi = async (dairyData) => {
   return data;
 };
 
-export const updateDairyRazorpaySetupApi = async (payload) => {
-  const { data } = await client.patch("/admin/payment-setup/razorpay", payload);
-  return data;
+export const fetchAdminProfile = async ({ revealBankDetails = false } = {}) => {
+  const { data } = await client.get("/admin/profile", {
+    params: revealBankDetails ? { revealBankDetails: "true" } : {},
+  });
+  return data?.data || data;
+};
+
+export const updateAdminProfile = async (payload) => {
+  const { data } = await client.patch("/admin/profile", payload);
+  return data?.data || data;
+};
+
+export const lookupAdminBankIfsc = async (ifsc) => {
+  const { data } = await client.get(`/admin/bank/ifsc/${encodeURIComponent(ifsc)}`);
+  return data?.ifsc || data;
+};
+
+export const verifyAdminBankAccount = async (payload) => {
+  const { data } = await client.post("/admin/bank/verify", payload);
+  return data?.verification || data;
 };
 
 export const fetchAdminDeliveries = async ({ limit = 1000, date = "" } = {}) => {
@@ -263,6 +280,40 @@ export const collectAdminOfflinePayment = async ({
     method,
     note,
   });
+  return data;
+};
+
+export const fetchAdminPaymentVerifications = async ({ status = "PENDING", limit = 50 } = {}) => {
+  const { data } = await client.get("/admin/payments/verifications", {
+    params: { status, limit },
+  });
+  return data?.verifications || [];
+};
+
+export const approveAdminPaymentVerification = async (id) => {
+  const { data } = await client.patch(`/admin/payments/verifications/${id}/approve`);
+  return data;
+};
+
+export const rejectAdminPaymentVerification = async (id, reason = "") => {
+  const { data } = await client.patch(`/admin/payments/verifications/${id}/reject`, { reason });
+  return data;
+};
+
+export const fetchAdminAccountingReport = async ({ from = "", to = "" } = {}) => {
+  const { data } = await client.get("/admin/payments/reports/accounting", {
+    params: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
+  });
+  return data?.report || data;
+};
+
+export const fetchAdminOperationalMonitoring = async () => {
+  const { data } = await client.get("/admin/monitoring/operations");
+  return data?.monitoring || data;
+};
+
+export const processAdminWhatsAppQueue = async ({ limit = 25 } = {}) => {
+  const { data } = await client.post("/admin/monitoring/whatsapp/process", { limit });
   return data;
 };
 

@@ -2,16 +2,18 @@ import React, { useEffect, useState } from "react";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import { 
-  CreditCard, DollarSign, Calendar, TrendingUp, 
-  CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Eye, EyeOff, KeyRound, Loader2, Share2, ShieldCheck, X, Wallet
+  CreditCard, DollarSign, TrendingUp,
+  CheckCircle, Clock, ChevronDown, ChevronUp, Share2, ShieldCheck, X, Wallet, AlertTriangle
 } from "lucide-react";
 import toast from "react-hot-toast";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
 import {
+  approveAdminPaymentVerification,
   collectAdminOfflinePayment,
   fetchAdminPayments,
-  updateDairyRazorpaySetupApi,
+  fetchAdminPaymentVerifications,
+  rejectAdminPaymentVerification,
   updateAdminFarmPlan,
 } from "../../api/admin.api.js";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
@@ -25,6 +27,7 @@ export default function AdminPayments() {
   const [farmPlan, setFarmPlan] = useState(null);
   const [revenue, setRevenue] = useState(0);
   const [payments, setPayments] = useState([]);
+  const [verifications, setVerifications] = useState([]);
   
   // UI States
   const [filter, setFilter] = useState("ALL"); 
@@ -37,12 +40,6 @@ export default function AdminPayments() {
   const [pendingAutopayPlan, setPendingAutopayPlan] = useState(null);
   const [autopaySaving, setAutopaySaving] = useState(false);
   const [expandedPaymentGroups, setExpandedPaymentGroups] = useState({});
-  const [razorpaySaving, setRazorpaySaving] = useState(false);
-  const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
-  const [razorpayForm, setRazorpayForm] = useState({
-    razorpayKeyId: "",
-    razorpayKeySecret: "",
-  });
 
   const getAutopayStorageKey = (dairyId) =>
     `${AUTOPAY_STORAGE_PREFIX}:${dairyId || "default"}`;
@@ -175,7 +172,10 @@ export default function AdminPayments() {
   const loadPayments = async () => {
     try {
       setLoading(true);
-      const data = await fetchAdminPayments({ page: 1, status: filter });
+      const [data, verificationRows] = await Promise.all([
+        fetchAdminPayments({ page: 1, status: filter }),
+        fetchAdminPaymentVerifications({ status: "PENDING", limit: 25 }),
+      ]);
 
       const farm = data?.farm || null;
       const storedAutopay = readStoredAutopay(farm?.id || null);
@@ -193,22 +193,39 @@ export default function AdminPayments() {
         autopayEnabled: Boolean(storedAutopay?.enabled),
         autopayMethod: storedAutopay?.method || "",
         autopayConfiguredAt: storedAutopay?.configuredAt || null,
-        razorpayKeyId: farm?.razorpay_key_id || "",
-        razorpayStatus: farm?.razorpay_onboarding_status || "PENDING",
-        paymentsEnabled: Boolean(farm?.payments_enabled),
-      });
-      setRazorpayForm({
-        razorpayKeyId: farm?.razorpay_key_id || "",
-        razorpayKeySecret: "",
       });
 
       setRevenue(Number(data?.totalRevenue || 0));
       setPayments(Array.isArray(data?.payments) ? data.payments : []);
+      setVerifications(Array.isArray(verificationRows) ? verificationRows : []);
     } catch (err) {
       toast.error(err?.response?.data?.error || "Failed to load payments");
       setPayments([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveVerification = async (id) => {
+    try {
+      await approveAdminPaymentVerification(id);
+      toast.success("Payment verified");
+      await loadPayments();
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "Failed to approve verification");
+    }
+  };
+
+  const handleRejectVerification = async (id) => {
+    const reason = window.prompt("Reason for rejection") || "";
+    if (!reason.trim()) return;
+
+    try {
+      await rejectAdminPaymentVerification(id, reason);
+      toast.success("Verification rejected");
+      await loadPayments();
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "Failed to reject verification");
     }
   };
 
@@ -253,9 +270,6 @@ export default function AdminPayments() {
         autopayEnabled: prev?.autopayEnabled || false,
         autopayMethod: prev?.autopayMethod || "",
         autopayConfiguredAt: prev?.autopayConfiguredAt || null,
-        razorpayKeyId: prev?.razorpayKeyId || "",
-        razorpayStatus: prev?.razorpayStatus || "PENDING",
-        paymentsEnabled: prev?.paymentsEnabled || false,
       }));
 
       toast.success(`${getPlanLabel(planName)} plan selected`);
@@ -328,51 +342,6 @@ export default function AdminPayments() {
     setSelectedAutopayMethod("");
   };
 
-  const handleRazorpayFormChange = (event) => {
-    const { name, value } = event.target;
-    setRazorpayForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const saveRazorpaySetup = async () => {
-    const keyId = razorpayForm.razorpayKeyId.trim();
-    const keySecret = razorpayForm.razorpayKeySecret.trim();
-
-    if (!keyId) {
-      toast.error("Enter Razorpay Key ID");
-      return;
-    }
-
-    if (!farmPlan?.paymentsEnabled && !keySecret) {
-      toast.error("Enter Razorpay Key Secret");
-      return;
-    }
-
-    try {
-      setRazorpaySaving(true);
-      const response = await updateDairyRazorpaySetupApi({
-        razorpayKeyId: keyId,
-        razorpayKeySecret: keySecret,
-      });
-      const setup = response?.data || response;
-      setFarmPlan((prev) => ({
-        ...prev,
-        razorpayKeyId: setup?.razorpay_key_id || keyId,
-        razorpayStatus: setup?.razorpay_onboarding_status || "CONFIGURED",
-        paymentsEnabled: setup?.payments_enabled ?? true,
-      }));
-      setRazorpayForm((prev) => ({
-        ...prev,
-        razorpayKeyId: setup?.razorpay_key_id || keyId,
-        razorpayKeySecret: "",
-      }));
-      toast.success("Razorpay keys saved for this dairy");
-    } catch (err) {
-      toast.error(err?.response?.data?.error || "Failed to save Razorpay setup");
-    } finally {
-      setRazorpaySaving(false);
-    }
-  };
-
   const planOptions = [
     {
       value: "Free",
@@ -395,7 +364,7 @@ export default function AdminPayments() {
       features: [
         "Customer, agent, and subscription management",
         "Delivery approvals and route assignment",
-        "Razorpay payment and wallet tracking",
+        "UPI payment tracking and verification queue",
         "Performance dashboard with delivery analytics",
       ],
       popular: true,
@@ -595,71 +564,111 @@ export default function AdminPayments() {
           <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FDF6EC] text-[#B8641A]">
-                <KeyRound size={20} />
+                <ShieldCheck size={20} />
               </div>
               <div>
-                <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>Dairy Razorpay Keys</h3>
+                <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>Direct UPI Collection</h3>
                 <p className="mt-1 text-sm font-semibold text-[#8B7355]">
-                  Store this dairy's Razorpay credentials for customer checkout and wallet payments.
+                  Customers pay directly to the dairy owner. This dashboard tracks UTR submissions and pending verification.
                 </p>
               </div>
             </div>
             <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${
-              farmPlan?.paymentsEnabled
+              farmPlan?.upiId
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-amber-200 bg-amber-50 text-amber-700"
             }`}>
               <ShieldCheck size={13} />
-              {farmPlan?.paymentsEnabled ? farmPlan?.razorpayStatus || "CONFIGURED" : "Needs Setup"}
+              {farmPlan?.upiId ? "UPI READY" : "ADD UPI ID"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-            <label className="block">
-              <span className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">Key ID</span>
-              <input
-                type="text"
-                name="razorpayKeyId"
-                value={razorpayForm.razorpayKeyId}
-                onChange={handleRazorpayFormChange}
-                placeholder="rzp_live_xxxxxxxxxxxxx"
-                className="w-full rounded-[16px] border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#B89970]">Key Secret</span>
-              <div className="relative">
-                <input
-                  type={showRazorpaySecret ? "text" : "password"}
-                  name="razorpayKeySecret"
-                  value={razorpayForm.razorpayKeySecret}
-                  onChange={handleRazorpayFormChange}
-                  placeholder={farmPlan?.paymentsEnabled ? "Leave blank to keep existing secret" : "Paste Razorpay key secret"}
-                  className="w-full rounded-[16px] border border-[#E7DAC6] bg-white py-3 pl-4 pr-11 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B7A188] focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowRazorpaySecret((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] transition hover:text-[#5C3D1E]"
-                  title={showRazorpaySecret ? "Hide secret" : "Show secret"}
-                >
-                  {showRazorpaySecret ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </label>
-
-            <button
-              type="button"
-              onClick={saveRazorpaySetup}
-              disabled={razorpaySaving}
-              className="inline-flex h-[46px] items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] px-5 text-[11px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#9F5414] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {razorpaySaving ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-              Save Keys
-            </button>
+          <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
+            <div className="rounded-[22px] border border-[#EFE4D6] bg-[#FFF8F0] p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">UPI ID</p>
+              <p className="mt-2 text-sm font-semibold text-[#5C3D1E]">
+                {farmPlan?.upiId || "Configure UPI ID in Dairy Profile"}
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">Bank Account</p>
+              <p className="mt-2 break-all text-sm font-bold text-[#2C1A0E]">
+                {farmPlan?.bankAccountNumber ? `•••• ${String(farmPlan.bankAccountNumber).slice(-4)}` : "Not configured"}
+              </p>
+            </div>
+            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">Pending Verification</p>
+              <p className="mt-2 text-sm font-semibold text-[#5C3D1E]">
+                {verifications.length} UPI payment{verifications.length === 1 ? "" : "s"} waiting for review.
+              </p>
+            </div>
           </div>
         </div>
+
+        {verifications.length > 0 && (
+          <div className="mb-8 overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+            <div className="border-b border-[#F2EDE4] px-6 py-5">
+              <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>Payment Verification Queue</h3>
+              <p className="mt-1 text-sm font-semibold text-[#8B7355]">
+                Match each UTR with your UPI app/bank statement before approving.
+              </p>
+            </div>
+            <div className="divide-y divide-[#F2EDE4]">
+              {verifications.map((item) => (
+                <div key={item.id} className="grid gap-4 px-6 py-4 lg:grid-cols-[minmax(0,1.5fr)_1fr_auto] lg:items-center">
+                  <div>
+                    <p className="text-sm font-black text-[#2C1A0E]">{item.customerName}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#8B7355]">
+                      UTR: <span className="font-black text-[#5C3D1E]">{item.utr_number}</span>
+                    </p>
+                    {Array.isArray(item.fraud_flags) && item.fraud_flags.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {item.fraud_flags.map((flag) => (
+                          <span
+                            key={flag}
+                            className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-red-700"
+                          >
+                            <AlertTriangle size={10} />
+                            {String(flag).replaceAll("_", " ")}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {item.screenshot_url ? (
+                      <a className="mt-1 inline-block text-xs font-bold text-[#B8641A]" href={item.screenshot_url} target="_blank" rel="noreferrer">
+                        View screenshot
+                      </a>
+                    ) : null}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">Amount Submitted</p>
+                    <p className="mt-1 text-lg font-black text-[#2C1A0E]">{formatCurrency(item.amount)}</p>
+                    <p className="text-xs text-[#8B7355]">{item.payer_upi_id || "Payer UPI not provided"}</p>
+                    <p className="mt-1 text-xs font-bold text-[#5C3D1E]">
+                      Confidence: {Number(item.confidence_score ?? 0)}%
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApproveVerification(item.id)}
+                      className="rounded-xl bg-[#4A7C2F] px-4 py-2 text-xs font-black text-white"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRejectVerification(item.id)}
+                      className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-black text-red-700"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* SECTION 2: TABLE */}
         <div className="overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">

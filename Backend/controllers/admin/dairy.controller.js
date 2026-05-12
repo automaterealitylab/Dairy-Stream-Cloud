@@ -1,7 +1,8 @@
 // Backend/src/controllers/admin/dairy.controller.js
 import {
+  getAdminDairyProfileService,
   registerDairyService,
-  updateDairyRazorpaySetupService,
+  updateAdminDairyProfileService,
 } from "../../services/admin/dairy.service.js";
 import cloudinary from "../../config/cloudinary.js";
 import streamifier from "streamifier";
@@ -68,9 +69,10 @@ export const registerDairy = async (req, res) => {
   }
 };
 
-export const updateDairyRazorpaySetup = async (req, res) => {
+export const getAdminDairyProfile = async (req, res) => {
   try {
     const dairyId = req.admin?.dairyId;
+    const adminId = req.admin?.id;
     if (!dairyId) {
       return res.status(400).json({
         success: false,
@@ -78,19 +80,44 @@ export const updateDairyRazorpaySetup = async (req, res) => {
       });
     }
 
-    const { razorpayKeyId, razorpayKeySecret } = req.body || {};
-    const result = await updateDairyRazorpaySetupService({
+    const data = await getAdminDairyProfileService({
+      adminId,
       dairyId,
-      razorpayKeyId,
-      razorpayKeySecret,
+      revealBankDetails: req.query?.revealBankDetails === "true",
     });
-
-    res.json({ success: true, data: result });
+    res.json({ success: true, data });
   } catch (err) {
-    console.error("RAZORPAY SETUP ERROR:", err.message);
+    console.error("DAIRY PROFILE LOAD ERROR:", err.message);
     res.status(err.statusCode || 400).json({
       success: false,
-      error: err.message || "Failed to save Razorpay setup",
+      error: err.message || "Failed to load dairy profile",
+    });
+  }
+};
+
+export const updateAdminDairyProfile = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId;
+    const adminId = req.admin?.id;
+    if (!dairyId) {
+      return res.status(400).json({
+        success: false,
+        error: "Dairy context is required",
+      });
+    }
+
+    const data = await updateAdminDairyProfileService({
+      adminId,
+      dairyId,
+      payload: req.body || {},
+    });
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("DAIRY PROFILE UPDATE ERROR:", err.message);
+    res.status(err.statusCode || 400).json({
+      success: false,
+      error: err.message || "Failed to update dairy profile",
     });
   }
 };
