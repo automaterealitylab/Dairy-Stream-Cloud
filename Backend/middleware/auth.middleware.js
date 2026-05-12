@@ -3,13 +3,31 @@ import jwt from "jsonwebtoken";
 export const verifyToken = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
+    const jwtSecret = process.env.JWT_SECRET;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Authorization token missing",
+      });
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+
+    if (!jwtSecret) {
+      return res.status(500).json({
+        success: false,
+        message: "JWT secret is not configured",
+      });
+    }
+
+    const decoded = jwt.verify(token, jwtSecret);
 
     // Set user info based on role
     req.user = {
@@ -30,6 +48,13 @@ export const verifyToken = (req, res, next) => {
 
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Invalid or expired token" });
+    console.error("[AUTH MIDDLEWARE] token verification error:", {
+      name: err?.name,
+      message: err?.message || String(err),
+    });
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
   }
 };

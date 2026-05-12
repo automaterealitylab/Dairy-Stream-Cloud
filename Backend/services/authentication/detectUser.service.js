@@ -14,6 +14,17 @@ const isMissingColumnError = (error) => {
   return message.includes("column") && message.includes("does not exist");
 };
 
+const logLookupError = (lookup, error, meta = {}) => {
+  console.error("[AUTH DETECT] database lookup error:", {
+    lookup,
+    ...meta,
+    message: error?.message || String(error),
+    code: error?.code,
+    details: error?.details,
+    hint: error?.hint,
+  });
+};
+
 const findAdminByIdentifier = async (rawIdentifier) => {
   const identifier = normalizeIdentifier(rawIdentifier);
   const isEmail = identifier.includes("@");
@@ -26,7 +37,10 @@ const findAdminByIdentifier = async (rawIdentifier) => {
       .limit(1)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      logLookupError("admins.email", error, { identifierType: "email" });
+      throw error;
+    }
     return data || null;
   }
 
@@ -42,7 +56,10 @@ const findAdminByIdentifier = async (rawIdentifier) => {
       .maybeSingle();
 
     if (!error && data) return data;
-    if (error && !isMissingColumnError(error)) throw error;
+    if (error && !isMissingColumnError(error)) {
+      logLookupError("admins.mobile", error, { column });
+      throw error;
+    }
   }
 
   return null;
@@ -60,7 +77,10 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
       .limit(1)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      logLookupError("customers.email", error, { identifierType: "email" });
+      throw error;
+    }
     return data || null;
   }
 
@@ -74,7 +94,10 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    logLookupError("customers.phone_number", error);
+    throw error;
+  }
   return data || null;
 };
 
@@ -89,7 +112,10 @@ const findAgentByStaffId = async (rawIdentifier) => {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    logLookupError("agents.agent_id", error);
+    throw error;
+  }
   return data || null;
 };
 
