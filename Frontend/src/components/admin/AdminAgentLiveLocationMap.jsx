@@ -46,6 +46,27 @@ const getDeliveryCoordinates = (delivery) => {
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
 };
 
+const getDairyCoordinates = (source) => {
+  const lat = Number(
+    source?.dairyLat ??
+      source?.dairyLatitude ??
+      source?.dairyFarmLat ??
+      source?.dairyFarmLatitude ??
+      source?.dairy?.lat ??
+      source?.dairy?.latitude
+  );
+  const lng = Number(
+    source?.dairyLng ??
+      source?.dairyLongitude ??
+      source?.dairyFarmLng ??
+      source?.dairyFarmLongitude ??
+      source?.dairy?.lng ??
+      source?.dairy?.longitude
+  );
+
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+};
+
 const getDistanceInMeters = (from, to) => {
   if (!from || !to) return Number.POSITIVE_INFINITY;
   const [fromLat, fromLng] = from;
@@ -90,31 +111,51 @@ const fetchRoadRoute = async (fromCoordinates, toCoordinates, signal) => {
     : [];
 };
 
-const AdminAgentLiveLocationMap = ({ agentId }) => {
+const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
   const [agentPosition, setAgentPosition] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [isOffline, setIsOffline] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [primaryRoadRoute, setPrimaryRoadRoute] = useState([]);
   const [secondaryRouteSegments, setSecondaryRouteSegments] = useState([]);
+  const [completedRoadRoutes, setCompletedRoadRoutes] = useState([]);
+  const [dairyRoadRoute, setDairyRoadRoute] = useState([]);
   const [followTrigger, setFollowTrigger] = useState(0);
 
   const filteredDeliveries = useMemo(() => {
     const normalizedAgentId = String(agentId || "").trim();
-    if (!normalizedAgentId) return [];
+    const normalizedAgentName = String(agentName || "").trim().toLowerCase();
+    if (!normalizedAgentId && !normalizedAgentName) return [];
 
     return (deliveries || []).filter((delivery) => {
       const candidateIds = [
+        delivery?.agentID,
         delivery?.agentId,
         delivery?.agent_id,
+        delivery?.assignedToAgentId,
+        delivery?.assigned_to_agent_id,
         delivery?.assignedAgentId,
         delivery?.assigned_agent_id,
       ]
         .map((value) => String(value || "").trim())
         .filter(Boolean);
-      return candidateIds.includes(normalizedAgentId);
+
+      const candidateNames = [
+        delivery?.agentName,
+        delivery?.agent_name,
+        delivery?.assignedAgentName,
+        delivery?.assigned_agent_name,
+        delivery?.agent?.name,
+        delivery?.agent?.full_name,
+      ]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean);
+
+      const byId = normalizedAgentId ? candidateIds.includes(normalizedAgentId) : false;
+      const byName = normalizedAgentName ? candidateNames.includes(normalizedAgentName) : false;
+      return byId || byName;
     });
-  }, [agentId, deliveries]);
+  }, [agentId, agentName, deliveries]);
 
   const mappedDeliveries = useMemo(
     () =>
@@ -137,6 +178,13 @@ const AdminAgentLiveLocationMap = ({ agentId }) => {
     () => mappedDeliveries.filter((delivery) => isDeliveredStatus(delivery.normalizedStatus)),
     [mappedDeliveries]
   );
+  const dairyCoordinates = useMemo(() => {
+    for (const item of filteredDeliveries) {
+      const coordinates = getDairyCoordinates(item);
+      if (coordinates) return coordinates;
+    }
+    return null;
+  }, [filteredDeliveries]);
 
   const nearestPendingDelivery = useMemo(() => {
     if (!agentPosition || pendingDeliveries.length === 0) return null;
@@ -263,6 +311,58 @@ const AdminAgentLiveLocationMap = ({ agentId }) => {
     setSecondaryRouteSegments(segments);
   }, [orderedPendingDeliveries]);
 
+  useEffect(() => {
+    if (!agentPosition || deliveredDeliveries.length === 0) {
+      setCompletedRoadRoutes([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    Promise.all(
+      deliveredDeliveries.map(async (delivery) => {
+        try {
+          const points = await fetchRoadRoute(agentPosition, delivery.coordinates, controller.signal);
+          return {
+            id: String(delivery.id),
+            points: Array.isArray(points) && points.length >= 2 ? points : [agentPosition, delivery.coordinates],
+          };
+        } catch {
+          return {
+            id: String(delivery.id),
+            points: [agentPosition, delivery.coordinates].filter(Boolean),
+          };
+        }
+      })
+    )
+      .then((segments) => {
+        setCompletedRoadRoutes(segments.filter((segment) => segment.points.length >= 2));
+      })
+      .catch(() => {
+        setCompletedRoadRoutes([]);
+      });
+
+    return () => controller.abort();
+  }, [agentPosition, deliveredDeliveries]);
+
+  useEffect(() => {
+    if (!agentPosition || !dairyCoordinates) {
+      setDairyRoadRoute([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    fetchRoadRoute(agentPosition, dairyCoordinates, controller.signal)
+      .then((points) => {
+        setDairyRoadRoute(Array.isArray(points) ? points : []);
+      })
+      .catch(() => {
+        setDairyRoadRoute([agentPosition, dairyCoordinates].filter(Boolean));
+      });
+
+    return () => controller.abort();
+  }, [agentPosition, dairyCoordinates]);
+
   const mapCenter = agentPosition || nearestPendingDelivery?.coordinates || DEFAULT_CENTER;
 
   return (
@@ -328,12 +428,44 @@ const AdminAgentLiveLocationMap = ({ agentId }) => {
             );
           })}
 
+          {dairyCoordinates ? (
+            <Marker
+              position={dairyCoordinates}
+              icon={L.divIcon({
+                className: "custom-div-icon",
+                html: '<div style="background-color: #D93025; width: 16px; height: 16px; border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 4px 10px rgba(44,26,14,0.2);"></div>',
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+              })}
+            >
+              <Popup>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-bold text-[#2C1A0E]">Dairy location</p>
+                  <p className="text-[10px] font-semibold text-[#D93025]">Source dairy</p>
+                </div>
+              </Popup>
+            </Marker>
+          ) : null}
+
           {primaryRoadRoute.length >= 2 ? (
             <Polyline
               positions={primaryRoadRoute}
               pathOptions={{ color: "#5c87ea", weight: 5, opacity: 0.9 }}
             />
           ) : null}
+
+          {completedRoadRoutes.map((segment, index) => (
+            <Polyline
+              key={segment.id || `completed-route-${index}`}
+              positions={segment.points}
+              pathOptions={{
+                color: "#9CA3AF",
+                weight: 3,
+                opacity: 0.85,
+                dashArray: "7 9",
+              }}
+            />
+          ))}
 
           {secondaryRouteSegments.map((segment) => (
             <Polyline
@@ -347,6 +479,18 @@ const AdminAgentLiveLocationMap = ({ agentId }) => {
               }}
             />
           ))}
+
+          {dairyRoadRoute.length >= 2 ? (
+            <Polyline
+              positions={dairyRoadRoute}
+              pathOptions={{
+                color: "#FCA5A5",
+                weight: 4,
+                opacity: 0.95,
+                dashArray: "8 8",
+              }}
+            />
+          ) : null}
         </MapContainer>
       </div>
     </div>

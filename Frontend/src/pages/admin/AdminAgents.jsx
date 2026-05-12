@@ -286,7 +286,10 @@ export default function AdminAgents() {
               </button>
             </div>
             <div className="p-4 sm:p-5">
-              <AdminAgentLiveLocationMap agentId={liveTrackingAgent.id} />
+              <AdminAgentLiveLocationMap
+                agentId={liveTrackingAgent.id}
+                agentName={liveTrackingAgent.name}
+              />
             </div>
           </div>
         </div>
