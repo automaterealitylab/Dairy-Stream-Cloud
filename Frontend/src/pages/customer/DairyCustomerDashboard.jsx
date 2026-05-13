@@ -184,10 +184,7 @@ const normalizeAddExtraPaymentOption = (value) => {
   if (["SUBSCRIPTION", "ADD_TO_SUBSCRIPTION", "MONTHLY_BILL"].includes(normalized)) {
     return "ADD_TO_SUBSCRIPTION";
   }
-  if (["COD", "CASH"].includes(normalized)) {
-    return "PAY_NOW_CASH";
-  }
-  return "PAY_NOW_ONLINE";
+  return "PAY_NOW_CASH";
 };
 
 const getAddExtraOrderPaymentMethod = (option) => {
@@ -451,7 +448,6 @@ export default function DairyCustomerDashboard() {
     linkedExtraDairyId != null &&
     String(subscription.dairyId) === String(linkedExtraDairyId);
   const addExtraPaymentOptions = [
-    { id: "PAY_NOW_ONLINE", label: "Pay Now Online" },
     { id: "PAY_NOW_CASH", label: "Cash on Delivery" },
     ...(canAddExtraToSubscriptionBill
       ? [{ id: "ADD_TO_SUBSCRIPTION", label: "Add to Subscription Bill" }]
@@ -506,11 +502,19 @@ export default function DairyCustomerDashboard() {
       prev.paymentMethod === "ADD_TO_SUBSCRIPTION"
         ? {
             ...prev,
-            paymentMethod: "PAY_NOW_ONLINE",
+            paymentMethod: "PAY_NOW_CASH",
           }
         : prev
     );
   }, [addExtraForm.paymentMethod, canAddExtraToSubscriptionBill]);
+  useEffect(() => {
+    if (addExtraForm.paymentMethod !== "PAY_NOW_ONLINE") return;
+
+    setAddExtraForm((prev) => ({
+      ...prev,
+      paymentMethod: "PAY_NOW_CASH",
+    }));
+  }, [addExtraForm.paymentMethod]);
   const nextExtraDeliveryLabel = new Date(`${nextExtraDeliveryDate}T00:00:00`).toLocaleDateString(
     "en-IN",
     {
@@ -573,8 +577,6 @@ export default function DairyCustomerDashboard() {
   const formattedAddExtraTotal = `Rs.${Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}`;
   const addExtraSubmitLabel = addExtraSubmitting
     ? "Placing extra orders..."
-    : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
-    ? `Pay ${formattedAddExtraTotal} & Add Extras`
     : addExtraForm.paymentMethod === "PAY_NOW_CASH"
     ? `Add Extras for ${formattedAddExtraTotal} with Cash`
     : `Add ${formattedAddExtraTotal} to Subscription Bill`;
@@ -660,6 +662,9 @@ export default function DairyCustomerDashboard() {
     }
 
     const orderPayload = await createCustomerPaymentOrder({ paymentId });
+    if (!orderPayload?.order?.amount || !orderPayload?.order?.id || !orderPayload?.keyId) {
+      throw new Error("Online payment checkout is not available right now. Please use Cash on Delivery.");
+    }
 
     return new Promise((resolve, reject) => {
       const checkout = new window.Razorpay({
@@ -723,7 +728,7 @@ export default function DairyCustomerDashboard() {
         : getStoredCustomerAddress();
     const preferredPaymentMethod = canAddExtraToSubscriptionBill
       ? normalizeAddExtraPaymentOption(subscription?.paymentMethod)
-      : "PAY_NOW_ONLINE";
+      : "PAY_NOW_CASH";
     const preferredSlot = normalizeAddExtraSlot(subscription?.slot || tomorrow?.slot || "Morning");
     const preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
     const preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
@@ -842,6 +847,14 @@ export default function DairyCustomerDashboard() {
       setAddExtraError(
         "Add to Subscription Bill is available only when you have an active subscription with this dairy."
       );
+      return;
+    }
+    if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
+      setAddExtraError("Online payment checkout is not available right now. Please use Cash on Delivery.");
+      setAddExtraForm((prev) => ({
+        ...prev,
+        paymentMethod: "PAY_NOW_CASH",
+      }));
       return;
     }
 
