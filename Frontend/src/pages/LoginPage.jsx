@@ -190,6 +190,7 @@ const LoginPage = () => {
         setStep("OTP");
 
         if (!response.otpRequested) {
+          setLoading(false);
           try {
             const otpResponse = await requestOtpApi({
               identifier: normalizedIdentifier,
