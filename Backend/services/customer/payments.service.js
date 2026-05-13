@@ -1286,7 +1286,12 @@ export const addAmountToCustomerWallet = async ({
   };
 };
 
-const normalizeUpiId = (value) => String(value || "").trim();
+const normalizeUpiId = (value) => String(value || "").trim().toLowerCase();
+
+const isValidUpiId = (value) => {
+  const normalized = normalizeUpiId(value);
+  return /^[a-z0-9][a-z0-9._-]{1,255}@[a-z][a-z0-9._-]{2,63}$/.test(normalized);
+};
 
 const normalizeUtr = (value) =>
   String(value || "")
@@ -1418,6 +1423,14 @@ export const createCustomerUpiPaymentIntent = async ({
 
   if (!upiId) {
     const error = new Error("This dairy has not configured a UPI ID yet");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isValidUpiId(upiId)) {
+    const error = new Error(
+      `The dairy UPI ID "${beneficiary?.upiId}" is invalid. Ask the dairy admin to save a valid UPI ID like name@bank.`
+    );
     error.statusCode = 400;
     throw error;
   }

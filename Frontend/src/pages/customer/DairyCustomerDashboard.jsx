@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -6,11 +7,11 @@ import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import {
   cancelCustomerOneTimeOrder,
   createCustomerOneTimeOrder,
-  createCustomerPaymentOrder,
+  createCustomerUpiPaymentIntent,
   fetchCustomerDashboard,
   reportCustomerDeliveryIssue,
   saveCustomerSubscription,
-  verifyCustomerPayment,
+  submitCustomerUpiPaymentVerification,
 } from "../../api/customer/customer.api.js";
 import { fetchPublicDairyById } from "../../api/public.api.js";
 import {
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
+const formatCurrency = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
 const ACTIONS = [
   {
@@ -184,7 +186,10 @@ const normalizeAddExtraPaymentOption = (value) => {
   if (["SUBSCRIPTION", "ADD_TO_SUBSCRIPTION", "MONTHLY_BILL"].includes(normalized)) {
     return "ADD_TO_SUBSCRIPTION";
   }
-  return "PAY_NOW_CASH";
+  if (["COD", "CASH"].includes(normalized)) {
+    return "PAY_NOW_CASH";
+  }
+  return "PAY_NOW_ONLINE";
 };
 
 const getAddExtraOrderPaymentMethod = (option) => {
@@ -361,6 +366,13 @@ export default function DairyCustomerDashboard() {
   const [addExtraDairy, setAddExtraDairy] = useState(null);
   const [addExtraProducts, setAddExtraProducts] = useState([]);
   const [showDuplicateExtraConfirm, setShowDuplicateExtraConfirm] = useState(false);
+  const [addExtraUpiIntent, setAddExtraUpiIntent] = useState(null);
+  const [addExtraUpiForm, setAddExtraUpiForm] = useState({
+    utrNumber: "",
+    payerUpiId: "",
+    screenshotFile: null,
+  });
+  const [addExtraUpiSubmitting, setAddExtraUpiSubmitting] = useState(false);
   const [addExtraForm, setAddExtraForm] = useState({
     selectedProducts: [],
     quantities: {},
@@ -448,6 +460,7 @@ export default function DairyCustomerDashboard() {
     linkedExtraDairyId != null &&
     String(subscription.dairyId) === String(linkedExtraDairyId);
   const addExtraPaymentOptions = [
+    { id: "PAY_NOW_ONLINE", label: "Pay Now Online" },
     { id: "PAY_NOW_CASH", label: "Cash on Delivery" },
     ...(canAddExtraToSubscriptionBill
       ? [{ id: "ADD_TO_SUBSCRIPTION", label: "Add to Subscription Bill" }]
@@ -502,19 +515,11 @@ export default function DairyCustomerDashboard() {
       prev.paymentMethod === "ADD_TO_SUBSCRIPTION"
         ? {
             ...prev,
-            paymentMethod: "PAY_NOW_CASH",
+            paymentMethod: "PAY_NOW_ONLINE",
           }
         : prev
     );
   }, [addExtraForm.paymentMethod, canAddExtraToSubscriptionBill]);
-  useEffect(() => {
-    if (addExtraForm.paymentMethod !== "PAY_NOW_ONLINE") return;
-
-    setAddExtraForm((prev) => ({
-      ...prev,
-      paymentMethod: "PAY_NOW_CASH",
-    }));
-  }, [addExtraForm.paymentMethod]);
   const nextExtraDeliveryLabel = new Date(`${nextExtraDeliveryDate}T00:00:00`).toLocaleDateString(
     "en-IN",
     {
@@ -577,6 +582,8 @@ export default function DairyCustomerDashboard() {
   const formattedAddExtraTotal = `Rs.${Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}`;
   const addExtraSubmitLabel = addExtraSubmitting
     ? "Placing extra orders..."
+    : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
+    ? `Pay ${formattedAddExtraTotal} & Add Extras`
     : addExtraForm.paymentMethod === "PAY_NOW_CASH"
     ? `Add Extras for ${formattedAddExtraTotal} with Cash`
     : `Add ${formattedAddExtraTotal} to Subscription Bill`;
@@ -618,20 +625,6 @@ export default function DairyCustomerDashboard() {
     setDashboardData(fresh);
   };
 
-  const loadRazorpayCheckoutScript = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-
   const getExtraOrderPaymentId = (response) =>
     response?.payment?.id ||
     response?.paymentId ||
@@ -651,62 +644,17 @@ export default function DairyCustomerDashboard() {
     }
   };
 
-  const processExtraOnlinePayment = async (paymentId, description) => {
+  const startExtraUpiPayment = async (paymentId) => {
     if (!paymentId) {
-      throw new Error("Payment reference missing for online payment");
+      throw new Error("Payment reference missing for UPI payment");
     }
 
-    const scriptLoaded = await loadRazorpayCheckoutScript();
-    if (!scriptLoaded) {
-      throw new Error("Failed to load payment checkout");
-    }
-
-    const orderPayload = await createCustomerPaymentOrder({ paymentId });
-    if (!orderPayload?.order?.amount || !orderPayload?.order?.id || !orderPayload?.keyId) {
-      throw new Error("Online payment checkout is not available right now. Please use Cash on Delivery.");
-    }
-
-    return new Promise((resolve, reject) => {
-      const checkout = new window.Razorpay({
-        key: orderPayload.keyId,
-        amount: orderPayload.order.amount,
-        currency: orderPayload.order.currency,
-        name: "Dairy Stream",
-        description: description || orderPayload.payment?.title || "Extra dairy order",
-        order_id: orderPayload.order.id,
-        handler: async (response) => {
-          try {
-            await verifyCustomerPayment({
-              paymentId,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            resolve({ paid: true });
-          } catch (err) {
-            const verificationError = new Error(
-              err?.response?.data?.message || err?.message || "Payment verification failed"
-            );
-            verificationError.code = "PAYMENT_VERIFY_FAILED";
-            reject(verificationError);
-          }
-        },
-        modal: {
-          ondismiss: () => resolve({ paid: false, dismissed: true }),
-        },
-        theme: { color: "#B8641A" },
-      });
-
-      checkout.on("payment.failed", (failedResponse) => {
-        resolve({
-          paid: false,
-          failed: true,
-          reason: failedResponse?.error?.description || "Payment failed",
-        });
-      });
-
-      checkout.open();
+    const intentPayload = await createCustomerUpiPaymentIntent({ paymentId });
+    setAddExtraUpiIntent({
+      ...intentPayload,
+      paymentId,
     });
+    setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
   };
 
   const closeAddExtraModal = () => {
@@ -728,7 +676,7 @@ export default function DairyCustomerDashboard() {
         : getStoredCustomerAddress();
     const preferredPaymentMethod = canAddExtraToSubscriptionBill
       ? normalizeAddExtraPaymentOption(subscription?.paymentMethod)
-      : "PAY_NOW_CASH";
+      : "PAY_NOW_ONLINE";
     const preferredSlot = normalizeAddExtraSlot(subscription?.slot || tomorrow?.slot || "Morning");
     const preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
     const preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
@@ -849,14 +797,6 @@ export default function DairyCustomerDashboard() {
       );
       return;
     }
-    if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
-      setAddExtraError("Online payment checkout is not available right now. Please use Cash on Delivery.");
-      setAddExtraForm((prev) => ({
-        ...prev,
-        paymentMethod: "PAY_NOW_CASH",
-      }));
-      return;
-    }
 
     setAddExtraSubmitting(true);
     setAddExtraError("");
@@ -864,8 +804,40 @@ export default function DairyCustomerDashboard() {
     try {
       setShowDuplicateExtraConfirm(false);
 
-      for (const line of selectedAddExtraOrderLines) {
+      if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
         const response = await createCustomerOneTimeOrder({
+          dairyId: linkedExtraDairyId,
+          items: selectedAddExtraOrderLines.map((line) => ({
+            milkType: line.product.name,
+            quantity: line.quantity,
+          })),
+          deliveryDate: nextExtraDeliveryDate,
+          slot: addExtraForm.slot,
+          paymentMethod: getAddExtraOrderPaymentMethod(addExtraForm.paymentMethod),
+          address: addExtraForm.address.trim(),
+          isExtraOrder: true,
+          allowDuplicate,
+        });
+
+        const paymentId = getExtraOrderPaymentId(response);
+        if (!paymentId) {
+          const orderIds = response?.orderIds || response?.orders?.map((order) => order.id) || [];
+          await rollbackCancelledExtraOrder({
+            orderId: response?.order?.id || orderIds[0] || null,
+            paymentId,
+          });
+          setAddExtraError("Could not start UPI payment. The extra order was not placed.");
+          return;
+        }
+
+        await startExtraUpiPayment(paymentId);
+        setShowAddExtraModal(false);
+        refreshDashboard().catch(() => {});
+        return;
+      }
+
+      for (const line of selectedAddExtraOrderLines) {
+        await createCustomerOneTimeOrder({
           dairyId: linkedExtraDairyId,
           milkType: line.product.name,
           quantity: line.quantity,
@@ -877,52 +849,6 @@ export default function DairyCustomerDashboard() {
           isExtraOrder: true,
           allowDuplicate,
         });
-
-        if (addExtraForm.paymentMethod !== "PAY_NOW_ONLINE") {
-          continue;
-        }
-
-        const orderId = response?.order?.id || null;
-        const paymentId = getExtraOrderPaymentId(response);
-
-        if (!orderId || !paymentId) {
-          await rollbackCancelledExtraOrder({ orderId, paymentId });
-          setAddExtraError("Could not start payment. The extra order was not placed.");
-          return;
-        }
-
-        let paymentResult = null;
-        try {
-          paymentResult = await processExtraOnlinePayment(paymentId, line.product.name);
-        } catch (paymentErr) {
-          if (paymentErr?.code === "PAYMENT_VERIFY_FAILED") {
-            showToast("Payment received but verification failed. Check Payments.", "warning");
-            setShowAddExtraModal(false);
-            navigate("/customer/dashboard/payments");
-            refreshDashboard().catch(() => {});
-            return;
-          }
-
-          await rollbackCancelledExtraOrder({ orderId, paymentId });
-          setAddExtraError(paymentErr?.message || "Payment cancelled. The extra order was not placed.");
-          return;
-        }
-
-        if (paymentResult?.paid) {
-          continue;
-        }
-
-        if (paymentResult?.dismissed || paymentResult?.failed) {
-          await rollbackCancelledExtraOrder({ orderId, paymentId });
-          setAddExtraError(
-            paymentResult?.reason || "Payment was cancelled. The extra order was not placed."
-          );
-          return;
-        }
-
-        await rollbackCancelledExtraOrder({ orderId, paymentId });
-        setAddExtraError("Payment was not completed. The extra order was not placed.");
-        return;
       }
 
       const selectedCount = selectedAddExtraOrderLines.length;
@@ -947,6 +873,39 @@ export default function DairyCustomerDashboard() {
       setAddExtraError(message);
     } finally {
       setAddExtraSubmitting(false);
+    }
+  };
+
+  const submitExtraUpiVerification = async () => {
+    if (!addExtraUpiIntent) return;
+
+    const utrNumber = String(addExtraUpiForm.utrNumber || "").trim();
+    if (!utrNumber) {
+      setAddExtraError("Enter the UTR/reference number after payment.");
+      return;
+    }
+
+    setAddExtraUpiSubmitting(true);
+    setAddExtraError("");
+
+    try {
+      await submitCustomerUpiPaymentVerification({
+        paymentId: addExtraUpiIntent.paymentId || addExtraUpiIntent.payment?.id || "",
+        amount: addExtraUpiIntent.amount,
+        utrNumber,
+        payerUpiId: addExtraUpiForm.payerUpiId,
+        screenshotFile: addExtraUpiForm.screenshotFile,
+      });
+      setAddExtraUpiIntent(null);
+      setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+      showToast("UPI payment submitted for dairy verification.", "success");
+      refreshDashboard().catch(() => {});
+    } catch (err) {
+      setAddExtraError(
+        err?.response?.data?.message || err?.message || "Unable to submit UPI verification."
+      );
+    } finally {
+      setAddExtraUpiSubmitting(false);
     }
   };
 
@@ -1786,6 +1745,142 @@ export default function DairyCustomerDashboard() {
                   </div>
                 </div>
               </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {addExtraUpiIntent && (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
+            <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px]">
+              <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
+                    Direct UPI Payment
+                  </p>
+                  <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
+                    Pay {formatCurrency(addExtraUpiIntent.amount)} to{" "}
+                    {addExtraUpiIntent.beneficiary?.dairyName || "Dairy"}
+                  </h3>
+                  <p className="mt-1 text-sm text-[#8B7355]">
+                    Complete payment in your UPI app, then submit the UTR/reference number for dairy verification.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (addExtraUpiSubmitting) return;
+                    setAddExtraUpiIntent(null);
+                    setAddExtraError("");
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8] disabled:opacity-50"
+                  disabled={addExtraUpiSubmitting}
+                  aria-label="Close UPI payment"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              <div className="grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+                <div className="rounded-2xl border border-[#EDE8DF] bg-[#FFFDF8] p-4 text-center">
+                  <div className="mx-auto inline-flex rounded-xl bg-white p-3 shadow-sm">
+                    <QRCodeSVG value={addExtraUpiIntent.upiLink || ""} size={196} includeMargin />
+                  </div>
+                  <p className="mt-3 break-words text-xs font-semibold text-[#7B6247]">
+                    {addExtraUpiIntent.beneficiary?.upiId}
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#B89970]">Scan with any UPI app</p>
+                </div>
+
+                <div className="space-y-4">
+                  {addExtraError && (
+                    <div className="rounded-[14px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm text-[#C0392B]">
+                      {addExtraError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      ["UPI App", addExtraUpiIntent.intents?.upi],
+                      ["Google Pay", addExtraUpiIntent.intents?.googlePay],
+                      ["PhonePe", addExtraUpiIntent.intents?.phonePe],
+                      ["Paytm", addExtraUpiIntent.intents?.paytm],
+                    ].map(([label, href]) => (
+                      <a
+                        key={label}
+                        href={href || addExtraUpiIntent.upiLink}
+                        className="rounded-xl border border-[#E5DCCF] bg-[#FAFAF7] px-3 py-3 text-center text-xs font-black text-[#5C3D1E] no-underline transition hover:border-[#B8641A] hover:bg-[#FFF3E2]"
+                      >
+                        {label}
+                      </a>
+                    ))}
+                  </div>
+
+                  <label className="block">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                      UTR / Reference Number
+                    </span>
+                    <input
+                      value={addExtraUpiForm.utrNumber}
+                      onChange={(event) =>
+                        setAddExtraUpiForm((prev) => ({
+                          ...prev,
+                          utrNumber: event.target.value.toUpperCase(),
+                        }))
+                      }
+                      placeholder="Enter UPI reference number"
+                      className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                      Your UPI ID Optional
+                    </span>
+                    <input
+                      value={addExtraUpiForm.payerUpiId}
+                      onChange={(event) =>
+                        setAddExtraUpiForm((prev) => ({
+                          ...prev,
+                          payerUpiId: event.target.value,
+                        }))
+                      }
+                      placeholder="name@bank"
+                      className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                      Payment Screenshot Optional
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) =>
+                        setAddExtraUpiForm((prev) => ({
+                          ...prev,
+                          screenshotFile: event.target.files?.[0] || null,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E]"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={submitExtraUpiVerification}
+                    disabled={addExtraUpiSubmitting}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2C1A0E] px-5 py-3 text-sm font-black text-white transition hover:bg-[#B8641A] disabled:bg-[#D8C8B2]"
+                  >
+                    {addExtraUpiSubmitting ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <CreditCard size={15} />
+                    )}
+                    Submit For Verification
+                  </button>
                 </div>
               </div>
             </div>
