@@ -155,13 +155,25 @@ export const detectUserService = async (identifier, options = {}) => {
 
   if (customer) {
     const hasOtpDelivery = Boolean(String(customer.email || "").trim());
+    let otpRequested = false;
+    let otpDeliveryError = null;
 
     if (requestCustomerOtp && hasOtpDelivery) {
-      await generateCustomerOtp({
-        identifier: normalizeCustomerLoginIdentifier(rawId),
-        dairyId,
-        customer,
-      });
+      try {
+        await generateCustomerOtp({
+          identifier: normalizeCustomerLoginIdentifier(rawId),
+          dairyId,
+          customer,
+        });
+        otpRequested = true;
+      } catch (error) {
+        otpDeliveryError = error?.message || "Failed to send OTP";
+        console.error("[AUTH DETECT] customer OTP delivery failed:", {
+          customerId: customer.id,
+          dairyId,
+          message: otpDeliveryError,
+        });
+      }
     }
 
     return {
@@ -170,7 +182,8 @@ export const detectUserService = async (identifier, options = {}) => {
       nextStep: "OTP",
       name: customer.customer_name || "Customer",
       hasOtpDelivery,
-      otpRequested: Boolean(requestCustomerOtp && hasOtpDelivery),
+      otpRequested,
+      otpDeliveryError,
       emailMasked: hasOtpDelivery
         ? customer.email.replace(/(^.).*(@.*$)/, "$1***$2")
         : null,

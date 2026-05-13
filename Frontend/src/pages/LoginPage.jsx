@@ -148,7 +148,7 @@ const LoginPage = () => {
 
     try {
       const response = await detectUserApi(normalizedIdentifier, {
-        requestCustomerOtp: true,
+        requestCustomerOtp: false,
         dairyId: selectedDairy?.id,
       });
 
@@ -190,12 +190,23 @@ const LoginPage = () => {
         setStep("OTP");
 
         if (!response.otpRequested) {
-          const otpResponse = await requestOtpApi({
-            identifier: normalizedIdentifier,
-            dairyId: response.dairy?.id ?? selectedDairy?.id,
-          });
-          setOtpTimer(30);
-          toast.success(otpResponse?.message || "OTP sent successfully");
+          try {
+            const otpResponse = await requestOtpApi({
+              identifier: normalizedIdentifier,
+              dairyId: response.dairy?.id ?? selectedDairy?.id,
+            });
+            setOtpTimer(30);
+            toast.success(otpResponse?.message || "OTP sent successfully");
+          } catch (otpErr) {
+            const backendMessage =
+              otpErr.response?.data?.error ||
+              otpErr.response?.data?.message ||
+              otpErr.message ||
+              "Failed to send OTP";
+
+            setError(backendMessage);
+            toast.error(backendMessage);
+          }
           return;
         }
 
