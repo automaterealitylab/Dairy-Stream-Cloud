@@ -3,9 +3,12 @@ import { logger, logError } from "../utils/logger.js";
 
 let sharedConnection = null;
 
-export const isRedisEnabled = () =>
-  String(process.env.REDIS_ENABLED || "false").toLowerCase() === "true" ||
-  Boolean(process.env.REDIS_URL);
+export const isRedisEnabled = () => {
+  const redisEnabled = String(process.env.REDIS_ENABLED || "").trim().toLowerCase();
+  if (redisEnabled === "false") return false;
+  if (redisEnabled === "true") return true;
+  return Boolean(String(process.env.REDIS_URL || "").trim());
+};
 
 export const getRedisConnection = () => {
   if (!isRedisEnabled()) return null;

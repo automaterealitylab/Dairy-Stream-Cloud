@@ -8,13 +8,18 @@ const requiredInProduction = [
 
 export const validateRuntimeEnv = () => {
   const missing = [];
+  const redisEnabled = String(process.env.REDIS_ENABLED || "").trim().toLowerCase();
+  const isRedisEnabled =
+    redisEnabled === "true" ||
+    (redisEnabled !== "false" && Boolean(String(process.env.REDIS_URL || "").trim()));
+
   if (process.env.NODE_ENV === "production") {
     for (const key of requiredInProduction) {
       if (!String(process.env[key] || "").trim()) missing.push(key);
     }
   }
 
-  if (process.env.REDIS_ENABLED === "true" && !String(process.env.REDIS_URL || "").trim()) {
+  if (redisEnabled === "true" && !String(process.env.REDIS_URL || "").trim()) {
     missing.push("REDIS_URL");
   }
 
@@ -28,7 +33,7 @@ export const validateRuntimeEnv = () => {
 
   logger.info("runtime_env_validated", {
     nodeEnv: process.env.NODE_ENV || "development",
-    redisEnabled: process.env.REDIS_ENABLED === "true" || Boolean(process.env.REDIS_URL),
+    redisEnabled: isRedisEnabled,
     apiSigningRequired: process.env.API_REQUEST_SIGNING_REQUIRED === "true",
   });
 };
