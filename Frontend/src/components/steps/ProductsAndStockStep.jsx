@@ -12,6 +12,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
     name: "",
     category: "Milk",
     unit: "Liter",
+    packagingQuantity: "",
+    packagingUnit: "Liter",
     rate: "",
     stock: "",
     isActive: true,
@@ -32,6 +34,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
         [newProduct.name]: {
           category: newProduct.category,
           unit: newProduct.unit,
+          packagingQuantity: parseFloat(newProduct.packagingQuantity) || 0,
+          packagingUnit: newProduct.packagingUnit,
           rate: parseInt(newProduct.rate),
           stock: parseFloat(newProduct.stock),
           status: newProduct.isActive ? "Active" : "Inactive",
@@ -45,6 +49,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
       name: "",
       category: "Milk",
       unit: "Liter",
+      packagingQuantity: "",
+      packagingUnit: "Liter",
       rate: "",
       stock: "",
       isActive: true,
@@ -75,8 +81,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
         Add each product customers can order, along with rate, stock, and availability.
       </p>
 
-      <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-3">
-        <div className="self-start md:sticky md:top-10 md:col-span-1">
+      <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-5">
+        <div className="self-start md:sticky md:top-10 md:col-span-2">
           <div className="space-y-6 rounded-[24px] border border-[#E7DAC6] bg-[#FBF7F0] p-5 sm:rounded-[28px] sm:p-8">
             <h3 className="flex items-center gap-2 text-xl font-bold text-[#2C1A0E]">
               <Milk size={20} className="text-[#B8641A]" />
@@ -106,7 +112,16 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
 
               <select
                 value={newProduct.unit}
-                onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
+                onChange={(e) => {
+                  const selectedUnit = e.target.value;
+                  const packagingUnit =
+                    selectedUnit === "Liter"
+                      ? "Liter"
+                      : selectedUnit === "Kg"
+                        ? "Kg"
+                        : selectedUnit;
+                  setNewProduct({ ...newProduct, unit: selectedUnit, packagingUnit });
+                }}
                 className={controlClassName}
               >
                 <option>Liter</option>
@@ -117,21 +132,61 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <input
-                type="number"
-                placeholder="Rate (Rs)"
-                value={newProduct.rate}
-                onChange={(e) => setNewProduct({ ...newProduct, rate: e.target.value })}
-                className={controlClassName}
-              />
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#A88763]">Rate</p>
+                <input
+                  type="number"
+                  placeholder="Rate (Rs)"
+                  value={newProduct.rate}
+                  onChange={(e) => setNewProduct({ ...newProduct, rate: e.target.value })}
+                  className={controlClassName}
+                />
+              </div>
 
-              <input
-                type="number"
-                placeholder="Stock"
-                value={newProduct.stock}
-                onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-                className={controlClassName}
-              />
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#A88763]">Stock</p>
+                <input
+                  type="number"
+                  placeholder="Stock"
+                  value={newProduct.stock}
+                  onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+                  className={controlClassName}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#A88763]">
+                  Packaging Quantity
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
+                  <input
+                    type="number"
+                    placeholder={`Packaging quantity in ${newProduct.packagingUnit}`}
+                    value={newProduct.packagingQuantity}
+                    onChange={(e) => setNewProduct({ ...newProduct, packagingQuantity: e.target.value })}
+                    className={controlClassName}
+                  />
+                  <select
+                    value={newProduct.packagingUnit}
+                    onChange={(e) => setNewProduct({ ...newProduct, packagingUnit: e.target.value })}
+                    className={controlClassName}
+                  >
+                    {newProduct.unit === "Liter" ? (
+                      <>
+                        <option>Liter</option>
+                        <option>ml</option>
+                      </>
+                    ) : newProduct.unit === "Kg" ? (
+                      <>
+                        <option>Kg</option>
+                        <option>gram</option>
+                      </>
+                    ) : (
+                      <option>{newProduct.unit}</option>
+                    )}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <label className="flex items-center gap-2 text-sm font-medium text-[#8B7355]">
@@ -153,7 +208,7 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
           </div>
         </div>
 
-        <div className="flex flex-col md:col-span-2">
+        <div className="flex flex-col md:col-span-3">
           <div className="mb-6 flex items-center rounded-[18px] border border-[#EDE8DF] bg-white px-5 py-3">
             <Search size={20} className="mr-3 text-[#C4A882]" />
             <input
@@ -181,7 +236,7 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
                         <Milk size={16} className="text-[#B8641A]" />
                         <span className="truncate">{name}</span>
                       </span>
-                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
                         <div>
                           <p className="font-bold uppercase tracking-[0.14em] text-[#A88763]">Type</p>
                           <p className="mt-1 text-sm font-semibold text-[#8B7355]">{details.category}</p>
@@ -193,6 +248,12 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
                         <div>
                           <p className="font-bold uppercase tracking-[0.14em] text-[#A88763]">Stock</p>
                           <p className="mt-1 text-sm font-semibold text-[#8B7355]">{details.stock}</p>
+                        </div>
+                        <div>
+                          <p className="font-bold uppercase tracking-[0.14em] text-[#A88763]">Pack Qty</p>
+                          <p className="mt-1 text-sm font-semibold text-[#8B7355]">
+                            {details.packagingQuantity || 0} {details.packagingUnit || details.unit}
+                          </p>
                         </div>
                       </div>
                     </div>

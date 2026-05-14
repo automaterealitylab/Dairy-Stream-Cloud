@@ -3,13 +3,25 @@ import { X, Package, MapPin, Phone, User, Building2, CheckCircle, XCircle } from
 import { startDelivery, updateAgentLocation } from '../../api/agent/location';
 import { ensureSocketConnection } from '../../socket';
 
+const formatQuantity = (value) => {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return "0";
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1).replace(/\.0$/, "");
+};
+
+const getItemLabel = (item = {}) =>
+  String(item?.product || item?.productName || item?.milkType || item?.milk_type || item?.itemName || "").trim() || "Item";
+
 const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFailed }) => {
   const normalizedStatus = String(delivery?.status || '').toUpperCase();
   const actionStatus = normalizedStatus === "IN_TRANSIT" ? "OUT_FOR_DELIVERY" : normalizedStatus;
+  const mergedDeliveries = Array.isArray(delivery?.mergedDeliveries) ? delivery.mergedDeliveries : [];
+  const hasMergedItems = mergedDeliveries.length > 1;
+  const resolvedAmountDue = Number(hasMergedItems ? delivery?.totalAmountDue : delivery?.amountDue || 0);
   const requiresPaymentCollection =
     Boolean(delivery?.requiresPaymentCollection) && ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
   const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
-  const amountDue = Number(delivery?.amountDue || 0);
+  const amountDue = resolvedAmountDue;
   const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
   const [isTracking, setIsTracking] = useState(false);
   const [trackingError, setTrackingError] = useState('');
@@ -160,28 +172,28 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] ring-1 ring-white/40 shadow-[0_26px_64px_rgba(44,26,14,0.34)]"
+        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-[24px] border border-[#E7DAC6] bg-[#FFFDF7] ring-1 ring-white/40 shadow-[0_22px_50px_rgba(44,26,14,0.3)]"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E7DAC6] bg-[#FFF8EF] px-5 py-4">
-          <h3 className="text-xl font-black text-[#2C1A0E]">Delivery Details</h3>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E7DAC6] bg-[#FFF8EF] px-4 py-3">
+          <h3 className="text-lg font-black text-[#2C1A0E]">Delivery Details</h3>
           <button
             onClick={onClose}
-            className="rounded-full border border-[#E7DAC6] bg-white p-2 text-[#8B7355] transition hover:bg-[#FBF7F0]"
+            className="rounded-full border border-[#E7DAC6] bg-white p-1.5 text-[#8B7355] transition hover:bg-[#FBF7F0]"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="space-y-4 p-5">
+        <div className="space-y-3 p-4">
           {/* Status Badge */}
-          <div className="flex items-center justify-between rounded-[16px] border border-[#E7DAC6] bg-white px-3 py-2.5">
+          <div className="flex items-center justify-between rounded-[14px] border border-[#E7DAC6] bg-white px-3 py-2">
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Status</span>
             <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${statusTone}`}>
               {actionStatus}
@@ -189,8 +201,8 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
           </div>
 
           {/* Delivery Info */}
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
               <Package className="mt-0.5 text-[#B8641A]" size={18} />
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Type</p>
@@ -198,14 +210,14 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+            <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
               <Package className="mt-0.5 text-[#B8641A]" size={18} />
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Payment</p>
                 {requiresPaymentCollection ? (
                   <>
                     <p className="mt-1 text-sm font-bold text-[#B8641A]">Collection Required</p>
-                    <p className="mt-1 text-sm text-[#6B5B3E]">
+                    <p className="mt-0.5 text-sm text-[#6B5B3E]">
                       Collect {amountDue > 0 ? `Rs ${amountDue.toFixed(2)}` : 'due amount'} via Cash or Online while completing delivery.
                     </p>
                   </>
@@ -217,16 +229,18 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
                 <Package className="mt-0.5 text-[#B8641A]" size={18} />
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Quantity</p>
-                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.quantity}</p>
+                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">
+                    {hasMergedItems ? `${mergedDeliveries.length} items` : delivery.quantity}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+              <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
                 <User className="mt-0.5 text-[#B8641A]" size={18} />
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Customer Name</p>
@@ -235,7 +249,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+            <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
               <Phone className="mt-0.5 text-[#B8641A]" size={18} />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Phone Number</p>
@@ -252,7 +266,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               ) : null}
             </div>
 
-            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+            <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
               <MapPin className="mt-0.5 text-[#B8641A]" size={18} />
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Address</p>
@@ -260,7 +274,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-[16px] border border-[#EDE8DF] bg-white px-3 py-3">
+            <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
               <Building2 className="mt-0.5 text-[#B8641A]" size={18} />
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Dairy Farm</p>
@@ -272,10 +286,34 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
                 </p>
               </div>
             </div>
+
+            {hasMergedItems ? (
+              <div className="rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Customer Items</p>
+                <div className="mt-1.5 space-y-1.5">
+                  {mergedDeliveries.map((item) => {
+                    const itemStatus = String(item?.status || "PENDING").toUpperCase();
+                    return (
+                      <div key={item.id} className="flex items-start justify-between gap-2 rounded-[12px] border border-[#F0E6D8] bg-[#FFFCF7] px-2.5 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#2C1A0E]">{getItemLabel(item)}</p>
+                          <p className="text-xs font-semibold text-[#6B5B3E]">
+                            Quantity: {formatQuantity(item?.quantity)} {String(getItemLabel(item)).toLowerCase().includes("milk") ? "L" : "unit(s)"}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-[#E7DAC6] bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
+                          {itemStatus}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {delivery.status === 'FAILED' && delivery.failedReason && (
-            <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] p-4">
+            <div className="rounded-[14px] border border-[#F2D0C8] bg-[#FDECEA] p-3">
               <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#C0392B]">Failed Reason</p>
               <p className="text-sm text-[#A33A2B]">{delivery.failedReason}</p>
               {delivery.failedImage && (
@@ -289,7 +327,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
           )}
 
           {delivery.status === 'COMPLETED' && delivery.deliveryProofType && (
-            <div className="rounded-[16px] border border-[#DDE8D1] bg-[#EEF5E7] p-4">
+            <div className="rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] p-3">
               <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#4A7C2F]">Delivery Proof</p>
               <p className="text-sm font-semibold text-[#4A7C2F]">{delivery.deliveryProofType}</p>
               {delivery.deliveryProofValue && (
@@ -307,13 +345,13 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
         </div>
 
         {/* Footer */}
-        <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FFF8EF] px-5 py-4">
+        <div className="space-y-2.5 border-t border-[#E7DAC6] bg-[#FFF8EF] px-4 py-3">
           {isPending && (onCompleteRequest || onMarkFailed) && (
             <div className="flex gap-2">
               {onCompleteRequest && (
                 <button
                   onClick={() => onCompleteRequest(delivery)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[14px] bg-[#4A7C2F] py-2.5 text-sm font-bold text-white transition hover:bg-[#3D6826]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#4A7C2F] py-2.5 text-sm font-bold text-white transition hover:bg-[#3D6826]"
                 >
                   <CheckCircle size={18} />
                   {requiresPaymentCollection ? 'Collect & Complete' : 'Mark Delivered'}
@@ -322,7 +360,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               {onMarkFailed && (
                 <button
                   onClick={() => onMarkFailed(delivery)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[14px] bg-[#C0392B] py-2.5 text-sm font-bold text-white transition hover:bg-[#A53024]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#C0392B] py-2.5 text-sm font-bold text-white transition hover:bg-[#A53024]"
                 >
                   <XCircle size={18} />
                   Mark Failed
@@ -332,7 +370,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
           )}
           <button
             onClick={onClose}
-            className="w-full rounded-[14px] border border-[#E7DAC6] bg-white py-2.5 text-sm font-bold text-[#8B7355] transition hover:bg-[#FBF7F0]"
+            className="w-full rounded-[12px] border border-[#E7DAC6] bg-white py-2.5 text-sm font-bold text-[#8B7355] transition hover:bg-[#FBF7F0]"
           >
             Close
           </button>

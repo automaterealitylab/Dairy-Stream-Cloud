@@ -93,9 +93,9 @@ export const compareFlatLabels = (left, right) => {
 
 export const isMilkProduct = (delivery = {}) => {
   const productType = normalizeText(delivery.type || delivery.productType).toUpperCase();
-  const hasMilkTypeField = Boolean(normalizeText(delivery.milkType) || normalizeText(delivery.milk_type));
   const productLabel = getProductLabel(delivery).toUpperCase();
-  return hasMilkTypeField || productType === "MILK" || productLabel.includes("MILK");
+  if (productType) return productType === "MILK";
+  return productLabel.includes("MILK");
 };
 
 export const buildBuildingTaskGroups = (deliveries = []) => {
@@ -111,6 +111,8 @@ export const buildBuildingTaskGroups = (deliveries = []) => {
         milkTotal: 0,
         milkTypes: new Map(),
         otherProducts: new Map(),
+        paymentDueCount: 0,
+        paymentDueAmount: 0,
       });
     }
 
@@ -125,6 +127,16 @@ export const buildBuildingTaskGroups = (deliveries = []) => {
       group.milkTypes.set(productLabel, (group.milkTypes.get(productLabel) || 0) + quantity);
     } else {
       group.otherProducts.set(productLabel, (group.otherProducts.get(productLabel) || 0) + (quantity || 1));
+    }
+
+    const status = String(delivery?.status || "").toUpperCase();
+    const needsCollection =
+      Boolean(delivery?.requiresPaymentCollection) &&
+      (status === "PENDING" || status === "OUT_FOR_DELIVERY");
+    if (needsCollection) {
+      const due = Number(delivery?.amountDue || 0);
+      group.paymentDueCount += 1;
+      group.paymentDueAmount += Number.isFinite(due) && due > 0 ? due : 0;
     }
   });
 

@@ -49,6 +49,16 @@ const BuildingTaskCard = ({ group, onOpen }) => (
       </p>
       <ChevronRight size={18} className="shrink-0 text-[#B8641A]" />
     </div>
+    {group.paymentDueCount > 0 ? (
+      <div className="mt-2 rounded-[14px] border border-[#F0D9B9] bg-[#FFF4E2] px-2.5 py-1.5">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B8641A]">Payment to Collect</p>
+        <p className="mt-0.5 text-[12px] font-semibold leading-tight text-[#8B5E34]">
+          {group.paymentDueAmount > 0
+            ? `Rs ${group.paymentDueAmount.toFixed(2)} from ${group.paymentDueCount} task${group.paymentDueCount === 1 ? "" : "s"}`
+            : `Pending collection in ${group.paymentDueCount} task${group.paymentDueCount === 1 ? "" : "s"}`}
+        </p>
+      </div>
+    ) : null}
   </button>
 );
 

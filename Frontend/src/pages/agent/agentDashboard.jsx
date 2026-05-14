@@ -915,7 +915,7 @@ const AgentDashboard = () => {
         .map(([name, quantity]) => ({
           name,
           quantity,
-          label: `${name}: ${formatQuantity(quantity)}`,
+          label: `${name}: ${formatQuantity(quantity)} unit${quantity === 1 ? "" : "s"}`,
         })),
     };
   }, [todayOpenDeliveries]);
