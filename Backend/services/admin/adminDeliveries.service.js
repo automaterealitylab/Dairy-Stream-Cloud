@@ -84,13 +84,35 @@ const normalizeApprovalStatus = (value, { isOneTimeOrder = false } = {}) => {
   return isOneTimeOrder ? "PENDING" : "APPROVED";
 };
 
-const formatQuantity = (value) => {
+const normalizeProductKey = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const formatUnitLabel = (value) => {
+  const unit = String(value || "").trim().toUpperCase();
+  if (["L", "LITER", "LITRE", "LITERS", "LITRES"].includes(unit)) return "L";
+  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(unit)) return "KG";
+  if (["G", "GRAM", "GRAMS"].includes(unit)) return "G";
+  if (["ML", "MILLILITER", "MILLILITRE", "MILLILITERS", "MILLILITRES"].includes(unit)) return "ML";
+  if (["PCS", "PIECE", "PIECES"].includes(unit)) return "PCS";
+  return unit || "L";
+};
+
+const inferProductUnit = (productName) => {
+  const normalized = normalizeProductKey(productName);
+  if (normalized === "paneer" || normalized === "panner") return "KG";
+  return "LITER";
+};
+
+const formatQuantity = (value, unit = "LITER") => {
   const quantity = Number(value);
   if (!Number.isFinite(quantity)) return "-";
   const compact = Number.isInteger(quantity)
     ? String(quantity)
     : quantity.toFixed(2).replace(/\.?0+$/, "");
-  return `${compact}L`;
+  return `${compact}${formatUnitLabel(unit)}`;
 };
 
 const parseNotesField = (notesValue, field) => {
@@ -253,6 +275,28 @@ const getCustomerAndAgentMaps = async ({ customerIds, agentIds, dairyIds = [] })
     agentsById: new Map((agentsResp.data || []).map((row) => [row.id, row])),
     dairiesById: new Map((dairiesResp.data || []).map((row) => [row.id, row])),
   };
+};
+
+const getProductUnitMapForDairies = async ({ dairyIds = [] } = {}) => {
+  const ids = [...new Set((dairyIds || []).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("dairy_id, name, unit")
+    .in("dairy_id", ids);
+
+  if (error) throw error;
+
+  const unitsByProduct = new Map();
+  for (const row of data || []) {
+    const dairyId = row?.dairy_id;
+    const productKey = normalizeProductKey(row?.name);
+    if (!dairyId || !productKey) continue;
+    unitsByProduct.set(`${dairyId}::${productKey}`, row?.unit || "LITER");
+  }
+
+  return unitsByProduct;
 };
 
 const getSubscriptionMapForCustomers = async ({ customerIds, dairyId }) => {
@@ -463,6 +507,7 @@ const mapDeliveries = ({
   agentsById,
   dairiesById,
   subscriptionByCustomer,
+  productUnitByKey = new Map(),
 }) => {
   return (deliveries || []).map((row) => {
     const customer = customersById.get(row.customer_id) || {};
@@ -471,6 +516,11 @@ const mapDeliveries = ({
     const subscription = subscriptionByCustomer.get(row.customer_id) || {};
 
     const quantity = row.quantity_liters ?? subscription.quantity_liters ?? null;
+    const productType = row.milk_type || subscription.milk_type || "Milk";
+    const resolvedDairyId = row.dairy_id || subscription.dairy_id || null;
+    const productUnit =
+      productUnitByKey.get(`${resolvedDairyId}::${normalizeProductKey(productType)}`) ||
+      inferProductUnit(productType);
     const route = customer.building_name || agent.building || "-";
     const notes = String(row.notes || "");
     const isOneTimeOrder = notes.includes("[ONE_TIME_ORDER]");
@@ -506,9 +556,10 @@ const mapDeliveries = ({
       wingOrFloor,
       roomNo,
       locationLabel: [buildingName, wingOrFloor, roomNo].filter(Boolean).join(" / ") || "-",
-      quantity: formatQuantity(quantity),
+      quantity: formatQuantity(quantity, productUnit),
       quantityRaw: quantity,
-      productType: row.milk_type || subscription.milk_type || "Milk",
+      quantityUnit: formatUnitLabel(productUnit),
+      productType,
       date: normalizeDate(row.delivery_date || row.created_at),
       slot,
       status: normalizeStatus(row.status),
@@ -724,6 +775,7 @@ export const getAdminDeliveries = async ({ dairyId = null, limit, date = null } 
     agentIds,
     dairyIds,
   });
+  const productUnitByKey = await getProductUnitMapForDairies({ dairyIds });
 
   return {
     deliveries: mapDeliveries({
@@ -732,6 +784,7 @@ export const getAdminDeliveries = async ({ dairyId = null, limit, date = null } 
       agentsById,
       dairiesById,
       subscriptionByCustomer,
+      productUnitByKey,
     }),
   };
 };
