@@ -1725,3 +1725,24 @@ CREATE TABLE IF NOT EXISTS public.job_execution_logs (
 
 CREATE INDEX IF NOT EXISTS idx_job_execution_logs_job_started
   ON public.job_execution_logs(job_key, started_at DESC);
+
+-- ============================================
+-- Create App Settings Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  id BIGSERIAL PRIMARY KEY,
+  setting_key VARCHAR(120) NOT NULL UNIQUE,
+  setting_value TEXT NOT NULL,
+  setting_type VARCHAR(50) DEFAULT 'string',
+  description TEXT,
+  is_sensitive BOOLEAN DEFAULT FALSE,
+  is_system BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_settings_key
+  ON public.app_settings(setting_key);
+
+CREATE INDEX IF NOT EXISTS idx_app_settings_updated_at
+  ON public.app_settings(updated_at DESC);

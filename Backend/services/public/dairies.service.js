@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js";
+import { getSetting } from "../shared/appSettings.service.js";
 
 /* ---------------- PRODUCTS ---------------- */
 
@@ -44,15 +45,14 @@ const getPublicProductsByDairyId = async (dairyId) => {
 };
 /* ---------------- GEO DISCOVERY (DB-DRIVEN) ---------------- */
 
-const NEARBY_PAGE_SIZE = 20;
-
 export const getNearbyDairies = async (lat, lng, radius = 10, page = 0) => {
-  const offset = page * NEARBY_PAGE_SIZE;
+  const nearbyPageSize = await getSetting("NEARBY_PAGE_SIZE", 20);
+  const offset = page * nearbyPageSize;
 
   const { data, error } = await supabase.rpc("get_nearby_dairies", {
   lat,
   lng,
-  page_offset: page * 20,
+  page_offset: page * nearbyPageSize,
   radius
 });
 

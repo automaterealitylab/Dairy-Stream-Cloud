@@ -3,13 +3,39 @@ import crypto from "crypto";
 import Razorpay from "razorpay";
 import { supabase } from "../../config/supabase.js";
 import { getRazorpayConfig } from "../../config/razorpay.js";
+import { getSetting } from "../shared/appSettings.service.js";
 import {
   ensureBuyOnceInvoiceForDeliveredOrder,
   syncCustomerMonthlyBills,
 } from "../customer/monthlyBilling.service.js";
 
 const onlineCollectionCache = new Map();
-const ONLINE_COLLECTION_TTL_MS = 20 * 60 * 1000;
+
+// Dynamic settings (will be fetched from DB)
+let cachedDeliverySettings = null;
+let lastSettingsFetchTime = 0;
+const SETTINGS_CACHE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+const getDeliverySettings = async () => {
+  const now = Date.now();
+  // Use cache if it's fresh
+  if (cachedDeliverySettings && now - lastSettingsFetchTime < SETTINGS_CACHE_INTERVAL) {
+    return cachedDeliverySettings;
+  }
+
+  // Fetch from database
+  const [onlineCollectionTtlMs, nearbyPageSize] = await Promise.all([
+    getSetting("ONLINE_COLLECTION_TTL_MS", 20 * 60 * 1000),
+    getSetting("NEARBY_PAGE_SIZE", 20),
+  ]);
+
+  cachedDeliverySettings = {
+    onlineCollectionTtlMs,
+    nearbyPageSize,
+  };
+  lastSettingsFetchTime = now;
+  return cachedDeliverySettings;
+};
 
 const isValidDateString = (value) =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -529,6 +555,7 @@ export const createAgentOnlineCollectionQr = async ({
   dairyId = null,
   deliveryId,
 } = {}) => {
+  const settings = await getDeliverySettings();
   const { keyId, keySecret } = getRazorpayConfig();
 
   const row = await fetchAssignedDeliveryRow({ agentDbId, dairyId, deliveryId });
@@ -555,7 +582,7 @@ export const createAgentOnlineCollectionQr = async ({
 
   const cacheKey = `${row.id}:${Math.round(paymentMeta.amountDue * 100)}`;
   const cached = onlineCollectionCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < ONLINE_COLLECTION_TTL_MS) {
+  if (cached && Date.now() - cached.at < settings.onlineCollectionTtlMs) {
     return cached.payload;
   }
 

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { supabase } from "../config/supabase.js";
 import { logger } from "../utils/logger.js";
+import { getSetting } from "../services/shared/appSettings.service.js";
 
 const parseCsv = (value) =>
   String(value || "")
@@ -165,11 +166,30 @@ export const createRateLimiter = ({
   windowMs = 60_000,
   max = 120,
   keyPrefix = "global",
+  settingKey = null,
 } = {}) => {
   const buckets = new Map();
+  let cachedMax = max;
+  let lastSettingsFetchTime = 0;
+  const SETTINGS_CACHE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-  return (req, res, next) => {
-    const now = Date.now();
+  return async (req, res, next) => {
+    let now = Date.now();
+
+    // Fetch dynamic limit from database if settingKey is provided
+    if (settingKey) {
+      if (now - lastSettingsFetchTime > SETTINGS_CACHE_INTERVAL) {
+        try {
+          const value = await getSetting(settingKey, max);
+          cachedMax = Number(value) || max;
+          lastSettingsFetchTime = now;
+        } catch (err) {
+          logger.warn(`Failed to fetch rate limit setting ${settingKey}:`, err.message);
+          // Use cached value on error
+        }
+      }
+    }
+
     const ip =
       req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
       req.socket?.remoteAddress ||
@@ -183,7 +203,7 @@ export const createRateLimiter = ({
     }
 
     current.count += 1;
-    if (current.count > max) {
+    if (current.count > cachedMax) {
       res.setHeader("Retry-After", Math.ceil((current.resetAt - now) / 1000));
       return res.status(429).json({
         success: false,
@@ -199,10 +219,12 @@ export const marketplaceRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: Number(process.env.MARKETPLACE_RATE_LIMIT_PER_MINUTE || 60),
   keyPrefix: "marketplace",
+  settingKey: "MARKETPLACE_RATE_LIMIT_PER_MINUTE",
 });
 
 export const webhookRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: Number(process.env.WEBHOOK_RATE_LIMIT_PER_MINUTE || 300),
   keyPrefix: "webhook",
+  settingKey: "WEBHOOK_RATE_LIMIT_PER_MINUTE",
 });

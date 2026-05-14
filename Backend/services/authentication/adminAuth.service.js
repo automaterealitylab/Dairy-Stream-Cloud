@@ -2,12 +2,38 @@ import bcrypt from "bcryptjs";
 import { supabase } from "../../config/supabase.js";
 import { generateToken } from "../../utils/jwt.js";
 import { sendEmail } from "../../utils/email.js";
+import { getSetting } from "../shared/appSettings.service.js";
 
 const adminResetOtpStore = new Map();
 const adminResetOtpRequestStore = new Map();
-const ADMIN_OTP_EXPIRY_MS = 10 * 60 * 1000;
-const ADMIN_OTP_REQUEST_LIMIT = 3;
-const ADMIN_OTP_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+
+// Cached settings (will be fetched from DB on demand)
+let cachedAdminSettings = null;
+let lastSettingsFetchTime = 0;
+const SETTINGS_CACHE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+const getAdminAuthSettings = async () => {
+  const now = Date.now();
+  // Use cache if it's fresh
+  if (cachedAdminSettings && now - lastSettingsFetchTime < SETTINGS_CACHE_INTERVAL) {
+    return cachedAdminSettings;
+  }
+
+  // Fetch from database
+  const [otpExpiryMs, otpRequestLimit, otpRequestWindowMs] = await Promise.all([
+    getSetting("ADMIN_OTP_EXPIRY_MS", 10 * 60 * 1000),
+    getSetting("ADMIN_OTP_REQUEST_LIMIT", 3),
+    getSetting("ADMIN_OTP_REQUEST_WINDOW_MS", 15 * 60 * 1000),
+  ]);
+
+  cachedAdminSettings = {
+    otpExpiryMs,
+    otpRequestLimit,
+    otpRequestWindowMs,
+  };
+  lastSettingsFetchTime = now;
+  return cachedAdminSettings;
+};
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
 
@@ -61,20 +87,20 @@ const purgeExpiredAdminResetOtps = () => {
   }
 };
 
-const trackAdminOtpRequest = (key) => {
+const trackAdminOtpRequest = (key, settings) => {
   const now = Date.now();
   const existing = adminResetOtpRequestStore.get(key);
-  const isExpiredWindow = !existing || now - existing.windowStart > ADMIN_OTP_REQUEST_WINDOW_MS;
+  const isExpiredWindow = !existing || now - existing.windowStart > settings.otpRequestWindowMs;
 
   if (isExpiredWindow) {
     adminResetOtpRequestStore.set(key, { count: 1, windowStart: now });
     return {
       allowed: true,
-      remainingRequests: ADMIN_OTP_REQUEST_LIMIT - 1,
+      remainingRequests: settings.otpRequestLimit - 1,
     };
   }
 
-  if (existing.count >= ADMIN_OTP_REQUEST_LIMIT) {
+  if (existing.count >= settings.otpRequestLimit) {
     return {
       allowed: false,
       remainingRequests: 0,
@@ -85,17 +111,18 @@ const trackAdminOtpRequest = (key) => {
   adminResetOtpRequestStore.set(key, { ...existing, count: nextCount });
   return {
     allowed: true,
-    remainingRequests: Math.max(0, ADMIN_OTP_REQUEST_LIMIT - nextCount),
+    remainingRequests: Math.max(0, settings.otpRequestLimit - nextCount),
   };
 };
 
 export const requestAdminResetOtpService = async ({ identifier }) => {
+  const settings = await getAdminAuthSettings();
   const admin = await findAdminByIdentifier(identifier);
   if (!admin) throw new Error("Admin account not found");
   if (!admin.email) throw new Error("Admin email not available for OTP delivery");
 
   purgeExpiredAdminResetOtps();
-  const requestCheck = trackAdminOtpRequest(String(admin.id));
+  const requestCheck = trackAdminOtpRequest(String(admin.id), settings);
   if (!requestCheck.allowed) {
     const err = new Error("OTP request limit exceeded. Try after 15 minutes.");
     err.statusCode = 429;
@@ -108,7 +135,7 @@ export const requestAdminResetOtpService = async ({ identifier }) => {
   const key = String(admin.id);
   adminResetOtpStore.set(key, {
     otp,
-    expiresAt: Date.now() + ADMIN_OTP_EXPIRY_MS,
+    expiresAt: Date.now() + settings.otpExpiryMs,
   });
 
   await sendEmail({
@@ -125,7 +152,7 @@ export const requestAdminResetOtpService = async ({ identifier }) => {
   return {
     email: admin.email,
     remainingRequests: requestCheck.remainingRequests,
-    limit: ADMIN_OTP_REQUEST_LIMIT,
+    limit: settings.otpRequestLimit,
   };
 };
 
