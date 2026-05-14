@@ -507,6 +507,8 @@ const mapDeliveries = ({
       roomNo,
       locationLabel: [buildingName, wingOrFloor, roomNo].filter(Boolean).join(" / ") || "-",
       quantity: formatQuantity(quantity),
+      quantityRaw: quantity,
+      productType: row.milk_type || subscription.milk_type || "Milk",
       date: normalizeDate(row.delivery_date || row.created_at),
       slot,
       status: normalizeStatus(row.status),

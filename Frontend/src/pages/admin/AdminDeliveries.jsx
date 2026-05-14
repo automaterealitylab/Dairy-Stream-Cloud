@@ -631,7 +631,7 @@ export default function AdminDeliveries() {
 
                     <div className="divide-y divide-[#F3EEE5]">
                       {group.deliveries.map((d) => (
-                        <article key={d.id} className="grid gap-2 px-4 py-2.5 lg:grid-cols-[1.6fr_0.8fr_0.8fr_auto] lg:items-center">
+                        <article key={d.id} className="grid gap-2 px-4 py-2.5 lg:grid-cols-[1.6fr_1fr_0.8fr_0.8fr_auto] lg:items-center">
                           <div className="min-w-0">
                             <p className="truncate text-[13px] font-bold uppercase tracking-[0.12em] text-[#2C1A0E]">
                               Flat {d.roomNo || "-"}
@@ -654,6 +654,16 @@ export default function AdminDeliveries() {
                                 Action taken: {d.issueAdminAction}
                               </p>
                             ) : null}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Product</p>
+                            <p className="mt-0.5 truncate text-sm font-semibold text-slate-800">
+                              {d.productType || "Milk"}
+                            </p>
+                            <p className="mt-1 text-[11px] font-semibold text-slate-700 bg-blue-50 px-2 py-1 rounded inline-block">
+                              {d.quantity}
+                            </p>
                           </div>
 
                           <div className="min-w-0">
