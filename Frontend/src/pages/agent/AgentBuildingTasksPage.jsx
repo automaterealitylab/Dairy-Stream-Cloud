@@ -343,20 +343,39 @@ const AgentBuildingTasksPage = () => {
 
   const handleCompleteWithProof = (delivery) => setProofDelivery(delivery);
 
-  const handleProofSubmit = async ({ proofType, proofOtp, imagePreview }) => {
+  const handleProofSubmit = async ({ proofType, proofOtp, imagePreview, collectionMethod }) => {
     if (!proofDelivery?.id) return;
-    const deliveryId = proofDelivery.id;
+    const mergedItems = Array.isArray(proofDelivery?.mergedDeliveries) ? proofDelivery.mergedDeliveries : [];
+    const fallbackLinkedItems = deliveries.filter((item) => {
+      const sameCustomer =
+        String(item?.customerName || "").trim().toLowerCase() ===
+        String(proofDelivery?.customerName || "").trim().toLowerCase();
+      const sameAddress =
+        String(item?.address || "").trim().toLowerCase() ===
+        String(proofDelivery?.address || "").trim().toLowerCase();
+      const sameDate = String(item?.date || "") === String(proofDelivery?.date || "");
+      return sameCustomer && sameAddress && sameDate;
+    });
+    const deliveryIds = Array.from(
+      new Set(
+        [proofDelivery, ...mergedItems, ...fallbackLinkedItems]
+          .map((item) => String(item?.id || "").trim())
+          .filter(Boolean)
+      )
+    );
+    if (!deliveryIds.length) return;
     const proofNote = proofType === "OTP" ? `OTP_CONFIRMED:${proofOtp}` : "PHOTO_ATTACHED";
 
     setDeliveries((prev) =>
       prev.map((d) =>
-        String(d.id) === String(deliveryId)
+        deliveryIds.includes(String(d.id))
           ? {
               ...d,
               status: "COMPLETED",
               deliveryProofType: proofType,
               deliveryProofOtp: proofType === "OTP" ? proofOtp : null,
               deliveryProofImage: proofType === "PHOTO" ? imagePreview : null,
+              paymentCollectionMethod: collectionMethod || d?.paymentCollectionMethod || "",
             }
           : d
       )
@@ -364,14 +383,19 @@ const AgentBuildingTasksPage = () => {
     setProofDelivery(null);
 
     try {
-      await updateAssignedAgentDeliveryStatus({
-        deliveryId,
-        status: "COMPLETED",
-        proofType,
-        proofOtp,
-        proofImage: proofType === "PHOTO" ? imagePreview : "",
-        reason: proofNote,
-      });
+      await Promise.all(
+        deliveryIds.map((deliveryId) =>
+          updateAssignedAgentDeliveryStatus({
+            deliveryId,
+            status: "COMPLETED",
+            proofType,
+            proofOtp,
+            proofImage: proofType === "PHOTO" ? imagePreview : "",
+            reason: proofNote,
+            collectionMethod,
+          })
+        )
+      );
     } catch (_err) {}
   };
 

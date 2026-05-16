@@ -1,9 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, CreditCard, IndianRupee, ShieldCheck, Upload, X } from 'lucide-react';
-import {
-  createAssignedDeliveryOnlineOrder,
-  verifyAssignedDeliveryOnlinePayment,
-} from '../../api/agent/agent.api';
+import { QRCodeSVG } from 'qrcode.react';
 
 const OTP_REGEX = /^\d{4,8}$/;
 
@@ -14,16 +11,21 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [collectionMethod, setCollectionMethod] = useState('');
   const [onlinePaid, setOnlinePaid] = useState(false);
-  const [onlineLoading, setOnlineLoading] = useState(false);
   const [onlineError, setOnlineError] = useState('');
+  const [showQrPopup, setShowQrPopup] = useState(false);
 
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const isSubscriptionDelivery = String(delivery?.deliveryType || '').toUpperCase() === 'SUBSCRIPTION';
-  const isBuyOnceDelivery = String(delivery?.deliveryType || '').toUpperCase() === 'BUY ONCE';
   const requiresPaymentCollection = Boolean(delivery?.requiresPaymentCollection);
   const amountDue = Number(delivery?.amountDue || 0);
+  const upiId = String(delivery?.upiId || '').trim();
+  const payeeName = String(delivery?.dairyFarmName || 'Dairy Stream').trim();
+  const upiIntentLink =
+    upiId && amountDue > 0
+      ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${amountDue.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Delivery ${delivery?.id || ''}`.trim())}`
+      : '';
 
   useEffect(() => {
     setProofType(isSubscriptionDelivery ? '' : 'PHOTO');
@@ -32,23 +34,9 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     setImagePreview(null);
     setCollectionMethod('');
     setOnlinePaid(false);
-    setOnlineLoading(false);
     setOnlineError('');
+    setShowQrPopup(false);
   }, [delivery?.id, isSubscriptionDelivery]);
-
-  const loadRazorpayCheckoutScript = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
 
   const handleImagePick = (event) => {
     const file = event.target.files?.[0];
@@ -64,7 +52,7 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
 
   const isPhotoValid = isSubscriptionDelivery ? true : proofType === 'PHOTO' ? Boolean(image) : true;
   const isOtpValid = isSubscriptionDelivery ? true : proofType === 'OTP' ? OTP_REGEX.test(String(otp || '').trim()) : true;
-  const canUseOnlineCollection = isBuyOnceDelivery;
+  const canUseOnlineCollection = Boolean(upiIntentLink);
   const isCollectionValid = requiresPaymentCollection
     ? collectionMethod === 'CASH' || (collectionMethod === 'ONLINE' && onlinePaid && canUseOnlineCollection)
     : true;
@@ -75,69 +63,13 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     if (!canUseOnlineCollection) {
       setCollectionMethod('');
       setOnlinePaid(false);
-      setOnlineError('Online collection is available only for COD buy-once deliveries.');
+      setOnlineError('UPI ID or amount due is missing for this delivery.');
       return;
     }
-
-    try {
-      setCollectionMethod('ONLINE');
-      setOnlineError('');
-      setOnlineLoading(true);
-
-      const scriptLoaded = await loadRazorpayCheckoutScript();
-      if (!scriptLoaded) {
-        throw new Error('Failed to load Razorpay checkout');
-      }
-
-      const orderPayload = await createAssignedDeliveryOnlineOrder(delivery.id);
-
-      const options = {
-        key: orderPayload.keyId,
-        amount: orderPayload.order.amount,
-        currency: orderPayload.order.currency,
-        name: 'Dairy Stream',
-        description: orderPayload.payment?.title || 'Delivery Payment',
-        order_id: orderPayload.order.id,
-        handler: async (response) => {
-          await verifyAssignedDeliveryOnlinePayment({
-            deliveryId: delivery.id,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          });
-          setOnlinePaid(true);
-          setOnlineError('');
-        },
-        method: {
-          upi: true,
-          card: false,
-          netbanking: false,
-          wallet: false,
-          emi: false,
-          paylater: false,
-        },
-        theme: {
-          color: '#2563eb',
-        },
-        modal: {
-          ondismiss: () => {
-            setOnlineLoading(false);
-          },
-        },
-      };
-
-      const checkout = new window.Razorpay(options);
-      checkout.on('payment.failed', (failedResponse) => {
-        setOnlineError(failedResponse?.error?.description || 'Payment failed');
-        setOnlinePaid(false);
-      });
-      checkout.open();
-    } catch (err) {
-      setOnlineError(err?.response?.data?.message || err?.message || 'Unable to start Razorpay payment');
-      setOnlinePaid(false);
-    } finally {
-      setOnlineLoading(false);
-    }
+    setCollectionMethod('ONLINE');
+    setOnlineError('');
+    setOnlinePaid(false);
+    setShowQrPopup(true);
   };
 
   const handleSubmit = () => {
@@ -294,27 +226,34 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
                 </button>
               </div>
 
-              {!canUseOnlineCollection && (
-                <p className="text-xs text-amber-700">
-                  Online collection is only supported for COD buy-once deliveries.
-                </p>
-              )}
+              {!canUseOnlineCollection && <p className="text-xs text-amber-700">UPI ID or amount due is missing for this delivery.</p>}
 
               {collectionMethod === 'ONLINE' && (
                 <div className="rounded-lg bg-white border border-blue-200 p-4 text-center">
-                  {onlineLoading ? (
-                    <p className="text-xs text-gray-600">Opening Razorpay checkout...</p>
-                  ) : onlinePaid ? (
-                    <p className="text-xs font-medium text-green-700">
-                      Payment completed in Razorpay. You can now confirm delivery.
-                    </p>
-                  ) : onlineError ? (
-                    <p className="text-xs text-red-600">{onlineError}</p>
-                  ) : (
-                    <p className="text-xs text-gray-600">
-                      Click Online to open Razorpay popup with UPI payment options and QR.
-                    </p>
-                  )}
+                  {onlineError ? <p className="text-xs text-red-600">{onlineError}</p> : null}
+                  {canUseOnlineCollection ? (
+                    <>
+                      <p className="text-xs font-semibold text-blue-900">Use popup QR to collect payment</p>
+                      <p className="mt-1 text-[11px] text-blue-700">UPI: {upiId}</p>
+                      <p className="text-[11px] text-blue-700">Amount: Rs {amountDue.toFixed(2)}</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowQrPopup(true)}
+                        className="mt-3 w-full rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                      >
+                        Show QR Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowQrPopup(true)}
+                        className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-medium ${
+                          onlinePaid ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {onlinePaid ? 'Payment Marked Received' : 'Waiting for Payment Confirmation'}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -337,6 +276,45 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
           </button>
         </div>
       </div>
+
+      {showQrPopup && canUseOnlineCollection && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowQrPopup(false)}>
+          <div
+            className="w-full max-w-xs rounded-xl border border-blue-200 bg-white p-4 text-center shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-blue-900">Scan and Pay</p>
+              <button
+                type="button"
+                onClick={() => setShowQrPopup(false)}
+                className="rounded-full p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[11px] text-blue-700">UPI: {upiId}</p>
+            <p className="text-[11px] text-blue-700">Amount: Rs {amountDue.toFixed(2)}</p>
+            <div className="mt-3 flex justify-center">
+              <div className="rounded-lg border border-blue-100 bg-white p-2">
+                <QRCodeSVG value={upiIntentLink} size={190} includeMargin />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setOnlinePaid(true);
+                setShowQrPopup(false);
+              }}
+              className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-medium ${
+                onlinePaid ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {onlinePaid ? 'Payment Marked Received' : 'Mark Payment Received'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

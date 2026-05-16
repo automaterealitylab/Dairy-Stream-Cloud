@@ -12,6 +12,37 @@ const formatQuantity = (value) => {
 const getItemLabel = (item = {}) =>
   String(item?.product || item?.productName || item?.milkType || item?.milk_type || item?.itemName || "").trim() || "Item";
 
+const getItemDeliveryKind = (item = {}) => {
+  const normalizedType = String(item?.deliveryType || "").trim().toUpperCase();
+  if (normalizedType === "SUBSCRIPTION") return "Subscription";
+  if (normalizedType === "BUY ONCE") return "Extra Product";
+  return "Delivery Item";
+};
+
+const resolveItemQuantity = (item = {}) => {
+  const candidates = [item?.quantity, item?.quantity_liters, item?.qty, item?.units, item?.count];
+  for (const value of candidates) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return 0;
+};
+
+const formatDeliveryTypeLabel = (value) =>
+  String(value || "REGULAR")
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+
+const getCombinedDeliveryTypeLabel = (delivery = {}, mergedDeliveries = []) => {
+  const labels = [delivery, ...mergedDeliveries]
+    .map((item) => formatDeliveryTypeLabel(item?.deliveryType))
+    .filter(Boolean);
+  const unique = [...new Set(labels)];
+  return unique.join(" + ") || "Regular";
+};
+
 const getDeliveryMilkTypeLabel = (delivery = {}) => {
   const mergedDeliveries = Array.isArray(delivery?.mergedDeliveries) ? delivery.mergedDeliveries : [];
   if (mergedDeliveries.length > 1) {
@@ -20,6 +51,9 @@ const getDeliveryMilkTypeLabel = (delivery = {}) => {
   }
   return getItemLabel(delivery);
 };
+
+const isExtraProductDelivery = (item = {}) =>
+  String(item?.deliveryType || "").trim().toUpperCase() === "BUY ONCE";
 
 const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFailed }) => {
   const normalizedStatus = String(delivery?.status || '').toUpperCase();
@@ -30,6 +64,30 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
   const requiresPaymentCollection =
     Boolean(delivery?.requiresPaymentCollection) && ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
   const paymentCollectionMethod = String(delivery?.paymentCollectionMethod || '').toUpperCase();
+  const payableExtraItems = [delivery, ...mergedDeliveries].filter((item) => isExtraProductDelivery(item));
+  const mergedPaymentMethods = payableExtraItems
+    .map((item) => String(item?.paymentCollectionMethod || "").trim().toUpperCase())
+    .filter(Boolean);
+  const resolvedPaymentCollectionMethod = mergedPaymentMethods[0] || paymentCollectionMethod;
+  const hasPaymentTaken = Boolean(resolvedPaymentCollectionMethod);
+  const paymentBreakdownItems = payableExtraItems
+    .map((item) => {
+      const amount = Number(item?.amountDue || 0);
+      const label = getItemLabel(item);
+      return {
+        id: String(item?.id || label),
+        label,
+        amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+      };
+    })
+    .filter((item) => item.amount > 0);
+  const paymentTakenAmount = [delivery, ...mergedDeliveries].reduce((total, item) => {
+    if (!isExtraProductDelivery(item)) return total;
+    const method = String(item?.paymentCollectionMethod || "").trim();
+    if (!method) return total;
+    const value = Number(item?.amountDue || 0);
+    return total + (Number.isFinite(value) && value > 0 ? value : 0);
+  }, 0);
   const amountDue = resolvedAmountDue;
   const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
   const [isTracking, setIsTracking] = useState(false);
@@ -212,12 +270,12 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
           {/* Delivery Info */}
           <div className="space-y-2.5">
             <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
-              <Package className="mt-0.5 text-[#B8641A]" size={18} />
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Type</p>
-                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.deliveryType || 'REGULAR'}</p>
+                <Package className="mt-0.5 text-[#B8641A]" size={18} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Type</p>
+                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{getCombinedDeliveryTypeLabel(delivery, mergedDeliveries)}</p>
+                </div>
               </div>
-            </div>
 
             <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
               <Package className="mt-0.5 text-[#B8641A]" size={18} />
@@ -230,33 +288,35 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
                       Collect {amountDue > 0 ? `Rs ${amountDue.toFixed(2)}` : 'due amount'} via Cash or Online while completing delivery.
                     </p>
                   </>
-                ) : paymentCollectionMethod ? (
-                  <p className="mt-1 text-sm font-bold text-[#4A7C2F]">Collected via {paymentCollectionMethod}</p>
+                ) : hasPaymentTaken ? (
+                  <p className="mt-1 text-sm font-bold text-[#4A7C2F]">
+                    Payment taken{paymentTakenAmount > 0 ? `: Rs ${paymentTakenAmount.toFixed(2)}` : ""}
+                    {resolvedPaymentCollectionMethod ? ` via ${resolvedPaymentCollectionMethod}` : ""}
+                  </p>
                 ) : (
                   <p className="mt-1 text-sm font-bold text-[#2C1A0E]">No collection required</p>
                 )}
+
+                {paymentBreakdownItems.length > 0 ? (
+                  <div className="mt-2 rounded-[10px] border border-[#E7DAC6] bg-[#FFFCF7] px-2.5 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A88763]">Payment Breakdown</p>
+                    <div className="mt-1.5 space-y-1">
+                      {paymentBreakdownItems.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between gap-2 text-xs font-semibold text-[#5F4426]">
+                          <span className="truncate">{item.label}</span>
+                          <span>Rs {item.amount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 border-t border-[#EDE8DF] pt-1.5 text-right text-xs font-black text-[#2C1A0E]">
+                      Total: Rs {paymentBreakdownItems.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
-                <Package className="mt-0.5 text-[#B8641A]" size={18} />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Quantity</p>
-                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">
-                    {hasMergedItems ? `${mergedDeliveries.length} items` : delivery.quantity}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
-                <Package className="mt-0.5 text-[#B8641A]" size={18} />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Milk Type</p>
-                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{getDeliveryMilkTypeLabel(delivery)}</p>
-                </div>
-              </div>
-
               <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
                 <User className="mt-0.5 text-[#B8641A]" size={18} />
                 <div className="min-w-0">
@@ -297,12 +357,17 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
                 <div className="mt-1.5 space-y-1.5">
                   {mergedDeliveries.map((item) => {
                     const itemStatus = String(item?.status || "PENDING").toUpperCase();
+                    const itemKind = getItemDeliveryKind(item);
+                    const itemLabel = getItemLabel(item);
+                    const itemQuantity = resolveItemQuantity(item);
+                    const itemIsMilk = String(itemLabel).toLowerCase().includes("milk");
                     return (
                       <div key={item.id} className="flex items-start justify-between gap-2 rounded-[12px] border border-[#F0E6D8] bg-[#FFFCF7] px-2.5 py-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-[#2C1A0E]">{getItemLabel(item)}</p>
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A88763]">{itemKind}</p>
+                          <p className="text-sm font-bold text-[#2C1A0E]">{itemLabel}</p>
                           <p className="text-xs font-semibold text-[#6B5B3E]">
-                            Quantity: {formatQuantity(item?.quantity)} {String(getItemLabel(item)).toLowerCase().includes("milk") ? "L" : "unit(s)"}
+                            Quantity: {formatQuantity(itemQuantity)} {itemIsMilk ? "L" : "unit(s)"}
                           </p>
                         </div>
                         <span className="rounded-full border border-[#E7DAC6] bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
