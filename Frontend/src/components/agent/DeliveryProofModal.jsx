@@ -21,6 +21,7 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
   const fileInputRef = useRef(null);
 
   const isSubscriptionDelivery = String(delivery?.deliveryType || '').toUpperCase() === 'SUBSCRIPTION';
+  const isBuyOnceDelivery = String(delivery?.deliveryType || '').toUpperCase() === 'BUY ONCE';
   const requiresPaymentCollection = Boolean(delivery?.requiresPaymentCollection);
   const amountDue = Number(delivery?.amountDue || 0);
 
@@ -63,13 +64,20 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
 
   const isPhotoValid = isSubscriptionDelivery ? true : proofType === 'PHOTO' ? Boolean(image) : true;
   const isOtpValid = isSubscriptionDelivery ? true : proofType === 'OTP' ? OTP_REGEX.test(String(otp || '').trim()) : true;
+  const canUseOnlineCollection = isBuyOnceDelivery;
   const isCollectionValid = requiresPaymentCollection
-    ? collectionMethod === 'CASH' || (collectionMethod === 'ONLINE' && onlinePaid)
+    ? collectionMethod === 'CASH' || (collectionMethod === 'ONLINE' && onlinePaid && canUseOnlineCollection)
     : true;
   const isValid = isPhotoValid && isOtpValid && isCollectionValid;
 
   const handleOpenOnlineCheckout = async () => {
     if (!delivery?.id) return;
+    if (!canUseOnlineCollection) {
+      setCollectionMethod('');
+      setOnlinePaid(false);
+      setOnlineError('Online collection is available only for COD buy-once deliveries.');
+      return;
+    }
 
     try {
       setCollectionMethod('ONLINE');
@@ -274,16 +282,23 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
                 </button>
                 <button
                   onClick={handleOpenOnlineCheckout}
+                  disabled={!canUseOnlineCollection}
                   className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
                     collectionMethod === 'ONLINE'
                       ? 'border-blue-500 bg-blue-100 text-blue-700'
                       : 'border-gray-200 bg-white text-gray-700'
-                  }`}
+                  } ${!canUseOnlineCollection ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
                   <CreditCard size={16} />
                   Online
                 </button>
               </div>
+
+              {!canUseOnlineCollection && (
+                <p className="text-xs text-amber-700">
+                  Online collection is only supported for COD buy-once deliveries.
+                </p>
+              )}
 
               {collectionMethod === 'ONLINE' && (
                 <div className="rounded-lg bg-white border border-blue-200 p-4 text-center">

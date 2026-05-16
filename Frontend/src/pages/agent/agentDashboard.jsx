@@ -1997,16 +1997,19 @@ const AgentDashboard = () => {
 
         <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Milk To Carry</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Today's Delivery Quantity</p>
           </div>
 
           <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Milk Types</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Subscription Delivery Milk</p>
               {carrySummary.milkTypes.length > 0 ? (
-                <div className="mt-1.5 space-y-1">
+                <div className="mt-1.5 flex flex-wrap gap-0">
                   {carrySummary.milkTypes.map((item) => (
-                    <p key={item.name} className="text-xs font-semibold text-[#2C1A0E]">
+                    <p
+                      key={item.name}
+                      className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
+                    >
                       {item.label}
                     </p>
                   ))}
@@ -2019,9 +2022,12 @@ const AgentDashboard = () => {
             <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Extra Products</p>
               {carrySummary.extraProducts.length > 0 ? (
-                <div className="mt-1.5 space-y-1">
+                <div className="mt-1.5 flex flex-wrap gap-0">
                   {carrySummary.extraProducts.map((item) => (
-                    <p key={item.name} className="text-xs font-semibold text-[#2C1A0E]">
+                    <p
+                      key={item.name}
+                      className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
+                    >
                       {item.label}
                     </p>
                   ))}

@@ -42,7 +42,7 @@ export const ownerSchema = z.object({
 /* ---------- STEP 4 : PRODUCTS ---------- */
 
 export const productSchema = z.object({
-  products: z.record(z.any()).refine(
+  products: z.record(z.string(), z.any()).refine(
     (val) => Object.keys(val).length > 0,
     "Add at least one product"
   )

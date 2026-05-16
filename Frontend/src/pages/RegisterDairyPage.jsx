@@ -140,23 +140,12 @@ async (pos) => {
 };
 
   const validateStep = (step) => {
-    let result;
+    let result = { success: true };
 
-    if (step === 1) {
-      result = brandSchema.safeParse(formData);
-    }
-
-    if (step === 2) {
-      result = locationSchema.safeParse(formData);
-    }
-
-    if (step === 3) {
-      result = ownerSchema.safeParse(formData);
-    }
-
-    if (step === 4) {
-      result = productSchema.safeParse(formData);
-    }
+    if (step === 1) result = brandSchema.safeParse(formData);
+    if (step === 2) result = locationSchema.safeParse(formData);
+    if (step === 3) result = ownerSchema.safeParse(formData);
+    if (step === 4) result = productSchema.safeParse(formData);
 
     if (!result.success) {
       toast.error(result.error.issues[0].message);

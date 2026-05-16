@@ -440,7 +440,7 @@ const AgentBuildingTasksPage = () => {
 
               <div className="min-w-0 flex-1 rounded-[16px] border border-[#DDE8D1] bg-[#EEF5E7] px-2 py-1.5">
                 <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#6B8A4A]">
-                  Milk Types
+                  Subscription Delivery Milk
                 </p>
                 <p className="mt-0.5 text-[11px] font-black leading-tight text-[#2C1A0E]">
                   {buildingSummary.milkTypes.length

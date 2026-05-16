@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Package, MapPin, Phone, User, Building2, CheckCircle, XCircle } from 'lucide-react';
+import { X, Package, MapPin, Phone, User, CheckCircle, XCircle } from 'lucide-react';
 import { startDelivery, updateAgentLocation } from '../../api/agent/location';
 import { ensureSocketConnection } from '../../socket';
 
@@ -11,6 +11,15 @@ const formatQuantity = (value) => {
 
 const getItemLabel = (item = {}) =>
   String(item?.product || item?.productName || item?.milkType || item?.milk_type || item?.itemName || "").trim() || "Item";
+
+const getDeliveryMilkTypeLabel = (delivery = {}) => {
+  const mergedDeliveries = Array.isArray(delivery?.mergedDeliveries) ? delivery.mergedDeliveries : [];
+  if (mergedDeliveries.length > 1) {
+    const uniqueLabels = [...new Set(mergedDeliveries.map((item) => getItemLabel(item)).filter(Boolean))];
+    return uniqueLabels.length ? uniqueLabels.join(", ") : "-";
+  }
+  return getItemLabel(delivery);
+};
 
 const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFailed }) => {
   const normalizedStatus = String(delivery?.status || '').toUpperCase();
@@ -241,6 +250,14 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               </div>
 
               <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
+                <Package className="mt-0.5 text-[#B8641A]" size={18} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Milk Type</p>
+                  <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{getDeliveryMilkTypeLabel(delivery)}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
                 <User className="mt-0.5 text-[#B8641A]" size={18} />
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Customer Name</p>
@@ -271,19 +288,6 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Delivery Address</p>
                 <p className="mt-1 text-sm font-bold text-[#2C1A0E]">{delivery.address}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5 rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5">
-              <Building2 className="mt-0.5 text-[#B8641A]" size={18} />
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Dairy Farm</p>
-                <p className="mt-1 text-sm font-bold text-[#2C1A0E]">
-                  {delivery.dairyFarmName} (ID: {delivery.dairyFarmId})
-                </p>
-                <p className="mt-1 text-sm text-[#6B5B3E]">
-                  Farm Phone: {delivery.farmPhoneNumber}
-                </p>
               </div>
             </div>
 

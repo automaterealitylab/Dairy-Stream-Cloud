@@ -7,6 +7,14 @@ const headingFont = { fontFamily: "'Lora', serif" };
 const controlClassName =
   "w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]";
 
+const buildProductKey = (name, packagingQuantity, packagingUnit) => {
+  const normalizedName = (name || "").trim().toLowerCase();
+  const normalizedPackagingUnit = (packagingUnit || "").trim().toLowerCase();
+  const parsedPackagingQuantity = parseFloat(packagingQuantity);
+  const normalizedPackagingQuantity = Number.isNaN(parsedPackagingQuantity) ? 0 : parsedPackagingQuantity;
+  return `${normalizedName}__${normalizedPackagingQuantity}__${normalizedPackagingUnit}`;
+};
+
 const ProductsAndStockStep = ({ formData, setFormData }) => {
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -27,11 +35,18 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
       return;
     }
 
+    const productKey = buildProductKey(
+      newProduct.name,
+      newProduct.packagingQuantity,
+      newProduct.packagingUnit
+    );
+
     setFormData((prev) => ({
       ...prev,
       products: {
         ...prev.products,
-        [newProduct.name]: {
+        [productKey]: {
+          name: newProduct.name.trim(),
           category: newProduct.category,
           unit: newProduct.unit,
           packagingQuantity: parseFloat(newProduct.packagingQuantity) || 0,
@@ -67,8 +82,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
 
   const productList = Object.entries(formData.products || {});
 
-  const filteredList = productList.filter(([name]) =>
-    name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredList = productList.filter(([key, details]) =>
+    (details.name || key).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -228,13 +243,13 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
                 </div>
               )}
 
-              {filteredList.map(([name, details]) => (
-                <div key={name} className="border-b border-[#F2EDE4] bg-white px-4 py-4 transition hover:bg-[#FDF6EC] sm:px-6">
+              {filteredList.map(([key, details]) => (
+                <div key={key} className="border-b border-[#F2EDE4] bg-white px-4 py-4 transition hover:bg-[#FDF6EC] sm:px-6">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="flex items-center gap-3 font-bold text-[#2C1A0E]">
                         <Milk size={16} className="text-[#B8641A]" />
-                        <span className="truncate">{name}</span>
+                        <span className="truncate">{details.name || key}</span>
                       </span>
                       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
                         <div>
@@ -259,7 +274,7 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
                     </div>
 
                     <button
-                      onClick={() => removeProduct(name)}
+                      onClick={() => removeProduct(key)}
                       className="shrink-0 text-[#C0392B] transition hover:text-[#A33A2B]"
                     >
                       <Trash2 size={18} />
