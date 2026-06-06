@@ -1,32 +1,11 @@
 import jwt from "jsonwebtoken";
-import { supabase } from "../../config/supabase.js";
 import { detectUserService } from "../../services/authentication/detectUser.service.js";
 
-const maskToken = (token) => {
-  if (!token) return null;
-  if (token.length <= 12) return "[REDACTED]";
-  return `${token.slice(0, 6)}...[${token.length}]...${token.slice(-6)}`;
-};
+const shouldLogAuthDebug = () => process.env.DEBUG_AUTH_LOGS === "true";
 
-const logDetectRequest = (req, authHeader, token, decodedJwt = null) => {
-  console.log("[AUTH DETECT] request headers:", {
-    ...req.headers,
-    authorization: authHeader ? "Bearer [REDACTED]" : undefined,
-  });
-  console.log("[AUTH DETECT] authorization token:", maskToken(token));
-  if (decodedJwt) console.log("[AUTH DETECT] decoded JWT:", decodedJwt);
-};
-
-const verifyDatabaseConnection = async () => {
-  const { error } = await supabase.from("customers").select("id").limit(1);
-  if (error) {
-    console.error("[AUTH DETECT] database lookup error:", {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-    });
-    throw error;
+const logDetectDebug = (message, details = {}) => {
+  if (shouldLogAuthDebug()) {
+    console.log("[AUTH DETECT]", message, details);
   }
 };
 
@@ -37,7 +16,7 @@ export const detectUser = async (req, res) => {
   try {
     if (authHeader) {
       if (!authHeader.startsWith("Bearer ")) {
-        logDetectRequest(req, authHeader, null);
+        logDetectDebug("invalid authorization header");
         return res.status(401).json({
           success: false,
           message: "Invalid authorization format",
@@ -47,7 +26,7 @@ export const detectUser = async (req, res) => {
       token = authHeader.split(" ")[1];
 
       if (!token) {
-        logDetectRequest(req, authHeader, token);
+        logDetectDebug("empty bearer token");
         return res.status(401).json({
           success: false,
           message: "Invalid token",
@@ -55,7 +34,7 @@ export const detectUser = async (req, res) => {
       }
 
       if (!process.env.JWT_SECRET) {
-        logDetectRequest(req, authHeader, token);
+        logDetectDebug("missing JWT secret");
         return res.status(500).json({
           success: false,
           message: "JWT secret is not configured",
@@ -63,7 +42,7 @@ export const detectUser = async (req, res) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      logDetectRequest(req, authHeader, token, decoded);
+      logDetectDebug("decoded jwt", { role: decoded?.role, id: decoded?.id });
 
       if (!req.body?.identifier) {
         return res.status(200).json({
@@ -71,8 +50,6 @@ export const detectUser = async (req, res) => {
           user: decoded,
         });
       }
-    } else {
-      logDetectRequest(req, authHeader, token);
     }
 
     const { identifier, requestCustomerOtp, dairyId } = req.body;
@@ -83,8 +60,6 @@ export const detectUser = async (req, res) => {
         message: "Identifier (Email, Phone, or Staff ID) is required" 
       });
     }
-
-    await verifyDatabaseConnection();
 
     // Call the service logic
     const result = await detectUserService(identifier, {

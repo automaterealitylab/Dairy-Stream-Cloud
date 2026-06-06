@@ -158,8 +158,12 @@ ALTER TABLE public.admins
   ADD COLUMN IF NOT EXISTS password VARCHAR(255);
 ALTER TABLE public.admins
   ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE public.admins
+  ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
 
 CREATE INDEX IF NOT EXISTS idx_admins_email ON public.admins(email);
+CREATE INDEX IF NOT EXISTS idx_admins_phone ON public.admins(phone);
+CREATE INDEX IF NOT EXISTS idx_admins_phone_number ON public.admins(phone_number);
 CREATE INDEX IF NOT EXISTS idx_admins_dairy_id ON public.admins(dairy_id);
 
 -- ============================================
@@ -197,6 +201,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
 
 -- Create index on email for faster lookups
 CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(email);
+CREATE INDEX IF NOT EXISTS idx_customers_phone_number ON public.customers(phone_number);
 CREATE INDEX IF NOT EXISTS idx_customers_building ON public.customers(building_name);
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS dairy_id BIGINT;
@@ -915,6 +920,7 @@ ALTER TABLE public.agents
 
 -- Create index on email for faster lookups
 CREATE INDEX IF NOT EXISTS idx_agents_email ON public.agents(email);
+CREATE INDEX IF NOT EXISTS idx_agents_agent_id ON public.agents(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agents_building ON public.agents(building);
 CREATE INDEX IF NOT EXISTS idx_agents_dairy_id ON public.agents(dairy_id);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON public.agents(status);

@@ -81,7 +81,7 @@ const findAgentByStaffId = async (agentId) => {
 
   const { data: agent, error } = await supabase
     .from("agents")
-    .select("*")
+    .select("id, agent_id, agent_name, email, password, dairy_id")
     .ilike("agent_id", normalizedAgentId)
     .maybeSingle();
 

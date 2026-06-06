@@ -263,7 +263,9 @@ const findCustomerByIdentifier = async (identifier) => {
   const isEmail = normalizedIdentifier.includes("@");
   const phoneVariants = buildPhoneVariants(normalizedIdentifier);
 
-  let query = supabase.from("customers").select("*");
+  let query = supabase
+    .from("customers")
+    .select("id, customer_name, email, phone_number");
 
   if (isEmail) {
     query = query.ilike("email", normalizedIdentifier);
@@ -397,7 +399,27 @@ export const loginWithPasswordService = async (emailOrPhone, password) => {
 // OTP LOGIC (Existing + Refined)
 // ==========================================
 
-export const generateCustomerOtp = async ({ identifier, dairyId, customer: existingCustomer = null }) => {
+const sendCustomerOtpEmail = async ({ customer, otp }) => {
+  await sendEmail({
+    to: customer.email,
+    subject: "DairyStream Customer Login OTP",
+    html: `
+      <p>Your OTP for customer login is:</p>
+      <h2>${otp}</h2>
+      <p>This OTP is valid for 5 minutes.</p>
+      <p>If you did not request this, please ignore this email.</p>
+    `,
+  });
+
+  console.log(`[OTP SENT] To email: ${customer.email} | OTP: ${otp}`);
+};
+
+export const generateCustomerOtp = async ({
+  identifier,
+  dairyId,
+  customer: existingCustomer = null,
+  awaitDelivery = true,
+}) => {
   const normalizedIdentifier = normalizeIdentifier(identifier);
   const customer = existingCustomer || await findCustomerByIdentifier(normalizedIdentifier);
 
@@ -412,18 +434,20 @@ export const generateCustomerOtp = async ({ identifier, dairyId, customer: exist
   const key = buildOtpKey(normalizedIdentifier, dairyId);
   otpStore.set(key, { identifier: normalizedIdentifier, dairy_id: dairyId ?? null, otp, expiresAt });
 
-  await sendEmail({
-    to: customer.email,
-    subject: "DairyStream Customer Login OTP",
-    html: `
-      <p>Your OTP for customer login is:</p>
-      <h2>${otp}</h2>
-      <p>This OTP is valid for 5 minutes.</p>
-      <p>If you did not request this, please ignore this email.</p>
-    `,
-  });
+  if (awaitDelivery) {
+    await sendCustomerOtpEmail({ customer, otp });
+  } else {
+    setImmediate(() => {
+      sendCustomerOtpEmail({ customer, otp }).catch((error) => {
+        console.error("[CUSTOMER OTP EMAIL ERROR]", {
+          customerId: customer.id,
+          email: customer.email,
+          message: error?.message || String(error),
+        });
+      });
+    });
+  }
 
-  console.log(`[OTP SENT] To email: ${customer.email} | OTP: ${otp}`);
   return otp;
 };
 
@@ -473,10 +497,32 @@ export const customerOtpLoginService = async ({ identifier, dairyId }) => {
  * Determine Redirect (Active Subscription Check)
  */
 export const determineRedirectPath = async (userId, requestedDairyId) => {
-  const { data: subscriptions, error } = await supabase
+  const subscriptionsPromise = supabase
     .from("subscriptions")
     .select("dairy_id, status")
     .eq("customer_id", userId);
+
+  const deliveryHistoryPromise = hasHistoryRow({
+    table: "deliveries",
+    customerId: userId,
+    customerColumns: ["customer_id"],
+  });
+
+  const paymentHistoryPromise = hasHistoryRow({
+    table: "payments",
+    customerId: userId,
+    customerColumns: ["customer_id"],
+  });
+
+  const [
+    { data: subscriptions, error },
+    hasDeliveryHistory,
+    hasPaymentHistory,
+  ] = await Promise.all([
+    subscriptionsPromise,
+    deliveryHistoryPromise,
+    paymentHistoryPromise,
+  ]);
 
   if (error) {
     throw new Error("Failed to check customer subscription status");
@@ -488,20 +534,6 @@ export const determineRedirectPath = async (userId, requestedDairyId) => {
   );
 
   const hasActiveSubscription = activeSubscriptions.length > 0;
-
-  const [hasDeliveryHistory, hasPaymentHistory] = await Promise.all([
-    hasHistoryRow({
-      table: "deliveries",
-      customerId: userId,
-      customerColumns: ["customer_id", "user_id", "customerId", "customerid"],
-    }),
-    hasHistoryRow({
-      table: "payments",
-      customerId: userId,
-      customerColumns: ["customer_id", "user_id", "customerId", "customerid"],
-    }),
-  ]);
-
   const hasOneTimeHistory = hasDeliveryHistory || hasPaymentHistory;
   const shouldRedirectToDashboard = hasActiveSubscription || hasOneTimeHistory;
 

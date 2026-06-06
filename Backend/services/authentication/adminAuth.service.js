@@ -52,7 +52,7 @@ export const findAdminByIdentifier = async (identifier) => {
   if (isEmail) {
     const { data, error } = await supabase
       .from("admins")
-      .select("*")
+      .select("id, email, name, password, dairy_id, phone, phone_number")
       .ilike("email", normalizedIdentifier)
       .limit(1)
       .maybeSingle();
@@ -65,7 +65,7 @@ export const findAdminByIdentifier = async (identifier) => {
     for (const column of candidateColumns) {
       const { data, error } = await supabase
         .from("admins")
-        .select("*")
+        .select("id, email, name, password, dairy_id, phone, phone_number")
         .eq(column, mobile)
         .limit(1)
         .maybeSingle();
@@ -206,7 +206,7 @@ export const adminStaffLoginService = async ({ identifier, password }) => {
   if (isAgentId) {
     const { data: agentUser, error } = await supabase
       .from("agents")
-      .select("*")
+      .select("id, agent_id, agent_name, email, password, dairy_id")
       .ilike("agent_id", normalizedIdentifier.toUpperCase())
       .limit(1)
       .maybeSingle();

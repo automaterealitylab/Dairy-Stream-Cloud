@@ -148,7 +148,7 @@ const LoginPage = () => {
 
     try {
       const response = await detectUserApi(normalizedIdentifier, {
-        requestCustomerOtp: false,
+        requestCustomerOtp: true,
         dairyId: selectedDairy?.id,
       });
 
@@ -190,7 +190,6 @@ const LoginPage = () => {
         setStep("OTP");
 
         if (!response.otpRequested) {
-          setLoading(false);
           try {
             const otpResponse = await requestOtpApi({
               identifier: normalizedIdentifier,
