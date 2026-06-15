@@ -466,3 +466,21 @@ export const recordManualPayment = async (payload) => {
   const { data } = await client.post("/admin/payments/manual", payload);
   return data;
 };
+
+/* =========================
+   NOTIFICATIONS
+========================= */
+export const fetchAdminNotifications = async () => {
+  const { data } = await client.get("/admin/notifications");
+  return data?.notifications || [];
+};
+
+export const markAdminNotificationRead = async (id) => {
+  const { data } = await client.patch(`/admin/notifications/${id}/read`);
+  return data;
+};
+
+export const markAllAdminNotificationsRead = async () => {
+  const { data } = await client.post("/admin/notifications/read-all");
+  return data;
+};

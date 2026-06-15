@@ -1594,3 +1594,21 @@ CREATE INDEX IF NOT EXISTS idx_app_settings_key
 
 CREATE INDEX IF NOT EXISTS idx_app_settings_updated_at
   ON public.app_settings(updated_at DESC);
+
+-- ============================================
+-- Create Admin Notifications Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.admin_notifications (
+  id BIGSERIAL PRIMARY KEY,
+  dairy_id BIGINT REFERENCES public.dairies(id) ON DELETE CASCADE,
+  type VARCHAR(100) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  priority VARCHAR(50) DEFAULT 'info',
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_dairy_id ON public.admin_notifications(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_created_at ON public.admin_notifications(created_at);

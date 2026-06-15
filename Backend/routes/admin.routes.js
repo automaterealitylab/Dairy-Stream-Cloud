@@ -5,6 +5,11 @@ const router = express.Router();
 import { adminLogin } from "../controllers/authentication/adminAuth.controller.js";
 import { verifyAdmin } from "../middleware/admin.middleware.js";
 import { getDashboard } from "../controllers/admin/dashboard.controller.js";
+import { 
+  getAdminNotifications, 
+  markNotificationAsRead, 
+  markAllNotificationsAsRead 
+} from "../controllers/admin/notifications.controller.js";
 import {
   approveAdminDelivery,
   approveAllAdminDeliveries,
@@ -115,6 +120,9 @@ router.post(
 // 2. DASHBOARD & CORE METRICS
 // ==========================================
 router.get("/dashboard", verifyAdmin, getDashboard); // Main dashboard data (Needed vs Procured, etc.)
+router.get("/notifications", verifyAdmin, getAdminNotifications); // Admin notifications list
+router.patch("/notifications/:id/read", verifyAdmin, markNotificationAsRead); // Mark individual notification as read
+router.post("/notifications/read-all", verifyAdmin, markAllNotificationsAsRead); // Mark all notifications as read
 router.get("/monitoring/operations", verifyAdmin, fetchOperationalMonitoring);
 router.post("/monitoring/whatsapp/process", verifyAdmin, processWhatsAppQueue);
 router.get("/health", (req, res) => {
