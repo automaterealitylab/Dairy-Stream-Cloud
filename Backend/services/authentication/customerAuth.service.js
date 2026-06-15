@@ -1,5 +1,6 @@
 import { supabase } from "../../config/supabase.js";
-import { generateToken } from "../../utils/jwt.js";
+import { getRedisConnection } from "../../config/redis.js";
+import { issueLoginTokens } from "../../utils/jwt.js";
 import bcrypt from "bcryptjs";
 import cloudinary from "../../config/cloudinary.js";
 import { ensureIdentityIsUnique } from "./identityUniqueness.service.js"; // Reuse existing uniqueness service
@@ -214,10 +215,13 @@ import { sendEmail } from "../../utils/email.js";
 const normalizeIdentifier = (value) => String(value ?? "").trim();
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 const otpStore = new Map();
+const CUSTOMER_OTP_TTL_SECONDS = Number(process.env.CUSTOMER_OTP_TTL_SECONDS || 300);
 
 // Helper: Build OTP Key
 const buildOtpKey = (identifier, dairyId) =>
   `${normalizeIdentifier(identifier)}::${dairyId == null ? "null" : String(dairyId)}`;
+
+const buildRedisOtpKey = (identifier, dairyId) => `otp:customer:${buildOtpKey(identifier, dairyId)}`;
 
 const purgeExpiredCustomerOtps = () => {
   const now = Date.now();
@@ -376,8 +380,19 @@ export const registerCustomerService = async (payload) => {
  * Login with Password
  */
 export const loginWithPasswordService = async (emailOrPhone, password) => {
-  const filter = `email.eq.${emailOrPhone},phone_number.eq.${emailOrPhone}`;
-  const { data, error } = await supabase.from("customers").select("*").or(filter).maybeSingle();
+  const normalizedIdentifier = normalizeIdentifier(emailOrPhone);
+  const isEmail = normalizedIdentifier.includes("@");
+  const selectColumns =
+    "id, customer_name, name, email, phone_number, password, dairy_id, is_active";
+
+  let query = supabase.from("customers").select(selectColumns);
+  if (isEmail) {
+    query = query.ilike("email", normalizeEmail(normalizedIdentifier));
+  } else {
+    query = query.in("phone_number", buildPhoneVariants(normalizedIdentifier));
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle();
 
   if (error) throw new Error("Database error");
   if (!data) throw new Error("Customer not found");
@@ -386,13 +401,21 @@ export const loginWithPasswordService = async (emailOrPhone, password) => {
   const isMatch = await bcrypt.compare(password, data.password);
   if (!isMatch) throw new Error("Invalid password");
 
-  const token = generateToken({
+  const tokens = await issueLoginTokens({
     id: data.id,
     email: data.email,
     role: "CUSTOMER",
+    dairyId: data.dairy_id ?? null,
+    actorType: "CUSTOMER",
   });
 
-  return { token, user: data };
+  return {
+    token: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+    user: data,
+  };
 };
 
 // ==========================================
@@ -414,6 +437,51 @@ const sendCustomerOtpEmail = async ({ customer, otp }) => {
   console.log(`[OTP SENT] To email: ${customer.email} | OTP: ${otp}`);
 };
 
+const setCustomerOtpRecord = async ({ identifier, dairyId, otp, expiresAt }) => {
+  const redis = getRedisConnection();
+  const record = {
+    identifier: normalizeIdentifier(identifier),
+    dairy_id: dairyId ?? null,
+    otp,
+    expiresAt,
+  };
+
+  if (redis) {
+    await redis.set(
+      buildRedisOtpKey(identifier, dairyId),
+      JSON.stringify(record),
+      "EX",
+      CUSTOMER_OTP_TTL_SECONDS
+    );
+    return;
+  }
+
+  otpStore.set(buildOtpKey(identifier, dairyId), record);
+};
+
+const getCustomerOtpRecord = async ({ identifier, dairyId }) => {
+  const redis = getRedisConnection();
+  const key = buildOtpKey(identifier, dairyId);
+
+  if (redis) {
+    const value = await redis.get(buildRedisOtpKey(identifier, dairyId));
+    if (!value) return null;
+    return { key, redisKey: buildRedisOtpKey(identifier, dairyId), ...JSON.parse(value) };
+  }
+
+  const value = otpStore.get(key);
+  return value ? { key, ...value } : null;
+};
+
+const deleteCustomerOtpRecord = async ({ identifier, dairyId, key, redisKey }) => {
+  const redis = getRedisConnection();
+  if (redis) {
+    await redis.del(redisKey || buildRedisOtpKey(identifier, dairyId));
+    return;
+  }
+  otpStore.delete(key || buildOtpKey(identifier, dairyId));
+};
+
 export const generateCustomerOtp = async ({
   identifier,
   dairyId,
@@ -430,9 +498,12 @@ export const generateCustomerOtp = async ({
   const expiresAt = Date.now() + 5 * 60 * 1000; // 5 mins
 
   purgeExpiredCustomerOtps();
-
-  const key = buildOtpKey(normalizedIdentifier, dairyId);
-  otpStore.set(key, { identifier: normalizedIdentifier, dairy_id: dairyId ?? null, otp, expiresAt });
+  await setCustomerOtpRecord({
+    identifier: normalizedIdentifier,
+    dairyId,
+    otp,
+    expiresAt,
+  });
 
   if (awaitDelivery) {
     await sendCustomerOtpEmail({ customer, otp });
@@ -456,22 +527,32 @@ export const verifyCustomerOtp = async ({ identifier, otp, dairyId }) => {
   const normalizedOtp = String(otp ?? "").trim();
 
   purgeExpiredCustomerOtps();
-  
-  // Find OTP in Memory
-  const candidates = [];
-  for (const [key, value] of otpStore.entries()) {
-    if (value.identifier !== normalizedIdentifier) continue;
-    if (dairyId !== undefined && value.dairy_id !== (dairyId ?? null)) continue;
-    candidates.push({ key, ...value });
+  const otpRecord = await getCustomerOtpRecord({
+    identifier: normalizedIdentifier,
+    dairyId,
+  });
+
+  if (!otpRecord || otpRecord.expiresAt <= Date.now()) {
+    if (otpRecord) {
+      await deleteCustomerOtpRecord({
+        identifier: normalizedIdentifier,
+        dairyId,
+        key: otpRecord.key,
+        redisKey: otpRecord.redisKey,
+      });
+    }
+    throw new Error("OTP expired or not found");
   }
 
-  // Check Expiry & Match
-  const latestOtp = candidates.sort((a, b) => b.expiresAt - a.expiresAt)[0];
-  if (!latestOtp) throw new Error("OTP expired or not found");
-  if (latestOtp.otp !== normalizedOtp) throw new Error("Invalid OTP");
+  if (otpRecord.otp !== normalizedOtp) throw new Error("Invalid OTP");
 
-  otpStore.delete(latestOtp.key); // Burn OTP
-  return latestOtp;
+  await deleteCustomerOtpRecord({
+    identifier: normalizedIdentifier,
+    dairyId,
+    key: otpRecord.key,
+    redisKey: otpRecord.redisKey,
+  });
+  return otpRecord;
 };
 
 /**
@@ -483,14 +564,21 @@ export const customerOtpLoginService = async ({ identifier, dairyId }) => {
 
   if (!customer) throw new Error("Customer not found");
 
-  const token = generateToken({
+  const tokens = await issueLoginTokens({
     id: customer.id,
     email: customer.email,
     role: "CUSTOMER",
-    dairyId
+    dairyId,
+    actorType: "CUSTOMER",
   });
 
-  return { token, user: customer };
+  return {
+    token: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+    user: customer,
+  };
 };
 
 /**

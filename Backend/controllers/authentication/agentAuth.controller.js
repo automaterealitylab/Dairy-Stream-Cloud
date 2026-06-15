@@ -1,7 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { sendEmail } from "../../utils/email.js";
+import { issueLoginTokens } from "../../utils/jwt.js";
 import { getSetting } from "../../services/shared/appSettings.service.js";
 
 const agentResetOtpStore = new Map();
@@ -104,20 +104,24 @@ export const agentLogin = async (req, res) => {
     const isValid = await bcrypt.compare(password, agent.password);
     if (!isValid) return res.status(401).json({ success: false, error: "Invalid password" });
 
-    const token = jwt.sign(
-      {
-        id: agent.id,
-        agentId: agent.agent_id,
-        role: "AGENT",
-        dairyId: agent.dairy_id,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const tokens = await issueLoginTokens({
+      id: agent.id,
+      email: agent.email,
+      role: "AGENT",
+      dairyId: agent.dairy_id,
+      agentId: agent.agent_id,
+      sessionVersion: agent.session_version || 1,
+      actorType: "AGENT",
+      ipAddress: req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket?.remoteAddress,
+      userAgent: req.headers["user-agent"] || null,
+    });
 
     return res.status(200).json({
       success: true,
-      token,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
       role: "AGENT",
       user: {
         id: agent.id,

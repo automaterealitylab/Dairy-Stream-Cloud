@@ -1,5 +1,5 @@
-import jwt from "jsonwebtoken";
 import { detectUserService } from "../../services/authentication/detectUser.service.js";
+import { verifyAccessToken } from "../../utils/jwt.js";
 
 const shouldLogAuthDebug = () => process.env.DEBUG_AUTH_LOGS === "true";
 
@@ -33,15 +33,7 @@ export const detectUser = async (req, res) => {
         });
       }
 
-      if (!process.env.JWT_SECRET) {
-        logDetectDebug("missing JWT secret");
-        return res.status(500).json({
-          success: false,
-          message: "JWT secret is not configured",
-        });
-      }
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = await verifyAccessToken(token);
       logDetectDebug("decoded jwt", { role: decoded?.role, id: decoded?.id });
 
       if (!req.body?.identifier) {

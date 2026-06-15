@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { supabase } from "../../config/supabase.js";
-import { generateToken } from "../../utils/jwt.js";
+import { issueLoginTokens } from "../../utils/jwt.js";
 import { ensureIdentityIsUnique } from "../authentication/identityUniqueness.service.js";
 import verifyEmail from "../../utils/verifyEmail.js";
 import {
@@ -169,16 +169,20 @@ export const registerDairyService = async ({
       throw new Error(`Failed to create admin: ${adminError.message}`);
     }
 
-    const token = generateToken({
+    const tokens = await issueLoginTokens({
       id: adminData.id,
       email: adminData.email,
       role: "ADMIN",
       dairyId: dairyData.id,
+      actorType: "ADMIN",
     });
 
     return {
       success: true,
-      token,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
       dairy: dairyData,
       admin: { id: adminData.id, email: adminData.email, name: adminData.name },
     };

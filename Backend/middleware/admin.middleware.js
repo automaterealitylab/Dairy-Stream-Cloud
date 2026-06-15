@@ -1,8 +1,8 @@
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../utils/jwt.js";
 
 const isDebugAuthLogsEnabled = () => process.env.DEBUG_AUTH_LOGS === "true";
 
-export const verifyAdmin = (req, res, next) => {
+export const verifyAdmin = async (req, res, next) => {
   try {
     const debug = isDebugAuthLogsEnabled();
     const authHeader = req.headers.authorization;
@@ -23,13 +23,7 @@ export const verifyAdmin = (req, res, next) => {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      console.error("JWT_SECRET not configured");
-      return res.status(500).json({ message: "Server configuration error" });
-    }
-
-    const decoded = jwt.verify(token, jwtSecret);
+    const decoded = await verifyAccessToken(token);
 
     if (decoded.role !== "admin" && decoded.role !== "ADMIN") {
       if (debug) console.log(`User role is ${decoded.role}, admin access required`);

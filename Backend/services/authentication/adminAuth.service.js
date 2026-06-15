@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { supabase } from "../../config/supabase.js";
-import { generateToken } from "../../utils/jwt.js";
+import { issueLoginTokens } from "../../utils/jwt.js";
 import { sendEmail } from "../../utils/email.js";
 import { getSetting } from "../shared/appSettings.service.js";
 
@@ -226,15 +226,21 @@ export const adminStaffLoginService = async ({ identifier, password }) => {
     throw new Error("Incorrect Password");
   }
 
-  const token = generateToken({
+  const tokens = await issueLoginTokens({
     id: user.id,
     email: user.email,
     role,
     dairyId: user.dairy_id,
+    agentId: user.agent_id,
+    sessionVersion: user.session_version || 1,
+    actorType: role === "STAFF" ? "AGENT" : "ADMIN",
   });
 
   return {
-    token,
+    token: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
     role,
     user: {
       id: user.id,

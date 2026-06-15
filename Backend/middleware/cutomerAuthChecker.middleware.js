@@ -1,9 +1,8 @@
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../utils/jwt.js";
 
-export const authenticate = (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    const jwtSecret = process.env.JWT_SECRET;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
@@ -20,14 +19,7 @@ export const authenticate = (req, res, next) => {
       });
     }
 
-    if (!jwtSecret) {
-      return res.status(500).json({
-        success: false,
-        message: "JWT secret is not configured",
-      });
-    }
-
-    const decoded = jwt.verify(token, jwtSecret);
+    const decoded = await verifyAccessToken(token);
 
     // ✅ SECURITY ADDITION: Check if it's actually a customer token
     if (decoded.role !== "CUSTOMER") {

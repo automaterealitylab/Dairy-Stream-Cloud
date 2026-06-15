@@ -12,6 +12,7 @@ import { supabase } from "./config/supabase.js";
 // ✅ Points to your central Route Hub
 import routes from "./routes/index.route.js"; 
 import {
+  apiRateLimit,
   botProtection,
   csrfProtection,
   getAllowedCorsOrigins,
@@ -140,7 +141,7 @@ app.get("/readyz", async (req, res) => {
 // ======================
 // This mounts all your routes at /api
 // e.g., /api/admin/addagent, /api/auth/login
-app.use('/api', routes);
+app.use('/api', apiRateLimit, routes);
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
@@ -186,9 +187,28 @@ const server = httpServer.listen(PORT, () => {
 const localWorkers =
   [];
 
+const shouldRunInProcessJobs = () =>
+  String(process.env.RUN_IN_PROCESS_JOBS || "true").toLowerCase() !== "false";
+
+const runWithRedisLock = async ({ key, ttlMs, owner, task }) => {
+  const lock = await acquireRedisLock({ key, ttlMs, owner });
+  if (!lock.acquired) return null;
+  try {
+    return await task();
+  } finally {
+    await lock.release();
+  }
+};
+
 const runSubscriptionAutomation = async () => {
   try {
-    const result = await runDailySubscriptionAutomationForAllCustomers();
+    const result = await runWithRedisLock({
+      key: `daily-subscription-automation:${getLocalDateInput()}`,
+      ttlMs: 55 * 60 * 1000,
+      owner: `api:${process.pid}`,
+      task: runDailySubscriptionAutomationForAllCustomers,
+    });
+    if (!result) return;
     console.log(
       `[AUTO_SUBSCRIPTION] date=${result.date} created=${result.createdCount} skipped=${result.skippedCount}`
     );
@@ -196,9 +216,6 @@ const runSubscriptionAutomation = async () => {
     console.error("AUTO_SUBSCRIPTION ERROR:", err?.message || err);
   }
 };
-
-runSubscriptionAutomation();
-setInterval(runSubscriptionAutomation, 60 * 60 * 1000);
 
 const getLocalDateInput = (dateValue = new Date()) => {
   const date = new Date(dateValue);
@@ -216,9 +233,14 @@ const getPreviousLocalDateInput = (dateValue = new Date()) => {
 
 const runSubscriptionAutoFail = async () => {
   try {
-    const result = await autoFailPendingSubscriptionDeliveriesForDate({
-      targetDate: getPreviousLocalDateInput(),
+    const targetDate = getPreviousLocalDateInput();
+    const result = await runWithRedisLock({
+      key: `subscription-auto-fail:${targetDate}`,
+      ttlMs: 55 * 60 * 1000,
+      owner: `api:${process.pid}`,
+      task: () => autoFailPendingSubscriptionDeliveriesForDate({ targetDate }),
     });
+    if (!result) return;
     console.log(
       `[AUTO_FAIL_SUBSCRIPTION] date=${result.date} failed=${result.failedCount}`
     );
@@ -227,11 +249,15 @@ const runSubscriptionAutoFail = async () => {
   }
 };
 
-runSubscriptionAutoFail();
-
 const runMonthEndSubscriptionBilling = async () => {
   try {
-    const result = await runMonthEndSubscriptionBillingForAllCustomers();
+    const result = await runWithRedisLock({
+      key: `month-end-subscription-billing:${new Date().toISOString().slice(0, 7)}`,
+      ttlMs: 2 * 60 * 60 * 1000,
+      owner: `api:${process.pid}`,
+      task: runMonthEndSubscriptionBillingForAllCustomers,
+    });
+    if (!result) return;
     console.log(
       `[MONTH_END_BILLING] date=${result.date} customers=${result.customers} bills=${result.bills}`
     );
@@ -239,14 +265,6 @@ const runMonthEndSubscriptionBilling = async () => {
     console.error("MONTH_END_BILLING ERROR:", err?.message || err);
   }
 };
-
-cron.schedule("0 0 * * *", runSubscriptionAutoFail, {
-  timezone: "Asia/Kolkata",
-});
-
-cron.schedule("59 23 * * *", runMonthEndSubscriptionBilling, {
-  timezone: "Asia/Kolkata",
-});
 
 const runWhatsAppNotificationQueue = async () => {
   const lock = await acquireRedisLock({
@@ -265,9 +283,25 @@ const runWhatsAppNotificationQueue = async () => {
   }
 };
 
-cron.schedule("*/5 * * * *", runWhatsAppNotificationQueue, {
-  timezone: "Asia/Kolkata",
-});
+if (shouldRunInProcessJobs()) {
+  runSubscriptionAutomation();
+  setInterval(runSubscriptionAutomation, 60 * 60 * 1000);
+  runSubscriptionAutoFail();
+
+  cron.schedule("0 0 * * *", runSubscriptionAutoFail, {
+    timezone: "Asia/Kolkata",
+  });
+
+  cron.schedule("59 23 * * *", runMonthEndSubscriptionBilling, {
+    timezone: "Asia/Kolkata",
+  });
+
+  cron.schedule("*/5 * * * *", runWhatsAppNotificationQueue, {
+    timezone: "Asia/Kolkata",
+  });
+} else {
+  logger.info("in_process_jobs_disabled");
+}
 
 // Handle "Port in use" errors gracefully (from your old app.js)
 server.on('error', (err) => {

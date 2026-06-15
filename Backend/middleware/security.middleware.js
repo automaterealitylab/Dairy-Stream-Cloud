@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { getRedisConnection } from "../config/redis.js";
 import { supabase } from "../config/supabase.js";
 import { logger } from "../utils/logger.js";
 import { getSetting } from "../services/shared/appSettings.service.js";
@@ -145,9 +146,26 @@ export const botProtection = createBotProtection();
 
 function createBotProtection() {
   const seen = new Map();
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const key = `${getIp(req)}:${req.requestFingerprint || "none"}`;
     const now = Date.now();
+    const limit = Number(process.env.BOT_PROTECTION_RATE_PER_MINUTE || 600);
+    const redis = getRedisConnection();
+
+    if (redis) {
+      try {
+        const redisKey = `bot:${key}`;
+        const count = await redis.incr(redisKey);
+        if (count === 1) await redis.pexpire(redisKey, 60_000);
+        if (count > limit) {
+          return res.status(429).json({ success: false, error: "Request volume is temporarily restricted" });
+        }
+        return next();
+      } catch (err) {
+        logger.warn("redis_bot_protection_failed_using_memory_fallback", { error: err.message });
+      }
+    }
+
     const bucket = seen.get(key) || { count: 0, resetAt: now + 60_000 };
     if (bucket.resetAt <= now) {
       bucket.count = 0;
@@ -155,7 +173,7 @@ function createBotProtection() {
     }
     bucket.count += 1;
     seen.set(key, bucket);
-    if (bucket.count > Number(process.env.BOT_PROTECTION_RATE_PER_MINUTE || 600)) {
+    if (bucket.count > limit) {
       return res.status(429).json({ success: false, error: "Request volume is temporarily restricted" });
     }
     next();
@@ -190,13 +208,39 @@ export const createRateLimiter = ({
       }
     }
 
-    const ip =
-      req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      "unknown";
+    const ip = getIp(req);
     const key = `${keyPrefix}:${ip}`;
-    const current = buckets.get(key);
+    const redis = getRedisConnection();
 
+    if (redis) {
+      try {
+        const redisKey = `rate:${key}`;
+        const count = await redis.incr(redisKey);
+        if (count === 1) await redis.pexpire(redisKey, windowMs);
+        const ttlMs = await redis.pttl(redisKey);
+
+        res.setHeader("X-RateLimit-Limit", String(cachedMax));
+        res.setHeader("X-RateLimit-Remaining", String(Math.max(0, cachedMax - count)));
+        if (ttlMs > 0) res.setHeader("X-RateLimit-Reset", String(Math.ceil(ttlMs / 1000)));
+
+        if (count > cachedMax) {
+          res.setHeader("Retry-After", String(Math.max(1, Math.ceil(ttlMs / 1000))));
+          return res.status(429).json({
+            success: false,
+            error: "Too many requests. Please retry shortly.",
+          });
+        }
+
+        return next();
+      } catch (err) {
+        logger.warn("redis_rate_limit_failed_using_memory_fallback", {
+          keyPrefix,
+          error: err.message,
+        });
+      }
+    }
+
+    const current = buckets.get(key);
     if (!current || current.resetAt <= now) {
       buckets.set(key, { count: 1, resetAt: now + windowMs });
       return next();
@@ -214,6 +258,20 @@ export const createRateLimiter = ({
     return next();
   };
 };
+
+export const apiRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: Number(process.env.API_RATE_LIMIT_PER_MINUTE || 300),
+  keyPrefix: "api",
+  settingKey: "API_RATE_LIMIT_PER_MINUTE",
+});
+
+export const authRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE || 30),
+  keyPrefix: "auth",
+  settingKey: "AUTH_RATE_LIMIT_PER_MINUTE",
+});
 
 export const marketplaceRateLimit = createRateLimiter({
   windowMs: 60_000,
