@@ -4,11 +4,11 @@ import { logger, logError } from "../../utils/logger.js";
 import { metrics } from "../../utils/metrics.js";
 
 export const QUEUE_NAMES = {
-  webhooks: "marketplace:webhooks",
-  settlements: "marketplace:settlements",
-  reconciliation: "marketplace:reconciliation",
-  retries: "marketplace:retries",
-  notifications: "marketplace:notifications",
+  webhooks: "marketplace-webhooks",
+  settlements: "marketplace-settlements",
+  reconciliation: "marketplace-reconciliation",
+  retries: "marketplace-retries",
+  notifications: "marketplace-notifications",
 };
 
 const queueCache = new Map();

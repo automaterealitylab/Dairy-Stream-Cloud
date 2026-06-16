@@ -1,4 +1,14 @@
 services:
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        - VITE_API_BASE_URL=http://localhost:4000
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
   backend:
     build:
       context: ./Backend
@@ -7,7 +17,6 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       REDIS_ENABLED: "true"
-      START_QUEUE_WORKERS_IN_API: "false"
     ports:
       - "4000:4000"
     depends_on:
