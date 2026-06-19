@@ -14,9 +14,8 @@ const headingFont = { fontFamily: "'Lora', serif" };
 const NavTab = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${
-      active ? "text-[#B8641A]" : "text-[#8B7355]"
-    }`}
+    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${active ? "text-[#B8641A]" : "text-[#8B7355]"
+      }`}
   >
     {icon}
     <span className="text-[8px] font-black uppercase tracking-[0.16em]">{label}</span>
@@ -89,7 +88,7 @@ const AgentWorkingPage = () => {
       try {
         const payload = await fetchAssignedAgentDeliveries({ today: true });
         setDeliveries(payload || []);
-      } catch (_err) {}
+      } catch (_err) { }
     };
 
     const handleOffline = () => {
@@ -167,17 +166,15 @@ const AgentWorkingPage = () => {
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key)}
-              className={`flex min-w-0 items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] transition ${
-                filter === tab.key
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] transition ${filter === tab.key
                   ? "border-[#B8641A] bg-[#B8641A] text-white shadow-lg shadow-[#F2D9B8]"
                   : "border-[#E7DAC6] bg-white text-[#8B7355]"
-              }`}
+                }`}
             >
               <span className="truncate">{tab.label}</span>
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[8px] ${
-                  filter === tab.key ? "bg-white/20 text-white" : "bg-[#F8F1E7] text-[#A88763]"
-                }`}
+                className={`rounded-full px-1.5 py-0.5 text-[8px] ${filter === tab.key ? "bg-white/20 text-white" : "bg-[#F8F1E7] text-[#A88763]"
+                  }`}
               >
                 {tab.count}
               </span>

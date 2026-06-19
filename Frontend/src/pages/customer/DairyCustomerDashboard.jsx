@@ -27,6 +27,7 @@ import {
   X,
   AlertCircle,
   Loader2,
+  QrCode,
 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -303,9 +304,9 @@ const getTodayDeliveryMeta = (delivery = {}) => {
 const getPreferredExtraProductName = ({ subscription, tomorrow, today }) =>
   String(
     subscription?.milkType ||
-      tomorrow?.product ||
-      today?.product ||
-      ""
+    tomorrow?.product ||
+    today?.product ||
+    ""
   ).trim();
 
 const getPreferredExtraQuantity = ({ subscription, tomorrow, today }) => {
@@ -380,6 +381,7 @@ export default function DairyCustomerDashboard() {
     address: "",
     slot: "Morning",
   });
+  const [addExtraStep, setAddExtraStep] = useState(1);
   const toastTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -479,22 +481,22 @@ export default function DairyCustomerDashboard() {
     ? pendingSubscriptionStatus === "PAUSED"
       ? "Pausing..."
       : pendingSubscriptionStatus === "ACTIVE"
-      ? "Resuming..."
-      : isPaused
-      ? "Resume"
-      : "Pause"
+        ? "Resuming..."
+        : isPaused
+          ? "Resume"
+          : "Pause"
     : isPaused
-    ? "Resume"
-    : "Pause";
+      ? "Resume"
+      : "Pause";
   const pauseToggleHelper = savingPause
     ? pendingSubscriptionStatus === "PAUSED"
       ? "Updating your plan status"
       : pendingSubscriptionStatus === "ACTIVE"
-      ? "Restarting daily deliveries"
-      : "Updating your plan status"
+        ? "Restarting daily deliveries"
+        : "Updating your plan status"
     : isPaused
-    ? "Restart daily deliveries"
-    : "Temporarily stop deliveries";
+      ? "Restart daily deliveries"
+      : "Temporarily stop deliveries";
   const nextExtraDeliveryDate = getTomorrowDateInput();
   const tomorrowExtraOrders = Array.isArray(tomorrow?.extraOrders) ? tomorrow.extraOrders : [];
   const hasTomorrowExtras = tomorrowExtraOrders.length > 0;
@@ -514,9 +516,9 @@ export default function DairyCustomerDashboard() {
     setAddExtraForm((prev) =>
       prev.paymentMethod === "ADD_TO_SUBSCRIPTION"
         ? {
-            ...prev,
-            paymentMethod: "PAY_NOW_ONLINE",
-          }
+          ...prev,
+          paymentMethod: "PAY_NOW_ONLINE",
+        }
         : prev
     );
   }, [addExtraForm.paymentMethod, canAddExtraToSubscriptionBill]);
@@ -583,10 +585,10 @@ export default function DairyCustomerDashboard() {
   const addExtraSubmitLabel = addExtraSubmitting
     ? "Placing extra orders..."
     : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
-    ? `Pay ${formattedAddExtraTotal} & Add Extras`
-    : addExtraForm.paymentMethod === "PAY_NOW_CASH"
-    ? `Add Extras for ${formattedAddExtraTotal} with Cash`
-    : `Add ${formattedAddExtraTotal} to Subscription Bill`;
+      ? `Pay ${formattedAddExtraTotal} & Add Extras`
+      : addExtraForm.paymentMethod === "PAY_NOW_CASH"
+        ? `Add Extras for ${formattedAddExtraTotal} with Cash`
+        : `Add ${formattedAddExtraTotal} to Subscription Bill`;
   const canSubmitAddExtraOrder =
     !addExtraLoading &&
     !addExtraSubmitting &&
@@ -681,6 +683,7 @@ export default function DairyCustomerDashboard() {
     const preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
     const preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
 
+    setAddExtraStep(1);
     setAddExtraError("");
     setShowDuplicateExtraConfirm(false);
     setShowAddExtraModal(true);
@@ -832,7 +835,7 @@ export default function DairyCustomerDashboard() {
 
         await startExtraUpiPayment(paymentId);
         setShowAddExtraModal(false);
-        refreshDashboard().catch(() => {});
+        refreshDashboard().catch(() => { });
         return;
       }
 
@@ -857,12 +860,12 @@ export default function DairyCustomerDashboard() {
         addExtraForm.paymentMethod === "PAY_NOW_CASH"
           ? `${selectedCount} ${productText} placed for tomorrow. You can pay cash on delivery.`
           : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
-          ? `${selectedCount} ${productText} placed for tomorrow.`
-          : `${selectedCount} ${productText} placed for tomorrow. It will be added to your subscription bill.`,
+            ? `${selectedCount} ${productText} placed for tomorrow.`
+            : `${selectedCount} ${productText} placed for tomorrow. It will be added to your subscription bill.`,
         "success"
       );
       setShowAddExtraModal(false);
-      refreshDashboard().catch(() => {});
+      refreshDashboard().catch(() => { });
       return;
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || "Failed to place extra order.";
@@ -899,7 +902,7 @@ export default function DairyCustomerDashboard() {
       setAddExtraUpiIntent(null);
       setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
       showToast("UPI payment submitted for dairy verification.", "success");
-      refreshDashboard().catch(() => {});
+      refreshDashboard().catch(() => { });
     } catch (err) {
       setAddExtraError(
         err?.response?.data?.message || err?.message || "Unable to submit UPI verification."
@@ -1034,13 +1037,12 @@ export default function DairyCustomerDashboard() {
       <div className="space-y-5 lg:space-y-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {toast && (
           <div
-            className={`fixed inset-x-3 top-4 z-50 flex items-center gap-2 rounded-[18px] border px-4 py-3 text-sm font-semibold shadow-[0_16px_40px_rgba(84,52,16,0.14)] transition-all sm:left-auto sm:right-5 sm:top-5 sm:max-w-md ${
-              toast.type === "success"
+            className={`fixed inset-x-3 top-4 z-50 flex items-center gap-2 rounded-[18px] border px-4 py-3 text-sm font-semibold shadow-[0_16px_40px_rgba(84,52,16,0.14)] transition-all sm:left-auto sm:right-5 sm:top-5 sm:max-w-md ${toast.type === "success"
                 ? "border-[#CFE4C2] bg-[#EEF5E7] text-[#4A7C2F]"
                 : toast.type === "warning"
-                ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#B8641A]"
-                : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
-            }`}
+                  ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#B8641A]"
+                  : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
+              }`}
           >
             {toast.type === "success" ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
             {toast.msg}
@@ -1051,9 +1053,18 @@ export default function DairyCustomerDashboard() {
           <div className="rounded-[26px] border-0 bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-4 shadow-[0_10px_24px_rgba(84,52,16,0.04)] sm:p-6 xl:p-7">
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,320px)] xl:items-start xl:gap-5">
               <div className="min-w-0 max-w-3xl">
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
-                  Customer Overview
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+                    Customer Overview
+                  </p>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent("open-customer-qr-modal"))}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#FFF4E2] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#B8641A] hover:bg-[#FDE9C9] transition"
+                  >
+                    <QrCode size={10} />
+                    My QR Code
+                  </button>
+                </div>
                 <h1
                   className="mt-2 text-[26px] font-semibold leading-[1.08] text-[#2C1A0E] sm:text-[38px] xl:text-[35px]"
                   style={headingFont}
@@ -1072,13 +1083,12 @@ export default function DairyCustomerDashboard() {
                 </p>
                 <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${
-                      !subscription
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${!subscription
                         ? "bg-[#F5F0E8] text-[#8B7355]"
                         : isPaused
-                        ? "bg-[#FFF1E4] text-[#C86A2B]"
-                        : "bg-[#EEF5E7] text-[#4A7C2F]"
-                    }`}
+                          ? "bg-[#FFF1E4] text-[#C86A2B]"
+                          : "bg-[#EEF5E7] text-[#4A7C2F]"
+                      }`}
                   >
                     {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
                   </span>
@@ -1091,21 +1101,21 @@ export default function DairyCustomerDashboard() {
               </div>
             </div>
           </div>
+        </div>
 
         {today && (
           <div className="relative mt-3 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-4 sm:rounded-[28px] sm:p-7">
             <div
-              className={`pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ${
-                todayMeta.tone === "success"
+              className={`pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ${todayMeta.tone === "success"
                   ? "bg-[radial-gradient(circle_at_top_right,rgba(238,245,231,0.16),transparent_40%)]"
                   : todayMeta.tone === "approval"
-                  ? "bg-[radial-gradient(circle_at_top_right,rgba(246,240,255,0.18),transparent_40%)]"
-                  : todayMeta.tone === "failed"
-                  ? "bg-[radial-gradient(circle_at_top_right,rgba(253,236,234,0.16),transparent_40%)]"
-                  : todayMeta.tone === "idle"
-                  ? "bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.09),transparent_40%)]"
-                  : "bg-[radial-gradient(circle_at_top_right,rgba(255,241,228,0.18),transparent_40%)]"
-              }`}
+                    ? "bg-[radial-gradient(circle_at_top_right,rgba(246,240,255,0.18),transparent_40%)]"
+                    : todayMeta.tone === "failed"
+                      ? "bg-[radial-gradient(circle_at_top_right,rgba(253,236,234,0.16),transparent_40%)]"
+                      : todayMeta.tone === "idle"
+                        ? "bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.09),transparent_40%)]"
+                        : "bg-[radial-gradient(circle_at_top_right,rgba(255,241,228,0.18),transparent_40%)]"
+                }`}
             />
             <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/5" />
             <div className="absolute -bottom-14 left-7 h-36 w-36 rounded-full bg-[#D28A40]/10" />
@@ -1117,17 +1127,16 @@ export default function DairyCustomerDashboard() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-3.5">
                   <div
-                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] ${
-                      todayMeta.tone === "success"
+                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] ${todayMeta.tone === "success"
                         ? "bg-[#EEF5E7] text-[#4A7C2F]"
                         : todayMeta.tone === "approval"
-                        ? "bg-[#F6F0FF] text-[#7C4DAB]"
-                        : todayMeta.tone === "failed"
-                        ? "bg-[#FDECEA] text-[#C0392B]"
-                        : todayMeta.tone === "idle"
-                        ? "bg-white/10 text-white/80"
-                        : "bg-[#FFF1E4] text-[#D98A2B]"
-                    }`}
+                          ? "bg-[#F6F0FF] text-[#7C4DAB]"
+                          : todayMeta.tone === "failed"
+                            ? "bg-[#FDECEA] text-[#C0392B]"
+                            : todayMeta.tone === "idle"
+                              ? "bg-white/10 text-white/80"
+                              : "bg-[#FFF1E4] text-[#D98A2B]"
+                      }`}
                   >
                     {todayMeta.tone === "success" ? (
                       <CheckCircle size={22} />
@@ -1210,23 +1219,20 @@ export default function DairyCustomerDashboard() {
 
                     {(hasAdminAction || issueStatus === "OPEN") && (
                       <div
-                        className={`relative rounded-[12px] border px-3 py-1.5 sm:rounded-[14px] ${
-                          hasAdminAction
+                        className={`relative rounded-[12px] border px-3 py-1.5 sm:rounded-[14px] ${hasAdminAction
                             ? "border-emerald-100 bg-emerald-50"
                             : "border-amber-100 bg-amber-50"
-                        }`}
+                          }`}
                       >
                         <p
-                          className={`text-[8px] font-bold uppercase tracking-[0.14em] sm:text-[9px] sm:tracking-[0.16em] ${
-                            hasAdminAction ? "text-emerald-500" : "text-amber-500"
-                          }`}
+                          className={`text-[8px] font-bold uppercase tracking-[0.14em] sm:text-[9px] sm:tracking-[0.16em] ${hasAdminAction ? "text-emerald-500" : "text-amber-500"
+                            }`}
                         >
                           {hasAdminAction ? "Action Taken" : "Issue Status"}
                         </p>
                         <p
-                          className={`mt-0.5 text-[11px] font-medium leading-3.5 sm:text-xs ${
-                            hasAdminAction ? "text-emerald-700" : "text-amber-700"
-                          }`}
+                          className={`mt-0.5 text-[11px] font-medium leading-3.5 sm:text-xs ${hasAdminAction ? "text-emerald-700" : "text-amber-700"
+                            }`}
                         >
                           {hasAdminAction ? today.issueAdminAction : "Pending resolution"}
                         </p>
@@ -1261,10 +1267,10 @@ export default function DairyCustomerDashboard() {
                   {key === "pause"
                     ? pauseToggleHelper
                     : key === "add"
-                    ? "Choose extra products for tomorrow"
-                    : key === "deliveries"
-                    ? "Review delivery history"
-                    : "Open payment center"}
+                      ? "Choose extra products for tomorrow"
+                      : key === "deliveries"
+                        ? "Review delivery history"
+                        : "Open payment center"}
                 </p>
               </button>
             );
@@ -1355,13 +1361,12 @@ export default function DairyCustomerDashboard() {
                     : "No active subscription"}
                 </p>
                 <span
-                  className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${
-                    !subscription
+                  className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${!subscription
                       ? "bg-[#F5F0E8] text-[#8B7355]"
                       : isPaused
-                      ? "bg-[#FFF1E4] text-[#C86A2B]"
-                      : "bg-[#EEF5E7] text-[#4A7C2F]"
-                  }`}
+                        ? "bg-[#FFF1E4] text-[#C86A2B]"
+                        : "bg-[#EEF5E7] text-[#4A7C2F]"
+                    }`}
                 >
                   {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
                 </span>
@@ -1373,11 +1378,10 @@ export default function DairyCustomerDashboard() {
                 <button
                   onClick={handlePauseResume}
                   disabled={!canTogglePause}
-                  className={`flex-1 rounded-[14px] border py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    isPaused
+                  className={`flex-1 rounded-[14px] border py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${isPaused
                       ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F] hover:bg-[#E3EED8]"
                       : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B] hover:bg-[#F8DDD6]"
-                  }`}
+                    }`}
                 >
                   {pauseToggleLabel}
                 </button>
@@ -1464,6 +1468,15 @@ export default function DairyCustomerDashboard() {
                   <p className="mt-2 max-w-2xl text-sm text-[#8B7355]">
                     Choose one or more products, set quantities, and place them for {nextExtraDeliveryLabel}.
                   </p>
+                  <div className="mt-3.5 flex items-center gap-2 xl:hidden">
+                    <span className={`inline-flex items-center justify-center rounded-full text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 ${addExtraStep === 1 ? "bg-[#FFF4E2] text-[#B8641A]" : "bg-[#F5F0E8] text-[#8B7355]"}`}>
+                      1. Products {addExtraStep > 1 && "✓"}
+                    </span>
+                    <span className="text-[#EDE8DF]">/</span>
+                    <span className={`inline-flex items-center justify-center rounded-full text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 ${addExtraStep === 2 ? "bg-[#FFF4E2] text-[#B8641A]" : "bg-[#F5F0E8] text-[#8B7355]"}`}>
+                      2. Details & Order
+                    </span>
+                  </div>
                 </div>
 
                 <button
@@ -1476,7 +1489,7 @@ export default function DairyCustomerDashboard() {
               </div>
 
               <div className="min-h-0 flex-1 grid xl:grid-cols-[minmax(0,1.35fr)_360px]">
-                <div className="min-h-0 overflow-y-auto p-4 sm:p-7">
+                <div className={`min-h-0 overflow-y-auto p-4 sm:p-7 ${addExtraStep === 1 ? "block" : "hidden xl:block"}`}>
                   {addExtraLoading ? (
                     <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0]">
                       <Loader2 size={28} className="animate-spin text-[#B8641A]" />
@@ -1539,13 +1552,12 @@ export default function DairyCustomerDashboard() {
                                   };
                                 })
                               }
-                              className={`rounded-[18px] border px-4 py-3 text-left transition ${
-                                isDisabled
+                              className={`rounded-[18px] border px-4 py-3 text-left transition ${isDisabled
                                   ? "cursor-not-allowed border-[#F2EDE4] bg-[#FBF7F0] opacity-60"
                                   : isSelected
-                                  ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_16px_30px_rgba(184,100,26,0.12)]"
-                                  : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
-                              }`}
+                                    ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_16px_30px_rgba(184,100,26,0.12)]"
+                                    : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
+                                }`}
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
@@ -1576,11 +1588,22 @@ export default function DairyCustomerDashboard() {
                           );
                         })}
                       </div>
+                      {/* Mobile Step 1 Continue button */}
+                      <div className="mt-6 border-t border-[#EDE8DF]/60 pt-4 xl:hidden">
+                        <button
+                          type="button"
+                          onClick={() => setAddExtraStep(2)}
+                          disabled={selectedAddExtraOrderLines.length === 0}
+                          className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3.5 text-sm font-bold text-white shadow-lg hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Continue to Details ({selectedAddExtraOrderLines.length} selected)
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
 
-                <div className="min-h-0 border-t border-[#F2EDE4] bg-[#FBF7F0] xl:border-l xl:border-t-0">
+                <div className={`min-h-0 border-t border-[#F2EDE4] bg-[#FBF7F0] xl:border-l xl:border-t-0 ${addExtraStep === 2 ? "block" : "hidden xl:block"}`}>
                   <div className="flex h-full min-h-0 flex-col">
                     <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7">
                       {addExtraError && (
@@ -1680,71 +1703,80 @@ export default function DairyCustomerDashboard() {
                           )}
                         </div>
 
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
-                        Payment Option
-                      </label>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        {addExtraPaymentOptions.map((method) => (
-                          <button
-                            key={method.id}
-                            type="button"
-                            onClick={() =>
-                              setAddExtraForm((prev) => ({
-                                ...prev,
-                                paymentMethod: method.id,
-                              }))
-                            }
-                            className={`flex min-h-[84px] items-center justify-center rounded-[14px] border px-3 py-2.5 text-center text-sm font-bold leading-6 transition ${
-                              addExtraForm.paymentMethod === method.id
-                                ? "border-[#B8641A] bg-[#FFF4E2] text-[#B8641A]"
-                                : "border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
-                            }`}
-                          >
-                            {method.label}
-                          </button>
-                        ))}
+                        <div>
+                          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
+                            Payment Option
+                          </label>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            {addExtraPaymentOptions.map((method) => (
+                              <button
+                                key={method.id}
+                                type="button"
+                                onClick={() =>
+                                  setAddExtraForm((prev) => ({
+                                    ...prev,
+                                    paymentMethod: method.id,
+                                  }))
+                                }
+                                className={`flex min-h-[84px] items-center justify-center rounded-[14px] border px-3 py-2.5 text-center text-sm font-bold leading-6 transition ${addExtraForm.paymentMethod === method.id
+                                    ? "border-[#B8641A] bg-[#FFF4E2] text-[#B8641A]"
+                                    : "border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
+                                  }`}
+                              >
+                                {method.label}
+                              </button>
+                            ))}
+                          </div>
+                          {!canAddExtraToSubscriptionBill && (
+                            <p className="mt-2 text-xs font-medium text-[#8B7355]">
+                              Add to Subscription Bill is available only for customers with an active subscription in this dairy.
+                            </p>
+                          )}
+                          {addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && (
+                            <p className="mt-2 text-xs font-medium text-[#8B7355]">
+                              This extra order will be added to your subscription bill.
+                            </p>
+                          )}
+                        </div>
+
                       </div>
-                      {!canAddExtraToSubscriptionBill && (
-                        <p className="mt-2 text-xs font-medium text-[#8B7355]">
-                          Add to Subscription Bill is available only for customers with an active subscription in this dairy.
-                        </p>
-                      )}
-                      {addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && (
-                        <p className="mt-2 text-xs font-medium text-[#8B7355]">
-                          This extra order will be added to your subscription bill.
-                        </p>
-                      )}
+
+                      <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
+                        <button
+                          type="button"
+                          onClick={() => handleSubmitExtraOrder(false)}
+                          disabled={!canSubmitAddExtraOrder}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#B8641A_0%,#8F4D12_100%)] px-4 py-3.5 text-sm font-bold text-white shadow-[0_16px_30px_rgba(143,77,18,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_34px_rgba(143,77,18,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0"
+                        >
+                          {addExtraSubmitting ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <PlusCircle size={15} />
+                          )}
+                          <span>{addExtraSubmitLabel}</span>
+                        </button>
+
+                        {/* Back to Products on mobile */}
+                        <button
+                          type="button"
+                          onClick={() => setAddExtraStep(1)}
+                          disabled={addExtraSubmitting}
+                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2.5 text-sm font-bold text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E] xl:hidden"
+                        >
+                          Back to Products
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={closeAddExtraModal}
+                          disabled={addExtraSubmitting}
+                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-
-                      </div>
-
-                  <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
-                    <button
-                      type="button"
-                      onClick={() => handleSubmitExtraOrder(false)}
-                      disabled={!canSubmitAddExtraOrder}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#B8641A_0%,#8F4D12_100%)] px-4 py-3.5 text-sm font-bold text-white shadow-[0_16px_30px_rgba(143,77,18,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_34px_rgba(143,77,18,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0"
-                    >
-                      {addExtraSubmitting ? (
-                        <Loader2 size={15} className="animate-spin" />
-                      ) : (
-                        <PlusCircle size={15} />
-                      )}
-                      <span>{addExtraSubmitLabel}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={closeAddExtraModal}
-                      disabled={addExtraSubmitting}
-                      className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Cancel
-                    </button>
                   </div>
-                </div>
-              </div>
                 </div>
               </div>
             </div>
@@ -1911,9 +1943,8 @@ export default function DairyCustomerDashboard() {
               </h4>
               <p className="mt-2 text-sm text-[#8B7355]">
                 {selectedDuplicateExtraProductNames.length > 0
-                  ? `${selectedDuplicateExtraProductNames.join(", ")} already ${
-                      selectedDuplicateExtraProductNames.length === 1 ? "has" : "have"
-                    } an extra order for this date.`
+                  ? `${selectedDuplicateExtraProductNames.join(", ")} already ${selectedDuplicateExtraProductNames.length === 1 ? "has" : "have"
+                  } an extra order for this date.`
                   : "One or more selected products already have an extra order for this date."}{" "}
                 Do you want to place another extra order anyway?
               </p>
@@ -1938,7 +1969,6 @@ export default function DairyCustomerDashboard() {
             </div>
           </div>
         )}
-      </div>
       </div>
     </CustomerLayout>
   );

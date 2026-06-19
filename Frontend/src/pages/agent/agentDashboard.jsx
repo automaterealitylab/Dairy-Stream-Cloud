@@ -141,17 +141,17 @@ const getUpcomingInstructionSummary = (route) => {
   return {
     primary: primaryStep
       ? {
-          distanceMeters: Number.isFinite(Number(primaryStep.distance)) ? Number(primaryStep.distance) : null,
-          distanceLabel: formatInstructionDistance(primaryStep.distance),
-          text: formatManeuverText(primaryStep),
-        }
+        distanceMeters: Number.isFinite(Number(primaryStep.distance)) ? Number(primaryStep.distance) : null,
+        distanceLabel: formatInstructionDistance(primaryStep.distance),
+        text: formatManeuverText(primaryStep),
+      }
       : null,
     secondary: secondaryStep
       ? {
-          distanceMeters: Number.isFinite(Number(secondaryStep.distance)) ? Number(secondaryStep.distance) : null,
-          distanceLabel: formatInstructionDistance(secondaryStep.distance),
-          text: formatManeuverText(secondaryStep),
-        }
+        distanceMeters: Number.isFinite(Number(secondaryStep.distance)) ? Number(secondaryStep.distance) : null,
+        distanceLabel: formatInstructionDistance(secondaryStep.distance),
+        text: formatManeuverText(secondaryStep),
+      }
       : null,
   };
 };
@@ -204,12 +204,12 @@ const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => 
   const geometry = route?.geometry?.coordinates;
   const routePoints = Array.isArray(geometry)
     ? geometry
-        .map((point) => {
-          const lng = Number(point?.[0]);
-          const lat = Number(point?.[1]);
-          return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
-        })
-        .filter(Boolean)
+      .map((point) => {
+        const lng = Number(point?.[0]);
+        const lat = Number(point?.[1]);
+        return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+      })
+      .filter(Boolean)
     : [];
   const routeData = {
     points: routePoints,
@@ -280,19 +280,19 @@ const fetchRoadDistanceTable = async (originCoordinates, deliveries, signal) => 
 const getDeliveryCoordinates = (delivery) => {
   const lat = Number(
     delivery?.lat ??
-      delivery?.latitude ??
-      delivery?.customerLat ??
-      delivery?.customerLatitude ??
-      delivery?.location?.lat ??
-      delivery?.location?.latitude
+    delivery?.latitude ??
+    delivery?.customerLat ??
+    delivery?.customerLatitude ??
+    delivery?.location?.lat ??
+    delivery?.location?.latitude
   );
   const lng = Number(
     delivery?.lng ??
-      delivery?.longitude ??
-      delivery?.customerLng ??
-      delivery?.customerLongitude ??
-      delivery?.location?.lng ??
-      delivery?.location?.longitude
+    delivery?.longitude ??
+    delivery?.customerLng ??
+    delivery?.customerLongitude ??
+    delivery?.location?.lng ??
+    delivery?.location?.longitude
   );
 
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
@@ -301,19 +301,19 @@ const getDeliveryCoordinates = (delivery) => {
 const getDairyCoordinates = (source) => {
   const lat = Number(
     source?.dairyLat ??
-      source?.dairyLatitude ??
-      source?.dairyFarmLat ??
-      source?.dairyFarmLatitude ??
-      source?.dairy?.latitude ??
-      source?.dairy?.lat
+    source?.dairyLatitude ??
+    source?.dairyFarmLat ??
+    source?.dairyFarmLatitude ??
+    source?.dairy?.latitude ??
+    source?.dairy?.lat
   );
   const lng = Number(
     source?.dairyLng ??
-      source?.dairyLongitude ??
-      source?.dairyFarmLng ??
-      source?.dairyFarmLongitude ??
-      source?.dairy?.longitude ??
-      source?.dairy?.lng
+    source?.dairyLongitude ??
+    source?.dairyFarmLng ??
+    source?.dairyFarmLongitude ??
+    source?.dairy?.longitude ??
+    source?.dairy?.lng
   );
 
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
@@ -331,9 +331,9 @@ const getDistanceInMeters = (from, to) => {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRadians(fromLat)) *
-      Math.cos(toRadians(toLat)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(toRadians(toLat)) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
 
   return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
@@ -492,9 +492,8 @@ const StatCard = ({ icon, label, value, accent, tint }) => (
 const NavTab = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${
-      active ? "text-[#B8641A]" : "text-[#8B7355]"
-    }`}
+    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${active ? "text-[#B8641A]" : "text-[#8B7355]"
+      }`}
   >
     {icon}
     <span className="text-[8px] font-black uppercase tracking-[0.16em]">{label}</span>
@@ -691,7 +690,7 @@ const AgentDashboard = () => {
             getDairyCoordinates(parsed?.user?.dairy) ||
             prev.dairyCoordinates,
         }));
-      } catch (_err) {}
+      } catch (_err) { }
     }
 
     loadDashboard();
@@ -1019,27 +1018,27 @@ const AgentDashboard = () => {
 
     const orderedDeliveries = agentLocation
       ? [...mappedDeliveries].sort((left, right) => {
-          const leftDistance = getDistanceInMeters(agentLocation, left.coordinates);
-          const rightDistance = getDistanceInMeters(agentLocation, right.coordinates);
+        const leftDistance = getDistanceInMeters(agentLocation, left.coordinates);
+        const rightDistance = getDistanceInMeters(agentLocation, right.coordinates);
 
-          if (Number.isFinite(leftDistance) && Number.isFinite(rightDistance) && leftDistance !== rightDistance) {
-            return leftDistance - rightDistance;
-          }
+        if (Number.isFinite(leftDistance) && Number.isFinite(rightDistance) && leftDistance !== rightDistance) {
+          return leftDistance - rightDistance;
+        }
 
-          return compareScheduledDeliveries(left, right);
-        })
+        return compareScheduledDeliveries(left, right);
+      })
       : mappedDeliveries.sort(compareScheduledDeliveries);
 
     return orderedDeliveries.filter((delivery, index, items) => {
-        if (!agentLocation) return true;
+      if (!agentLocation) return true;
 
-        const distanceFromAgent = getDistanceInMeters(agentLocation, delivery.coordinates);
-        if (!Number.isFinite(distanceFromAgent)) return false;
-        if (distanceFromAgent <= MAX_ROUTE_PREVIEW_DISTANCE_METERS) return true;
+      const distanceFromAgent = getDistanceInMeters(agentLocation, delivery.coordinates);
+      if (!Number.isFinite(distanceFromAgent)) return false;
+      if (distanceFromAgent <= MAX_ROUTE_PREVIEW_DISTANCE_METERS) return true;
 
-        const nearestDistance = getDistanceInMeters(agentLocation, items[0]?.coordinates);
-        return index === 0 && Number.isFinite(nearestDistance);
-      });
+      const nearestDistance = getDistanceInMeters(agentLocation, items[0]?.coordinates);
+      return index === 0 && Number.isFinite(nearestDistance);
+    });
   }, [agentLocation, routeSourceDeliveries]);
   const roadRankingOrigin = useMemo(
     () =>
@@ -1602,106 +1601,104 @@ const AgentDashboard = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-[22px] border border-[#E7DAC6]">
         <div
-          className={`relative z-0 flex w-full items-center justify-center bg-[#F8F1E7] ${
-            activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[360px]"
-          }`}
+          className={`relative z-0 flex w-full items-center justify-center bg-[#F8F1E7] ${activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[360px]"
+            }`}
         >
-            {isDeliveryRunActive && primaryRouteStats.instructions?.primary ? (
-              <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-white/75 bg-white/90 px-3 py-1 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
-                <div className="flex items-start gap-1.5">
-                  <div className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]">
-                    <NextDirectionIcon size={14} strokeWidth={2.4} />
-                  </div>
-                  <div className="min-w-0 space-y-0">
-                    <p className="m-0 text-[9px] font-black uppercase leading-none text-[#A88763]">
-                      {nextDirectionLabel ? `Next ${nextDirectionLabel}` : "Next Turn"}
-                    </p>
+          {isDeliveryRunActive && primaryRouteStats.instructions?.primary ? (
+            <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-white/75 bg-white/90 px-3 py-1 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
+              <div className="flex items-start gap-1.5">
+                <div className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]">
+                  <NextDirectionIcon size={14} strokeWidth={2.4} />
+                </div>
+                <div className="min-w-0 space-y-0">
+                  <p className="m-0 text-[9px] font-black uppercase leading-none text-[#A88763]">
+                    {nextDirectionLabel ? `Next ${nextDirectionLabel}` : "Next Turn"}
+                  </p>
                   <p className="m-0 text-[11px] font-black leading-[1.15] text-[#2C1A0E]">
-                      {primaryRouteStats.instructions?.primary?.distanceLabel
-                        ? `After ${primaryRouteStats.instructions.primary.distanceLabel}, ${primaryRouteStats.instructions.primary.text}`
-                        : "Follow the highlighted route"}
+                    {primaryRouteStats.instructions?.primary?.distanceLabel
+                      ? `After ${primaryRouteStats.instructions.primary.distanceLabel}, ${primaryRouteStats.instructions.primary.text}`
+                      : "Follow the highlighted route"}
+                  </p>
+                  {primaryRouteStats.instructions?.secondary ? (
+                    <p className="m-0 text-[10px] font-semibold leading-[1.15] text-[#8B7355]">
+                      Then after {primaryRouteStats.instructions.secondary.distanceLabel},{" "}
+                      {primaryRouteStats.instructions.secondary.text.toLowerCase()}
                     </p>
-                    {primaryRouteStats.instructions?.secondary ? (
-                      <p className="m-0 text-[10px] font-semibold leading-[1.15] text-[#8B7355]">
-                        Then after {primaryRouteStats.instructions.secondary.distanceLabel},{" "}
-                        {primaryRouteStats.instructions.secondary.text.toLowerCase()}
-                      </p>
                   ) : null}
                 </div>
               </div>
             </div>
           ) : null}
 
-            {agentLocation ? (
-              <div className="relative h-full w-full">
-                <MapContainer center={agentLocation} zoom={15} scrollWheelZoom className="h-full w-full">
+          {agentLocation ? (
+            <div className="relative h-full w-full">
+              <MapContainer center={agentLocation} zoom={15} scrollWheelZoom className="h-full w-full">
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   maxNativeZoom={19}
-                maxZoom={19}
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+                  maxZoom={19}
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
 
-              <MapController center={mapView} zoom={zoomLevel} trigger={recenterTrigger} />
-              <CircleMarker
-                center={agentLocation}
-                radius={10}
-                pathOptions={{
-                  color: "#2563EB",
-                  fillColor: "#60A5FA",
-                  fillOpacity: 0.7,
-                  weight: 2,
-                }}
-              >
-                <Popup className="font-bold text-xs">Your Location</Popup>
-              </CircleMarker>
-
-              {dairyCoordinates ? (
-                <Marker
-                  position={dairyCoordinates}
-                  icon={L.divIcon({
-                    className: "custom-div-icon",
-                    html:
-                      '<div style="background-color: #D93025; width: 16px; height: 16px; border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 4px 10px rgba(44,26,14,0.2);"></div>',
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8],
-                  })}
+                <MapController center={mapView} zoom={zoomLevel} trigger={recenterTrigger} />
+                <CircleMarker
+                  center={agentLocation}
+                  radius={10}
+                  pathOptions={{
+                    color: "#2563EB",
+                    fillColor: "#60A5FA",
+                    fillOpacity: 0.7,
+                    weight: 2,
+                  }}
                 >
-                  <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
-                    <div className="space-y-0.5 leading-tight">
-                      <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{dairyName}</p>
-                      <p className="m-0 text-[10px] font-semibold text-[#D93025]">Dairy location</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              ) : null}
+                  <Popup className="font-bold text-xs">Your Location</Popup>
+                </CircleMarker>
 
-              {visibleMapDeliveries.map((delivery) => {
-                const coordinates = delivery.coordinates || getDeliveryCoordinates(delivery);
-                if (!coordinates) return null;
-
-                const isCompleted = String(delivery?.status || "").toUpperCase() === "COMPLETED";
-                const isNearestDestination = String(delivery.id) === String(nearestRouteDelivery?.id);
-                const isNextDestination = String(delivery.id) === String(nextTask?.id);
-                const markerColor =
-                  isCompleted
-                    ? "#9CA3AF"
-                    : isNearestDestination
-                      ? "#6BB071"
-                      : "#6BB071";
-
-                return (
+                {dairyCoordinates ? (
                   <Marker
-                    key={delivery.id}
-                    position={coordinates}
+                    position={dairyCoordinates}
                     icon={L.divIcon({
                       className: "custom-div-icon",
-                      html: `<div style="background-color: ${markerColor}; width: ${
-                        isNearestDestination ? 18 : 14
-                      }px; height: ${isNearestDestination ? 18 : 14}px; border-radius: 999px; box-shadow: 0 4px 10px rgba(44,26,14,0.16);"></div>`,
-                      iconSize: [isNearestDestination ? 18 : 14, isNearestDestination ? 18 : 14],
-                      iconAnchor: [isNearestDestination ? 9 : 7, isNearestDestination ? 9 : 7],
+                      html:
+                        '<div style="background-color: #D93025; width: 16px; height: 16px; border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 4px 10px rgba(44,26,14,0.2);"></div>',
+                      iconSize: [16, 16],
+                      iconAnchor: [8, 8],
                     })}
+                  >
+                    <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
+                      <div className="space-y-0.5 leading-tight">
+                        <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{dairyName}</p>
+                        <p className="m-0 text-[10px] font-semibold text-[#D93025]">Dairy location</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ) : null}
+
+                {visibleMapDeliveries.map((delivery) => {
+                  const coordinates = delivery.coordinates || getDeliveryCoordinates(delivery);
+                  if (!coordinates) return null;
+
+                  const isCompleted = String(delivery?.status || "").toUpperCase() === "COMPLETED";
+                  const isNearestDestination = String(delivery.id) === String(nearestRouteDelivery?.id);
+                  const isNextDestination = String(delivery.id) === String(nextTask?.id);
+                  const markerColor =
+                    isCompleted
+                      ? "#9CA3AF"
+                      : isNearestDestination
+                        ? "#6BB071"
+                        : "#6BB071";
+
+                  return (
+                    <Marker
+                      key={delivery.id}
+                      position={coordinates}
+                      icon={L.divIcon({
+                        className: "custom-div-icon",
+                        html: `<div style="background-color: ${markerColor}; width: ${isNearestDestination ? 18 : 14
+                          }px; height: ${isNearestDestination ? 18 : 14}px; border-radius: 999px; box-shadow: 0 4px 10px rgba(44,26,14,0.16);"></div>`,
+                        iconSize: [isNearestDestination ? 18 : 14, isNearestDestination ? 18 : 14],
+                        iconAnchor: [isNearestDestination ? 9 : 7, isNearestDestination ? 9 : 7],
+                      })}
                     >
                       <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
                         <div className="space-y-1.5 text-left leading-tight">
@@ -1712,10 +1709,10 @@ const AgentDashboard = () => {
                             {isCompleted
                               ? "Delivered customer"
                               : isNearestDestination
-                              ? "Nearest customer on your route"
-                              : isNextDestination
-                                ? "Next scheduled delivery"
-                                : "Customer delivery pin"}
+                                ? "Nearest customer on your route"
+                                : isNextDestination
+                                  ? "Next scheduled delivery"
+                                  : "Customer delivery pin"}
                           </p>
                           <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
                             Quick actions
@@ -1739,116 +1736,116 @@ const AgentDashboard = () => {
                         </div>
                       </Popup>
                     </Marker>
-                );
-              })}
+                  );
+                })}
 
-              {routeCoordinates.length >= 2 && (
-                <Polyline
-                  positions={routeCoordinates}
-                  pathOptions={{ color: "#5c87ea", weight: 5, opacity: 0.9 }}
-                />
-              )}
-
-              {showDairyPath && dairyRoadRoute.length >= 2 && (
-                <Polyline
-                  positions={dairyRoadRoute}
-                  pathOptions={{
-                    color: "#FCA5A5",
-                    weight: 4,
-                    opacity: 0.95,
-                    dashArray: "8 8",
-                  }}
-                />
-              )}
-
-              {showDeliveredPath &&
-                completedRoadRoutes.map((segment, index) => (
-                <Polyline
-                  key={segment.id || `completed-route-${index}`}
-                  positions={segment.points}
-                  pathOptions={{
-                    color: "#9CA3AF",
-                    weight: 3,
-                    opacity: 0.85,
-                    dashArray: "7 9",
-                  }}
-                />
-              ))}
-
-                {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map(
-                (segment, index) => (
+                {routeCoordinates.length >= 2 && (
                   <Polyline
-                    key={segment.id || `secondary-route-${index}`}
-                    positions={segment.points}
+                    positions={routeCoordinates}
+                    pathOptions={{ color: "#5c87ea", weight: 5, opacity: 0.9 }}
+                  />
+                )}
+
+                {showDairyPath && dairyRoadRoute.length >= 2 && (
+                  <Polyline
+                    positions={dairyRoadRoute}
                     pathOptions={{
-                      color: "#191970",
-                      weight: 3,
-                      opacity: 0.8,
-                      dashArray: "8 10",
+                      color: "#FCA5A5",
+                      weight: 4,
+                      opacity: 0.95,
+                      dashArray: "8 8",
                     }}
                   />
-                )
-              )}
-                </MapContainer>
-                <button
-                  type="button"
-                  onClick={() => setIsSpeechMuted((value) => !value)}
-                  className="absolute left-[10px] top-[78px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D4B896] bg-white text-[#5F4426] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#FFF8EF]"
-                  title={isSpeechMuted ? "Unmute voice directions" : "Mute voice directions"}
-                  aria-label={isSpeechMuted ? "Unmute voice directions" : "Mute voice directions"}
-                >
-                  {isSpeechMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowMapSettings((value) => !value)}
-                  className="absolute left-[10px] top-[114px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D4B896] bg-white text-[#5F4426] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#FFF8EF]"
-                  title="Map path settings"
-                  aria-label="Map path settings"
-                >
-                  <Settings2 size={16} />
-                </button>
-                {showMapSettings ? (
-                  <div className="absolute left-[46px] top-[114px] z-[610] w-[200px] rounded-[12px] border border-[#E7DAC6] bg-white/95 p-3 shadow-[0_10px_24px_rgba(44,26,14,0.16)] backdrop-blur-sm">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8B7355]">Path Settings</p>
-                    <label className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#5F4426]">
-                      Delivered customer path
-                      <input
-                        type="checkbox"
-                        checked={showDeliveredPath}
-                        onChange={(event) => setShowDeliveredPath(event.target.checked)}
-                        className="h-4 w-4 accent-[#B8641A]"
-                      />
-                    </label>
-                    <label className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#5F4426]">
-                      Dairy location path
-                      <input
-                        type="checkbox"
-                        checked={showDairyPath}
-                        onChange={(event) => setShowDairyPath(event.target.checked)}
-                        className="h-4 w-4 accent-[#B8641A]"
-                      />
-                    </label>
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleOpenGoogleMapsAllCustomers}
-                  disabled={visibleMapDeliveries.length === 0}
-                  className="absolute left-[10px] top-[150px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D9E7C8] bg-[#EEF5E7] text-[#3D6F25] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
-                  title="Open all customers in Google Maps"
-                  aria-label="Open all customers in Google Maps"
-                >
-                  <GoogleMapsBadgeIcon size={18} />
-                </button>
-                <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[600] rounded-[16px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
-                  <p className="text-[11px] font-semibold leading-snug text-[#6B5B3E]">
-                    {isDeliveryRunActive
-                      ? "Solid line shows the nearest customer. Dotted lines show the remaining customers on your route."
-                      : "The map highlights the nearest customer and previews the rest of the route."}
-                  </p>
+                )}
+
+                {showDeliveredPath &&
+                  completedRoadRoutes.map((segment, index) => (
+                    <Polyline
+                      key={segment.id || `completed-route-${index}`}
+                      positions={segment.points}
+                      pathOptions={{
+                        color: "#9CA3AF",
+                        weight: 3,
+                        opacity: 0.85,
+                        dashArray: "7 9",
+                      }}
+                    />
+                  ))}
+
+                {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map(
+                  (segment, index) => (
+                    <Polyline
+                      key={segment.id || `secondary-route-${index}`}
+                      positions={segment.points}
+                      pathOptions={{
+                        color: "#191970",
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: "8 10",
+                      }}
+                    />
+                  )
+                )}
+              </MapContainer>
+              <button
+                type="button"
+                onClick={() => setIsSpeechMuted((value) => !value)}
+                className="absolute left-[10px] top-[78px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D4B896] bg-white text-[#5F4426] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#FFF8EF]"
+                title={isSpeechMuted ? "Unmute voice directions" : "Mute voice directions"}
+                aria-label={isSpeechMuted ? "Unmute voice directions" : "Mute voice directions"}
+              >
+                {isSpeechMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMapSettings((value) => !value)}
+                className="absolute left-[10px] top-[114px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D4B896] bg-white text-[#5F4426] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#FFF8EF]"
+                title="Map path settings"
+                aria-label="Map path settings"
+              >
+                <Settings2 size={16} />
+              </button>
+              {showMapSettings ? (
+                <div className="absolute left-[46px] top-[114px] z-[610] w-[200px] rounded-[12px] border border-[#E7DAC6] bg-white/95 p-3 shadow-[0_10px_24px_rgba(44,26,14,0.16)] backdrop-blur-sm">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8B7355]">Path Settings</p>
+                  <label className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#5F4426]">
+                    Delivered customer path
+                    <input
+                      type="checkbox"
+                      checked={showDeliveredPath}
+                      onChange={(event) => setShowDeliveredPath(event.target.checked)}
+                      className="h-4 w-4 accent-[#B8641A]"
+                    />
+                  </label>
+                  <label className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#5F4426]">
+                    Dairy location path
+                    <input
+                      type="checkbox"
+                      checked={showDairyPath}
+                      onChange={(event) => setShowDairyPath(event.target.checked)}
+                      className="h-4 w-4 accent-[#B8641A]"
+                    />
+                  </label>
                 </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleOpenGoogleMapsAllCustomers}
+                disabled={visibleMapDeliveries.length === 0}
+                className="absolute left-[10px] top-[150px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D9E7C8] bg-[#EEF5E7] text-[#3D6F25] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
+                title="Open all customers in Google Maps"
+                aria-label="Open all customers in Google Maps"
+              >
+                <GoogleMapsBadgeIcon size={18} />
+              </button>
+              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[600] rounded-[16px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
+                <p className="text-[11px] font-semibold leading-snug text-[#6B5B3E]">
+                  {isDeliveryRunActive
+                    ? "Solid line shows the nearest customer. Dotted lines show the remaining customers on your route."
+                    : "The map highlights the nearest customer and previews the rest of the route."}
+                </p>
               </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#B8641A] border-t-transparent" />
@@ -1865,69 +1862,66 @@ const AgentDashboard = () => {
 
   return (
     <div
-      className={`bg-[#FFFDF7] px-4 text-[#2C1A0E] ${
-        activeSection === ActiveNavLabel.MAP ? "h-screen overflow-hidden pb-24" : "min-h-screen pb-32"
-      }`}
+      className={`bg-[#FFFDF7] px-4 text-[#2C1A0E] ${activeSection === ActiveNavLabel.MAP ? "h-screen overflow-hidden pb-24" : "min-h-screen pb-32"
+        }`}
     >
       <div
-        className={`mx-auto max-w-md ${
-          activeSection === ActiveNavLabel.MAP ? "flex h-full flex-col gap-4 overflow-hidden" : "space-y-5"
-        }`}
+        className={`mx-auto max-w-md ${activeSection === ActiveNavLabel.MAP ? "flex h-full flex-col gap-4 overflow-hidden" : "space-y-5"
+          }`}
       >
         {activeSection !== ActiveNavLabel.MAP ? (
-        <section className="relative overflow-hidden rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#2C1A0E_0%,#4A3820_58%,#6B4F2A_100%)] px-5 py-3.5 text-white shadow-[0_22px_50px_rgba(92,61,30,0.22)]">
-          <div className="relative z-10 flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/55">Agent Portal</p>
-              <h1 className="mt-2 text-[28px] font-black leading-none text-white" style={headingFont}>
-                {agentProfile.name || "Agent"}
-              </h1>
-              <p className="mt-3 max-w-[220px] text-xs font-semibold uppercase tracking-[0.14em] text-white/75">
-                {dairyName}
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div
-                className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${
-                  isOnline
-                    ? "border-[#D9E7C8] bg-[#EEF5E7] text-[#4A7C2F]"
-                    : "border-white/10 bg-white/10 text-white/70"
-                }`}
-              >
-                {isOnline ? "Online" : "Offline"}
+          <section className="relative overflow-hidden rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#2C1A0E_0%,#4A3820_58%,#6B4F2A_100%)] px-5 py-3.5 text-white shadow-[0_22px_50px_rgba(92,61,30,0.22)]">
+            <div className="relative z-10 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/55">Agent Portal</p>
+                <h1 className="mt-2 text-[28px] font-black leading-none text-white" style={headingFont}>
+                  {agentProfile.name || "Agent"}
+                </h1>
+                <p className="mt-3 max-w-[220px] text-xs font-semibold uppercase tracking-[0.14em] text-white/75">
+                  {dairyName}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white transition hover:bg-white/15"
-              >
-                <LogOut size={12} />
-                Logout
-              </button>
-              {isDeliveryRunActive ? (
-                <div className="rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
-                  Delivering
+              <div className="flex flex-col items-end gap-2">
+                <div
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${isOnline
+                      ? "border-[#D9E7C8] bg-[#EEF5E7] text-[#4A7C2F]"
+                      : "border-white/10 bg-white/10 text-white/70"
+                    }`}
+                >
+                  {isOnline ? "Online" : "Offline"}
                 </div>
-              ) : startableDelivery?.id ? (
                 <button
                   type="button"
-                  onClick={handleMarkOutForDelivery}
-                  disabled={startingDelivery || !agentLocation}
-                  className="inline-flex items-center gap-1 rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A] transition hover:bg-[#FFF1E4] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={logout}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white transition hover:bg-white/15"
                 >
-                  <Truck size={12} />
-                  {startingDelivery ? "Starting..." : "Out for Delivery"}
+                  <LogOut size={12} />
+                  Logout
                 </button>
-              ) : (
-                <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
-                  No Delivery
-                </div>
-              )}
+                {isDeliveryRunActive ? (
+                  <div className="rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
+                    Delivering
+                  </div>
+                ) : startableDelivery?.id ? (
+                  <button
+                    type="button"
+                    onClick={handleMarkOutForDelivery}
+                    disabled={startingDelivery || !agentLocation}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A] transition hover:bg-[#FFF1E4] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Truck size={12} />
+                    {startingDelivery ? "Starting..." : "Out for Delivery"}
+                  </button>
+                ) : (
+                  <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
+                    No Delivery
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
-          <div className="absolute -bottom-12 left-10 h-24 w-24 rounded-full bg-[#F2D9B8]/20 blur-2xl" />
-        </section>
+            <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute -bottom-12 left-10 h-24 w-24 rounded-full bg-[#F2D9B8]/20 blur-2xl" />
+          </section>
         ) : null}
 
         {activeSection !== ActiveNavLabel.MAP && startDeliveryMessage ? (
@@ -1946,154 +1940,154 @@ const AgentDashboard = () => {
 
         {activeSection === ActiveNavLabel.HOME ? (
           <>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            icon={<Package />}
-            label="Assigned"
-            value={stats.totalAssigned}
-            accent="text-[#B8641A]"
-            tint="border-[#F0D9B9] bg-[#FFF4E2]"
-          />
-          <StatCard
-            icon={<CheckCircle />}
-            label="Completed"
-            value={stats.completed}
-            accent="text-[#4A7C2F]"
-            tint="border-[#DDE8D1] bg-[#EEF5E7]"
-          />
-          <StatCard
-            icon={<Clock />}
-            label="Pending"
-            value={stats.pending}
-            accent="text-[#C86A2B]"
-            tint="border-[#F0D1B2] bg-[#FFF1E4]"
-          />
-          <StatCard
-            icon={<XCircle />}
-            label="Failed"
-            value={stats.failed}
-            accent="text-[#C0392B]"
-            tint="border-[#F2D0C8] bg-[#FDECEA]"
-          />
-        </div>
-
-        <section className="rounded-[28px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Shift Progress</p>
-              <p className="mt-0.5 text-sm font-semibold leading-tight text-[#6B5B3E]">
-                {stats.completed} of {stats.totalAssigned} deliveries completed
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard
+                icon={<Package />}
+                label="Assigned"
+                value={stats.totalAssigned}
+                accent="text-[#B8641A]"
+                tint="border-[#F0D9B9] bg-[#FFF4E2]"
+              />
+              <StatCard
+                icon={<CheckCircle />}
+                label="Completed"
+                value={stats.completed}
+                accent="text-[#4A7C2F]"
+                tint="border-[#DDE8D1] bg-[#EEF5E7]"
+              />
+              <StatCard
+                icon={<Clock />}
+                label="Pending"
+                value={stats.pending}
+                accent="text-[#C86A2B]"
+                tint="border-[#F0D1B2] bg-[#FFF1E4]"
+              />
+              <StatCard
+                icon={<XCircle />}
+                label="Failed"
+                value={stats.failed}
+                accent="text-[#C0392B]"
+                tint="border-[#F2D0C8] bg-[#FDECEA]"
+              />
             </div>
-            <p className="text-lg font-black text-[#B8641A]">{completionPercentage}%</p>
-          </div>
-          <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#F3E7D6]">
-            <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,#B8641A_0%,#D9903D_100%)] transition-all duration-1000"
-              style={{ width: `${completionPercentage}%` }}
-            />
-          </div>
-        </section>
 
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Today's Delivery Quantity</p>
-          </div>
-
-          <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Subscription Delivery Milk</p>
-              {carrySummary.milkTypes.length > 0 ? (
-                <div className="mt-1.5 flex flex-wrap gap-0">
-                  {carrySummary.milkTypes.map((item) => (
-                    <p
-                      key={item.name}
-                      className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
-                    >
-                      {item.label}
-                    </p>
-                  ))}
+            <section className="rounded-[28px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">Shift Progress</p>
+                  <p className="mt-0.5 text-sm font-semibold leading-tight text-[#6B5B3E]">
+                    {stats.completed} of {stats.totalAssigned} deliveries completed
+                  </p>
                 </div>
-              ) : (
-                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No milk items</p>
-              )}
-            </div>
+                <p className="text-lg font-black text-[#B8641A]">{completionPercentage}%</p>
+              </div>
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#F3E7D6]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,#B8641A_0%,#D9903D_100%)] transition-all duration-1000"
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </div>
+            </section>
 
-            <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Extra Products</p>
-              {carrySummary.extraProducts.length > 0 ? (
-                <div className="mt-1.5 flex flex-wrap gap-0">
-                  {carrySummary.extraProducts.map((item) => (
-                    <p
-                      key={item.name}
-                      className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
-                    >
-                      {item.label}
-                    </p>
-                  ))}
+            <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Today's Delivery Quantity</p>
+              </div>
+
+              <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Subscription Delivery Milk</p>
+                  {carrySummary.milkTypes.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-0">
+                      {carrySummary.milkTypes.map((item) => (
+                        <p
+                          key={item.name}
+                          className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
+                        >
+                          {item.label}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No milk items</p>
+                  )}
                 </div>
-              ) : (
-                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No extra products</p>
-              )}
-            </div>
-          </div>
-        </section>
 
-        </>
+                <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Extra Products</p>
+                  {carrySummary.extraProducts.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-0">
+                      {carrySummary.extraProducts.map((item) => (
+                        <p
+                          key={item.name}
+                          className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
+                        >
+                          {item.label}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No extra products</p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+          </>
         ) : null}
 
         {activeSection === ActiveNavLabel.MAP ? mapContent : null}
 
         {activeSection === ActiveNavLabel.HOME ? (
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-          <p className="text-[10px] font-black uppercase text-[#A88763]">Next Delivery</p>
-          <div className="mt-2.5 flex items-start justify-between gap-2.5">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[24px] font-black leading-tight text-[#2C1A0E]" style={headingFont}>
-                {nextDisplayTask?.customerName || "No active tasks"}
-              </h2>
-              <p className="mt-1.5 text-sm font-semibold text-[#6B5B3E]">
-                {nextDisplayTask?.address || "Wait for your next assignment"}
-              </p>
-              {nextDisplayTask ? (
-                <p className="mt-1 text-xs font-semibold text-[#5F4426]">
-                  {getProductLabel(nextDisplayTask)}
+          <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+            <p className="text-[10px] font-black uppercase text-[#A88763]">Next Delivery</p>
+            <div className="mt-2.5 flex items-start justify-between gap-2.5">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[24px] font-black leading-tight text-[#2C1A0E]" style={headingFont}>
+                  {nextDisplayTask?.customerName || "No active tasks"}
+                </h2>
+                <p className="mt-1.5 text-sm font-semibold text-[#6B5B3E]">
+                  {nextDisplayTask?.address || "Wait for your next assignment"}
                 </p>
-              ) : null}
-              {nextDisplayTaskSchedule?.helperText ? (
-                <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">
-                  {nextDisplayTaskSchedule.helperText}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-              <div className="mt-3.5 flex gap-2.5">
-                <button
-                  onClick={() => {
-                    if (nextDisplayTaskCoordinates) {
-                      handleOpenMapSection();
-                      setMapView(nextDisplayTaskCoordinates);
-                      setZoomLevel(17);
-                      setRecenterTrigger((prev) => prev + 1);
-                    }
-                  }}
-                  disabled={!nextDisplayTaskCoordinates}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
-                >
-                  <Navigation size={18} fill="currentColor" />
-                  {nextDisplayTaskCoordinates ? "Open Map" : "No Customer Pin"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenGoogleMapsRoute(nextDisplayTask)}
-                  disabled={!nextDisplayTaskCoordinates}
-                  className="flex items-center justify-center gap-2 rounded-[18px] border border-[#D9E7C8] bg-[#EEF5E7] px-3 py-3 text-[11px] font-black uppercase text-[#4A7C2F] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Open in Google Maps
-                </button>
+                {nextDisplayTask ? (
+                  <p className="mt-1 text-xs font-semibold text-[#5F4426]">
+                    {getProductLabel(nextDisplayTask)}
+                  </p>
+                ) : null}
+                {nextDisplayTaskSchedule?.helperText ? (
+                  <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">
+                    {nextDisplayTaskSchedule.helperText}
+                  </p>
+                ) : null}
               </div>
-            </section>
+            </div>
+
+            <div className="mt-3.5 flex gap-2.5">
+              <button
+                onClick={() => {
+                  if (nextDisplayTaskCoordinates) {
+                    handleOpenMapSection();
+                    setMapView(nextDisplayTaskCoordinates);
+                    setZoomLevel(17);
+                    setRecenterTrigger((prev) => prev + 1);
+                  }
+                }}
+                disabled={!nextDisplayTaskCoordinates}
+                className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
+              >
+                <Navigation size={18} fill="currentColor" />
+                {nextDisplayTaskCoordinates ? "Open Map" : "No Customer Pin"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenGoogleMapsRoute(nextDisplayTask)}
+                disabled={!nextDisplayTaskCoordinates}
+                className="flex items-center justify-center gap-2 rounded-[18px] border border-[#D9E7C8] bg-[#EEF5E7] px-3 py-3 text-[11px] font-black uppercase text-[#4A7C2F] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Open in Google Maps
+              </button>
+            </div>
+          </section>
         ) : null}
 
         <div className="fixed bottom-6 left-1/2 z-50 flex w-[94%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">

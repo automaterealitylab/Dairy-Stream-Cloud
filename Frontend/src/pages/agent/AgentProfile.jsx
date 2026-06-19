@@ -47,9 +47,8 @@ const InfoRow = ({ icon, label, value }) => (
 const NavTab = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${
-      active ? "text-[#B8641A]" : "text-[#8B7355]"
-    }`}
+    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${active ? "text-[#B8641A]" : "text-[#8B7355]"
+      }`}
   >
     {icon}
     <span className="text-[8px] font-black uppercase tracking-[0.16em]">{label}</span>
@@ -82,14 +81,14 @@ const AgentProfile = () => {
           name: user?.name || "",
           email: user?.email || "",
         }));
-      } catch (_err) {}
+      } catch (_err) { }
     }
 
     const loadProfile = async () => {
       try {
         const payload = await fetchAgentProfile();
         if (payload) setProfile(payload);
-      } catch (_err) {}
+      } catch (_err) { }
     };
     loadProfile();
   }, []);
@@ -172,11 +171,10 @@ const AgentProfile = () => {
                 type="button"
                 onClick={handleToggleStatus}
                 disabled={statusSaving}
-                className={`flex items-center gap-3 rounded-2xl border px-5 py-2.5 transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 ${
-                  isActive
+                className={`flex items-center gap-3 rounded-2xl border px-5 py-2.5 transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 ${isActive
                     ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
                     : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
-                }`}
+                  }`}
               >
                 <span className="text-[11px] font-black uppercase tracking-[0.16em]">
                   {isActive ? "Active" : "Not Active"}

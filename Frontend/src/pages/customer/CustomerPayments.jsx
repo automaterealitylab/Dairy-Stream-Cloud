@@ -532,7 +532,7 @@ export default function Payments() {
               </div>
             </section>
 
-            <section className="grid grid-cols-2 gap-3 [grid-auto-rows:1fr] xl:grid-cols-4">
+            <section className="grid grid-cols-1 gap-3 [grid-auto-rows:1fr] sm:grid-cols-2 xl:grid-cols-4">
               <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
                 <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#FDE9C9] text-[#B8641A]">
                   <Wallet size={16} />
@@ -892,8 +892,8 @@ export default function Payments() {
       </div>
 
       {upiIntent && (
-        <div className="fixed inset-0 z-[92] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
-          <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px]">
+        <div className="fixed inset-0 z-[92] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px] animate-in zoom-in-95 slide-in-from-bottom-6 duration-300">
             <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
@@ -938,7 +938,7 @@ export default function Payments() {
                     <a
                       key={label}
                       href={href}
-                      className="rounded-xl border border-[#E5DCCF] bg-[#FAFAF7] px-3 py-3 text-center text-xs font-black text-[#5C3D1E] no-underline transition hover:border-[#B8641A] hover:bg-[#FFF3E2]"
+                      className="rounded-xl border border-[#E5DCCF] bg-[#FAFAF7] px-3 py-3 text-center text-xs font-black text-[#5C3D1E] no-underline transition-all duration-150 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF3E2] hover:shadow-sm active:translate-y-0"
                     >
                       {label}
                     </a>
@@ -1014,7 +1014,7 @@ export default function Payments() {
                   type="button"
                   onClick={handleSubmitUpiVerification}
                   disabled={submittingVerification}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2C1A0E] px-5 py-3 text-sm font-black text-white transition hover:bg-[#B8641A] disabled:bg-[#D8C8B2]"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2C1A0E] px-5 py-3 text-sm font-black text-white transition-all duration-150 hover:bg-[#B8641A] active:scale-[0.99] disabled:bg-[#D8C8B2] disabled:scale-100"
                 >
                   {submittingVerification ? <Loader2 size={15} className="animate-spin" /> : <CreditCard size={15} />}
                   Submit For Verification

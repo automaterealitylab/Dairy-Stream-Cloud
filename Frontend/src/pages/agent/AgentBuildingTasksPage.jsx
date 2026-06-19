@@ -29,9 +29,8 @@ const headingFont = { fontFamily: "'Lora', serif" };
 const NavTab = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${
-      active ? "text-[#B8641A]" : "text-[#8B7355]"
-    }`}
+    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${active ? "text-[#B8641A]" : "text-[#8B7355]"
+      }`}
   >
     {icon}
     <span className="text-[8px] font-black uppercase tracking-[0.16em]">{label}</span>
@@ -207,7 +206,7 @@ const AgentBuildingTasksPage = () => {
       try {
         const payload = await fetchAssignedAgentDeliveries({ today: true });
         setDeliveries(payload || []);
-      } catch (_err) {}
+      } catch (_err) { }
     };
 
     const handleOffline = () => {
@@ -370,13 +369,13 @@ const AgentBuildingTasksPage = () => {
       prev.map((d) =>
         deliveryIds.includes(String(d.id))
           ? {
-              ...d,
-              status: "COMPLETED",
-              deliveryProofType: proofType,
-              deliveryProofOtp: proofType === "OTP" ? proofOtp : null,
-              deliveryProofImage: proofType === "PHOTO" ? imagePreview : null,
-              paymentCollectionMethod: collectionMethod || d?.paymentCollectionMethod || "",
-            }
+            ...d,
+            status: "COMPLETED",
+            deliveryProofType: proofType,
+            deliveryProofOtp: proofType === "OTP" ? proofOtp : null,
+            deliveryProofImage: proofType === "PHOTO" ? imagePreview : null,
+            paymentCollectionMethod: collectionMethod || d?.paymentCollectionMethod || "",
+          }
           : d
       )
     );
@@ -396,7 +395,7 @@ const AgentBuildingTasksPage = () => {
           })
         )
       );
-    } catch (_err) {}
+    } catch (_err) { }
   };
 
   const handleFailClick = (delivery) => setFailedDelivery(delivery);
@@ -411,7 +410,7 @@ const AgentBuildingTasksPage = () => {
 
     try {
       await updateAssignedAgentDeliveryStatus({ deliveryId, status: "FAILED", reason });
-    } catch (_err) {}
+    } catch (_err) { }
   };
 
   return (
@@ -521,8 +520,8 @@ const AgentBuildingTasksPage = () => {
 
                         const mergedDeliveries = Array.isArray(customer?.deliveries)
                           ? customer.deliveries
-                              .map((item) => resolveDeliveryForModal(item))
-                              .filter(Boolean)
+                            .map((item) => resolveDeliveryForModal(item))
+                            .filter(Boolean)
                           : [];
 
                         setSelectedDelivery({

@@ -493,6 +493,7 @@ const mapAssignedDelivery = (row, lookups) => {
   return {
     id: String(row.id),
     rawId: row.id,
+    customerId: String(row.customer_id || ""),
     customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
     phoneNumber: customer.phone_number || "-",
     address: formatAddress(customer),
