@@ -39,8 +39,9 @@ const buildDerivedPerformanceFromDeliveries = (deliveries = []) => {
     }
 
     acc[key].total_assigned += 1;
-    if (row.status === 'COMPLETED') acc[key].completed += 1;
-    else if (row.status === 'FAILED') acc[key].failed += 1;
+    const status = String(row.status || '').toUpperCase();
+    if (status === 'COMPLETED' || status === 'DELIVERED') acc[key].completed += 1;
+    else if (status === 'FAILED' || status === 'CANCELLED' || status === 'CANCELED' || status === 'MISSED' || status === 'SKIPPED') acc[key].failed += 1;
     else acc[key].pending += 1;
 
     return acc;
@@ -188,9 +189,18 @@ export const updateAgentPerformanceMetrics = async (agentId, performanceDate) =>
 
     // Calculate metrics
     const totalAssigned = deliveries.length;
-    const completed = deliveries.filter((d) => d.status === 'COMPLETED').length;
-    const failed = deliveries.filter((d) => d.status === 'FAILED').length;
-    const pending = deliveries.filter((d) => d.status === 'PENDING').length;
+    const completed = deliveries.filter((d) => {
+      const status = String(d.status || '').toUpperCase();
+      return status === 'COMPLETED' || status === 'DELIVERED';
+    }).length;
+    const failed = deliveries.filter((d) => {
+      const status = String(d.status || '').toUpperCase();
+      return ['FAILED', 'CANCELLED', 'CANCELED', 'MISSED', 'SKIPPED'].includes(status);
+    }).length;
+    const pending = deliveries.filter((d) => {
+      const status = String(d.status || '').toUpperCase();
+      return status !== 'COMPLETED' && status !== 'DELIVERED' && !['FAILED', 'CANCELLED', 'CANCELED', 'MISSED', 'SKIPPED'].includes(status);
+    }).length;
 
     const completionRate =
       totalAssigned > 0 ? ((completed / totalAssigned) * 100).toFixed(2) : 0;
@@ -278,7 +288,7 @@ export const getMissedDeliveriesSummary = async (startDate, endDate, dairyId = n
     let query = supabase
       .from('deliveries')
       .select('*')
-      .eq('status', 'FAILED')
+      .in('status', ['FAILED', 'CANCELLED', 'CANCELED', 'MISSED', 'SKIPPED'])
       .gte('delivery_date', startDate)
       .lte('delivery_date', endDate);
 

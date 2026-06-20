@@ -235,24 +235,33 @@ const ExploreDairiesPage = () => {
   return (
     <div className="min-h-screen bg-[#F7F2EA]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <header className="sticky top-0 z-10 border-b border-[#EDE8DF] bg-[#FFFDF8]/95 shadow-sm backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-4 md:px-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <div className="cursor-pointer text-2xl font-bold text-[#2C1A0E]" style={headingFont} onClick={() => navigate("/")}>
-                Dairy<span className="text-[#B8641A]">Stream</span>
+        <div className="mx-auto max-w-7xl px-4 py-2.5 md:py-4 md:px-6">
+          <div className="flex flex-col gap-2.5 md:gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-2.5 sm:gap-4 sm:items-center justify-between md:flex-row md:justify-start md:gap-6">
+              <div className="flex items-center justify-between w-full md:w-auto">
+                <div className="cursor-pointer text-2xl font-bold text-[#2C1A0E]" style={headingFont} onClick={() => navigate("/")}>
+                  Dairy<span className="text-[#B8641A]">Stream</span>
+                </div>
+                <div className="md:hidden">
+                  <button onClick={handleAuthAction} className={`flex items-center gap-2 rounded-[14px] px-4 py-2 text-sm font-bold transition-all ${canOpenCustomerDashboard ? "bg-[#2C2416] text-white hover:bg-[#4A3820]" : "border border-[#EDE8DF] bg-white text-[#6B5B3E] hover:bg-[#FBF7F0]"}`}>
+                    {canOpenCustomerDashboard ? <LayoutDashboard size={16} /> : <User size={16} />}
+                    {canOpenCustomerDashboard ? "Dashboard" : "Login"}
+                  </button>
+                </div>
               </div>
-              <div className="relative">
-                <button className="flex items-center gap-2 rounded-full border border-[#EDE8DF] bg-[#FBF7F0] px-3 py-2 text-[#6B5B3E] transition-colors hover:bg-[#F5EDE2]">
-                  <MapPin size={18} className="text-[#B8641A]" />
-                  <span className="text-sm font-medium">
+
+              <div className="relative w-full md:w-auto">
+                <button className="flex w-full md:w-auto items-center justify-center md:justify-start gap-2 rounded-full border border-[#EDE8DF] bg-[#FBF7F0] px-3 py-1.5 md:py-2 text-[#6B5B3E] transition-colors hover:bg-[#F5EDE2]">
+                  <MapPin size={16} className="text-[#B8641A] md:w-[18px] md:h-[18px]" />
+                  <span className="text-xs md:text-sm font-medium">
                     Delivering to <b>{selectedCity || (detectedLocation === "Nearby" ? "Your Current Location" : detectedLocation) || "Your area"}</b>
                   </span>
                 </button>
               </div>
             </div>
 
-            <div className="relative max-w-2xl flex-1">
-              <Search className="absolute left-4 top-3.5 text-[#C4A882]" size={20} />
+            <div className="relative max-w-2xl flex-1 w-full">
+              <Search className="absolute left-4 top-2.5 md:top-3.5 text-[#C4A882] w-[18px] h-[18px] md:w-[20px] md:h-[20px]" />
               <input
                 type="text"
                 placeholder="Search dairies, area, pincode..."
@@ -261,7 +270,7 @@ const ExploreDairiesPage = () => {
                   setSearchTerm(e.target.value);
                   setShowSuggestions(true);
                 }}
-                className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF8] py-3 pl-12 pr-4 text-[#2C1A0E] outline-none transition focus:border-[#D7B38A] focus:ring-2 focus:ring-[#F3DEC4]"
+                className="w-full rounded-[14px] md:rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF8] py-2 md:py-3 pl-10 md:pl-12 pr-4 text-[#2C1A0E] outline-none transition focus:border-[#D7B38A] focus:ring-2 focus:ring-[#F3DEC4] text-sm md:text-base"
               />
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[18px] border border-[#EDE8DF] bg-white shadow-[0_20px_40px_rgba(84,52,16,0.12)]">
@@ -281,14 +290,14 @@ const ExploreDairiesPage = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-4">
               <button onClick={handleAuthAction} className={`flex items-center gap-2 rounded-[14px] px-6 py-2.5 text-sm font-bold transition-all ${canOpenCustomerDashboard ? "bg-[#2C2416] text-white hover:bg-[#4A3820]" : "border border-[#EDE8DF] bg-white text-[#6B5B3E] hover:bg-[#FBF7F0]"}`}>
                 {canOpenCustomerDashboard ? <LayoutDashboard size={18} /> : <User size={20} />}
                 {canOpenCustomerDashboard ? "Dashboard" : "Login"}
               </button>
             </div>
           </div>
-          <p className="mt-2 pl-20 text-xs leading-5 text-[#8B7355]">
+          <p className="mt-2 md:pl-20 pl-1 text-xs leading-5 text-[#8B7355] hidden md:block">
             Browse nearby dairies, compare starting prices, and pick a plan that matches your area and routine.
           </p>
         </div>
@@ -316,34 +325,34 @@ const ExploreDairiesPage = () => {
             <p className="mt-2 text-[#8B7355]">Try adjusting your search or enabling location.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             {mappedDairies.map((dairy) => (
-              <div key={dairy.id} onClick={() => navigate(`/join/${dairy.id}`)} className="group cursor-pointer overflow-hidden rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] shadow-[0_12px_32px_rgba(84,52,16,0.08)] transition-all hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(84,52,16,0.14)]">
-                <div className="relative h-48 bg-[#F3E6D6]">
+              <div key={dairy.id} onClick={() => navigate(`/join/${dairy.id}`)} className="group cursor-pointer overflow-hidden rounded-[16px] md:rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] shadow-[0_12px_32px_rgba(84,52,16,0.08)] transition-all hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(84,52,16,0.14)]">
+                <div className="relative h-32 md:h-48 bg-[#F3E6D6]">
                   {dairy.image ? (
                     <img src={dairy.image} alt={dairy.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs font-bold uppercase tracking-widest text-[#B89E80]">No Image</div>
+                    <div className="flex h-full w-full items-center justify-center text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#B89E80]">No Image</div>
                   )}
                   {dairy.isSubscribed && (
-                    <div className="absolute left-3 top-3 rounded-full bg-[#EEF5E7] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#4A7C2F] shadow-sm">My Subscription</div>
+                    <div className="absolute left-2 top-2 md:left-3 md:top-3 rounded-full bg-[#EEF5E7] px-2 py-0.5 md:px-3 md:py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-wider text-[#4A7C2F] shadow-sm">My Sub</div>
                   )}
-                  <div className="absolute right-3 top-3 rounded-[10px] bg-white/90 px-2.5 py-1.5 text-xs font-bold text-[#6B5B3E] backdrop-blur-sm">
-                    <Clock size={12} className="mr-1 inline text-[#B8641A]" /> {dairy.distance}
+                  <div className="absolute right-2 top-2 md:right-3 md:top-3 rounded-[8px] md:rounded-[10px] bg-white/90 px-2 py-1 md:px-2.5 md:py-1.5 text-[10px] md:text-xs font-bold text-[#6B5B3E] backdrop-blur-sm">
+                    <Clock className="mr-0.5 md:mr-1 inline text-[#B8641A] w-[10px] h-[10px] md:w-[12px] md:h-[12px]" /> {dairy.distance}
                   </div>
                 </div>
-                <div className="p-5">
-                  <h3 className="mb-1 truncate text-lg font-semibold text-[#2C1A0E]" style={headingFont}>{dairy.name}</h3>
-                  <p className="mb-4 flex items-start gap-1 text-sm text-[#8B7355]">
-                    <MapPin size={14} className="mt-0.5 shrink-0" />
+                <div className="p-3 md:p-5">
+                  <h3 className="mb-0.5 truncate text-sm md:text-lg font-semibold text-[#2C1A0E]" style={headingFont}>{dairy.name}</h3>
+                  <p className="mb-3 flex items-start gap-0.5 text-xs md:text-sm text-[#8B7355]">
+                    <MapPin className="mt-0.5 shrink-0 w-[12px] h-[12px] md:w-[14px] md:h-[14px]" />
                     <span className="line-clamp-1">{dairy.address}</span>
                   </p>
-                  <div className="flex items-end justify-between border-t border-[#F2EDE4] pt-4">
+                  <div className="flex items-center justify-between border-t border-[#F2EDE4] pt-3 md:pt-4">
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">Starts at</span>
-                      <p className="text-lg font-bold text-[#2C1A0E]">₹{dairy.minPrice}<span className="text-sm font-normal text-[#8B7355]">/L</span></p>
+                      <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.14em] md:tracking-[0.18em] text-[#C4A882]">Starts at</span>
+                      <p className="text-sm md:text-lg font-bold text-[#2C1A0E]">₹{dairy.minPrice}<span className="text-xs md:text-sm font-normal text-[#8B7355]">/L</span></p>
                     </div>
-                    <button className="rounded-[14px] bg-[#FFF1E4] px-5 py-2 text-xs font-bold text-[#B8641A] transition-colors group-hover:bg-[#B8641A] group-hover:text-white">View Menu</button>
+                    <button className="rounded-[10px] md:rounded-[14px] bg-[#FFF1E4] px-3 py-1.5 md:px-5 md:py-2 text-[10px] md:text-xs font-bold text-[#B8641A] transition-colors group-hover:bg-[#B8641A] group-hover:text-white">View Menu</button>
                   </div>
                 </div>
               </div>
