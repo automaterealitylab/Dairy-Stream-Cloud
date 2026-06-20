@@ -1,15 +1,25 @@
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../utils/jwt.js";
 
-export const authenticate = (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Authorization token missing",
+      });
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+
+    const decoded = await verifyAccessToken(token);
 
     // ✅ SECURITY ADDITION: Check if it's actually a customer token
     if (decoded.role !== "CUSTOMER") {
@@ -25,6 +35,13 @@ export const authenticate = (req, res, next) => {
 
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Invalid or expired token" });
+    console.error("[CUSTOMER AUTH] token verification error:", {
+      name: err?.name,
+      message: err?.message || String(err),
+    });
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
   }
 };

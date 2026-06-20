@@ -21,6 +21,22 @@ client.interceptors.request.use((config) => {
   }
 
   const requestPath = String(config.url || "");
+  const isPublicAuthRoute = [
+    "/auth/detect",
+    "/auth/admin/login",
+    "/auth/admin/forgot-password/request-otp",
+    "/auth/admin/forgot-password/reset",
+    "/auth/agent/login",
+    "/auth/agent/forgot-password/request-otp",
+    "/auth/agent/forgot-password/reset",
+    "/auth/login/otp",
+    "/auth/login/otp/verify",
+  ].some((path) => requestPath.startsWith(path));
+
+  if (isPublicAuthRoute) {
+    return config;
+  }
+
   const adminToken = localStorage.getItem("adminToken");
   const customerToken = localStorage.getItem("token");
   const agentToken = localStorage.getItem("agentToken");

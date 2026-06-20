@@ -7,11 +7,21 @@ const headingFont = { fontFamily: "'Lora', serif" };
 const controlClassName =
   "w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]";
 
+const buildProductKey = (name, packagingQuantity, packagingUnit) => {
+  const normalizedName = (name || "").trim().toLowerCase();
+  const normalizedPackagingUnit = (packagingUnit || "").trim().toLowerCase();
+  const parsedPackagingQuantity = parseFloat(packagingQuantity);
+  const normalizedPackagingQuantity = Number.isNaN(parsedPackagingQuantity) ? 0 : parsedPackagingQuantity;
+  return `${normalizedName}__${normalizedPackagingQuantity}__${normalizedPackagingUnit}`;
+};
+
 const ProductsAndStockStep = ({ formData, setFormData }) => {
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "Milk",
     unit: "Liter",
+    packagingQuantity: "",
+    packagingUnit: "Liter",
     rate: "",
     stock: "",
     isActive: true,
@@ -25,13 +35,22 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
       return;
     }
 
+    const productKey = buildProductKey(
+      newProduct.name,
+      newProduct.packagingQuantity,
+      newProduct.packagingUnit
+    );
+
     setFormData((prev) => ({
       ...prev,
       products: {
         ...prev.products,
-        [newProduct.name]: {
+        [productKey]: {
+          name: newProduct.name.trim(),
           category: newProduct.category,
           unit: newProduct.unit,
+          packagingQuantity: parseFloat(newProduct.packagingQuantity) || 0,
+          packagingUnit: newProduct.packagingUnit,
           rate: parseInt(newProduct.rate),
           stock: parseFloat(newProduct.stock),
           status: newProduct.isActive ? "Active" : "Inactive",
@@ -45,6 +64,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
       name: "",
       category: "Milk",
       unit: "Liter",
+      packagingQuantity: "",
+      packagingUnit: "Liter",
       rate: "",
       stock: "",
       isActive: true,
@@ -61,8 +82,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
 
   const productList = Object.entries(formData.products || {});
 
-  const filteredList = productList.filter(([name]) =>
-    name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredList = productList.filter(([key, details]) =>
+    (details.name || key).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -75,8 +96,8 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
         Add each product customers can order, along with rate, stock, and availability.
       </p>
 
-      <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-3">
-        <div className="self-start md:sticky md:top-10 md:col-span-1">
+      <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-5">
+        <div className="self-start md:sticky md:top-10 md:col-span-2">
           <div className="space-y-6 rounded-[24px] border border-[#E7DAC6] bg-[#FBF7F0] p-5 sm:rounded-[28px] sm:p-8">
             <h3 className="flex items-center gap-2 text-xl font-bold text-[#2C1A0E]">
               <Milk size={20} className="text-[#B8641A]" />
@@ -106,7 +127,16 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
 
               <select
                 value={newProduct.unit}
-                onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
+                onChange={(e) => {
+                  const selectedUnit = e.target.value;
+                  const packagingUnit =
+                    selectedUnit === "Liter"
+                      ? "Liter"
+                      : selectedUnit === "Kg"
+                        ? "Kg"
+                        : selectedUnit;
+                  setNewProduct({ ...newProduct, unit: selectedUnit, packagingUnit });
+                }}
                 className={controlClassName}
               >
                 <option>Liter</option>
@@ -117,21 +147,61 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <input
-                type="number"
-                placeholder="Rate (Rs)"
-                value={newProduct.rate}
-                onChange={(e) => setNewProduct({ ...newProduct, rate: e.target.value })}
-                className={controlClassName}
-              />
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#A88763]">Rate</p>
+                <input
+                  type="number"
+                  placeholder="Rate (Rs)"
+                  value={newProduct.rate}
+                  onChange={(e) => setNewProduct({ ...newProduct, rate: e.target.value })}
+                  className={controlClassName}
+                />
+              </div>
 
-              <input
-                type="number"
-                placeholder="Stock"
-                value={newProduct.stock}
-                onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-                className={controlClassName}
-              />
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#A88763]">Stock</p>
+                <input
+                  type="number"
+                  placeholder="Stock"
+                  value={newProduct.stock}
+                  onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+                  className={controlClassName}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#A88763]">
+                  Packaging Quantity
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
+                  <input
+                    type="number"
+                    placeholder={`Packaging quantity in ${newProduct.packagingUnit}`}
+                    value={newProduct.packagingQuantity}
+                    onChange={(e) => setNewProduct({ ...newProduct, packagingQuantity: e.target.value })}
+                    className={controlClassName}
+                  />
+                  <select
+                    value={newProduct.packagingUnit}
+                    onChange={(e) => setNewProduct({ ...newProduct, packagingUnit: e.target.value })}
+                    className={controlClassName}
+                  >
+                    {newProduct.unit === "Liter" ? (
+                      <>
+                        <option>Liter</option>
+                        <option>ml</option>
+                      </>
+                    ) : newProduct.unit === "Kg" ? (
+                      <>
+                        <option>Kg</option>
+                        <option>gram</option>
+                      </>
+                    ) : (
+                      <option>{newProduct.unit}</option>
+                    )}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <label className="flex items-center gap-2 text-sm font-medium text-[#8B7355]">
@@ -153,7 +223,7 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
           </div>
         </div>
 
-        <div className="flex flex-col md:col-span-2">
+        <div className="flex flex-col md:col-span-3">
           <div className="mb-6 flex items-center rounded-[18px] border border-[#EDE8DF] bg-white px-5 py-3">
             <Search size={20} className="mr-3 text-[#C4A882]" />
             <input
@@ -173,15 +243,15 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
                 </div>
               )}
 
-              {filteredList.map(([name, details]) => (
-                <div key={name} className="border-b border-[#F2EDE4] bg-white px-4 py-4 transition hover:bg-[#FDF6EC] sm:px-6">
+              {filteredList.map(([key, details]) => (
+                <div key={key} className="border-b border-[#F2EDE4] bg-white px-4 py-4 transition hover:bg-[#FDF6EC] sm:px-6">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="flex items-center gap-3 font-bold text-[#2C1A0E]">
                         <Milk size={16} className="text-[#B8641A]" />
-                        <span className="truncate">{name}</span>
+                        <span className="truncate">{details.name || key}</span>
                       </span>
-                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
                         <div>
                           <p className="font-bold uppercase tracking-[0.14em] text-[#A88763]">Type</p>
                           <p className="mt-1 text-sm font-semibold text-[#8B7355]">{details.category}</p>
@@ -194,11 +264,17 @@ const ProductsAndStockStep = ({ formData, setFormData }) => {
                           <p className="font-bold uppercase tracking-[0.14em] text-[#A88763]">Stock</p>
                           <p className="mt-1 text-sm font-semibold text-[#8B7355]">{details.stock}</p>
                         </div>
+                        <div>
+                          <p className="font-bold uppercase tracking-[0.14em] text-[#A88763]">Pack Qty</p>
+                          <p className="mt-1 text-sm font-semibold text-[#8B7355]">
+                            {details.packagingQuantity || 0} {details.packagingUnit || details.unit}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
                     <button
-                      onClick={() => removeProduct(name)}
+                      onClick={() => removeProduct(key)}
                       className="shrink-0 text-[#C0392B] transition hover:text-[#A33A2B]"
                     >
                       <Trash2 size={18} />

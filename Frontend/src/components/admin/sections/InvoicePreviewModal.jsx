@@ -343,7 +343,7 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
               <p className="mt-2 text-sm font-semibold text-[#8B7355]">{loadError}</p>
             </div>
           ) : (
-            <div className="flex w-full justify-center">
+            <div className="flex w-full justify-start sm:justify-center overflow-x-auto pb-4">
               <div className="origin-top scale-[0.56] shadow-2xl sm:scale-[0.7] lg:scale-[0.84] xl:scale-100">
                 <div
                   ref={invoiceRef}

@@ -150,23 +150,12 @@ async (pos) => {
 };
 
   const validateStep = (step) => {
-    let result;
+    let result = { success: true };
 
-    if (step === 1) {
-      result = brandSchema.safeParse(formData);
-    }
-
-    if (step === 2) {
-      result = locationSchema.safeParse(formData);
-    }
-
-    if (step === 3) {
-      result = ownerSchema.safeParse(formData);
-    }
-
-    if (step === 4) {
-      result = productSchema.safeParse(formData);
-    }
+    if (step === 1) result = brandSchema.safeParse(formData);
+    if (step === 2) result = locationSchema.safeParse(formData);
+    if (step === 3) result = ownerSchema.safeParse(formData);
+    if (step === 4) result = productSchema.safeParse(formData);
 
     if (!result.success) {
       toast.error(result.error.issues[0].message);
@@ -210,11 +199,27 @@ async (pos) => {
         submitData.append("image", logoFile);
       }
 
-      await registerDairyApi(submitData);
+      const result = await registerDairyApi(submitData);
 
       toast.success("Dairy Created");
 
-      navigate("/admin/AdminDashboard");
+      if (result?.data?.token) {
+        localStorage.setItem("adminToken", result.data.token);
+        localStorage.setItem("userRole", "ADMIN");
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            token: result.data.token,
+            role: "ADMIN",
+            ...(result.data.admin || {}),
+          })
+        );
+        if (result.data.admin) {
+          localStorage.setItem("adminUser", JSON.stringify(result.data.admin));
+        }
+      }
+
+      navigate("/admin/AdminDashboard", { replace: true });
     } catch (err) {
       toast.error(err.message || "Registration failed");
     } finally {

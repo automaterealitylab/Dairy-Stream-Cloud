@@ -192,6 +192,28 @@ export const registerDairyApi = async (dairyData) => {
   return data;
 };
 
+export const fetchAdminProfile = async ({ revealBankDetails = false } = {}) => {
+  const { data } = await client.get("/admin/profile", {
+    params: revealBankDetails ? { revealBankDetails: "true" } : {},
+  });
+  return data?.data || data;
+};
+
+export const updateAdminProfile = async (payload) => {
+  const { data } = await client.patch("/admin/profile", payload);
+  return data?.data || data;
+};
+
+export const lookupAdminBankIfsc = async (ifsc) => {
+  const { data } = await client.get(`/admin/bank/ifsc/${encodeURIComponent(ifsc)}`);
+  return data?.ifsc || data;
+};
+
+export const verifyAdminBankAccount = async (payload) => {
+  const { data } = await client.post("/admin/bank/verify", payload);
+  return data?.verification || data;
+};
+
 export const fetchAdminDeliveries = async ({ limit = 1000, date = "" } = {}) => {
   const { data } = await client.get("/admin/deliveries", {
     params: { limit, ...(date ? { date } : {}) },
@@ -258,6 +280,40 @@ export const collectAdminOfflinePayment = async ({
     method,
     note,
   });
+  return data;
+};
+
+export const fetchAdminPaymentVerifications = async ({ status = "PENDING", limit = 50 } = {}) => {
+  const { data } = await client.get("/admin/payments/verifications", {
+    params: { status, limit },
+  });
+  return data?.verifications || [];
+};
+
+export const approveAdminPaymentVerification = async (id) => {
+  const { data } = await client.patch(`/admin/payments/verifications/${id}/approve`);
+  return data;
+};
+
+export const rejectAdminPaymentVerification = async (id, reason = "") => {
+  const { data } = await client.patch(`/admin/payments/verifications/${id}/reject`, { reason });
+  return data;
+};
+
+export const fetchAdminAccountingReport = async ({ from = "", to = "" } = {}) => {
+  const { data } = await client.get("/admin/payments/reports/accounting", {
+    params: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
+  });
+  return data?.report || data;
+};
+
+export const fetchAdminOperationalMonitoring = async () => {
+  const { data } = await client.get("/admin/monitoring/operations");
+  return data?.monitoring || data;
+};
+
+export const processAdminWhatsAppQueue = async ({ limit = 25 } = {}) => {
+  const { data } = await client.post("/admin/monitoring/whatsapp/process", { limit });
   return data;
 };
 
@@ -349,6 +405,11 @@ export const fetchAdminPerformanceSummary = async () => {
   return data;
 };
 
+export const fetchAdminPerformanceMonthlyTrends = async () => {
+  const { data } = await client.get('/admin/performance/monthly-trends');
+  return data;
+};
+
 export const fetchAdminAgentTodayWorkSummary = async ({ agentId } = {}) => {
   const { data } = await client.get('/admin/earnings/today-summary', {
     params: { agentId },
@@ -408,5 +469,51 @@ export const removeAdminSupplier = async (supplierId) => {
 // Use this for recording manual payments via the modal
 export const recordManualPayment = async (payload) => {
   const { data } = await client.post("/admin/payments/manual", payload);
+  return data;
+};
+
+/* =========================
+   NOTIFICATIONS
+========================= */
+export const fetchAdminNotifications = async () => {
+  const { data } = await client.get("/admin/notifications");
+  return data?.notifications || [];
+};
+
+export const markAdminNotificationRead = async (id) => {
+  const { data } = await client.patch(`/admin/notifications/${id}/read`);
+  return data;
+};
+
+export const markAllAdminNotificationsRead = async () => {
+  const { data } = await client.post("/admin/notifications/read-all");
+  return data;
+};
+
+export const createAdminFarmPlanOrder = async ({ plan, cycle }) => {
+  const { data } = await client.post("/admin/farm-plan/order", { plan, cycle });
+  return data;
+};
+
+export const verifyAdminFarmPlanPayment = async (payload) => {
+  const { data } = await client.post("/admin/farm-plan/verify", payload);
+  patchCachedDashboard((current) => ({
+    ...current,
+    selectedPlan: data?.selected_plan || payload.plan,
+  }));
+  return data;
+};
+
+export const createAdminFarmPlanSubscription = async ({ plan, cycle }) => {
+  const { data } = await client.post("/admin/farm-plan/subscription", { plan, cycle });
+  return data;
+};
+
+export const verifyAdminFarmPlanSubscriptionPayment = async (payload) => {
+  const { data } = await client.post("/admin/farm-plan/subscription/verify", payload);
+  patchCachedDashboard((current) => ({
+    ...current,
+    selectedPlan: data?.selected_plan || payload.plan,
+  }));
   return data;
 };

@@ -243,7 +243,7 @@ export default function AdminProcurement() {
               <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B89970]">
                 Supply Operations
               </span>
-              <h1 className="mt-3 text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+              <h1 className="mt-3 text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
                 Purchase Records
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#7B6247]">

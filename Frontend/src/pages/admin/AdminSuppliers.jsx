@@ -206,9 +206,9 @@ export default function AdminSuppliers() {
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
-        <div className="mb-8 flex items-end justify-between gap-4">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Suppliers</h1>
+            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Suppliers</h1>
             <p className="mt-1 text-sm text-[#8B7355]">
               Manage active suppliers and keep their details updated for purchase entries.
             </p>
@@ -220,7 +220,7 @@ export default function AdminSuppliers() {
               setForm(initialForm);
               setShowSupplierForm(true);
             }}
-            className="inline-flex items-center justify-center rounded-xl bg-[#B8641A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9E5415]"
+            className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-[#B8641A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#9E5415]"
           >
             + Add Supplier
           </button>

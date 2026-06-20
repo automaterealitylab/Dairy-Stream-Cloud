@@ -81,25 +81,51 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
         </div>
 
         {formData.service_type === "RADIUS" && (
-          <input
-            type="number"
-            name="service_radius"
-            value={formData.service_radius}
-            onChange={handleChange}
-            placeholder="Delivery Radius KM"
-            className={inputClassName}
-          />
+          <div className="space-y-2">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="service_radius" className="text-sm font-bold text-[#2C1A0E]">
+                Delivery radius from dairy location
+              </label>
+              <p className="text-xs font-medium text-[#A17B52]">Example: `10 km` around your dairy</p>
+            </div>
+            <div className="relative">
+              <input
+                id="service_radius"
+                type="number"
+                min="1"
+                step="0.5"
+                name="service_radius"
+                value={formData.service_radius}
+                onChange={handleChange}
+                placeholder="Enter delivery distance"
+                className={`${inputClassName} pr-16`}
+              />
+              <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#B8641A]">
+                km
+              </span>
+            </div>
+            <p className="text-xs text-[#8B7355]">How far from your dairy address or locked GPS you can deliver.</p>
+          </div>
         )}
 
         {formData.service_type === "PINCODE" && (
-          <input
-            type="text"
-            name="service_pincodes"
-            value={formData.service_pincodes || ""}
-            onChange={handleChange}
-            placeholder="Serviceable Pincodes (comma separated)"
-            className={inputClassName}
-          />
+          <div className="space-y-2">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="service_pincodes" className="text-sm font-bold text-[#2C1A0E]">
+                Serviceable pincodes
+              </label>
+              <p className="text-xs text-[#8B7355]">Separate multiple pincodes with commas.</p>
+            </div>
+            <input
+              id="service_pincodes"
+              type="text"
+              name="service_pincodes"
+              value={formData.service_pincodes || ""}
+              onChange={handleChange}
+              placeholder="Example: 400001, 400002, 400003"
+              className={inputClassName}
+            />
+          </div>
         )}
 
         <input
@@ -107,9 +133,13 @@ const LocationStep = ({ formData, handleChange, detectLocation }) => {
           name="address"
           value={formData.address}
           onChange={handleChange}
-          placeholder="Full Street Address *"
+          placeholder="Dairy Full Address *"
           className={inputClassName}
         />
+
+        <p className="-mt-3 text-xs text-[#8B7355]">
+          Enter the dairy's address. This will be used as the main location for delivery coverage.
+        </p>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <input

@@ -113,11 +113,11 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-[rgba(44,26,14,0.45)] p-2 sm:p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[rgba(44,26,14,0.45)] p-0 sm:p-4 backdrop-blur-sm"
       style={adminShellFont}
     >
-      <div className="flex min-h-full items-start justify-center sm:items-center">
-      <div className="flex w-full max-w-xl max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[24px] sm:rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] shadow-[0_28px_70px_rgba(44,26,14,0.28)]">
+      <div className="flex min-h-full items-end justify-center sm:items-center">
+      <div className="flex w-full max-w-xl max-h-[90vh] sm:max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-t-[24px] sm:rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] shadow-[0_28px_70px_rgba(44,26,14,0.28)]">
         <div className="shrink-0 bg-gradient-to-r from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] px-5 py-4 text-white sm:px-6 sm:py-5">
           <div className="flex items-start justify-between gap-4">
             <div>

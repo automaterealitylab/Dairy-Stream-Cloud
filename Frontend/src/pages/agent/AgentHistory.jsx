@@ -16,15 +16,15 @@ import {
   User,
 } from "lucide-react";
 import { fetchAgentDeliveryHistory } from "../../api/agent/agent.api";
+import { getProductLabel } from "../../utils/agentTaskGrouping";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
 const NavTab = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${
-      active ? "text-[#B8641A]" : "text-[#8B7355]"
-    }`}
+    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${active ? "text-[#B8641A]" : "text-[#8B7355]"
+      }`}
   >
     {icon}
     <span className="text-[8px] font-black uppercase tracking-[0.16em]">{label}</span>
@@ -63,7 +63,8 @@ const AgentHistory = () => {
         (d) =>
           d.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           d.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          d.address.toLowerCase().includes(searchQuery.toLowerCase())
+          d.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          getProductLabel(d).toLowerCase().includes(searchQuery.toLowerCase())
       ),
     }))
     .filter((day) => day.deliveries.length > 0);
@@ -78,12 +79,12 @@ const AgentHistory = () => {
   return (
     <div className="min-h-screen bg-[#FFFDF7] px-4 pb-32 text-[#2C1A0E]">
       <div className="mx-auto max-w-md space-y-5">
-        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-5 py-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+        <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF3E8_100%)] px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">History</p>
-          <h1 className="mt-2 text-[28px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
+          <h1 className="mt-1 text-[26px] font-black leading-none text-[#2C1A0E]" style={headingFont}>
             Delivery Archive
           </h1>
-          <p className="mt-2 text-sm font-semibold text-[#6B5B3E]">Review past performance</p>
+          <p className="mt-1 text-sm font-semibold text-[#6B5B3E]">Review past performance</p>
         </section>
 
         <div className="group relative">
@@ -97,7 +98,7 @@ const AgentHistory = () => {
           />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {filteredHistory.length === 0 ? (
             <div className="rounded-[28px] border border-[#EDE8DF] bg-white p-12 text-center shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
               <Package className="mx-auto mb-2 text-[#D4B896]" size={40} />
@@ -107,15 +108,15 @@ const AgentHistory = () => {
             filteredHistory.map((day) => (
               <div
                 key={day.date}
-                className="overflow-hidden rounded-[30px] border border-[#EDE8DF] bg-white shadow-[0_14px_35px_rgba(92,61,30,0.07)]"
+                className="overflow-hidden rounded-[26px] border border-[#EDE8DF] bg-white shadow-[0_14px_35px_rgba(92,61,30,0.07)]"
               >
                 <button
                   onClick={() => toggleDateExpanded(day.date)}
-                  className="flex w-full items-center justify-between px-5 py-4 transition-colors active:bg-[#FFF8EF]"
+                  className="flex w-full items-center justify-between px-4 py-2.5 transition-colors active:bg-[#FFF8EF]"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-[16px] border border-[#F0D9B9] bg-[#FFF4E2] p-2.5 text-[#B8641A]">
-                      <Calendar size={18} />
+                  <div className="flex items-center gap-2.5">
+                    <div className="rounded-[14px] border border-[#F0D9B9] bg-[#FFF4E2] p-2 text-[#B8641A]">
+                      <Calendar size={16} />
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-black text-[#2C1A0E]">{day.date}</p>
@@ -132,17 +133,20 @@ const AgentHistory = () => {
                 </button>
 
                 {expandedDates.includes(day.date) && (
-                  <div className="space-y-2 border-t border-[#F3E7D6] px-3 pb-3 pt-3">
+                  <div className="space-y-1.5 border-t border-[#F3E7D6] px-3 pb-2.5 pt-2.5">
                     {day.deliveries.map((delivery) => (
                       <div
                         key={delivery.id}
                         onClick={() => setSelectedDelivery(delivery)}
-                        className="flex cursor-pointer items-center justify-between rounded-[22px] border border-[#F3E7D6] bg-[#FFF8EF] p-4 transition-transform active:scale-[0.98]"
+                        className="flex cursor-pointer items-center justify-between rounded-[18px] border border-[#F3E7D6] bg-[#FFF8EF] px-3 py-2 transition-transform active:scale-[0.98]"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-black text-[#2C1A0E]">{delivery.customerName}</p>
+                          <p className="truncate text-sm font-black text-[#2C1A0E]">{delivery.customerName}</p>
                           <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-[0.12em] text-[#A88763]">
                             {delivery.id}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] font-semibold text-[#6B5B3E]">
+                            {getProductLabel(delivery)}
                           </p>
                         </div>
                         {getStatusIcon(delivery.status)}

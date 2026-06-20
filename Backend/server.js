@@ -1,8 +1,10 @@
 import express from "express";
+import { createServer } from "http";
 import cors from "cors";
-import Razorpay from "razorpay";
+import { Server as SocketIOServer } from "socket.io";
 import cron from "node-cron";
 import "./config/loadEnv.js";
+import { validateRuntimeEnv } from "./config/envValidation.js";
 
 // 2. Import Configuration & Routes
 // ✅ Points to your root config.js
@@ -10,20 +12,66 @@ import { supabase } from "./config/supabase.js";
 // ✅ Points to your central Route Hub
 import routes from "./routes/index.route.js"; 
 import {
+  apiRateLimit,
+  botProtection,
+  csrfProtection,
+  getAllowedCorsOrigins,
+  requestFingerprinting,
+  secureHeaders,
+  ssrfGuard,
+  validateApiSignature,
+} from "./middleware/security.middleware.js";
+import {
+  correlationMiddleware,
+  globalErrorHandler,
+  notFoundHandler,
+} from "./middleware/observability.middleware.js";
+import {
   autoFailPendingSubscriptionDeliveriesForDate,
   runDailySubscriptionAutomationForAllCustomers,
 } from "./services/customer/subscription.automation.service.js";
 import { runMonthEndSubscriptionBillingForAllCustomers } from "./services/customer/monthlyBilling.service.js";
+import { registerLocationSocketHandlers } from "./socket/locationHandler.js";
+import { isQueueEnabled } from "./services/marketplace/queue.service.js";
+import { logger } from "./utils/logger.js";
+import { acquireRedisLock } from "./config/redis.js";
+import { processQueuedWhatsAppNotifications } from "./services/shared/whatsapp.service.js";
 
 // 3. Create App
+validateRuntimeEnv();
 const app = express();
+const httpServer = createServer(app);
 
 // ======================
 // 🛡️ Middlewares
 // ======================
-app.use(cors()); // Allow Frontend access
-app.use(express.json({ limit: "10mb" })); // Parse JSON bodies
+app.use(secureHeaders);
+app.use(correlationMiddleware);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      return callback(null, getAllowedCorsOrigins().includes(origin));
+    },
+    credentials: true,
+  })
+);
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      if (String(req.originalUrl || "").includes("/api/webhooks/raw")) {
+        req.rawBody = Buffer.from(buf);
+      }
+    },
+  })
+); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(requestFingerprinting);
+app.use(botProtection);
+app.use(ssrfGuard);
+app.use(validateApiSignature);
+app.use(csrfProtection);
 
 // ======================
 // 🏥 Health Check Routes
@@ -59,12 +107,43 @@ app.get("/supabase-health", async (req, res) => {
   }
 });
 
+const shutdown = async () => {
+  logger.info("server_shutdown_started");
+  await Promise.all(localWorkers.map((worker) => worker.close()));
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10_000).unref();
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
+app.get("/healthz", (req, res) => {
+  res.json({
+    status: "ok",
+    uptimeSeconds: Number(process.uptime().toFixed(0)),
+    queuesEnabled: isQueueEnabled(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/readyz", async (req, res) => {
+  try {
+    const { error } = await supabase.from("customers").select("id").limit(1);
+    if (error) throw error;
+    res.json({ status: "ready", timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: "not_ready", error: err.message });
+  }
+});
+
 // ======================
 // 🚦 API Routes (The Hub)
 // ======================
 // This mounts all your routes at /api
 // e.g., /api/admin/addagent, /api/auth/login
-app.use('/api', routes);
+app.use('/api', apiRateLimit, routes);
+app.use(notFoundHandler);
+app.use(globalErrorHandler);
 
 // ======================
 // ⚠️ Global Error Handler
@@ -92,13 +171,44 @@ app.use((err, req, res, next) => {
 // ======================
 const PORT = process.env.PORT || 4000;
 
-const server = app.listen(PORT, () => {
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+registerLocationSocketHandlers(io);
+
+const server = httpServer.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
 
+const localWorkers =
+  [];
+
+const shouldRunInProcessJobs = () =>
+  String(process.env.RUN_IN_PROCESS_JOBS || "true").toLowerCase() !== "false";
+
+const runWithRedisLock = async ({ key, ttlMs, owner, task }) => {
+  const lock = await acquireRedisLock({ key, ttlMs, owner });
+  if (!lock.acquired) return null;
+  try {
+    return await task();
+  } finally {
+    await lock.release();
+  }
+};
+
 const runSubscriptionAutomation = async () => {
   try {
-    const result = await runDailySubscriptionAutomationForAllCustomers();
+    const result = await runWithRedisLock({
+      key: `daily-subscription-automation:${getLocalDateInput()}`,
+      ttlMs: 55 * 60 * 1000,
+      owner: `api:${process.pid}`,
+      task: runDailySubscriptionAutomationForAllCustomers,
+    });
+    if (!result) return;
     console.log(
       `[AUTO_SUBSCRIPTION] date=${result.date} created=${result.createdCount} skipped=${result.skippedCount}`
     );
@@ -106,9 +216,6 @@ const runSubscriptionAutomation = async () => {
     console.error("AUTO_SUBSCRIPTION ERROR:", err?.message || err);
   }
 };
-
-runSubscriptionAutomation();
-setInterval(runSubscriptionAutomation, 60 * 60 * 1000);
 
 const getLocalDateInput = (dateValue = new Date()) => {
   const date = new Date(dateValue);
@@ -126,9 +233,14 @@ const getPreviousLocalDateInput = (dateValue = new Date()) => {
 
 const runSubscriptionAutoFail = async () => {
   try {
-    const result = await autoFailPendingSubscriptionDeliveriesForDate({
-      targetDate: getPreviousLocalDateInput(),
+    const targetDate = getPreviousLocalDateInput();
+    const result = await runWithRedisLock({
+      key: `subscription-auto-fail:${targetDate}`,
+      ttlMs: 55 * 60 * 1000,
+      owner: `api:${process.pid}`,
+      task: () => autoFailPendingSubscriptionDeliveriesForDate({ targetDate }),
     });
+    if (!result) return;
     console.log(
       `[AUTO_FAIL_SUBSCRIPTION] date=${result.date} failed=${result.failedCount}`
     );
@@ -137,11 +249,15 @@ const runSubscriptionAutoFail = async () => {
   }
 };
 
-runSubscriptionAutoFail();
-
 const runMonthEndSubscriptionBilling = async () => {
   try {
-    const result = await runMonthEndSubscriptionBillingForAllCustomers();
+    const result = await runWithRedisLock({
+      key: `month-end-subscription-billing:${new Date().toISOString().slice(0, 7)}`,
+      ttlMs: 2 * 60 * 60 * 1000,
+      owner: `api:${process.pid}`,
+      task: runMonthEndSubscriptionBillingForAllCustomers,
+    });
+    if (!result) return;
     console.log(
       `[MONTH_END_BILLING] date=${result.date} customers=${result.customers} bills=${result.bills}`
     );
@@ -150,13 +266,42 @@ const runMonthEndSubscriptionBilling = async () => {
   }
 };
 
-cron.schedule("0 0 * * *", runSubscriptionAutoFail, {
-  timezone: "Asia/Kolkata",
-});
+const runWhatsAppNotificationQueue = async () => {
+  const lock = await acquireRedisLock({
+    key: "whatsapp-notification-queue",
+    ttlMs: 55_000,
+    owner: `api:${process.pid}`,
+  });
+  if (!lock.acquired) return;
 
-cron.schedule("59 23 * * *", runMonthEndSubscriptionBilling, {
-  timezone: "Asia/Kolkata",
-});
+  try {
+    await processQueuedWhatsAppNotifications({ limit: 25 });
+  } catch (err) {
+    console.error("WHATSAPP_QUEUE ERROR:", err?.message || err);
+  } finally {
+    await lock.release();
+  }
+};
+
+if (shouldRunInProcessJobs()) {
+  runSubscriptionAutomation();
+  setInterval(runSubscriptionAutomation, 60 * 60 * 1000);
+  runSubscriptionAutoFail();
+
+  cron.schedule("0 0 * * *", runSubscriptionAutoFail, {
+    timezone: "Asia/Kolkata",
+  });
+
+  cron.schedule("59 23 * * *", runMonthEndSubscriptionBilling, {
+    timezone: "Asia/Kolkata",
+  });
+
+  cron.schedule("*/5 * * * *", runWhatsAppNotificationQueue, {
+    timezone: "Asia/Kolkata",
+  });
+} else {
+  logger.info("in_process_jobs_disabled");
+}
 
 // Handle "Port in use" errors gracefully (from your old app.js)
 server.on('error', (err) => {

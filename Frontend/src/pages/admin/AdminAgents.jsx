@@ -8,6 +8,7 @@ import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AgentDrawer from "../../components/agent/AgentDrawer.jsx"; 
 import AddAgentModal from "../../components/agent/AddAgentModal.jsx";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
+import AdminAgentLiveLocationMap from "../../components/admin/AdminAgentLiveLocationMap.jsx";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminAgents() {
@@ -25,6 +26,7 @@ export default function AdminAgents() {
   // Drawer State
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [liveTrackingAgent, setLiveTrackingAgent] = useState(null);
 
   useEffect(() => {
     if (searchParams.get("addAgent") === "1") {
@@ -98,9 +100,9 @@ export default function AdminAgents() {
 
       <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
         {/* Page Header */}
-        <div className="mb-8 flex justify-between items-end">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
           <div>
-            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
               Delivery Agents
             </h1>
             <p className="mt-1 text-sm text-[#8B7355]">
@@ -110,7 +112,7 @@ export default function AdminAgents() {
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-xl bg-[#B8641A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9E5415]"
+            className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-[#B8641A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#9E5415]"
           >
             + Add Agent
           </button>
@@ -192,13 +194,26 @@ export default function AdminAgents() {
                   </div>
 
                   {/* Right: Actions */}
-                  <div className="flex items-center gap-6 text-sm">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
                     <div className="hidden text-[#8B7355] sm:block">
                       Joined{" "}
                       <span className="font-medium text-[#2C1A0E]">
                         {new Date(agent.created_at).toLocaleDateString()}
                       </span>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLiveTrackingAgent({
+                          id: agent.id,
+                          name: agent.full_name || "Agent",
+                        })
+                      }
+                      className="rounded-lg border border-[#E5D9C7] px-3 py-1.5 font-medium text-[#8B5E34] hover:bg-[#FDF6EC]"
+                    >
+                      Live Location
+                    </button>
 
                     <button
                       onClick={() => setSelectedAgent(agent.id)}
@@ -251,6 +266,34 @@ export default function AdminAgents() {
         onClose={closeAddModal}
         onCreated={() => setRefreshKey((k) => k + 1)}
       />
+
+      {liveTrackingAgent ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#2C1A0E]/35 px-4">
+          <div className="w-full max-w-3xl rounded-[22px] border border-[#EDE8DF] bg-white shadow-[0_22px_50px_rgba(44,26,14,0.2)]">
+            <div className="flex items-center justify-between border-b border-[#F2EDE4] px-4 py-3 sm:px-5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#A88763]">
+                  Agent Live Tracking
+                </p>
+                <h3 className="text-lg font-bold text-[#2C1A0E]">{liveTrackingAgent.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLiveTrackingAgent(null)}
+                className="rounded-full border border-[#E5D9C7] px-3 py-1 text-sm font-semibold text-[#8B7355] hover:bg-[#FDF6EC]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-4 sm:p-5">
+              <AdminAgentLiveLocationMap
+                agentId={liveTrackingAgent.id}
+                agentName={liveTrackingAgent.name}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

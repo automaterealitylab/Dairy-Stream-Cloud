@@ -194,16 +194,16 @@ export default function AdminCustomers() {
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
-        <header className="mb-8 flex justify-between items-end">
+        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
           <div>
-            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Customers</h1>
+            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Customers</h1>
             <p className="font-bold text-[#8B7355]">
               Billing & Subscription Management
             </p>
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="rounded-2xl bg-[#B8641A] px-6 py-3 font-black text-white shadow-lg transition-all hover:bg-[#9E5415]"
+            className="w-full sm:w-auto rounded-2xl bg-[#B8641A] px-6 py-3.5 font-black text-white shadow-lg transition-all hover:bg-[#9E5415]"
           >
             + Add Customer
           </button>
@@ -238,7 +238,7 @@ export default function AdminCustomers() {
               customers.map((c) => (
                 <div
                   key={c.id}
-                  className="flex flex-col justify-between gap-6 p-6 transition-all hover:bg-[#FFFDF8] md:flex-row md:items-center"
+                  className="flex flex-col gap-4 p-6 transition-all hover:bg-[#FFFDF8] sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex-1">
                     <h4 className="text-lg font-black text-gray-800">
@@ -254,8 +254,8 @@ export default function AdminCustomers() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-10">
-                    <div className="text-right">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center gap-4 sm:gap-6 lg:gap-10">
+                    <div className="text-left sm:text-right">
                       <p className="text-[10px] font-black text-gray-400 uppercase">
                         Balance
                       </p>
@@ -268,7 +268,7 @@ export default function AdminCustomers() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <button
                         onClick={() => setInvoiceTarget(c)}
                         className="rounded-xl border border-[#EDE8DF] bg-[#FFFDF8] p-2.5 text-[#B89970] hover:text-[#2C1A0E]"

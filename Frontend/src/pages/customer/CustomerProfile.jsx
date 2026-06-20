@@ -4,7 +4,7 @@ import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } f
 import "leaflet/dist/leaflet.css";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
-import { Mail, Phone, MapPin, Edit, Camera, Loader2, X, LocateFixed } from "lucide-react";
+import { Mail, Phone, MapPin, Edit, Camera, Loader2, X, LocateFixed, QrCode } from "lucide-react";
 import {
   fetchCustomerProfile,
   getCachedCustomerDashboard,
@@ -444,6 +444,14 @@ const CustomerProfile = () => {
           <InfoCard icon={<Mail />} label="Email" value={profile.email || "Not set"} />
           <InfoCard icon={<Phone />} label="Phone" value={profile.phone || "Not set"} />
           <InfoCard
+            icon={<QrCode />}
+            label="My QR Code"
+            value="Show to verify delivery drops"
+            actionLabel="Show QR Code"
+            onAction={() => window.dispatchEvent(new CustomEvent("open-customer-qr-modal"))}
+            full
+          />
+          <InfoCard
             icon={<MapPin />}
             label="Delivery Address"
             value={profile.address || "Address not set"}
@@ -579,7 +587,7 @@ const CustomerProfile = () => {
                     Use GPS to show your current location, then tap the map to move your exact delivery pin whenever your address changes.
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-[#E7DAC6] bg-white px-3 py-2.5">
+                  <div className="flex flex-col gap-3 rounded-[16px] border border-[#E7DAC6] bg-white p-3 sm:flex-row sm:items-center sm:gap-4">
                     <button
                       type="button"
                       onClick={() =>
@@ -590,13 +598,13 @@ const CustomerProfile = () => {
                         })
                       }
                       disabled={locating}
-                      className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-2 text-xs font-semibold text-[#B8641A] transition hover:bg-[#FCE8CB] disabled:cursor-not-allowed disabled:opacity-70"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#EFD7B3] bg-[#FFF4E2] py-2.5 text-sm font-bold text-[#B8641A] transition hover:bg-[#FCE8CB] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-4 sm:py-2 sm:text-xs"
                     >
                       {locating ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={16} />}
                       {locating ? "Locating..." : "Use Current Location"}
                     </button>
 
-                    <div className="min-w-0 flex-1 text-xs font-medium text-[#5C3D1E]">
+                    <div className="min-w-0 flex-1 text-center text-xs font-semibold text-[#5C3D1E] sm:text-left">
                       {gpsLocation
                         ? `GPS: ${gpsLocation.lat.toFixed(6)}, ${gpsLocation.lng.toFixed(6)}`
                         : "GPS location not captured yet. Tap the button or place the pin manually."}
@@ -604,7 +612,14 @@ const CustomerProfile = () => {
                   </div>
 
                   <div className="overflow-hidden rounded-[20px] border border-[#E7DAC6]">
-                    <MapContainer center={mapCenter} zoom={17} scrollWheelZoom className="h-[320px] w-full">
+                    <MapContainer 
+                      center={mapCenter} 
+                      zoom={17} 
+                      scrollWheelZoom 
+                      dragging={!L.Browser?.mobile}
+                      tap={!L.Browser?.mobile}
+                      className="h-[220px] sm:h-[320px] w-full"
+                    >
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

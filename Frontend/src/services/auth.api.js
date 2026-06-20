@@ -51,8 +51,13 @@ export const validateTokenApi = async (roleHint) => {
     token = localStorage.getItem("token") || (normalizedRole === "CUSTOMER" ? fallbackToken : null);
   }
 
+  // Avoid unnecessary /auth/me request when no token is available.
+  if (!token) {
+    return { success: false, reason: "NO_TOKEN" };
+  }
+
   const { data } = await client.get("/auth/me", {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { Authorization: `Bearer ${token}` },
   });
   return data;
 };

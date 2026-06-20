@@ -84,13 +84,35 @@ const normalizeApprovalStatus = (value, { isOneTimeOrder = false } = {}) => {
   return isOneTimeOrder ? "PENDING" : "APPROVED";
 };
 
-const formatQuantity = (value) => {
+const normalizeProductKey = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const formatUnitLabel = (value) => {
+  const unit = String(value || "").trim().toUpperCase();
+  if (["L", "LITER", "LITRE", "LITERS", "LITRES"].includes(unit)) return "L";
+  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(unit)) return "KG";
+  if (["G", "GRAM", "GRAMS"].includes(unit)) return "G";
+  if (["ML", "MILLILITER", "MILLILITRE", "MILLILITERS", "MILLILITRES"].includes(unit)) return "ML";
+  if (["PCS", "PIECE", "PIECES"].includes(unit)) return "PCS";
+  return unit || "L";
+};
+
+const inferProductUnit = (productName) => {
+  const normalized = normalizeProductKey(productName);
+  if (normalized === "paneer" || normalized === "panner") return "KG";
+  return "LITER";
+};
+
+const formatQuantity = (value, unit = "LITER") => {
   const quantity = Number(value);
   if (!Number.isFinite(quantity)) return "-";
   const compact = Number.isInteger(quantity)
     ? String(quantity)
     : quantity.toFixed(2).replace(/\.?0+$/, "");
-  return `${compact}L`;
+  return `${compact}${formatUnitLabel(unit)}`;
 };
 
 const parseNotesField = (notesValue, field) => {
@@ -222,12 +244,12 @@ const pickLatestSubscriptionByCustomer = (subscriptions, dairyId, { activeOnly =
   return byCustomer;
 };
 
-const getCustomerAndAgentMaps = async ({ customerIds, agentIds }) => {
-  const [customersResp, agentsResp] = await Promise.all([
+const getCustomerAndAgentMaps = async ({ customerIds, agentIds, dairyIds = [] }) => {
+  const [customersResp, agentsResp, dairiesResp] = await Promise.all([
     customerIds.length > 0
       ? supabase
           .from("customers")
-          .select("id, customer_name, building_name, wing, room_no")
+          .select("id, customer_name, building_name, wing, room_no, latitude, longitude")
           .in("id", customerIds)
       : Promise.resolve({ data: [], error: null }),
     agentIds.length > 0
@@ -236,15 +258,45 @@ const getCustomerAndAgentMaps = async ({ customerIds, agentIds }) => {
           .select("id, agent_name, building, status, inactive_until")
           .in("id", agentIds)
       : Promise.resolve({ data: [], error: null }),
+    dairyIds.length > 0
+      ? supabase
+          .from("dairies")
+          .select("id, dairy_name, latitude, longitude")
+          .in("id", dairyIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (customersResp.error) throw customersResp.error;
   if (agentsResp.error) throw agentsResp.error;
+  if (dairiesResp.error) throw dairiesResp.error;
 
   return {
     customersById: new Map((customersResp.data || []).map((row) => [row.id, row])),
     agentsById: new Map((agentsResp.data || []).map((row) => [row.id, row])),
+    dairiesById: new Map((dairiesResp.data || []).map((row) => [row.id, row])),
   };
+};
+
+const getProductUnitMapForDairies = async ({ dairyIds = [] } = {}) => {
+  const ids = [...new Set((dairyIds || []).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("dairy_id, name, unit")
+    .in("dairy_id", ids);
+
+  if (error) throw error;
+
+  const unitsByProduct = new Map();
+  for (const row of data || []) {
+    const dairyId = row?.dairy_id;
+    const productKey = normalizeProductKey(row?.name);
+    if (!dairyId || !productKey) continue;
+    unitsByProduct.set(`${dairyId}::${productKey}`, row?.unit || "LITER");
+  }
+
+  return unitsByProduct;
 };
 
 const getSubscriptionMapForCustomers = async ({ customerIds, dairyId }) => {
@@ -449,13 +501,26 @@ const autoAssignDeliveryIfPossible = async ({ delivery, dairyId = null } = {}) =
   };
 };
 
-const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCustomer }) => {
+const mapDeliveries = ({
+  deliveries,
+  customersById,
+  agentsById,
+  dairiesById,
+  subscriptionByCustomer,
+  productUnitByKey = new Map(),
+}) => {
   return (deliveries || []).map((row) => {
     const customer = customersById.get(row.customer_id) || {};
     const agent = agentsById.get(row.agent_id) || {};
+    const dairy = dairiesById.get(row.dairy_id) || {};
     const subscription = subscriptionByCustomer.get(row.customer_id) || {};
 
     const quantity = row.quantity_liters ?? subscription.quantity_liters ?? null;
+    const productType = row.milk_type || subscription.milk_type || "Milk";
+    const resolvedDairyId = row.dairy_id || subscription.dairy_id || null;
+    const productUnit =
+      productUnitByKey.get(`${resolvedDairyId}::${normalizeProductKey(productType)}`) ||
+      inferProductUnit(productType);
     const route = customer.building_name || agent.building || "-";
     const notes = String(row.notes || "");
     const isOneTimeOrder = notes.includes("[ONE_TIME_ORDER]");
@@ -477,12 +542,24 @@ const mapDeliveries = ({ deliveries, customersById, agentsById, subscriptionByCu
       agentId: isProjected ? projectedAgentId : row.agent_id ?? null,
       customerName: customer.customer_name || `Customer #${row.customer_id ?? "-"}`,
       agentName: resolvedAgent.agent_name || "Unassigned",
+      latitude: Number.isFinite(Number(customer.latitude)) ? Number(customer.latitude) : null,
+      longitude: Number.isFinite(Number(customer.longitude)) ? Number(customer.longitude) : null,
+      customerLat: Number.isFinite(Number(customer.latitude)) ? Number(customer.latitude) : null,
+      customerLng: Number.isFinite(Number(customer.longitude)) ? Number(customer.longitude) : null,
+      dairyName: dairy.dairy_name || null,
+      dairyLatitude: Number.isFinite(Number(dairy.latitude)) ? Number(dairy.latitude) : null,
+      dairyLongitude: Number.isFinite(Number(dairy.longitude)) ? Number(dairy.longitude) : null,
+      dairyLat: Number.isFinite(Number(dairy.latitude)) ? Number(dairy.latitude) : null,
+      dairyLng: Number.isFinite(Number(dairy.longitude)) ? Number(dairy.longitude) : null,
       route,
       buildingName,
       wingOrFloor,
       roomNo,
       locationLabel: [buildingName, wingOrFloor, roomNo].filter(Boolean).join(" / ") || "-",
-      quantity: formatQuantity(quantity),
+      quantity: formatQuantity(quantity, productUnit),
+      quantityRaw: quantity,
+      quantityUnit: formatUnitLabel(productUnit),
+      productType,
       date: normalizeDate(row.delivery_date || row.created_at),
       slot,
       status: normalizeStatus(row.status),
@@ -691,15 +768,23 @@ export const getAdminDeliveries = async ({ dairyId = null, limit, date = null } 
         .filter(Boolean)
     ),
   ];
+  const dairyIds = [...new Set(combinedRows.map((row) => row.dairy_id).filter(Boolean))];
 
-  const { customersById, agentsById } = await getCustomerAndAgentMaps({ customerIds, agentIds });
+  const { customersById, agentsById, dairiesById } = await getCustomerAndAgentMaps({
+    customerIds,
+    agentIds,
+    dairyIds,
+  });
+  const productUnitByKey = await getProductUnitMapForDairies({ dairyIds });
 
   return {
     deliveries: mapDeliveries({
       deliveries: combinedRows,
       customersById,
       agentsById,
+      dairiesById,
       subscriptionByCustomer,
+      productUnitByKey,
     }),
   };
 };
@@ -934,9 +1019,10 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
 
   if (createError) throw createError;
 
-  const { customersById, agentsById } = await getCustomerAndAgentMaps({
+  const { customersById, agentsById, dairiesById } = await getCustomerAndAgentMaps({
     customerIds: [createdDelivery.customer_id],
     agentIds: createdDelivery.agent_id ? [createdDelivery.agent_id] : [],
+    dairyIds: createdDelivery.dairy_id ? [createdDelivery.dairy_id] : [],
   });
 
   const subscriptionByCustomer = new Map([[createdDelivery.customer_id, activeSubscription]]);
@@ -945,6 +1031,7 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     deliveries: [createdDelivery],
     customersById,
     agentsById,
+    dairiesById,
     subscriptionByCustomer,
   });
 

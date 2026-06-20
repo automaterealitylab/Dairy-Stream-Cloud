@@ -28,7 +28,7 @@ const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 const headingFont = { fontFamily: "'Lora', serif" };
 
 const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const inputRef = useRef(null);
@@ -62,6 +62,19 @@ const LoginPage = () => {
   const [error, setError] = useState("");
 
   // ================= EFFECTS =================
+  useEffect(() => {
+    if (!authLoading && user) {
+      const role = String(user.role || "").toUpperCase();
+      if (role === "ADMIN") {
+        navigate("/admin/AdminDashboard", { replace: true });
+      } else if (role === "AGENT" || role === "STAFF") {
+        navigate("/agent/dashboard", { replace: true });
+      } else if (role === "CUSTOMER") {
+        navigate("/customer/dashboard", { replace: true });
+      }
+    }
+  }, [user, authLoading, navigate]);
+
   useEffect(() => {
     inputRef.current?.focus();
   }, [step]);
@@ -190,12 +203,23 @@ const LoginPage = () => {
         setStep("OTP");
 
         if (!response.otpRequested) {
-          const otpResponse = await requestOtpApi({
-            identifier: normalizedIdentifier,
-            dairyId: response.dairy?.id ?? selectedDairy?.id,
-          });
-          setOtpTimer(30);
-          toast.success(otpResponse?.message || "OTP sent successfully");
+          try {
+            const otpResponse = await requestOtpApi({
+              identifier: normalizedIdentifier,
+              dairyId: response.dairy?.id ?? selectedDairy?.id,
+            });
+            setOtpTimer(30);
+            toast.success(otpResponse?.message || "OTP sent successfully");
+          } catch (otpErr) {
+            const backendMessage =
+              otpErr.response?.data?.error ||
+              otpErr.response?.data?.message ||
+              otpErr.message ||
+              "Failed to send OTP";
+
+            setError(backendMessage);
+            toast.error(backendMessage);
+          }
           return;
         }
 
@@ -512,26 +536,37 @@ const LoginPage = () => {
       className="min-h-screen flex flex-col bg-[linear-gradient(180deg,#F5F0E8_0%,#FFFDF8_100%)] lg:grid lg:grid-cols-2"
       style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
     >
-      <div className="order-2 px-4 pb-6 sm:px-6 lg:hidden">
+      {/* ================= MOBILE TOP LOGO CARD ================= */}
+      <div className="order-1 px-4 pt-6 sm:px-6 lg:hidden">
+        <div className="w-full max-w-md mx-auto rounded-[20px] border border-[#E7DAC6] bg-[#FFFDF7] p-4 text-center shadow-[0_8px_30px_rgba(44,26,14,0.06)]">
+          <div className="cursor-pointer text-2xl font-bold text-[#2C1A0E]" style={headingFont} onClick={() => navigate("/")}>
+            Dairy<span className="text-[#B8641A]">Stream</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ================= MOBILE BOTTOM BRAND CARD ================= */}
+      <div className="order-3 px-4 pb-6 sm:px-6 lg:hidden">
         <div className="relative overflow-hidden rounded-[28px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-5 py-6 text-white shadow-[0_20px_50px_rgba(44,26,14,0.16)]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.18),transparent_40%)]" />
           <div className="relative z-10">
-            <h1 className="text-[30px] font-semibold leading-[1.05]" style={headingFont}>DairyStream</h1>
-            <p className="mt-3 max-w-sm text-sm text-[#F5E6D2]">
+            <p className="max-w-sm text-sm text-[#F5E6D2]">
               Manage milk deliveries, subscriptions, billing, and customer access from one calm, reliable platform.
             </p>
-            <div className="mt-5 flex flex-wrap gap-2.5">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <Link
                 to="/register-dairy"
-                className="inline-flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white no-underline transition hover:bg-white/16"
+                className="inline-flex items-center justify-center gap-1.5 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-2 py-2 text-xs sm:text-sm font-semibold text-white no-underline transition hover:bg-white/16 text-center"
               >
-                <ShieldCheck size={16} /> Register Dairy
+                <ShieldCheck size={16} className="shrink-0" />
+                <span className="truncate">Register Dairy</span>
               </Link>
               <Link
                 to="/explore"
-                className="inline-flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white no-underline transition hover:bg-white/16"
+                className="inline-flex items-center justify-center gap-1.5 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-2 py-2 text-xs sm:text-sm font-semibold text-white no-underline transition hover:bg-white/16 text-center"
               >
-                <MapPin size={16} /> Explore Nearby
+                <MapPin size={16} className="shrink-0" />
+                <span className="truncate">Explore Nearby</span>
               </Link>
             </div>
           </div>
@@ -568,7 +603,7 @@ const LoginPage = () => {
       </div>
 
       {/* ================= RIGHT LOGIN FORM SECTION ================= */}
-      <div className="order-1 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:order-none lg:px-4 lg:py-10">
+      <div className="order-2 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:order-none lg:px-4 lg:py-10">
         <div className="w-full max-w-md rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-5 shadow-[0_24px_60px_rgba(44,26,14,0.12)] sm:p-8">
 
           {/* HEADER */}

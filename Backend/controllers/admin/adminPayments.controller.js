@@ -63,3 +63,147 @@ export const collectOfflinePayment = async (req, res) => {
     res.status(400).json({ error: err.message || "Failed to record offline payment" });
   }
 };
+
+export const fetchPaymentVerifications = async (req, res) => {
+  try {
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const data = await paymentService.getPaymentVerificationQueue({
+      dairyId,
+      status: req.query.status || "PENDING",
+      limit: Number(req.query.limit || 50),
+    });
+
+    res.json({ success: true, verifications: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to load payment verifications" });
+  }
+};
+
+export const approvePaymentVerification = async (req, res) => {
+  try {
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const result = await paymentService.approvePaymentVerification({
+      verificationId: Number(req.params.id),
+      dairyId,
+      adminId: req.admin.id,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to approve payment verification" });
+  }
+};
+
+export const rejectPaymentVerification = async (req, res) => {
+  try {
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const verification = await paymentService.rejectPaymentVerification({
+      verificationId: Number(req.params.id),
+      dairyId,
+      adminId: req.admin.id,
+      reason: req.body?.reason,
+    });
+
+    res.json({ success: true, verification });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to reject payment verification" });
+  }
+};
+
+export const createFarmPlanOrder = async (req, res) => {
+  try {
+    const { plan, cycle } = req.body;
+    const dairyId = req.admin.dairyId;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const orderData = await paymentService.createFarmPlanOrder({
+      dairyId,
+      plan,
+      cycle,
+    });
+
+    res.json(orderData);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to create farm plan order" });
+  }
+};
+
+export const verifyFarmPlanPayment = async (req, res) => {
+  try {
+    const { plan, cycle, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    const dairyId = req.admin.dairyId;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const updated = await paymentService.verifyFarmPlanPayment({
+      dairyId,
+      plan,
+      cycle,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    });
+
+    res.json({ success: true, dairy: updated });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to verify farm plan payment" });
+  }
+};
+
+export const createFarmPlanSubscription = async (req, res) => {
+  try {
+    const { plan, cycle } = req.body;
+    const dairyId = req.admin.dairyId;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const subData = await paymentService.createFarmPlanSubscription({
+      dairyId,
+      plan,
+      cycle,
+    });
+
+    res.json(subData);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to create farm plan subscription" });
+  }
+};
+
+export const verifyFarmPlanSubscriptionPayment = async (req, res) => {
+  try {
+    const { plan, cycle, razorpayPaymentId, razorpaySubscriptionId, razorpaySignature } = req.body;
+    const dairyId = req.admin.dairyId;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
+
+    const updated = await paymentService.verifyFarmPlanSubscriptionPayment({
+      dairyId,
+      plan,
+      cycle,
+      razorpayPaymentId,
+      razorpaySubscriptionId,
+      razorpaySignature,
+    });
+
+    res.json({ success: true, dairy: updated });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to verify farm plan subscription payment" });
+  }
+};

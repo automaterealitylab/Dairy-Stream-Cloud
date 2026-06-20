@@ -22,8 +22,11 @@ import {
 } from "../controllers/customer/deliveries.controller.js";
 import {
   createPaymentOrder,
+  createUpiPaymentIntent,
   createWalletTopupOrder,
   getPayments,
+  previewUpiPaymentScreenshotOcr,
+  submitUpiPaymentVerification,
   verifyPayment,
   verifyWalletTopup,
 } from "../controllers/customer/payments.controller.js";
@@ -32,6 +35,12 @@ import {
   saveSubscription,
   clearSubscription,
 } from "../controllers/customer/subscription.controller.js";
+import {
+  downloadCustomerInvoicePdf,
+  fetchCustomerInvoiceDetail,
+  fetchCustomerInvoices,
+  shareCustomerInvoiceOnWhatsApp,
+} from "../controllers/customer/invoice.controller.js";
 
 import {
   forgotPassword,
@@ -44,11 +53,18 @@ import {
   fetchDeliveryETA,
 } from "../controllers/customer/notification.controller.js";
 import { uploadSingleImage } from "../middleware/upload.middleware.js";
+import { createRateLimiter } from "../middleware/security.middleware.js";
 
 // Middleware
 import { authenticate } from "../middleware/cutomerAuthChecker.middleware.js";
 
 const router = express.Router();
+
+const paymentVerificationRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 12,
+  keyPrefix: "customer-payment-verification",
+});
 
 // ==========================================
 // 🔐 PUBLIC ROUTES (Registration & specific auth)
@@ -75,10 +91,29 @@ router.post("/deliveries/:id/issue", authenticate, reportIssue);
 router.post("/orders/one-time", authenticate, createOneTimeOrder);
 router.post("/orders/one-time/cancel", authenticate, cancelOneTimeOrder);
 router.get("/payments", authenticate, getPayments);
+router.post("/payments/upi-intent", authenticate, paymentVerificationRateLimit, createUpiPaymentIntent);
+router.post(
+  "/payments/ocr-preview",
+  authenticate,
+  paymentVerificationRateLimit,
+  uploadSingleImage,
+  previewUpiPaymentScreenshotOcr
+);
+router.post(
+  "/payments/verify-upi",
+  authenticate,
+  paymentVerificationRateLimit,
+  uploadSingleImage,
+  submitUpiPaymentVerification
+);
 router.post("/payments/order", authenticate, createPaymentOrder);
 router.post("/payments/verify", authenticate, verifyPayment);
 router.post("/payments/wallet/order", authenticate, createWalletTopupOrder);
 router.post("/payments/wallet/verify", authenticate, verifyWalletTopup);
+router.get("/invoices", authenticate, fetchCustomerInvoices);
+router.get("/invoices/:id", authenticate, fetchCustomerInvoiceDetail);
+router.get("/invoices/:id/pdf", authenticate, downloadCustomerInvoicePdf);
+router.post("/invoices/:id/share-whatsapp", authenticate, shareCustomerInvoiceOnWhatsApp);
 
 router.get("/subscription", authenticate, getSubscription);
 router.post("/subscription", authenticate, saveSubscription);

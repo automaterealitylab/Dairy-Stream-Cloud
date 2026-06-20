@@ -9,6 +9,10 @@ import {
   parseMonthlyBillMeta,
   syncCustomerMonthlyBills,
 } from "./monthlyBilling.service.js";
+import {
+  analyzeUpiVerificationSubmission,
+  writeFraudAlertsForVerification,
+} from "./smartPaymentVerification.service.js";
 
 const PAYMENT_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
 const MEMBERSHIP_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
@@ -349,6 +353,9 @@ const mapPaymentRow = (row, index) => {
     method: row.method || row.payment_method || "-",
     dueDate: row.due_date || row.dueDate || null,
     monthKey,
+    verificationStatus: row.verification_status || "NOT_SUBMITTED",
+    utrNumber: row.utr_number || null,
+    submittedAt: row.submitted_at || null,
   };
 };
 
@@ -492,6 +499,25 @@ const getRazorpayClient = () => {
     key_id: keyId,
     key_secret: keySecret,
   });
+};
+
+const getRazorpayOrderContext = async ({ dairyId, amountInRupees, notes = {} }) => {
+  const { beneficiary, transfers } = await buildOrderTransfers({
+    dairyId,
+    amountInRupees,
+    notes,
+  });
+
+  return {
+    razorpay: getRazorpayClient(),
+    keyId: getRazorpayConfig().keyId,
+    beneficiary,
+    transfers,
+  };
+};
+
+const getRazorpayVerificationSecret = async (dairyId) => {
+  return getRazorpayConfig().keySecret;
 };
 
 const getDairyPayoutDetails = async (dairyId) => {
@@ -854,33 +880,29 @@ export const createCustomerPaymentOrder = async ({
       throw new Error("Payment amount must be greater than zero");
     }
 
-    const razorpay = getRazorpayClient();
-    const { beneficiary, transfers } = await buildOrderTransfers({
+    const orderNotes = {
+      customer_id: String(customerId),
+      dairy_id: String(effectiveDairyId ?? ""),
+      payment_mode: "ALL",
+      month: getCurrentMonthKey(),
+    };
+    const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
       dairyId: effectiveDairyId,
       amountInRupees,
-      notes: {
-        customer_id: String(customerId),
-        dairy_id: String(effectiveDairyId ?? ""),
-        payment_mode: "ALL",
-        month: getCurrentMonthKey(),
-      },
+      notes: orderNotes,
     });
-    const order = await razorpay.orders.create({
+    const orderPayload = {
       amount: Math.round(amountInRupees * 100),
       currency: "INR",
       receipt: `cust_${customerId}_payall_${Date.now()}`.slice(0, 40),
       partial_payment: false,
-      notes: {
-        customer_id: String(customerId),
-        payment_mode: "ALL",
-        dairy_id: String(effectiveDairyId ?? ""),
-        month: getCurrentMonthKey(),
-      },
-      transfers,
-    });
+      notes: orderNotes,
+    };
+    if (transfers) orderPayload.transfers = transfers;
+    const order = await razorpay.orders.create(orderPayload);
 
     return {
-      keyId: getRazorpayConfig().keyId,
+      keyId,
       order,
       payment: {
         id: null,
@@ -912,32 +934,29 @@ export const createCustomerPaymentOrder = async ({
     throw new Error("Payment amount must be greater than zero");
   }
 
-  const razorpay = getRazorpayClient();
   const effectiveDairyId = pendingPayment.dairy_id || resolvedDairyId;
-  const { beneficiary, transfers } = await buildOrderTransfers({
+  const orderNotes = {
+    customer_id: String(customerId),
+    payment_id: String(pendingPayment.id),
+    dairy_id: String(effectiveDairyId ?? ""),
+  };
+  const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
     dairyId: effectiveDairyId,
     amountInRupees,
-    notes: {
-      customer_id: String(customerId),
-      payment_id: String(pendingPayment.id),
-      dairy_id: String(effectiveDairyId ?? ""),
-    },
+    notes: orderNotes,
   });
-  const order = await razorpay.orders.create({
+  const orderPayload = {
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `cust_${customerId}_pay_${pendingPayment.id}_${Date.now()}`.slice(0, 40),
     partial_payment: false,
-    notes: {
-      customer_id: String(customerId),
-      payment_id: String(pendingPayment.id),
-      dairy_id: String(effectiveDairyId ?? ""),
-    },
-    transfers,
-  });
+    notes: orderNotes,
+  };
+  if (transfers) orderPayload.transfers = transfers;
+  const order = await razorpay.orders.create(orderPayload);
 
   return {
-    keyId: getRazorpayConfig().keyId,
+    keyId,
     order,
     payment: {
       id: pendingPayment.id,
@@ -966,8 +985,10 @@ export const verifyCustomerPayment = async ({
     throw new Error("Missing Razorpay verification fields");
   }
 
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const keySecret = await getRazorpayVerificationSecret(resolvedDairyId);
   const generatedSignature = crypto
-    .createHmac("sha256", getRazorpayConfig().keySecret)
+    .createHmac("sha256", keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
@@ -976,7 +997,6 @@ export const verifyCustomerPayment = async ({
   }
 
   const paidAtIso = new Date().toISOString();
-  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   const payloadVariants = buildPaidUpdatePayloadVariants({
     paymentMethod: "RAZORPAY",
     paidAtIso,
@@ -1141,23 +1161,31 @@ export const createCustomerWalletTopupOrder = async ({
   }
 
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
-  const razorpay = getRazorpayClient();
-  const order = await razorpay.orders.create({
+  const orderNotes = {
+    customer_id: String(customerId),
+    payment_mode: "WALLET_TOPUP",
+    dairy_id: String(resolvedDairyId ?? ""),
+    amount_inr: String(amountInRupees),
+  };
+  const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
+    dairyId: resolvedDairyId,
+    amountInRupees,
+    notes: orderNotes,
+  });
+  const orderPayload = {
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `cust_${customerId}_wallet_${Date.now()}`.slice(0, 40),
-    notes: {
-      customer_id: String(customerId),
-      payment_mode: "WALLET_TOPUP",
-      dairy_id: String(resolvedDairyId ?? ""),
-      amount_inr: String(amountInRupees),
-    },
-  });
+    notes: orderNotes,
+  };
+  if (transfers) orderPayload.transfers = transfers;
+  const order = await razorpay.orders.create(orderPayload);
 
   return {
-    keyId: getRazorpayConfig().keyId,
+    keyId,
     order,
     amount: amountInRupees,
+    beneficiary,
   };
 };
 
@@ -1178,8 +1206,10 @@ export const verifyCustomerWalletTopup = async ({
     throw new Error("Wallet top-up amount must be greater than zero");
   }
 
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  const keySecret = await getRazorpayVerificationSecret(resolvedDairyId);
   const generatedSignature = crypto
-    .createHmac("sha256", getRazorpayConfig().keySecret)
+    .createHmac("sha256", keySecret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
@@ -1202,7 +1232,6 @@ export const verifyCustomerWalletTopup = async ({
     throw new Error("This wallet top-up has already been processed");
   }
 
-  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   const walletUpdate = await creditCustomerWalletBalance({
     customerId,
     amount: amountInRupees,
@@ -1254,6 +1283,363 @@ export const addAmountToCustomerWallet = async ({
   return {
     ...walletUpdate,
     paymentId: entry?.id || null,
+  };
+};
+
+const normalizeUpiId = (value) => String(value || "").trim().toLowerCase();
+
+const isValidUpiId = (value) => {
+  const normalized = normalizeUpiId(value);
+  return /^[a-z0-9][a-z0-9._-]{1,255}@[a-z][a-z0-9._-]{2,63}$/.test(normalized);
+};
+
+const normalizeUtr = (value) =>
+  String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+const buildUpiDeepLink = ({ upiId, payeeName, amount, note, transactionRef }) => {
+  const params = new URLSearchParams({
+    pa: upiId,
+    pn: payeeName || "Dairy",
+    am: Number(amount || 0).toFixed(2),
+    cu: "INR",
+  });
+
+  if (note) params.set("tn", String(note).slice(0, 80));
+  if (transactionRef) params.set("tr", String(transactionRef).slice(0, 35));
+
+  return `upi://pay?${params.toString()}`;
+};
+
+const buildUpiIntentUrls = (upiLink) => {
+  const query = upiLink.replace(/^upi:\/\/pay\?/i, "");
+  return {
+    upi: upiLink,
+    googlePay: `gpay://upi/pay?${query}`,
+    phonePe: `phonepe://pay?${query}`,
+    paytm: `paytmmp://pay?${query}`,
+  };
+};
+
+const getPaymentIntentTarget = async ({
+  customerId,
+  dairyId = null,
+  paymentId = null,
+  payAll = false,
+  includeRunningDue = true,
+}) => {
+  await syncCustomerMonthlyBills(customerId);
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+
+  if (payAll) {
+    const { payments } = await getEligiblePendingPaymentsForCustomer(customerId, resolvedDairyId);
+    const runningDueData = includeRunningDue
+      ? await getCurrentMonthSuccessfulSubscriptionDue(customerId)
+      : null;
+    const runningDueAmount = includeRunningDue ? Number(runningDueData?.payableTillDate || 0) : 0;
+    const amount = payments.reduce((sum, row) => sum + getEffectivePaymentAmount(row).totalAmount, 0);
+    const totalAmount = Number((amount + runningDueAmount).toFixed(2));
+
+    if (totalAmount <= 0) {
+      const error = new Error("No pending payment found");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    return {
+      resolvedDairyId,
+      payment: null,
+      paymentIds: payments.map((row) => row.id),
+      monthlyBillId: payments.find((row) => row.monthly_bill_id)?.monthly_bill_id || null,
+      amount: totalAmount,
+      title: "Pending dairy bills",
+    };
+  }
+
+  const { payment } = await getPendingPaymentForCustomer(customerId, paymentId, resolvedDairyId);
+  if (!payment) {
+    const error = new Error("Payment record not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    resolvedDairyId,
+    payment,
+    paymentIds: [payment.id],
+    monthlyBillId: payment.monthly_bill_id || null,
+    amount: getEffectivePaymentAmount(payment).totalAmount,
+    title:
+      payment.description ||
+      (payment.billing_month ? `${payment.billing_month} Milk Bill` : "Dairy Bill"),
+  };
+};
+
+const writePaymentAudit = async ({
+  actorType,
+  actorId,
+  dairyId,
+  customerId,
+  entityType,
+  entityId,
+  action,
+  metadata = {},
+}) => {
+  await supabase
+    .from("audit_logs")
+    .insert({
+      actor_type: actorType,
+      actor_id: actorId || null,
+      dairy_id: dairyId || null,
+      customer_id: customerId || null,
+      entity_type: entityType,
+      entity_id: entityId == null ? null : String(entityId),
+      action,
+      metadata,
+    })
+    .then(({ error }) => {
+      if (error && !isMissingTableError(error)) throw error;
+    });
+};
+
+export const createCustomerUpiPaymentIntent = async ({
+  customerId,
+  paymentId = null,
+  dairyId = null,
+  payAll = false,
+  includeRunningDue = true,
+}) => {
+  const target = await getPaymentIntentTarget({
+    customerId,
+    dairyId,
+    paymentId,
+    payAll,
+    includeRunningDue,
+  });
+  const beneficiary = await getDairyPayoutDetails(target.resolvedDairyId);
+  const upiId = normalizeUpiId(beneficiary?.upiId);
+
+  if (!upiId) {
+    const error = new Error("This dairy has not configured a UPI ID yet");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isValidUpiId(upiId)) {
+    const error = new Error(
+      `The dairy UPI ID "${beneficiary?.upiId}" is invalid. Ask the dairy admin to save a valid UPI ID like name@bank.`
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const transactionRef = `DS${customerId}${Date.now()}`.slice(0, 35);
+  const note = `${target.title} - DairyStream`;
+  const upiLink = buildUpiDeepLink({
+    upiId,
+    payeeName: beneficiary?.dairyName || "Dairy",
+    amount: target.amount,
+    note,
+    transactionRef,
+  });
+
+  await writePaymentAudit({
+    actorType: "CUSTOMER",
+    actorId: customerId,
+    dairyId: target.resolvedDairyId,
+    customerId,
+    entityType: "payment",
+    entityId: target.payment?.id || "pay_all",
+    action: "UPI_INTENT_CREATED",
+    metadata: {
+      amount: target.amount,
+      paymentIds: target.paymentIds,
+      transactionRef,
+    },
+  });
+
+  return {
+    payment: {
+      id: target.payment?.id || null,
+      paymentIds: target.paymentIds,
+      monthlyBillId: target.monthlyBillId,
+      amount: target.amount,
+      title: target.title,
+    },
+    beneficiary,
+    amount: target.amount,
+    transactionRef,
+    upiLink,
+    intents: buildUpiIntentUrls(upiLink),
+  };
+};
+
+export const submitCustomerUpiPaymentVerification = async ({
+  customerId,
+  paymentId = null,
+  dairyId = null,
+  payAll = false,
+  includeRunningDue = true,
+  amount,
+  utrNumber,
+  payerUpiId = "",
+  screenshotUrl = null,
+  screenshotHash = null,
+  originalFilename = "",
+  ocrResult = null,
+}) => {
+  const normalizedUtr = normalizeUtr(utrNumber);
+  if (!/^[A-Z0-9]{8,30}$/.test(normalizedUtr)) {
+    const error = new Error("Enter a valid UTR/reference number");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const target = await getPaymentIntentTarget({
+    customerId,
+    dairyId,
+    paymentId,
+    payAll,
+    includeRunningDue,
+  });
+  const submittedAmount = Number(Number(amount || target.amount).toFixed(2));
+
+  if (!Number.isFinite(submittedAmount) || submittedAmount <= 0) {
+    const error = new Error("Payment amount must be greater than zero");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (Math.abs(submittedAmount - Number(target.amount || 0)) > 1) {
+    const error = new Error("Submitted amount does not match the payable amount");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { data: duplicate, error: duplicateError } = await supabase
+    .from("payment_verifications")
+    .select("id, status")
+    .eq("dairy_id", target.resolvedDairyId)
+    .ilike("utr_number", normalizedUtr)
+    .neq("status", "REJECTED")
+    .limit(1)
+    .maybeSingle();
+
+  if (duplicateError && !isMissingTableError(duplicateError)) throw duplicateError;
+  if (duplicate?.id) {
+    const error = new Error("This UTR/reference number is already submitted");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const verificationAnalysis = await analyzeUpiVerificationSubmission({
+    dairyId: target.resolvedDairyId,
+    customerId,
+    expectedAmount: target.amount,
+    submittedAmount,
+    utrNumber: normalizedUtr,
+    payerUpiId,
+    screenshotHash,
+    originalFilename,
+    ocrResult,
+  });
+
+  const verificationPayload = {
+    payment_id: target.payment?.id || null,
+    monthly_bill_id: target.monthlyBillId || null,
+    customer_id: customerId,
+    dairy_id: target.resolvedDairyId,
+    amount: submittedAmount,
+    method: "UPI",
+    utr_number: normalizedUtr,
+    payer_upi_id: normalizeUpiId(payerUpiId) || null,
+    screenshot_url: screenshotUrl || null,
+    screenshot_sha256: screenshotHash || null,
+    status: "PENDING",
+    ocr_status: verificationAnalysis.ocr.status,
+    ocr_payload: verificationAnalysis.ocr,
+    duplicate_check: {
+      paymentIds: target.paymentIds,
+      expectedAmount: target.amount,
+      ...verificationAnalysis.duplicateCheck,
+    },
+    fraud_flags: verificationAnalysis.flags,
+    confidence_score: verificationAnalysis.confidenceScore,
+    review_recommendation: verificationAnalysis.reviewRecommendation,
+  };
+
+  let { data: verification, error } = await supabase
+    .from("payment_verifications")
+    .insert(verificationPayload)
+    .select("*")
+    .single();
+
+  if (error && isMissingColumnError(error)) {
+    const {
+      screenshot_sha256,
+      fraud_flags,
+      confidence_score,
+      review_recommendation,
+      ...legacyPayload
+    } = verificationPayload;
+
+    const legacyResponse = await supabase
+      .from("payment_verifications")
+      .insert(legacyPayload)
+      .select("*")
+      .single();
+    verification = legacyResponse.data;
+    error = legacyResponse.error;
+  }
+
+  if (error) throw error;
+
+  await writeFraudAlertsForVerification({
+    verificationId: verification.id,
+    dairyId: target.resolvedDairyId,
+    customerId,
+    paymentId: target.payment?.id || null,
+    analysis: verificationAnalysis,
+  });
+
+  const submittedAt = new Date().toISOString();
+  if (target.paymentIds.length > 0) {
+    await supabase
+      .from("payments")
+      .update({
+        verification_status: "SUBMITTED",
+        utr_number: normalizedUtr,
+        payment_screenshot_url: screenshotUrl || null,
+        submitted_at: submittedAt,
+        updated_at: submittedAt,
+      })
+      .in("id", target.paymentIds)
+      .eq("customer_id", customerId);
+  }
+
+  await writePaymentAudit({
+    actorType: "CUSTOMER",
+    actorId: customerId,
+    dairyId: target.resolvedDairyId,
+    customerId,
+    entityType: "payment_verification",
+    entityId: verification.id,
+    action: "UPI_VERIFICATION_SUBMITTED",
+    metadata: {
+      amount: submittedAmount,
+      utrNumber: normalizedUtr,
+      paymentIds: target.paymentIds,
+      hasScreenshot: Boolean(screenshotUrl),
+      confidenceScore: verificationAnalysis.confidenceScore,
+      fraudFlags: verificationAnalysis.flags,
+    },
+  });
+
+  return {
+    success: true,
+    verification,
+    status: "PENDING_VERIFICATION",
   };
 };
 

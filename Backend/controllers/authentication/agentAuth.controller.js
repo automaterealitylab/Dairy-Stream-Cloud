@@ -1,13 +1,39 @@
 import { supabase } from "../../config/supabase.js";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { sendEmail } from "../../utils/email.js";
+import { issueLoginTokens } from "../../utils/jwt.js";
+import { getSetting } from "../../services/shared/appSettings.service.js";
 
 const agentResetOtpStore = new Map();
 const agentResetOtpRequestStore = new Map();
-const AGENT_OTP_EXPIRY_MS = 10 * 60 * 1000;
-const AGENT_OTP_REQUEST_LIMIT = 3;
-const AGENT_OTP_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+
+// Cached settings (will be fetched from DB on demand)
+let cachedAgentSettings = null;
+let lastSettingsFetchTime = 0;
+const SETTINGS_CACHE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+const getAgentAuthSettings = async () => {
+  const now = Date.now();
+  // Use cache if it's fresh
+  if (cachedAgentSettings && now - lastSettingsFetchTime < SETTINGS_CACHE_INTERVAL) {
+    return cachedAgentSettings;
+  }
+
+  // Fetch from database
+  const [otpExpiryMs, otpRequestLimit, otpRequestWindowMs] = await Promise.all([
+    getSetting("AGENT_OTP_EXPIRY_MS", 10 * 60 * 1000),
+    getSetting("AGENT_OTP_REQUEST_LIMIT", 3),
+    getSetting("AGENT_OTP_REQUEST_WINDOW_MS", 15 * 60 * 1000),
+  ]);
+
+  cachedAgentSettings = {
+    otpExpiryMs,
+    otpRequestLimit,
+    otpRequestWindowMs,
+  };
+  lastSettingsFetchTime = now;
+  return cachedAgentSettings;
+};
 
 const normalizeStaffId = (agentId) => String(agentId || "").trim().toUpperCase();
 
@@ -20,20 +46,21 @@ const purgeExpiredAgentResetOtps = () => {
   }
 };
 
-const trackAgentOtpRequest = (key) => {
+const trackAgentOtpRequest = (key, settings) => {
   const now = Date.now();
   const existing = agentResetOtpRequestStore.get(key);
-  const isExpiredWindow = !existing || now - existing.windowStart > AGENT_OTP_REQUEST_WINDOW_MS;
+  const isExpiredWindow =
+    !existing || now - existing.windowStart > settings.otpRequestWindowMs;
 
   if (isExpiredWindow) {
     agentResetOtpRequestStore.set(key, { count: 1, windowStart: now });
     return {
       allowed: true,
-      remainingRequests: AGENT_OTP_REQUEST_LIMIT - 1,
+      remainingRequests: settings.otpRequestLimit - 1,
     };
   }
 
-  if (existing.count >= AGENT_OTP_REQUEST_LIMIT) {
+  if (existing.count >= settings.otpRequestLimit) {
     return {
       allowed: false,
       remainingRequests: 0,
@@ -44,7 +71,7 @@ const trackAgentOtpRequest = (key) => {
   agentResetOtpRequestStore.set(key, { ...existing, count: nextCount });
   return {
     allowed: true,
-    remainingRequests: Math.max(0, AGENT_OTP_REQUEST_LIMIT - nextCount),
+    remainingRequests: Math.max(0, settings.otpRequestLimit - nextCount),
   };
 };
 
@@ -54,7 +81,7 @@ const findAgentByStaffId = async (agentId) => {
 
   const { data: agent, error } = await supabase
     .from("agents")
-    .select("*")
+    .select("id, agent_id, agent_name, email, password, dairy_id")
     .ilike("agent_id", normalizedAgentId)
     .maybeSingle();
 
@@ -77,20 +104,24 @@ export const agentLogin = async (req, res) => {
     const isValid = await bcrypt.compare(password, agent.password);
     if (!isValid) return res.status(401).json({ success: false, error: "Invalid password" });
 
-    const token = jwt.sign(
-      {
-        id: agent.id,
-        agentId: agent.agent_id,
-        role: "AGENT",
-        dairyId: agent.dairy_id,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const tokens = await issueLoginTokens({
+      id: agent.id,
+      email: agent.email,
+      role: "AGENT",
+      dairyId: agent.dairy_id,
+      agentId: agent.agent_id,
+      sessionVersion: agent.session_version || 1,
+      actorType: "AGENT",
+      ipAddress: req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket?.remoteAddress,
+      userAgent: req.headers["user-agent"] || null,
+    });
 
     return res.status(200).json({
       success: true,
-      token,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
       role: "AGENT",
       user: {
         id: agent.id,
@@ -108,6 +139,7 @@ export const agentLogin = async (req, res) => {
 
 export const requestAgentResetOtp = async (req, res) => {
   try {
+    const settings = await getAgentAuthSettings();
     const { agentId, identifier } = req.body || {};
     const normalizedAgentId = normalizeStaffId(agentId || identifier);
 
@@ -124,7 +156,7 @@ export const requestAgentResetOtp = async (req, res) => {
     }
 
     purgeExpiredAgentResetOtps();
-    const requestCheck = trackAgentOtpRequest(String(agent.id));
+    const requestCheck = trackAgentOtpRequest(String(agent.id), settings);
     if (!requestCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -138,7 +170,7 @@ export const requestAgentResetOtp = async (req, res) => {
     const key = String(agent.id);
     agentResetOtpStore.set(key, {
       otp,
-      expiresAt: Date.now() + AGENT_OTP_EXPIRY_MS,
+      expiresAt: Date.now() + settings.otpExpiryMs,
     });
 
     await sendEmail({
@@ -157,7 +189,7 @@ export const requestAgentResetOtp = async (req, res) => {
       message: "OTP sent to agent email",
       email: agent.email,
       remainingRequests: requestCheck.remainingRequests,
-      limit: AGENT_OTP_REQUEST_LIMIT,
+      limit: settings.otpRequestLimit,
     });
   } catch (err) {
     return res.status(400).json({

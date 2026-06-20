@@ -5,6 +5,11 @@ const router = express.Router();
 import { adminLogin } from "../controllers/authentication/adminAuth.controller.js";
 import { verifyAdmin } from "../middleware/admin.middleware.js";
 import { getDashboard } from "../controllers/admin/dashboard.controller.js";
+import { 
+  getAdminNotifications, 
+  markNotificationAsRead, 
+  markAllNotificationsAsRead 
+} from "../controllers/admin/notifications.controller.js";
 import {
   approveAdminDelivery,
   approveAllAdminDeliveries,
@@ -25,7 +30,11 @@ import {
   assignAdminCustomerPermanentPartner,
   upsertAdminCustomerSubscription,
 } from "../controllers/admin/adminCustomers.controller.js";
-import { registerDairy } from "../controllers/admin/dairy.controller.js";
+import {
+  getAdminDairyProfile,
+  registerDairy,
+  updateAdminDairyProfile,
+} from "../controllers/admin/dairy.controller.js";
 import { uploadSingleImage } from "../middleware/upload.middleware.js";
 import { addAgent, getUniqueAgentId } from "../controllers/admin/addAgent.controller.js";
 import { getUniqueBuildings } from "../controllers/shared/building.controller.js";
@@ -37,9 +46,17 @@ import {
 } from "../controllers/admin/adminAgent.controller.js";
 import {
   
+  collectOfflinePayment,
+  approvePaymentVerification,
   changeFarmPlan,
   fetchPageData,
+  fetchPaymentVerifications,
+  rejectPaymentVerification,
   updateStatus,
+  createFarmPlanOrder,
+  verifyFarmPlanPayment,
+  createFarmPlanSubscription,
+  verifyFarmPlanSubscriptionPayment,
 } from "../controllers/admin/adminPayments.controller.js";
 import {
   addAdminProduct,
@@ -53,6 +70,7 @@ import {
   getTopPerformers,
   getMissedDeliveries,
   updatePerformanceMetrics,
+  getPerformanceMonthlyTrends,
 } from "../controllers/admin/agentPerformance.controller.js";
 import {
   getEarnings,
@@ -72,17 +90,46 @@ import {
   deactivateSupplier,
   updateSupplier,
 } from "../controllers/suppliers/supplier.controller.js";
+import { fetchDairyAccountingReport } from "../controllers/admin/reports.controller.js";
+import {
+  fetchOperationalMonitoring,
+  processWhatsAppQueue,
+} from "../controllers/admin/monitoring.controller.js";
+import {
+  lookupAdminBankIfsc,
+  verifyAdminBankAccount,
+} from "../controllers/admin/bankVerification.controller.js";
+import { createRateLimiter } from "../middleware/security.middleware.js";
 
 // ==========================================
 // 1. AUTHENTICATION & INITIAL SETUP
 // ==========================================
 router.post("/", adminLogin); // Admin login route
 router.post("/register-dairy", uploadSingleImage, registerDairy); // Initial dairy registration with logo upload
+router.get("/profile", verifyAdmin, getAdminDairyProfile);
+router.patch("/profile", verifyAdmin, updateAdminDairyProfile);
+router.get(
+  "/bank/ifsc/:ifsc",
+  verifyAdmin,
+  createRateLimiter({ windowMs: 60_000, max: 30, keyPrefix: "admin-ifsc-lookup" }),
+  lookupAdminBankIfsc
+);
+router.post(
+  "/bank/verify",
+  verifyAdmin,
+  createRateLimiter({ windowMs: 60_000, max: 10, keyPrefix: "admin-bank-verify" }),
+  verifyAdminBankAccount
+);
 
 // ==========================================
 // 2. DASHBOARD & CORE METRICS
 // ==========================================
 router.get("/dashboard", verifyAdmin, getDashboard); // Main dashboard data (Needed vs Procured, etc.)
+router.get("/notifications", verifyAdmin, getAdminNotifications); // Admin notifications list
+router.patch("/notifications/:id/read", verifyAdmin, markNotificationAsRead); // Mark individual notification as read
+router.post("/notifications/read-all", verifyAdmin, markAllNotificationsAsRead); // Mark all notifications as read
+router.get("/monitoring/operations", verifyAdmin, fetchOperationalMonitoring);
+router.post("/monitoring/whatsapp/process", verifyAdmin, processWhatsAppQueue);
 router.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date() });
 });
@@ -134,9 +181,17 @@ router.put("/procurement/:id", verifyAdmin, updateProcurementLog); // Correct an
 // 7. PAYMENTS & BILLING
 // ==========================================
 router.get("/payments", verifyAdmin, fetchPageData); // Fetch payment ledger data
+router.get("/payments/verifications", verifyAdmin, fetchPaymentVerifications);
+router.get("/payments/reports/accounting", verifyAdmin, fetchDairyAccountingReport);
+router.patch("/payments/verifications/:id/approve", verifyAdmin, approvePaymentVerification);
+router.patch("/payments/verifications/:id/reject", verifyAdmin, rejectPaymentVerification);
 router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
-router.post("/payments/offline-collect", verifyAdmin,); // Collect offline payment and add excess to wallet
+router.post("/payments/offline-collect", verifyAdmin, collectOfflinePayment); // Collect offline payment and add excess to wallet
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
+router.post("/farm-plan/order", verifyAdmin, createFarmPlanOrder);
+router.post("/farm-plan/verify", verifyAdmin, verifyFarmPlanPayment);
+router.post("/farm-plan/subscription", verifyAdmin, createFarmPlanSubscription);
+router.post("/farm-plan/subscription/verify", verifyAdmin, verifyFarmPlanSubscriptionPayment);
 
 // ==========================================
 // 8. PRODUCT & INVENTORY
@@ -152,6 +207,7 @@ router.delete("/products/:id", verifyAdmin, removeAdminProduct); // Remove produ
 // Agent Performance
 router.get("/performance", verifyAdmin, getPerformance);
 router.get("/performance/summary", verifyAdmin, getPerformanceSummaryData);
+router.get("/performance/monthly-trends", verifyAdmin, getPerformanceMonthlyTrends);
 router.get("/performance/top-performers", verifyAdmin, getTopPerformers);
 router.get("/performance/missed-deliveries", verifyAdmin, getMissedDeliveries);
 router.post("/performance/update", verifyAdmin, updatePerformanceMetrics);

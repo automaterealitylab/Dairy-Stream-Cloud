@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS public.dairies (
   dairy_name VARCHAR(255) NOT NULL,
   dairy_phone VARCHAR(20) NOT NULL,
   dairy_email VARCHAR(255) NOT NULL UNIQUE,
+  phone VARCHAR(20),
+  email VARCHAR(255),
   gstin VARCHAR(20),
   category VARCHAR(100) DEFAULT 'Milk & Dairy',
   address VARCHAR(500) NOT NULL,
@@ -22,9 +24,13 @@ CREATE TABLE IF NOT EXISTS public.dairies (
   bank_account_holder_name VARCHAR(255),
   bank_account_number VARCHAR(30),
   bank_ifsc_code VARCHAR(20),
+  bank_account VARCHAR(35),
+  ifsc VARCHAR(20),
+  pan VARCHAR(20),
   bank_name VARCHAR(255),
   bank_branch VARCHAR(255),
   upi_id VARCHAR(255),
+  razorpay_account_id VARCHAR(50),
   razorpay_linked_account_id VARCHAR(255),
   one_time_payment_method VARCHAR(30) DEFAULT 'DIRECT_UPI',
   subscription_payment_method VARCHAR(30) DEFAULT 'DIRECT_UPI',
@@ -46,13 +52,29 @@ ALTER TABLE public.dairies
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(30);
 ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_account_number_encrypted JSONB;
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS masked_account_number VARCHAR(40);
+ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS bank_ifsc_code VARCHAR(20);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_account VARCHAR(35);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS ifsc VARCHAR(20);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS pan VARCHAR(20);
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS bank_name VARCHAR(255);
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS bank_branch VARCHAR(255);
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS upi_id VARCHAR(255);
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS razorpay_account_id VARCHAR(50);
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS razorpay_linked_account_id VARCHAR(255);
 ALTER TABLE public.dairies
@@ -118,6 +140,15 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_dairies_email ON public.dairies(dairy_email);
 CREATE INDEX IF NOT EXISTS idx_dairies_city ON public.dairies(city);
 CREATE INDEX IF NOT EXISTS idx_dairies_pincode ON public.dairies(pincode);
+CREATE INDEX IF NOT EXISTS idx_dairies_route_account ON public.dairies(razorpay_account_id);
+CREATE INDEX IF NOT EXISTS idx_dairies_bank_verification_status
+  ON public.dairies(bank_verification_status);
+CREATE INDEX IF NOT EXISTS idx_dairies_verified_upi_id
+  ON public.dairies(verified_upi_id)
+  WHERE verified_upi_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_dairies_verification_required
+  ON public.dairies(verification_required)
+  WHERE verification_required = TRUE;
 
 -- ============================================
 -- Create Admins Table
@@ -144,8 +175,12 @@ ALTER TABLE public.admins
   ADD COLUMN IF NOT EXISTS password VARCHAR(255);
 ALTER TABLE public.admins
   ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE public.admins
+  ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
 
 CREATE INDEX IF NOT EXISTS idx_admins_email ON public.admins(email);
+CREATE INDEX IF NOT EXISTS idx_admins_phone ON public.admins(phone);
+CREATE INDEX IF NOT EXISTS idx_admins_phone_number ON public.admins(phone_number);
 CREATE INDEX IF NOT EXISTS idx_admins_dairy_id ON public.admins(dairy_id);
 
 -- ============================================
@@ -156,6 +191,9 @@ CREATE TABLE IF NOT EXISTS public.customers (
   dairy_id BIGINT REFERENCES public.dairies(id) ON DELETE CASCADE,
   email VARCHAR(255) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
+  name VARCHAR(255),
+  phone VARCHAR(20),
+  address TEXT,
   customer_name VARCHAR(255),
   phone_number VARCHAR(20),
   address_line_1 VARCHAR(255),
@@ -180,15 +218,24 @@ CREATE TABLE IF NOT EXISTS public.customers (
 
 -- Create index on email for faster lookups
 CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(email);
+CREATE INDEX IF NOT EXISTS idx_customers_phone_number ON public.customers(phone_number);
 CREATE INDEX IF NOT EXISTS idx_customers_building ON public.customers(building_name);
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS dairy_id BIGINT;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12, 2) DEFAULT 0;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS address_line_1 VARCHAR(255);
 ALTER TABLE public.customers
@@ -200,6 +247,90 @@ ALTER TABLE public.customers
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS push_subscription JSONB;
 CREATE INDEX IF NOT EXISTS idx_customers_dairy_id ON public.customers(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_customers_active
+  ON public.customers(is_active);
+
+-- ============================================
+-- Create Customer Email/Password Token Tables
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.email_verification_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  customer_id BIGINT NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  token VARCHAR(128) NOT NULL UNIQUE,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_customer_id
+  ON public.email_verification_tokens(customer_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token_expires
+  ON public.email_verification_tokens(token, expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at
+  ON public.email_verification_tokens(expires_at);
+
+CREATE TABLE IF NOT EXISTS public.password_reset_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  customer_id BIGINT NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  token VARCHAR(128) NOT NULL UNIQUE,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_customer_id
+  ON public.password_reset_tokens(customer_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_expires
+  ON public.password_reset_tokens(token, expires_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at
+  ON public.password_reset_tokens(expires_at);
+
+-- ============================================
+-- Create / Normalize Marketplace Orders Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.orders (
+  id BIGSERIAL PRIMARY KEY,
+  customer_id BIGINT REFERENCES public.customers(id),
+  dairy_id BIGINT REFERENCES public.dairies(id),
+  amount NUMERIC(12, 2) NOT NULL,
+  subtotal NUMERIC(12, 2) DEFAULT 0,
+  tax_amount NUMERIC(12, 2) DEFAULT 0,
+  delivery_fee NUMERIC(12, 2) DEFAULT 0,
+  pricing_snapshot JSONB,
+  payment_status VARCHAR(50) DEFAULT 'CREATED',
+  razorpay_order_id VARCHAR(100),
+  razorpay_payment_id VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS customer_id BIGINT;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS dairy_id BIGINT;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2);
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS delivery_fee NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS pricing_snapshot JSONB;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'CREATED';
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_dairy_id ON public.orders(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON public.orders(payment_status);
+CREATE INDEX IF NOT EXISTS idx_orders_razorpay_order_id ON public.orders(razorpay_order_id);
 
 -- ============================================
 -- Create / Normalize Subscriptions Table
@@ -304,6 +435,8 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_customer_id ON public.subscriptions
 CREATE INDEX IF NOT EXISTS idx_subscriptions_dairy_id ON public.subscriptions(dairy_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_approval_status ON public.subscriptions(approval_status);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_assigned_agent_id ON public.subscriptions(assigned_agent_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_dairy_status_approval_updated
+  ON public.subscriptions(dairy_id, status, approval_status, updated_at DESC);
 
 DO $$
 BEGIN
@@ -384,6 +517,10 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_delivery_date ON public.deliveries(del
 CREATE INDEX IF NOT EXISTS idx_deliveries_approval_status ON public.deliveries(approval_status);
 CREATE INDEX IF NOT EXISTS idx_deliveries_issue_status ON public.deliveries(customer_issue_status);
 CREATE INDEX IF NOT EXISTS idx_deliveries_issue_reported_at ON public.deliveries(customer_issue_reported_at);
+CREATE INDEX IF NOT EXISTS idx_deliveries_dairy_date_status
+  ON public.deliveries(dairy_id, delivery_date, status);
+CREATE INDEX IF NOT EXISTS idx_deliveries_agent_date_status
+  ON public.deliveries(agent_id, delivery_date, status);
 
 -- ============================================
 -- Create / Normalize Products Table
@@ -427,27 +564,36 @@ CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
 -- ============================================
 -- Extend Procurement Logs For Generic Inventory
 -- ============================================
-ALTER TABLE public.procurement_logs
-  ADD COLUMN IF NOT EXISTS supplier_id BIGINT;
-ALTER TABLE public.procurement_logs
-  ADD COLUMN IF NOT EXISTS item_name VARCHAR(150) DEFAULT 'Milk';
-ALTER TABLE public.procurement_logs
-  ADD COLUMN IF NOT EXISTS item_category VARCHAR(80) DEFAULT 'MILK';
-ALTER TABLE public.procurement_logs
-  ADD COLUMN IF NOT EXISTS unit VARCHAR(40) DEFAULT 'LITER';
-ALTER TABLE public.procurement_logs
-  ADD COLUMN IF NOT EXISTS rate_per_unit NUMERIC(10, 2);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'procurement_logs'
+  ) THEN
+    ALTER TABLE public.procurement_logs
+      ADD COLUMN IF NOT EXISTS supplier_id BIGINT;
+    ALTER TABLE public.procurement_logs
+      ADD COLUMN IF NOT EXISTS item_name VARCHAR(150) DEFAULT 'Milk';
+    ALTER TABLE public.procurement_logs
+      ADD COLUMN IF NOT EXISTS item_category VARCHAR(80) DEFAULT 'MILK';
+    ALTER TABLE public.procurement_logs
+      ADD COLUMN IF NOT EXISTS unit VARCHAR(40) DEFAULT 'LITER';
+    ALTER TABLE public.procurement_logs
+      ADD COLUMN IF NOT EXISTS rate_per_unit NUMERIC(10, 2);
 
-UPDATE public.procurement_logs
-SET
-  item_name = COALESCE(NULLIF(item_name, ''), 'Milk'),
-  item_category = COALESCE(NULLIF(item_category, ''), 'MILK'),
-  unit = COALESCE(NULLIF(unit, ''), 'LITER'),
-  rate_per_unit = COALESCE(rate_per_unit, rate_per_liter)
-WHERE item_name IS NULL
-   OR item_category IS NULL
-   OR unit IS NULL
-   OR rate_per_unit IS NULL;
+    UPDATE public.procurement_logs
+    SET
+      item_name = COALESCE(NULLIF(item_name, ''), 'Milk'),
+      item_category = COALESCE(NULLIF(item_category, ''), 'MILK'),
+      unit = COALESCE(NULLIF(unit, ''), 'LITER'),
+      rate_per_unit = COALESCE(rate_per_unit, rate_per_liter)
+    WHERE item_name IS NULL
+       OR item_category IS NULL
+       OR unit IS NULL
+       OR rate_per_unit IS NULL;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
@@ -467,19 +613,29 @@ END $$;
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.payments (
   id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT,
   customer_id BIGINT NOT NULL,
   dairy_id BIGINT,
   amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
   status VARCHAR(50) DEFAULT 'PENDING',
+  settlement_status VARCHAR(50) DEFAULT 'PENDING',
+  transfer_status VARCHAR(50) DEFAULT 'PENDING',
+  settlement_id VARCHAR(100),
+  failure_reason TEXT,
   method VARCHAR(100),
   description TEXT,
   billing_month VARCHAR(50),
   due_date DATE,
   paid_at TIMESTAMP WITH TIME ZONE,
+  razorpay_order_id VARCHAR(100),
+  razorpay_payment_id VARCHAR(100),
+  razorpay_transfer_id VARCHAR(100),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS order_id BIGINT;
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS customer_id BIGINT;
 ALTER TABLE public.payments
@@ -488,6 +644,14 @@ ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS amount NUMERIC(10, 2) DEFAULT 0;
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'PENDING';
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS settlement_status VARCHAR(50) DEFAULT 'PENDING';
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS transfer_status VARCHAR(50) DEFAULT 'PENDING';
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS settlement_id VARCHAR(100);
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS failure_reason TEXT;
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS method VARCHAR(100);
 ALTER TABLE public.payments
@@ -499,14 +663,107 @@ ALTER TABLE public.payments
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS razorpay_transfer_id VARCHAR(100);
+ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON public.payments(customer_id);
 CREATE INDEX IF NOT EXISTS idx_payments_dairy_id ON public.payments(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_payments_order_id ON public.payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON public.payments(status);
+CREATE INDEX IF NOT EXISTS idx_payments_settlement_status ON public.payments(settlement_status);
+CREATE INDEX IF NOT EXISTS idx_payments_transfer_status ON public.payments(transfer_status);
 CREATE INDEX IF NOT EXISTS idx_payments_due_date ON public.payments(due_date);
+CREATE INDEX IF NOT EXISTS idx_payments_razorpay_order_id ON public.payments(razorpay_order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_customer_dairy_status_created
+  ON public.payments(customer_id, dairy_id, status, created_at DESC);
+
+-- ============================================
+-- Create Webhook Logs Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.webhook_logs (
+  id BIGSERIAL PRIMARY KEY,
+  razorpay_event_id VARCHAR(100),
+  event_type VARCHAR(100),
+  payload JSONB,
+  processed BOOLEAN DEFAULT FALSE,
+  processing_error TEXT,
+  attempts INTEGER DEFAULT 0,
+  next_retry_at TIMESTAMP WITH TIME ZONE,
+  dead_letter BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS razorpay_event_id VARCHAR(100);
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS event_type VARCHAR(100);
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS payload JSONB;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS processed BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS processing_error TEXT;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS attempts INTEGER DEFAULT 0;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS dead_letter BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_event_type ON public.webhook_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_created_at ON public.webhook_logs(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook_logs_razorpay_event_id
+  ON public.webhook_logs(razorpay_event_id)
+  WHERE razorpay_event_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_retry
+  ON public.webhook_logs(processed, dead_letter, next_retry_at);
+
+-- ============================================
+-- Create Reconciliation Logs Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.reconciliation_logs (
+  id BIGSERIAL PRIMARY KEY,
+  run_type VARCHAR(80) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'STARTED',
+  checked_count INTEGER DEFAULT 0,
+  repaired_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  details JSONB,
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reconciliation_logs_run_type ON public.reconciliation_logs(run_type);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_logs_status ON public.reconciliation_logs(status);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_logs_created_at ON public.reconciliation_logs(created_at);
+
+-- ============================================
+-- Create Payment Audit Logs Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.payment_audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  payment_id BIGINT,
+  order_id BIGINT,
+  event_type VARCHAR(100) NOT NULL,
+  previous_state JSONB,
+  next_state JSONB,
+  metadata JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_audit_logs_payment_id ON public.payment_audit_logs(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_audit_logs_order_id ON public.payment_audit_logs(order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_audit_logs_event_type ON public.payment_audit_logs(event_type);
 
 -- ============================================
 -- Create Memberships Table (Customer <-> Dairy Link)
@@ -579,6 +836,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_memberships_customer_id ON public.memberships(customer_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_dairy_id ON public.memberships(dairy_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_building_name ON public.memberships(building_name);
+CREATE INDEX IF NOT EXISTS idx_memberships_customer_dairy
+  ON public.memberships(customer_id, dairy_id);
 
 -- Ensure one membership per (customer, dairy) pair.
 DO $$
@@ -725,6 +984,7 @@ ALTER TABLE public.agents
 
 -- Create index on email for faster lookups
 CREATE INDEX IF NOT EXISTS idx_agents_email ON public.agents(email);
+CREATE INDEX IF NOT EXISTS idx_agents_agent_id ON public.agents(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agents_building ON public.agents(building);
 CREATE INDEX IF NOT EXISTS idx_agents_dairy_id ON public.agents(dairy_id);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON public.agents(status);
@@ -788,23 +1048,6 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_delivery_date ON public.deliveries(del
 CREATE INDEX IF NOT EXISTS idx_deliveries_status ON public.deliveries(status);
 
 -- ============================================
--- Create Delivery Proofs Table (Optional - for tracking proof submissions)
--- ============================================
-CREATE TABLE IF NOT EXISTS public.delivery_proofs (
-  id BIGSERIAL PRIMARY KEY,
-  delivery_id BIGINT NOT NULL REFERENCES public.deliveries(id) ON DELETE CASCADE,
-  proof_type VARCHAR(50) NOT NULL CHECK (proof_type IN ('PHOTO', 'OTP')),
-  photo_url TEXT,
-  otp_code VARCHAR(10),
-  otp_verified BOOLEAN DEFAULT FALSE,
-  verified_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_delivery_proofs_delivery_id ON public.delivery_proofs(delivery_id);
-
--- ============================================
 -- Create Agent Performance Table
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.agent_performance (
@@ -846,3 +1089,543 @@ CREATE TABLE IF NOT EXISTS public.agent_earnings (
 
 CREATE INDEX IF NOT EXISTS idx_agent_earnings_agent_id ON public.agent_earnings(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_earnings_date ON public.agent_earnings(earning_date);
+
+-- ============================================
+-- Enterprise Fintech Hardening Additions
+-- ============================================
+-- These additions preserve the existing Razorpay Route architecture while adding
+-- append-only ledgers, event lineage, reconciliation snapshots, queue telemetry,
+-- fraud/security hooks, and RLS-ready policy boundaries.
+
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS event_version VARCHAR(30) DEFAULT 'v1';
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS lineage_key VARCHAR(150);
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS queued_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS replay_count INTEGER DEFAULT 0;
+ALTER TABLE public.webhook_logs
+  ADD COLUMN IF NOT EXISTS duplicate_suppressed BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_lineage_key ON public.webhook_logs(lineage_key);
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_processed_at ON public.webhook_logs(processed_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_dead_retry ON public.webhook_logs(dead_letter, next_retry_at);
+
+CREATE TABLE IF NOT EXISTS public.financial_ledger_entries (
+  id BIGSERIAL PRIMARY KEY,
+  payment_id BIGINT REFERENCES public.payments(id),
+  order_id BIGINT REFERENCES public.orders(id),
+  dairy_id BIGINT REFERENCES public.dairies(id),
+  customer_id BIGINT REFERENCES public.customers(id),
+  entry_type VARCHAR(80) NOT NULL,
+  direction VARCHAR(20) NOT NULL CHECK (direction IN ('DEBIT', 'CREDIT')),
+  amount NUMERIC(14, 2) NOT NULL CHECK (amount >= 0),
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  reference_type VARCHAR(80),
+  reference_id VARCHAR(150),
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_financial_ledger_payment_id ON public.financial_ledger_entries(payment_id);
+CREATE INDEX IF NOT EXISTS idx_financial_ledger_order_id ON public.financial_ledger_entries(order_id);
+CREATE INDEX IF NOT EXISTS idx_financial_ledger_dairy_id ON public.financial_ledger_entries(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_financial_ledger_reference ON public.financial_ledger_entries(reference_type, reference_id);
+CREATE INDEX IF NOT EXISTS idx_financial_ledger_created_at ON public.financial_ledger_entries(created_at);
+
+CREATE TABLE IF NOT EXISTS public.settlement_ledger_entries (
+  id BIGSERIAL PRIMARY KEY,
+  payment_id BIGINT REFERENCES public.payments(id),
+  dairy_id BIGINT REFERENCES public.dairies(id),
+  razorpay_transfer_id VARCHAR(100),
+  settlement_id VARCHAR(100),
+  amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  status VARCHAR(80) NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_settlement_ledger_payment_id ON public.settlement_ledger_entries(payment_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_ledger_dairy_id ON public.settlement_ledger_entries(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_ledger_transfer_id ON public.settlement_ledger_entries(razorpay_transfer_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_ledger_settlement_id ON public.settlement_ledger_entries(settlement_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_ledger_created_at ON public.settlement_ledger_entries(created_at);
+
+CREATE TABLE IF NOT EXISTS public.immutable_audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(150),
+  event_type VARCHAR(120) NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  previous_hash VARCHAR(64),
+  hash VARCHAR(64) NOT NULL,
+  correlation_id VARCHAR(128),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_immutable_audit_hash ON public.immutable_audit_logs(hash);
+CREATE INDEX IF NOT EXISTS idx_immutable_audit_entity ON public.immutable_audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_immutable_audit_event_type ON public.immutable_audit_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_immutable_audit_created_at ON public.immutable_audit_logs(created_at);
+
+CREATE OR REPLACE FUNCTION public.prevent_immutable_audit_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'immutable_audit_logs is append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_prevent_immutable_audit_update ON public.immutable_audit_logs;
+CREATE TRIGGER trg_prevent_immutable_audit_update
+BEFORE UPDATE OR DELETE ON public.immutable_audit_logs
+FOR EACH ROW EXECUTE FUNCTION public.prevent_immutable_audit_mutation();
+
+CREATE TABLE IF NOT EXISTS public.reconciliation_mismatches (
+  id BIGSERIAL PRIMARY KEY,
+  run_id BIGINT REFERENCES public.reconciliation_logs(id),
+  payment_id BIGINT REFERENCES public.payments(id),
+  order_id BIGINT REFERENCES public.orders(id),
+  dairy_id BIGINT REFERENCES public.dairies(id),
+  mismatch_type VARCHAR(120) NOT NULL,
+  severity VARCHAR(30) NOT NULL DEFAULT 'MEDIUM',
+  expected JSONB,
+  actual JSONB,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  status VARCHAR(40) NOT NULL DEFAULT 'OPEN',
+  fingerprint TEXT NOT NULL,
+  first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  resolved_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_reconciliation_mismatches_fingerprint
+  ON public.reconciliation_mismatches(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_mismatches_status ON public.reconciliation_mismatches(status);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_mismatches_payment_id ON public.reconciliation_mismatches(payment_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_mismatches_dairy_id ON public.reconciliation_mismatches(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_mismatches_last_seen ON public.reconciliation_mismatches(last_seen_at);
+
+CREATE TABLE IF NOT EXISTS public.reconciliation_snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  run_id BIGINT REFERENCES public.reconciliation_logs(id),
+  stage VARCHAR(100) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  checked_count INTEGER DEFAULT 0,
+  repaired_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  anomaly_count INTEGER DEFAULT 0,
+  details JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reconciliation_snapshots_run_id ON public.reconciliation_snapshots(run_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_snapshots_stage ON public.reconciliation_snapshots(stage);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_snapshots_created_at ON public.reconciliation_snapshots(created_at);
+
+CREATE TABLE IF NOT EXISTS public.fraud_alerts (
+  id BIGSERIAL PRIMARY KEY,
+  payment_id BIGINT REFERENCES public.payments(id),
+  order_id BIGINT REFERENCES public.orders(id),
+  dairy_id BIGINT REFERENCES public.dairies(id),
+  customer_id BIGINT REFERENCES public.customers(id),
+  alert_type VARCHAR(100) NOT NULL,
+  severity VARCHAR(30) NOT NULL DEFAULT 'MEDIUM',
+  status VARCHAR(40) NOT NULL DEFAULT 'OPEN',
+  signal JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_fraud_alerts_status ON public.fraud_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_fraud_alerts_payment_id ON public.fraud_alerts(payment_id);
+CREATE INDEX IF NOT EXISTS idx_fraud_alerts_created_at ON public.fraud_alerts(created_at);
+
+CREATE TABLE IF NOT EXISTS public.security_events (
+  id BIGSERIAL PRIMARY KEY,
+  event_type VARCHAR(120) NOT NULL,
+  severity VARCHAR(30) NOT NULL DEFAULT 'INFO',
+  ip_address VARCHAR(80),
+  user_agent TEXT,
+  fingerprint VARCHAR(64),
+  path TEXT,
+  method VARCHAR(12),
+  correlation_id VARCHAR(128),
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_type ON public.security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_fingerprint ON public.security_events(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_security_events_created_at ON public.security_events(created_at);
+
+-- Query optimization for marketplace operational paths.
+CREATE INDEX IF NOT EXISTS idx_payments_reconciliation_scan
+  ON public.payments(settlement_status, created_at DESC)
+  WHERE razorpay_order_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_transfer_lookup
+  ON public.payments(razorpay_transfer_id)
+  WHERE razorpay_transfer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_created_desc ON public.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_dairy_created ON public.orders(dairy_id, created_at DESC);
+
+-- RLS-ready controls. Service-role backend bypasses RLS; authenticated clients can
+-- be given JWT claims such as dairy_id/customer_id/admin_role for direct Supabase use.
+ALTER TABLE public.financial_ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settlement_ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.immutable_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reconciliation_mismatches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reconciliation_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fraud_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS service_role_all_financial_ledger ON public.financial_ledger_entries;
+CREATE POLICY service_role_all_financial_ledger ON public.financial_ledger_entries
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS service_role_all_settlement_ledger ON public.settlement_ledger_entries;
+CREATE POLICY service_role_all_settlement_ledger ON public.settlement_ledger_entries
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS service_role_all_immutable_audit ON public.immutable_audit_logs;
+CREATE POLICY service_role_all_immutable_audit ON public.immutable_audit_logs
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS service_role_all_reconciliation_mismatches ON public.reconciliation_mismatches;
+CREATE POLICY service_role_all_reconciliation_mismatches ON public.reconciliation_mismatches
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS service_role_all_reconciliation_snapshots ON public.reconciliation_snapshots;
+CREATE POLICY service_role_all_reconciliation_snapshots ON public.reconciliation_snapshots
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS service_role_all_fraud_alerts ON public.fraud_alerts;
+CREATE POLICY service_role_all_fraud_alerts ON public.fraud_alerts
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS service_role_all_security_events ON public.security_events;
+CREATE POLICY service_role_all_security_events ON public.security_events
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+-- Partitioning strategy:
+-- Existing production tables are left intact. For high-volume deployments, create
+-- monthly partitions for webhook/security/audit archives and migrate old rows with
+-- online backfill jobs. New immutable ledgers above are indexed by created_at so
+-- they can be promoted to RANGE partitions during a zero-downtime maintenance run.
+
+-- ============================================
+-- Direct UPI Billing & Payment Tracking
+-- ============================================
+-- This section supports the direct customer -> dairy owner payment model.
+-- It does not require Razorpay Route, RazorpayX, linked accounts, payouts, or commissions.
+
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS payment_settings JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS payment_instructions TEXT;
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS upi_qr_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS bank_transfer_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.dairies
+  ADD COLUMN IF NOT EXISTS payment_verification_mode VARCHAR(30) DEFAULT 'MANUAL';
+
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS monthly_bill_id BIGINT;
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS verification_status VARCHAR(40) DEFAULT 'NOT_SUBMITTED';
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS utr_number VARCHAR(80);
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS payment_screenshot_url TEXT;
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS verified_by_admin_id BIGINT;
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS verification_note TEXT;
+
+CREATE TABLE IF NOT EXISTS public.monthly_bills (
+  id BIGSERIAL PRIMARY KEY,
+  customer_id BIGINT NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  dairy_id BIGINT NOT NULL REFERENCES public.dairies(id) ON DELETE CASCADE,
+  billing_month VARCHAR(7) NOT NULL,
+  bill_number VARCHAR(60) NOT NULL,
+  subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  adjustments NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  previous_balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  due_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  status VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+  due_date DATE,
+  invoice_url TEXT,
+  invoice_payload JSONB DEFAULT '{}'::jsonb,
+  generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  paid_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(customer_id, dairy_id, billing_month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_bills_customer_id ON public.monthly_bills(customer_id);
+CREATE INDEX IF NOT EXISTS idx_monthly_bills_dairy_id ON public.monthly_bills(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_monthly_bills_status ON public.monthly_bills(status);
+CREATE INDEX IF NOT EXISTS idx_monthly_bills_due_date ON public.monthly_bills(due_date);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'fk_payments_monthly_bill_id'
+      AND conrelid = 'public.payments'::regclass
+  ) THEN
+    ALTER TABLE public.payments
+      ADD CONSTRAINT fk_payments_monthly_bill_id
+      FOREIGN KEY (monthly_bill_id) REFERENCES public.monthly_bills(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.payment_verifications (
+  id BIGSERIAL PRIMARY KEY,
+  payment_id BIGINT REFERENCES public.payments(id) ON DELETE SET NULL,
+  monthly_bill_id BIGINT REFERENCES public.monthly_bills(id) ON DELETE SET NULL,
+  customer_id BIGINT NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  dairy_id BIGINT NOT NULL REFERENCES public.dairies(id) ON DELETE CASCADE,
+  amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+  method VARCHAR(40) NOT NULL DEFAULT 'UPI',
+  utr_number VARCHAR(80) NOT NULL,
+  payer_upi_id VARCHAR(255),
+  screenshot_url TEXT,
+  status VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+  ocr_status VARCHAR(40) DEFAULT 'NOT_RUN',
+  ocr_payload JSONB DEFAULT '{}'::jsonb,
+  duplicate_check JSONB DEFAULT '{}'::jsonb,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TIMESTAMP WITH TIME ZONE,
+  reviewed_by_admin_id BIGINT REFERENCES public.admins(id) ON DELETE SET NULL,
+  rejection_reason TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_payment_id ON public.payment_verifications(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_bill_id ON public.payment_verifications(monthly_bill_id);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_customer_id ON public.payment_verifications(customer_id);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_dairy_status ON public.payment_verifications(dairy_id, status);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_submitted_at ON public.payment_verifications(submitted_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_verifications_dairy_utr
+  ON public.payment_verifications(dairy_id, lower(utr_number))
+  WHERE status <> 'REJECTED';
+
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  actor_type VARCHAR(40) NOT NULL,
+  actor_id BIGINT,
+  dairy_id BIGINT REFERENCES public.dairies(id) ON DELETE SET NULL,
+  customer_id BIGINT REFERENCES public.customers(id) ON DELETE SET NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(120),
+  action VARCHAR(120) NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  ip_address VARCHAR(80),
+  user_agent TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON public.audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_dairy_id ON public.audit_logs(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS public.reminders (
+  id BIGSERIAL PRIMARY KEY,
+  customer_id BIGINT NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  dairy_id BIGINT NOT NULL REFERENCES public.dairies(id) ON DELETE CASCADE,
+  payment_id BIGINT REFERENCES public.payments(id) ON DELETE SET NULL,
+  monthly_bill_id BIGINT REFERENCES public.monthly_bills(id) ON DELETE SET NULL,
+  reminder_type VARCHAR(60) NOT NULL DEFAULT 'PAYMENT_DUE',
+  channel VARCHAR(40) NOT NULL DEFAULT 'WHATSAPP',
+  status VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+  scheduled_for TIMESTAMP WITH TIME ZONE,
+  sent_at TIMESTAMP WITH TIME ZONE,
+  payload JSONB DEFAULT '{}'::jsonb,
+  error TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_customer_id ON public.reminders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_dairy_status ON public.reminders(dairy_id, status);
+CREATE INDEX IF NOT EXISTS idx_reminders_scheduled_for ON public.reminders(scheduled_for);
+
+CREATE INDEX IF NOT EXISTS idx_payments_monthly_bill_id ON public.payments(monthly_bill_id);
+CREATE INDEX IF NOT EXISTS idx_payments_verification_status ON public.payments(verification_status);
+CREATE INDEX IF NOT EXISTS idx_payments_utr_number ON public.payments(utr_number);
+
+-- ============================================
+-- Production Dairy Billing, Verification & Delivery Extensions
+-- ============================================
+-- These additive changes support direct UPI verification, advanced invoices,
+-- reports, routes, subscription flexibility, and future provider integrations
+-- without introducing marketplace settlements or commission routing.
+
+ALTER TABLE public.monthly_bills
+  ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(7, 4) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS gstin VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS discount_code VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS late_fee_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS receipt_url TEXT,
+  ADD COLUMN IF NOT EXISTS share_token VARCHAR(120),
+  ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(40) DEFAULT 'OPEN';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_monthly_bills_invoice_number
+  ON public.monthly_bills(invoice_number)
+  WHERE invoice_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_monthly_bills_reconciliation_status
+  ON public.monthly_bills(reconciliation_status);
+
+ALTER TABLE public.payment_verifications
+  ADD COLUMN IF NOT EXISTS screenshot_sha256 VARCHAR(64),
+  ADD COLUMN IF NOT EXISTS confidence_score INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS review_recommendation VARCHAR(60) DEFAULT 'MANUAL_REVIEW',
+  ADD COLUMN IF NOT EXISTS fraud_flags JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS auto_verified_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS manual_override_reason TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_screenshot_sha
+  ON public.payment_verifications(screenshot_sha256)
+  WHERE screenshot_sha256 IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_confidence
+  ON public.payment_verifications(confidence_score);
+CREATE INDEX IF NOT EXISTS idx_payment_verifications_fraud_flags
+  ON public.payment_verifications USING GIN(fraud_flags);
+
+CREATE TABLE IF NOT EXISTS public.ocr_processing_logs (
+  id BIGSERIAL PRIMARY KEY,
+  dairy_id BIGINT REFERENCES public.dairies(id) ON DELETE SET NULL,
+  customer_id BIGINT REFERENCES public.customers(id) ON DELETE SET NULL,
+  payment_id BIGINT REFERENCES public.payments(id) ON DELETE SET NULL,
+  screenshot_sha256 VARCHAR(64),
+  provider VARCHAR(80) NOT NULL,
+  status VARCHAR(40) NOT NULL,
+  confidence_score INTEGER DEFAULT 0,
+  extracted_payload JSONB DEFAULT '{}'::jsonb,
+  raw_payload JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ocr_processing_logs_dairy_status
+  ON public.ocr_processing_logs(dairy_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ocr_processing_logs_screenshot
+  ON public.ocr_processing_logs(screenshot_sha256)
+  WHERE screenshot_sha256 IS NOT NULL;
+
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS sku VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS min_stock_level NUMERIC(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(7, 4) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_subscription_enabled BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_products_low_stock
+  ON public.products(dairy_id, is_active, stock_quantity, min_stock_level);
+
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS schedule_type VARCHAR(50) DEFAULT 'DAILY',
+  ADD COLUMN IF NOT EXISTS paused_from DATE,
+  ADD COLUMN IF NOT EXISTS paused_until DATE,
+  ADD COLUMN IF NOT EXISTS vacation_mode BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS product_items JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS temporary_changes JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS family_plan_size INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS plan_version INTEGER DEFAULT 1;
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_schedule_status
+  ON public.subscriptions(dairy_id, schedule_type, status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_product_items
+  ON public.subscriptions USING GIN(product_items);
+
+ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS delivery_otp VARCHAR(12),
+  ADD COLUMN IF NOT EXISTS otp_verified_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS proof_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS latitude_delivered DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude_delivered DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS missed_reason TEXT,
+  ADD COLUMN IF NOT EXISTS sequence_no INTEGER;
+
+CREATE TABLE IF NOT EXISTS public.notification_events (
+  id BIGSERIAL PRIMARY KEY,
+  customer_id BIGINT REFERENCES public.customers(id) ON DELETE SET NULL,
+  dairy_id BIGINT REFERENCES public.dairies(id) ON DELETE SET NULL,
+  event_type VARCHAR(100) NOT NULL,
+  channel VARCHAR(40) NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'QUEUED',
+  destination TEXT,
+  template_key VARCHAR(120),
+  payload JSONB DEFAULT '{}'::jsonb,
+  provider_response JSONB DEFAULT '{}'::jsonb,
+  error TEXT,
+  attempt_count INTEGER DEFAULT 0,
+  scheduled_for TIMESTAMP WITH TIME ZONE,
+  sent_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.notification_events
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.notification_events
+  ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_notification_events_dairy_status
+  ON public.notification_events(dairy_id, status, scheduled_for);
+CREATE INDEX IF NOT EXISTS idx_notification_events_customer
+  ON public.notification_events(customer_id, created_at DESC);
+
+-- ============================================
+-- Create App Settings Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  id BIGSERIAL PRIMARY KEY,
+  setting_key VARCHAR(120) NOT NULL UNIQUE,
+  setting_value TEXT NOT NULL,
+  setting_type VARCHAR(50) DEFAULT 'string',
+  description TEXT,
+  is_sensitive BOOLEAN DEFAULT FALSE,
+  is_system BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_settings_key
+  ON public.app_settings(setting_key);
+
+CREATE INDEX IF NOT EXISTS idx_app_settings_updated_at
+  ON public.app_settings(updated_at DESC);
+
+-- ============================================
+-- Create Admin Notifications Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.admin_notifications (
+  id BIGSERIAL PRIMARY KEY,
+  dairy_id BIGINT REFERENCES public.dairies(id) ON DELETE CASCADE,
+  type VARCHAR(100) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  priority VARCHAR(50) DEFAULT 'info',
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_dairy_id ON public.admin_notifications(dairy_id);
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_created_at ON public.admin_notifications(created_at);

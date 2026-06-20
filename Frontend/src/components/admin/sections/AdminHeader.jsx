@@ -1,14 +1,95 @@
+import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
+import { 
+  fetchAdminNotifications, 
+  markAdminNotificationRead, 
+  markAllAdminNotificationsRead 
+} from "../../../api/admin.api.js";
+import AdminNotificationsPopup from "./AdminNotificationsPopup.jsx";
 import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
 export default function AdminHeader({ adminName }) {
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadNotifications = async () => {
+    try {
+      const list = await fetchAdminNotifications();
+      setNotifications(list);
+      setUnreadCount(list.filter(n => !n.is_read).length);
+    } catch (err) {
+      console.error("Failed to load notifications:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkRead = async (id) => {
+    try {
+      // Optimistic update
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      await markAdminNotificationRead(id);
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+      loadNotifications();
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      // Optimistic update
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+      await markAllAdminNotificationsRead();
+    } catch (err) {
+      console.error("Failed to mark all notifications as read:", err);
+      loadNotifications();
+    }
+  };
+
   return (
     <div className="mb-10" style={adminShellFont}>
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
         Admin Overview
       </p>
-      <h1 className="mt-3 text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
-        Welcome back, {adminName || "Admin"}
-      </h1>
+      
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+          Welcome back, {adminName || "Admin"}
+        </h1>
+        
+        <div className="relative hidden lg:block">
+          <button 
+            onClick={() => {
+              setShowNotifications(!showNotifications);
+            }}
+            className="relative p-2.5 rounded-2xl border border-[#EDE8DF] bg-white hover:bg-[#FDF6EC] text-[#B89970] hover:text-[#B8641A] transition focus:outline-none shadow-sm flex items-center justify-center"
+            title="Notifications"
+          >
+            <Bell size={22} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#B8641A] text-[10px] font-black text-white">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          {showNotifications && (
+            <AdminNotificationsPopup 
+              notifications={notifications}
+              onClose={() => setShowNotifications(false)}
+              onMarkRead={handleMarkRead}
+              onMarkAllRead={handleMarkAllRead}
+            />
+          )}
+        </div>
+      </div>
+      
       <p className="mt-2 text-sm text-[#8B7355]">
         Here's what's happening today.
       </p>

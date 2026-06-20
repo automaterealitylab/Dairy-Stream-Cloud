@@ -732,7 +732,7 @@ const Subscribe = () => {
             subtitle="Manage your milk delivery"
             onClose={() => setShowUpdateModal(false)}
           />
-          <div className="grid gap-4 px-5 py-4 sm:px-8 sm:py-5 md:grid-cols-2">
+          <div className="grid gap-4 px-5 py-4 sm:px-8 sm:py-5 md:grid-cols-2 overflow-y-auto flex-1">
             <InputBlock label="Product">
               <>
                 <select
@@ -792,13 +792,13 @@ const Subscribe = () => {
                     return (
                       <label
                         key={day.key}
-                        className={`flex cursor-pointer items-center justify-between rounded-[14px] border px-3 py-2.5 transition ${
+                        className={`flex cursor-pointer items-center justify-between rounded-[14px] border px-2.5 py-2 transition ${
                           checked
                             ? 'border-[#D4B896] bg-[#FBF7F0] shadow-sm'
                             : 'border-[#EDE8DF] bg-white hover:border-[#D4B896]'
                         }`}
                       >
-                        <span className="text-sm font-medium text-gray-700">{day.label}</span>
+                        <span className="text-xs font-semibold text-gray-700 sm:text-sm">{day.label}</span>
                         <input
                           type="checkbox"
                           checked={checked}
@@ -816,7 +816,7 @@ const Subscribe = () => {
                               deliveryDays: nextDays,
                             });
                           }}
-                          className="h-5 w-5 accent-blue-600"
+                          className="h-4.5 w-4.5 accent-[#B8641A]"
                         />
                       </label>
                     );
@@ -969,15 +969,13 @@ const ExploreOtherDairiesSection = ({ onExplore }) => (
 );
 
 const ModalWrapper = ({ children, small }) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 p-3 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-6">
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-6">
     <div
-      className={`my-auto w-full max-h-[calc(100vh-1.5rem)] overflow-hidden animate-in zoom-in-95 border border-[#EDE8DF] bg-[#FFFDF7] shadow-2xl sm:max-h-[calc(100vh-3rem)] ${
+      className={`my-auto w-full max-h-[calc(100vh-1.5rem)] flex flex-col overflow-hidden animate-in zoom-in-95 border border-[#EDE8DF] bg-[#FFFDF7] shadow-2xl sm:max-h-[calc(100vh-3rem)] ${
         small ? 'max-w-md rounded-[24px] sm:rounded-[28px]' : 'max-w-2xl rounded-[24px] sm:rounded-[28px]'
       }`}
     >
-      <div className="max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-3rem)]">
-        {children}
-      </div>
+      {children}
     </div>
   </div>
 );

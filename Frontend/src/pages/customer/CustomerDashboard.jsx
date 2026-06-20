@@ -536,7 +536,11 @@ const TodayStatusCard = ({ data = {}, navigate, onReportIssue }) => {
 
         <div className="flex items-center gap-3 self-start">
           <button
-            onClick={() => navigate("/customer/dashboard/track/agent", { state: { delivery: data } })}
+            onClick={() => {
+              const orderId = String(data?.deliveryId || data?.id || "").trim();
+              if (!orderId) return;
+              navigate(`/customer/track/${orderId}`, { state: { delivery: data } });
+            }}
             disabled={isApprovalPending || !data?.canTrackAgent}
             className="text-xs font-semibold text-brand border border-border px-3 py-1.5 rounded-lg hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

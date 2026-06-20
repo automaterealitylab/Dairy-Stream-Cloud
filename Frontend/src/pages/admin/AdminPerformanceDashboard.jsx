@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, CheckCircle, XCircle, Zap, Target, Award, Loader2, UserCheck, Clock3 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart } from 'recharts';
+import { TrendingUp, Users, CheckCircle, XCircle, Zap, Target, Award, Loader2, UserCheck, Clock3, AlertCircle } from 'lucide-react';
 import {
   fetchAdminPerformance,
   fetchAdminMissedDeliveries,
   fetchAdminAgents,
+  fetchAdminPerformanceMonthlyTrends,
 } from "../../api/admin.api";
 
 // Layout Components
@@ -54,6 +55,7 @@ const AdminPerformance = () => {
   const [performanceRows, setPerformanceRows] = useState(initialCache?.performanceRows || []);
   const [missedRows, setMissedRows] = useState(initialCache?.missedRows || []);
   const [registeredAgents, setRegisteredAgents] = useState(initialCache?.registeredAgents || []);
+  const [monthlyTrends, setMonthlyTrends] = useState(initialCache?.monthlyTrends || []);
 
   const getDateRange = (range) => {
     const end = new Date();
@@ -226,6 +228,52 @@ const AdminPerformance = () => {
     [missedRows, registeredAgents]
   );
 
+  const dailyPerformanceTrend = useMemo(() => {
+    const grouped = {};
+    performanceRows.forEach((row) => {
+      const rawDate = row.performance_date;
+      if (!rawDate) return;
+      
+      let formattedDate = rawDate;
+      try {
+        const d = new Date(rawDate);
+        formattedDate = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      } catch (e) {
+        // ignore format failure
+      }
+
+      if (!grouped[rawDate]) {
+        grouped[rawDate] = {
+          rawDate,
+          date: formattedDate,
+          completed: 0,
+          failed: 0,
+        };
+      }
+      grouped[rawDate].completed += Number(row.completed || 0);
+      grouped[rawDate].failed += Number(row.failed || 0);
+    });
+
+    return Object.values(grouped).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+  }, [performanceRows]);
+
+  const failureReasonData = useMemo(() => {
+    const reasons = {};
+    missedRows.forEach((row) => {
+      const reason = String(row?.failed_reason || "OTHER")
+        .toUpperCase()
+        .replaceAll('_', ' ');
+      reasons[reason] = (reasons[reason] || 0) + 1;
+    });
+
+    const colors = ['#F59E0B', '#EF4444', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#6B7280'];
+    return Object.entries(reasons).map(([name, value], i) => ({
+      name,
+      value,
+      color: colors[i % colors.length],
+    }));
+  }, [missedRows]);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -236,6 +284,7 @@ const AdminPerformance = () => {
           setPerformanceRows(Array.isArray(cached.performanceRows) ? cached.performanceRows : []);
           setMissedRows(Array.isArray(cached.missedRows) ? cached.missedRows : []);
           setRegisteredAgents(Array.isArray(cached.registeredAgents) ? cached.registeredAgents : []);
+          setMonthlyTrends(Array.isArray(cached.monthlyTrends) ? cached.monthlyTrends : []);
           setLoading(false);
         }
 
@@ -248,14 +297,17 @@ const AdminPerformance = () => {
         const agentsPromise = shouldFetchAgents
           ? fetchAdminAgents({ lite: true })
           : Promise.resolve({ agents: registeredAgents });
+        const trendsPromise = fetchAdminPerformanceMonthlyTrends();
 
-        const [performanceRes, agentsRes] = await Promise.allSettled([
+        const [performanceRes, agentsRes, trendsRes] = await Promise.allSettled([
           performancePromise,
           agentsPromise,
+          trendsPromise,
         ]);
 
         let nextPerformanceRows = [];
         let nextRegisteredAgents = registeredAgents;
+        let nextMonthlyTrends = monthlyTrends;
         const earlyErrors = [];
 
         if (performanceRes.status === "fulfilled") {
@@ -274,8 +326,17 @@ const AdminPerformance = () => {
           earlyErrors.push("agents");
         }
 
+        if (trendsRes.status === "fulfilled") {
+          nextMonthlyTrends = Array.isArray(trendsRes.value?.data)
+            ? trendsRes.value.data
+            : [];
+        } else {
+          earlyErrors.push("monthly trends");
+        }
+
         setPerformanceRows(nextPerformanceRows);
         setRegisteredAgents(nextRegisteredAgents);
+        setMonthlyTrends(nextMonthlyTrends);
         setLoading(false);
 
         const [missedRes] = await Promise.allSettled([missedPromise]);
@@ -295,6 +356,7 @@ const AdminPerformance = () => {
           performanceRows: nextPerformanceRows,
           missedRows: nextMissedRows,
           registeredAgents: nextRegisteredAgents,
+          monthlyTrends: nextMonthlyTrends,
         });
 
         const allErrors = [...earlyErrors, ...lateErrors];
@@ -412,6 +474,87 @@ const AdminPerformance = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* TRENDS & FAILURES SECTION */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+          <div className="xl:col-span-2 bg-white p-7 rounded-[36px] shadow-sm border border-slate-100">
+            <h3 className="text-base font-black text-slate-800 mb-6 uppercase tracking-tighter flex items-center gap-2">
+              <TrendingUp size={18} className="text-emerald-500" /> Daily Delivery Trend
+            </h3>
+            <div className="h-[360px]">
+              {dailyPerformanceTrend.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm font-semibold text-slate-500">
+                  No trend data available for this range.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dailyPerformanceTrend}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11, fontWeight: 700 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11 }} />
+                    <Tooltip contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                    <Legend verticalAlign="top" height={36} iconType="circle" />
+                    <Line type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Successful" />
+                    <Line type="monotone" dataKey="failed" stroke="#ef4444" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Failed" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white p-7 rounded-[36px] shadow-sm border border-slate-100">
+            <h3 className="text-base font-black text-slate-800 mb-5 uppercase tracking-tighter flex items-center gap-2">
+              <AlertCircle size={18} className="text-rose-500" /> Failure Reasons Analysis
+            </h3>
+            {failureReasonData.length === 0 ? (
+              <div className="h-[260px] flex items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-sm text-slate-500">
+                No failed deliveries recorded in this range.
+              </div>
+            ) : (
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={failureReasonData} innerRadius={60} outerRadius={90} paddingAngle={6} dataKey="value">
+                      {failureReasonData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* MONTHLY CUSTOMER & INCOME TRENDS SECTION */}
+        <div className="bg-white p-7 rounded-[36px] shadow-sm border border-slate-100 mb-8">
+          <h3 className="text-base font-black text-slate-800 mb-6 uppercase tracking-tighter flex items-center gap-2">
+            <TrendingUp size={18} className="text-[#B8641A]" /> Monthly Customer & Income Trends
+          </h3>
+          <div className="h-[380px]">
+            {monthlyTrends.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm font-semibold text-slate-500">
+                No monthly trend data available.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={monthlyTrends} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="monthLabel" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11, fontWeight: 700 }} />
+                  <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11 }} label={{ value: 'Customer Count', angle: -90, position: 'insideLeft', offset: -10, style: { fill: '#64748B', fontSize: 11, fontWeight: 700 } }} />
+                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11 }} label={{ value: 'Income (₹)', angle: 90, position: 'insideRight', offset: 0, style: { fill: '#64748B', fontSize: 11, fontWeight: 700 } }} />
+                  <Tooltip contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" />
+                  <Bar yAxisId="right" dataKey="income" fill="#B8641A" radius={[6, 6, 0, 0]} name="Income (₹)" />
+                  <Line yAxisId="left" type="monotone" dataKey="totalCustomers" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Total Customers" />
+                  <Line yAxisId="left" type="monotone" dataKey="activeCustomers" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Active Customers" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 

@@ -1,53 +1,132 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, CreditCard, IndianRupee, ShieldCheck, Upload, X } from 'lucide-react';
-import {
-  createAssignedDeliveryOnlineOrder,
-  verifyAssignedDeliveryOnlinePayment,
-} from '../../api/agent/agent.api';
+import { Camera, CreditCard, IndianRupee, ShieldCheck, Upload, X, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const OTP_REGEX = /^\d{4,8}$/;
 
 const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
-  const [proofType, setProofType] = useState('PHOTO');
+  const [proofType, setProofType] = useState('QR');
   const [otp, setOtp] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [collectionMethod, setCollectionMethod] = useState('');
   const [onlinePaid, setOnlinePaid] = useState(false);
-  const [onlineLoading, setOnlineLoading] = useState(false);
   const [onlineError, setOnlineError] = useState('');
+  const [showQrPopup, setShowQrPopup] = useState(false);
+
+  const [qrError, setQrError] = useState('');
+  const [qrSuccess, setQrSuccess] = useState(false);
+  const [scannedName, setScannedName] = useState('');
 
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const html5QrCodeRef = useRef(null);
 
   const isSubscriptionDelivery = String(delivery?.deliveryType || '').toUpperCase() === 'SUBSCRIPTION';
   const requiresPaymentCollection = Boolean(delivery?.requiresPaymentCollection);
   const amountDue = Number(delivery?.amountDue || 0);
+  const upiId = String(delivery?.upiId || '').trim();
+  const payeeName = String(delivery?.dairyFarmName || 'Dairy Stream').trim();
+  const upiIntentLink =
+    upiId && amountDue > 0
+      ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${amountDue.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Delivery ${delivery?.id || ''}`.trim())}`
+      : '';
 
   useEffect(() => {
-    setProofType(isSubscriptionDelivery ? '' : 'PHOTO');
+    setProofType(isSubscriptionDelivery ? '' : 'QR');
     setOtp('');
     setImage(null);
     setImagePreview(null);
     setCollectionMethod('');
     setOnlinePaid(false);
-    setOnlineLoading(false);
     setOnlineError('');
+    setShowQrPopup(false);
+    setQrSuccess(false);
+    setQrError('');
+    setScannedName('');
   }, [delivery?.id, isSubscriptionDelivery]);
 
-  const loadRazorpayCheckoutScript = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
+  const cleanupScanner = () => {
+    if (html5QrCodeRef.current) {
+      const scanner = html5QrCodeRef.current;
+      html5QrCodeRef.current = null;
+      if (scanner.isScanning) {
+        scanner.stop().catch(() => {});
+      }
+    }
+  };
+
+  const handleQrScanSuccess = (decodedText) => {
+    try {
+      const data = JSON.parse(decodedText);
+      const expectedId = String(delivery?.customerId || '');
+      const scannedId = String(data?.customerId || data?.id || '');
+
+      if (!scannedId) {
+        setQrError("Invalid QR Code content.");
         return;
       }
 
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
+      if (scannedId === expectedId) {
+        setQrSuccess(true);
+        setScannedName(data?.name || "Customer");
+        setQrError('');
+        cleanupScanner();
+      } else {
+        setQrError(`Mismatch: Customer ID #${scannedId} does not match delivery.`);
+      }
+    } catch (err) {
+      setQrError("Unable to parse QR code data.");
+    }
+  };
+
+  useEffect(() => {
+    if (proofType !== 'QR' || qrSuccess) {
+      cleanupScanner();
+      return;
+    }
+
+    setQrError('');
+    let isMounted = true;
+
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        html5QrCodeRef.current = html5QrCode;
+
+        html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 200, height: 200 }
+          },
+          (decodedText) => {
+            handleQrScanSuccess(decodedText);
+          },
+          (errorMessage) => {
+            // Frame search error, safe to ignore
+          }
+        ).catch((err) => {
+          if (isMounted) {
+            setQrError("Camera access denied or camera not found.");
+          }
+        });
+      } catch (err) {
+        if (isMounted) {
+          setQrError("Failed to start scanner.");
+        }
+      }
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      cleanupScanner();
+    };
+  }, [proofType, qrSuccess]);
 
   const handleImagePick = (event) => {
     const file = event.target.files?.[0];
@@ -61,75 +140,27 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     reader.readAsDataURL(file);
   };
 
+  const isQrValid = isSubscriptionDelivery ? true : proofType === 'QR' ? qrSuccess : true;
   const isPhotoValid = isSubscriptionDelivery ? true : proofType === 'PHOTO' ? Boolean(image) : true;
   const isOtpValid = isSubscriptionDelivery ? true : proofType === 'OTP' ? OTP_REGEX.test(String(otp || '').trim()) : true;
+  const canUseOnlineCollection = Boolean(upiIntentLink);
   const isCollectionValid = requiresPaymentCollection
-    ? collectionMethod === 'CASH' || (collectionMethod === 'ONLINE' && onlinePaid)
+    ? collectionMethod === 'CASH' || (collectionMethod === 'ONLINE' && onlinePaid && canUseOnlineCollection)
     : true;
-  const isValid = isPhotoValid && isOtpValid && isCollectionValid;
+  const isValid = isQrValid && isPhotoValid && isOtpValid && isCollectionValid;
 
   const handleOpenOnlineCheckout = async () => {
     if (!delivery?.id) return;
-
-    try {
-      setCollectionMethod('ONLINE');
-      setOnlineError('');
-      setOnlineLoading(true);
-
-      const scriptLoaded = await loadRazorpayCheckoutScript();
-      if (!scriptLoaded) {
-        throw new Error('Failed to load Razorpay checkout');
-      }
-
-      const orderPayload = await createAssignedDeliveryOnlineOrder(delivery.id);
-
-      const options = {
-        key: orderPayload.keyId,
-        amount: orderPayload.order.amount,
-        currency: orderPayload.order.currency,
-        name: 'Dairy Stream',
-        description: orderPayload.payment?.title || 'Delivery Payment',
-        order_id: orderPayload.order.id,
-        handler: async (response) => {
-          await verifyAssignedDeliveryOnlinePayment({
-            deliveryId: delivery.id,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          });
-          setOnlinePaid(true);
-          setOnlineError('');
-        },
-        method: {
-          upi: true,
-          card: false,
-          netbanking: false,
-          wallet: false,
-          emi: false,
-          paylater: false,
-        },
-        theme: {
-          color: '#2563eb',
-        },
-        modal: {
-          ondismiss: () => {
-            setOnlineLoading(false);
-          },
-        },
-      };
-
-      const checkout = new window.Razorpay(options);
-      checkout.on('payment.failed', (failedResponse) => {
-        setOnlineError(failedResponse?.error?.description || 'Payment failed');
-        setOnlinePaid(false);
-      });
-      checkout.open();
-    } catch (err) {
-      setOnlineError(err?.response?.data?.message || err?.message || 'Unable to start Razorpay payment');
+    if (!canUseOnlineCollection) {
+      setCollectionMethod('');
       setOnlinePaid(false);
-    } finally {
-      setOnlineLoading(false);
+      setOnlineError('UPI ID or amount due is missing for this delivery.');
+      return;
     }
+    setCollectionMethod('ONLINE');
+    setOnlineError('');
+    setOnlinePaid(false);
+    setShowQrPopup(true);
   };
 
   const handleSubmit = () => {
@@ -138,8 +169,8 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     onSubmit({
       proofType,
       proofOtp: !isSubscriptionDelivery && proofType === 'OTP' ? String(otp).trim() : '',
-      image: isSubscriptionDelivery ? null : image,
-      imagePreview: isSubscriptionDelivery ? null : imagePreview,
+      image: isSubscriptionDelivery ? null : (proofType === 'PHOTO' ? image : null),
+      imagePreview: isSubscriptionDelivery ? null : (proofType === 'PHOTO' ? imagePreview : null),
       collectionMethod: requiresPaymentCollection ? collectionMethod : '',
     });
   };
@@ -169,29 +200,63 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
+                  type="button"
+                  onClick={() => setProofType('QR')}
+                  className={`px-2 py-2 rounded-lg text-xs font-bold border transition-all ${
+                    proofType === 'QR' ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  QR Scanner
+                </button>
+                <button
+                  type="button"
                   onClick={() => setProofType('PHOTO')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border ${
-                    proofType === 'PHOTO' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700'
+                  className={`px-2 py-2 rounded-lg text-xs font-bold border transition-all ${
+                    proofType === 'PHOTO' ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   Photo Upload
                 </button>
                 <button
+                  type="button"
                   onClick={() => setProofType('OTP')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border ${
-                    proofType === 'OTP' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700'
+                  className={`px-2 py-2 rounded-lg text-xs font-bold border transition-all ${
+                    proofType === 'OTP' ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   OTP Confirm
                 </button>
               </div>
 
-              {proofType === 'PHOTO' ? (
+              {proofType === 'QR' && (
+                <div className="space-y-3">
+                  <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-black aspect-square w-full max-w-[280px] mx-auto">
+                    <div id="qr-reader" className="w-full h-full"></div>
+                    {qrError && (
+                      <div className="absolute inset-x-0 bottom-0 bg-red-600/90 px-3 py-2 text-[11px] font-semibold text-white text-center backdrop-blur-sm">
+                        {qrError}
+                      </div>
+                    )}
+                    {qrSuccess && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-green-600/90 px-4 py-3 text-center text-white backdrop-blur-sm animate-in fade-in">
+                        <span className="text-sm font-bold">✓ QR Verified</span>
+                        <span className="mt-1 text-xs text-white/90">Customer: {scannedName}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-center text-xs font-medium text-gray-500">
+                    {!qrSuccess ? "Point camera at customer's personal drop QR code" : "Verification complete. Press confirm to complete delivery."}
+                  </p>
+                </div>
+              )}
+
+              {proofType === 'PHOTO' && (
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <button
+                      type="button"
                       onClick={() => cameraInputRef.current?.click()}
                       className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-lg p-3 hover:bg-gray-50"
                     >
@@ -199,6 +264,7 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
                       Camera
                     </button>
                     <button
+                      type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-lg p-3 hover:bg-gray-50"
                     >
@@ -229,7 +295,9 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
                     <p className="text-xs text-red-600">Photo proof is mandatory for this option.</p>
                   )}
                 </div>
-              ) : (
+              )}
+
+              {proofType === 'OTP' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Enter Customer OTP</label>
                   <div className="relative">
@@ -274,32 +342,46 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
                 </button>
                 <button
                   onClick={handleOpenOnlineCheckout}
+                  disabled={!canUseOnlineCollection}
                   className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
                     collectionMethod === 'ONLINE'
                       ? 'border-blue-500 bg-blue-100 text-blue-700'
                       : 'border-gray-200 bg-white text-gray-700'
-                  }`}
+                  } ${!canUseOnlineCollection ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
                   <CreditCard size={16} />
                   Online
                 </button>
               </div>
 
+              {!canUseOnlineCollection && <p className="text-xs text-amber-700">UPI ID or amount due is missing for this delivery.</p>}
+
               {collectionMethod === 'ONLINE' && (
                 <div className="rounded-lg bg-white border border-blue-200 p-4 text-center">
-                  {onlineLoading ? (
-                    <p className="text-xs text-gray-600">Opening Razorpay checkout...</p>
-                  ) : onlinePaid ? (
-                    <p className="text-xs font-medium text-green-700">
-                      Payment completed in Razorpay. You can now confirm delivery.
-                    </p>
-                  ) : onlineError ? (
-                    <p className="text-xs text-red-600">{onlineError}</p>
-                  ) : (
-                    <p className="text-xs text-gray-600">
-                      Click Online to open Razorpay popup with UPI payment options and QR.
-                    </p>
-                  )}
+                  {onlineError ? <p className="text-xs text-red-600">{onlineError}</p> : null}
+                  {canUseOnlineCollection ? (
+                    <>
+                      <p className="text-xs font-semibold text-blue-900">Use popup QR to collect payment</p>
+                      <p className="mt-1 text-[11px] text-blue-700">UPI: {upiId}</p>
+                      <p className="text-[11px] text-blue-700">Amount: Rs {amountDue.toFixed(2)}</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowQrPopup(true)}
+                        className="mt-3 w-full rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                      >
+                        Show QR Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowQrPopup(true)}
+                        className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-medium ${
+                          onlinePaid ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {onlinePaid ? 'Payment Marked Received' : 'Waiting for Payment Confirmation'}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -322,6 +404,45 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
           </button>
         </div>
       </div>
+
+      {showQrPopup && canUseOnlineCollection && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowQrPopup(false)}>
+          <div
+            className="w-full max-w-xs rounded-xl border border-blue-200 bg-white p-4 text-center shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-blue-900">Scan and Pay</p>
+              <button
+                type="button"
+                onClick={() => setShowQrPopup(false)}
+                className="rounded-full p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[11px] text-blue-700">UPI: {upiId}</p>
+            <p className="text-[11px] text-blue-700">Amount: Rs {amountDue.toFixed(2)}</p>
+            <div className="mt-3 flex justify-center">
+              <div className="rounded-lg border border-blue-100 bg-white p-2">
+                <QRCodeSVG value={upiIntentLink} size={190} includeMargin />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setOnlinePaid(true);
+                setShowQrPopup(false);
+              }}
+              className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-medium ${
+                onlinePaid ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {onlinePaid ? 'Payment Marked Received' : 'Mark Payment Received'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
