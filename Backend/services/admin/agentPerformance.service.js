@@ -306,3 +306,114 @@ export const getMissedDeliveriesSummary = async (startDate, endDate, dairyId = n
     throw error;
   }
 };
+
+/**
+ * Get month-wise customer (total and active) and income trends for the last 6 months
+ */
+export const getMonthlyTrends = async (dairyId) => {
+  try {
+    const resolvedDairyId = dairyId ? toIdValue(dairyId) : null;
+    if (!resolvedDairyId) {
+      return [];
+    }
+
+    // 1. Generate the last 6 months list dynamically based on current UTC/local time
+    const trends = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const monthKey = `${year}-${month}`; // YYYY-MM
+      
+      const label = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+      
+      const monthStart = new Date(Date.UTC(year, d.getMonth(), 1, 0, 0, 0, 0));
+      const monthEnd = new Date(Date.UTC(year, d.getMonth() + 1, 1, 0, 0, 0, 0) - 1);
+
+      trends.push({
+        month: monthKey,
+        monthLabel: label,
+        monthStart,
+        monthEnd,
+        totalCustomers: 0,
+        activeCustomers: 0,
+        income: 0,
+      });
+    }
+
+    // 2. Fetch subscriptions for total & active customers
+    const { data: subscriptions, error: subscriptionsError } = await supabase
+      .from("subscriptions")
+      .select("customer_id, created_at, updated_at, status, approval_status")
+      .eq("dairy_id", resolvedDairyId);
+
+    if (subscriptionsError) throw subscriptionsError;
+
+    // 3. Fetch successful payments for income
+    const { data: payments, error: paymentsError } = await supabase
+      .from("payments")
+      .select("amount, paid_at, created_at")
+      .eq("dairy_id", resolvedDairyId)
+      .eq("status", "PAID");
+
+    if (paymentsError) throw paymentsError;
+
+    // 4. Aggregate metrics per month
+    for (const t of trends) {
+      // Total customers count: unique customer IDs with subscriptions created on or before monthEnd
+      const totalCustIds = new Set();
+      (subscriptions || []).forEach(s => {
+        if (!s.customer_id) return;
+        const createDate = new Date(s.created_at);
+        if (createDate <= t.monthEnd) {
+          totalCustIds.add(s.customer_id);
+        }
+      });
+      t.totalCustomers = totalCustIds.size;
+
+      // Active customers count: unique customer IDs with approved subscriptions active during the month
+      const activeCustIds = new Set();
+      (subscriptions || []).forEach(s => {
+        if (!s.customer_id) return;
+        const createDate = new Date(s.created_at);
+        const updateDate = new Date(s.updated_at);
+        
+        // Subscription must have been created on or before monthEnd
+        const wasCreated = createDate <= t.monthEnd;
+        // Must be approved
+        const isApproved = String(s.approval_status).toUpperCase() === "APPROVED";
+        // Must not be closed before the start of the month
+        const isNotClosedBefore = String(s.status).toUpperCase() !== "CLOSED" || updateDate >= t.monthStart;
+
+        if (wasCreated && isApproved && isNotClosedBefore) {
+          activeCustIds.add(s.customer_id);
+        }
+      });
+      t.activeCustomers = activeCustIds.size;
+
+      // Income sum: successful payments in this month
+      let incomeSum = 0;
+      (payments || []).forEach(p => {
+        const payDate = new Date(p.paid_at || p.created_at);
+        if (payDate >= t.monthStart && payDate <= t.monthEnd) {
+          incomeSum += Number(p.amount || 0);
+        }
+      });
+      t.income = Number(incomeSum.toFixed(2));
+    }
+
+    // Remove the Date objects from the final response to keep payload clean
+    return trends.map(t => ({
+      month: t.month,
+      monthLabel: t.monthLabel,
+      totalCustomers: t.totalCustomers,
+      activeCustomers: t.activeCustomers,
+      income: t.income,
+    }));
+  } catch (error) {
+    console.error('Error fetching monthly performance trends:', error.message);
+    throw error;
+  }
+};
+

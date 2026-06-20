@@ -157,7 +157,7 @@ const CustomerLayout = ({ children }) => {
   const handleLogout = () => {
     localStorage.clear();
     sessionStorage.removeItem(DASHBOARD_VISITED_FLAG);
-    navigate("/", { replace: true });
+    window.location.href = "/";
   };
 
   return (

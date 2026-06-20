@@ -4,6 +4,23 @@ import { validateTokenApi } from "../services/auth.api";
 const AuthContext = createContext(null);
 const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(window.atob(base64));
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      return true; // Expired
+    }
+    return false; // Not expired
+  } catch {
+    return true; // Invalid token format
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +45,26 @@ export const AuthProvider = ({ children }) => {
               (localStorage.getItem("agentToken") || parsedUser?.token)
           );
 
+          // Get token to check local expiration
+          const token = parsedUser?.token || 
+            (normalizedRole === "ADMIN" ? localStorage.getItem("adminToken") :
+             (normalizedRole === "AGENT" || normalizedRole === "STAFF") ? localStorage.getItem("agentToken") :
+             localStorage.getItem("token"));
+
+          if (isTokenExpired(token)) {
+            setUser(null);
+            localStorage.removeItem("user");
+            localStorage.removeItem("userRole");
+            localStorage.removeItem("token");
+            localStorage.removeItem("adminToken");
+            localStorage.removeItem("agentToken");
+            setLoading(false);
+            return;
+          }
+
+          // Optimistically restore session and finish loading state
           setUser(parsedUser);
+          setLoading(false);
 
           // Keep agent sessions stable across refresh even if /auth/me is not reliable.
           if (hasAgentSession) {
@@ -36,46 +72,49 @@ export const AuthProvider = ({ children }) => {
               localStorage.setItem("agentToken", parsedUser.token);
             }
             localStorage.setItem("userRole", normalizedRole || "AGENT");
-            setLoading(false);
             return;
           }
 
-          // Try to validate the token with the backend using the correct role token.
-          const response = await validateTokenApi(parsedUser?.role);
-          if (isValidatedSession(response)) {
-            // Token is valid, update user with fresh data and preserve token/role.
-            const nextUser = {
-              ...parsedUser,
-              ...(response.user || response),
-              token: parsedUser?.token,
-              role: response.role || response.user?.role || response.userType || parsedUser?.role,
-            };
-            setUser(nextUser);
-            localStorage.setItem("user", JSON.stringify(nextUser));
-            localStorage.setItem("userRole", nextUser.role);
-          } else {
-            setUser(null);
-            localStorage.removeItem("user");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("token");
-            localStorage.removeItem("adminToken");
-            localStorage.removeItem("agentToken");
-          }
-        } catch (error) {
-          const status = Number(error?.response?.status || 0);
-          if (status !== 401 && status !== 403) {
-            console.log("Token validation failed:", error.message);
-          }
+          // Validate in background to verify token hasn't been revoked
+          try {
+            const response = await validateTokenApi(parsedUser?.role);
+            if (isValidatedSession(response)) {
+              const nextUser = {
+                ...parsedUser,
+                ...(response.user || response),
+                token: parsedUser?.token,
+                role: response.role || response.user?.role || response.userType || parsedUser?.role,
+              };
+              setUser(nextUser);
+              localStorage.setItem("user", JSON.stringify(nextUser));
+              localStorage.setItem("userRole", nextUser.role);
+            } else {
+              setUser(null);
+              localStorage.removeItem("user");
+              localStorage.removeItem("userRole");
+              localStorage.removeItem("token");
+              localStorage.removeItem("adminToken");
+              localStorage.removeItem("agentToken");
+            }
+          } catch (error) {
+            const status = Number(error?.response?.status || 0);
+            if (status !== 401 && status !== 403) {
+              console.log("Background token validation failed:", error.message);
+            }
 
-          // Only clear auth when the backend explicitly rejects the token.
-          if (status === 401 || status === 403) {
-            setUser(null);
-            localStorage.removeItem("user");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("token");
-            localStorage.removeItem("adminToken");
-            localStorage.removeItem("agentToken");
+            // Only clear auth when the backend explicitly rejects the token.
+            if (status === 401 || status === 403) {
+              setUser(null);
+              localStorage.removeItem("user");
+              localStorage.removeItem("userRole");
+              localStorage.removeItem("token");
+              localStorage.removeItem("adminToken");
+              localStorage.removeItem("agentToken");
+            }
           }
+          return;
+        } catch (err) {
+          console.error("Error reading stored session:", err);
         }
       }
       setLoading(false);
@@ -112,7 +151,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.clear(); // Clears all tokens and user data safely
     sessionStorage.removeItem(DASHBOARD_VISITED_FLAG);
-    window.location.href = "/login"; // Force redirect to login on logout
+    window.location.href = "/"; // Force redirect to root path on logout
   };
 
   return (

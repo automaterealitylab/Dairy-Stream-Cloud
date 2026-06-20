@@ -16,7 +16,12 @@ import {
   fetchAdminPaymentVerifications,
   rejectAdminPaymentVerification,
   updateAdminFarmPlan,
+  createAdminFarmPlanOrder,
+  verifyAdminFarmPlanPayment,
+  createAdminFarmPlanSubscription,
+  verifyAdminFarmPlanSubscriptionPayment,
 } from "../../api/admin.api.js";
+import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminPayments() {
@@ -263,31 +268,12 @@ export default function AdminPayments() {
 
     try {
       setPlanUpdating(true);
-      const updated = await updateAdminFarmPlan(planName);
-
-      setFarmPlan((prev) => ({
-        id: updated?.id ?? prev?.id ?? null,
-        plan: updated?.selected_plan || planName,
-        status: updated?.status || prev?.status || "ACTIVE",
-        nextBilling: updated?.updated_at || new Date().toISOString(),
-        upiId: prev?.upiId || "",
-        bankName: prev?.bankName || "",
-        bankBranch: prev?.bankBranch || "",
-        bankAccountHolderName: prev?.bankAccountHolderName || "",
-        bankAccountNumber: prev?.bankAccountNumber || "",
-        bankIfscCode: prev?.bankIfscCode || "",
-        autopayEnabled: prev?.autopayEnabled || false,
-        autopayMethod: prev?.autopayMethod || "",
-        autopayConfiguredAt: prev?.autopayConfiguredAt || null,
-      }));
-
-      toast.success(`${getPlanLabel(planName)} plan selected`);
-      setPlanModalOpen(false);
       setPendingAutopayPlan(planName);
       setSelectedAutopayMethod("");
+      setPlanModalOpen(false);
       setAutopayModalOpen(true);
     } catch (err) {
-      toast.error(err?.response?.data?.error || err?.message || "Failed to update plan");
+      toast.error(err?.message || "Failed to select plan");
     } finally {
       setPlanUpdating(false);
     }
@@ -303,15 +289,10 @@ export default function AdminPayments() {
       available: Boolean(farmPlan?.upiId),
     },
     {
-      id: "BANK",
-      label: "Bank AutoPay",
-      description:
-        farmPlan?.bankAccountNumber && farmPlan?.bankIfscCode
-          ? `Use ${farmPlan.bankName || "registered bank"} account ending ${String(
-              farmPlan.bankAccountNumber
-            ).slice(-4)} for scheduled collections.`
-          : "Add bank account and IFSC details first to enable account-based autopay.",
-      available: Boolean(farmPlan?.bankAccountNumber && farmPlan?.bankIfscCode),
+      id: "ONETIME",
+      label: "One-time Pay",
+      description: "Pay once using any card, netbanking, wallet, or UPI without setting up automatic recurring charges.",
+      available: true,
     },
   ];
 
@@ -320,27 +301,163 @@ export default function AdminPayments() {
 
     try {
       setAutopaySaving(true);
-      const config = {
-        enabled: true,
-        method: selectedAutopayMethod,
-        configuredAt: new Date().toISOString(),
-        plan: pendingAutopayPlan || farmPlan?.plan || "",
-        cycle: billingCycle,
-      };
 
-      persistAutopay(farmPlan?.id, config);
-      setFarmPlan((prev) => ({
-        ...prev,
-        autopayEnabled: true,
-        autopayMethod: selectedAutopayMethod,
-        autopayConfiguredAt: config.configuredAt,
-      }));
-      setAutopayModalOpen(false);
-      setPendingAutopayPlan(null);
-      toast.success(
-        `${selectedAutopayMethod} autopay enabled for ${pendingAutopayPlanLabel}`
-      );
-    } finally {
+      const isLoaded = await loadRazorpayCheckout();
+      if (!isLoaded) {
+        throw new Error("Failed to load Razorpay SDK. Please check your network connection.");
+      }
+
+      let user = {};
+      try {
+        user = JSON.parse(localStorage.getItem("user") || "{}");
+      } catch (e) {
+        console.error("Failed to parse user details from local storage:", e);
+      }
+
+      if (selectedAutopayMethod === "UPI") {
+        const subData = await createAdminFarmPlanSubscription({
+          plan: pendingAutopayPlan,
+          cycle: billingCycle,
+        });
+
+        const { keyId, subscriptionId } = subData;
+
+        const options = {
+          key: keyId,
+          subscription_id: subscriptionId,
+          name: "DairyStream SaaS",
+          description: `${getPlanLabel(pendingAutopayPlan)} Plan AutoPay (${billingCycle})`,
+          prefill: {
+            name: user.name || user.username || user.ownerName || "",
+            email: user.email || "",
+            contact: user.phone_number || user.phone || "",
+          },
+          theme: {
+            color: "#B8641A",
+          },
+          handler: async (response) => {
+            setAutopaySaving(true);
+            try {
+              const result = await verifyAdminFarmPlanSubscriptionPayment({
+                plan: pendingAutopayPlan,
+                cycle: billingCycle,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySubscriptionId: response.razorpay_subscription_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+
+              const updatedDairy = result?.dairy;
+
+              setFarmPlan((prev) => ({
+                ...prev,
+                id: updatedDairy?.id ?? prev?.id ?? null,
+                plan: updatedDairy?.selected_plan || pendingAutopayPlan,
+                status: updatedDairy?.status || prev?.status || "ACTIVE",
+                nextBilling: updatedDairy?.updated_at || new Date().toISOString(),
+                autopayEnabled: true,
+                autopayMethod: "UPI AutoPay",
+                autopayConfiguredAt: new Date().toISOString(),
+              }));
+
+              persistAutopay(farmPlan?.id || updatedDairy?.id, {
+                enabled: true,
+                method: "UPI AutoPay",
+                configuredAt: new Date().toISOString(),
+                plan: pendingAutopayPlan,
+                cycle: billingCycle,
+              });
+
+              toast.success(`UPI AutoPay enabled & upgraded to ${getPlanLabel(pendingAutopayPlan)}!`);
+              setAutopayModalOpen(false);
+              setPendingAutopayPlan(null);
+              setSelectedAutopayMethod("");
+            } catch (err) {
+              toast.error(err?.response?.data?.error || err?.message || "Failed to verify AutoPay payment");
+            } finally {
+              setAutopaySaving(false);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setAutopaySaving(false);
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+
+      } else if (selectedAutopayMethod === "ONETIME") {
+        const orderData = await createAdminFarmPlanOrder({
+          plan: pendingAutopayPlan,
+          cycle: billingCycle,
+        });
+
+        const { keyId, order } = orderData;
+
+        const options = {
+          key: keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: "DairyStream SaaS",
+          description: `${getPlanLabel(pendingAutopayPlan)} Plan (${billingCycle})`,
+          order_id: order.id,
+          prefill: {
+            name: user.name || user.username || user.ownerName || "",
+            email: user.email || "",
+            contact: user.phone_number || user.phone || "",
+          },
+          theme: {
+            color: "#B8641A",
+          },
+          handler: async (response) => {
+            setAutopaySaving(true);
+            try {
+              const result = await verifyAdminFarmPlanPayment({
+                plan: pendingAutopayPlan,
+                cycle: billingCycle,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+
+              const updatedDairy = result?.dairy;
+
+              setFarmPlan((prev) => ({
+                ...prev,
+                id: updatedDairy?.id ?? prev?.id ?? null,
+                plan: updatedDairy?.selected_plan || pendingAutopayPlan,
+                status: updatedDairy?.status || prev?.status || "ACTIVE",
+                nextBilling: updatedDairy?.updated_at || new Date().toISOString(),
+                autopayEnabled: false,
+                autopayMethod: "",
+                autopayConfiguredAt: null,
+              }));
+
+              persistAutopay(farmPlan?.id || updatedDairy?.id, null);
+
+              toast.success(`Payment verified! Upgraded to ${getPlanLabel(pendingAutopayPlan)}.`);
+              setAutopayModalOpen(false);
+              setPendingAutopayPlan(null);
+              setSelectedAutopayMethod("");
+            } catch (err) {
+              toast.error(err?.response?.data?.error || err?.message || "Failed to verify payment");
+            } finally {
+              setAutopaySaving(false);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setAutopaySaving(false);
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.error || err?.message || "Failed to initiate payment");
       setAutopaySaving(false);
     }
   };
@@ -837,10 +954,12 @@ export default function AdminPayments() {
                     Plan Billing
                   </p>
                   <h3 className="mt-1.5 text-xl sm:text-2xl text-white" style={adminHeadingFont}>
-                    Set Up Autopay
+                    {selectedAutopayMethod === "ONETIME" ? "One-time Payment" : "Set Up Autopay"}
                   </h3>
                   <p className="mt-1 text-xs sm:text-sm text-white/70">
-                    Enable recurring billing for the {pendingAutopayPlanLabel} plan.
+                    {selectedAutopayMethod === "ONETIME"
+                      ? `Make a one-time payment for the ${pendingAutopayPlanLabel} plan.`
+                      : `Enable recurring billing for the ${pendingAutopayPlanLabel} plan.`}
                   </p>
                 </div>
                 <button
@@ -913,7 +1032,9 @@ export default function AdminPayments() {
               </div>
 
               <div className="rounded-[18px] border border-dashed border-[#D8C8B3] bg-[#FFFCF7] p-3 text-xs sm:text-sm leading-5 text-[#7A644A]">
-                Autopay is currently saved as a billing preference and can later be connected to a full recurring mandate flow.
+                {selectedAutopayMethod === "ONETIME"
+                  ? "A secure one-time checkout will be initiated through Razorpay to activate your plan."
+                  : "An automated recurring subscription will be set up through Razorpay to enable automatic plan renewals."}
               </div>
 
               <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
@@ -930,7 +1051,11 @@ export default function AdminPayments() {
                   disabled={!selectedAutopayMethod || autopaySaving}
                   className="rounded-[14px] bg-[#B8641A] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#9F5414] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {autopaySaving ? "Saving..." : "Enable Autopay"}
+                  {autopaySaving 
+                    ? "Processing..." 
+                    : selectedAutopayMethod === "ONETIME" 
+                      ? "Pay Now" 
+                      : "Enable Autopay"}
                 </button>
               </div>
             </div>

@@ -4,6 +4,7 @@ import {
   getTopPerformingAgents,
   getMissedDeliveriesSummary,
   updateAgentPerformanceMetrics,
+  getMonthlyTrends,
 } from '../../services/admin/agentPerformance.service.js';
 
 /**
@@ -149,3 +150,26 @@ export const updatePerformanceMetrics = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get monthly trend statistics (total/active customers and income)
+ */
+export const getPerformanceMonthlyTrends = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId || null;
+    const trends = await getMonthlyTrends(dairyId);
+
+    res.json({
+      success: true,
+      data: trends,
+    });
+  } catch (error) {
+    console.error('❌ GET PERFORMANCE MONTHLY TRENDS ERROR:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch monthly performance trends',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+

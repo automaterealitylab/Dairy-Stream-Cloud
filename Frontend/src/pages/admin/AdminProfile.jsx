@@ -93,6 +93,7 @@ const emptyDairyProfile = {
   bank_verification_reset_at: "",
   verification_required: false,
   account_last_updated_at: "",
+  pan: "",
 };
 
 const buildFormFromProfile = (dairy = {}, admin = {}) => ({
@@ -135,6 +136,7 @@ const buildFormFromProfile = (dairy = {}, admin = {}) => ({
   payment_instructions: dairy?.payment_instructions || "",
   upi_qr_enabled: dairy?.upi_qr_enabled ?? true,
   bank_transfer_enabled: dairy?.bank_transfer_enabled ?? true,
+  pan: dairy?.pan || "",
 });
 
 const getInitials = (name) =>
@@ -720,6 +722,7 @@ export default function AdminProfile() {
               <InfoCard icon={Mail} label="Owner Email / Login ID" value={adminEmail} />
               <InfoCard icon={Phone} label="Owner Phone" value={adminPhone} />
               <InfoCard icon={Landmark} label="Bank Account Holder" value={dairyProfile.bank_account_holder_name} />
+              <InfoCard icon={Hash} label="PAN Card Number" value={dairyProfile.pan} />
               <InfoCard icon={CreditCard} label="Bank Account" value={dairyProfile.masked_account_number || maskAccountNumber(dairyProfile.bank_account_number)} />
               <InfoCard icon={Hash} label="IFSC Code" value={dairyProfile.bank_ifsc_code} />
               <InfoCard icon={CreditCard} label="UPI ID" value={dairyProfile.upi_id} />
@@ -809,6 +812,14 @@ export default function AdminProfile() {
                         onChange={(value) => setField("bank_account_holder_name", value)}
                         disabled={bankFieldsLocked}
                         hint={bankFieldsLocked ? "Verified by bank provider" : "Auto-filled after verification when available"}
+                      />
+                      <Field 
+                        label="PAN Card Number" 
+                        value={formData.pan} 
+                        onChange={(value) => setField("pan", value.toUpperCase())}
+                        disabled={bankFieldsLocked} 
+                        placeholder="ABCDE1234F"
+                        hint="Required for Razorpay Route onboarding"
                       />
                       <Field
                         label="Account Number"
