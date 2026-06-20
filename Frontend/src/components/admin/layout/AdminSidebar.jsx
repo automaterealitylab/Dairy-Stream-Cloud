@@ -232,9 +232,8 @@ export default function AdminSidebar({ open, onClose }) {
         <div className="shrink-0 border-t border-[#F2EDE4] px-5 py-4">
           <button
             onClick={() => {
-              localStorage.removeItem("adminToken");
-              localStorage.removeItem("adminUser");
-              navigate("/", { replace: true });
+              localStorage.clear();
+              window.location.href = "/";
             }}
             className="
               w-full flex items-center justify-center gap-2

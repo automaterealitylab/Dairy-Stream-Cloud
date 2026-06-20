@@ -151,7 +151,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.clear(); // Clears all tokens and user data safely
     sessionStorage.removeItem(DASHBOARD_VISITED_FLAG);
-    window.location.href = "/login"; // Force redirect to login on logout
+    window.location.href = "/"; // Force redirect to root path on logout
   };
 
   return (
