@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { 
   CreditCard, DollarSign, TrendingUp,
   CheckCircle, Clock, ChevronDown, ChevronUp, Share2, ShieldCheck, X, Wallet, AlertTriangle
@@ -19,6 +20,14 @@ import {
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminPayments() {
+  const adminName = React.useMemo(() => {
+    try {
+      const adminUserStr = localStorage.getItem("adminUser");
+      return adminUserStr ? JSON.parse(adminUserStr)?.name : "Admin";
+    } catch {
+      return "Admin";
+    }
+  }, []);
   const AUTOPAY_STORAGE_PREFIX = "adminFarmAutopayV1";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -501,11 +510,11 @@ export default function AdminPayments() {
     });
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
-      <AdminMobileTopbar title="Payments & Billing" onMenu={() => setSidebarOpen(true)} />
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+      <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         
         {/* SECTION 1: STATS */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -928,6 +937,7 @@ export default function AdminPayments() {
           </div>
         </div>
       )}
+      <AdminMobileBottomNav />
     </div>
   );
 }

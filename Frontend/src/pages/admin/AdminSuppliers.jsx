@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { AlertTriangle, X } from "lucide-react";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import {
   createAdminSupplier,
   fetchAdminSuppliers,
@@ -201,11 +202,11 @@ export default function AdminSuppliers() {
   }, [procurementLogs, supplierSummaryTarget, summaryDateRange, todayKey]);
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
-      <AdminMobileTopbar adminName="Suppliers" onMenu={() => setSidebarOpen(true)} />
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+      <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Suppliers</h1>
@@ -516,6 +517,7 @@ export default function AdminSuppliers() {
           </div>
         </div>
       ) : null}
+      <AdminMobileBottomNav />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { IndianRupee, Check, Wallet, X } from 'lucide-react';
-import { adminHeadingFont, adminShellFont } from "../adminTheme";
+import { adminHeadingFont, adminShellFont, useTheme } from "../adminTheme";
 
 const LegacyManualPaymentModal = ({ delivery, onSave, onClose }) => {
   const totalBill = Number(delivery?.amount_due ?? delivery?.amount ?? 0);
@@ -91,6 +91,7 @@ const LegacyManualPaymentModal = ({ delivery, onSave, onClose }) => {
 };
 
 const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
+  const { isDark } = useTheme();
   const totalBill = Number(delivery?.amount_due ?? delivery?.amount ?? 0);
   const [received, setReceived] = useState(totalBill || 0);
   const [method, setMethod] = useState("CASH");
@@ -117,7 +118,7 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
       style={adminShellFont}
     >
       <div className="flex min-h-full items-end justify-center sm:items-center">
-      <div className="flex w-full max-w-xl max-h-[90vh] sm:max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-t-[24px] sm:rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] shadow-[0_28px_70px_rgba(44,26,14,0.28)]">
+      <div className="flex w-full max-w-xl max-h-[90vh] sm:max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-t-[24px] sm:rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] shadow-[0_28px_70px_rgba(44,26,14,0.28)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-[0_28px_70px_rgba(0,0,0,0.45)]">
         <div className="shrink-0 bg-gradient-to-r from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] px-5 py-4 text-white sm:px-6 sm:py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -144,13 +145,30 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
 
         <div className="min-h-0 overflow-y-auto">
         <div className="space-y-4 px-4 py-4 sm:space-y-5 sm:px-6 sm:py-6">
-          <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-4 shadow-[0_12px_30px_rgba(92,61,30,0.06)] sm:p-5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
+          <div
+            className="rounded-[24px] border p-4 shadow-[0_12px_30px_rgba(92,61,30,0.06)] dark:shadow-none sm:p-5"
+            style={{
+              background: isDark ? "#161C2C" : "#ffffff",
+              borderColor: isDark ? "#222B40" : "#EDE8DF",
+            }}
+          >
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] dark:text-[#d97706]">
               Total Bill
             </p>
             <div className="mt-3 flex items-end justify-between gap-4">
-              <p className="text-3xl font-black text-[#2C1A0E]">₹{totalBill.toFixed(2)}</p>
-              <span className="rounded-full bg-[#FDF6EC] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#B8641A]">
+              <p
+                className="text-3xl font-black"
+                style={{ color: isDark ? "#ffffff" : "#2C1A0E" }}
+              >
+                ₹{totalBill.toFixed(2)}
+              </p>
+              <span
+                className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em]"
+                style={{
+                  background: isDark ? "rgba(217,119,6,0.15)" : "#FDF6EC",
+                  color: isDark ? "#fbbf24" : "#B8641A",
+                }}
+              >
                 Due Now
               </span>
             </div>
@@ -158,12 +176,12 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763]">
+              <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">
                 Amount Received
               </label>
               <div className="relative">
                 <IndianRupee
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-[#B89970]"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-[#B89970] dark:text-slate-400"
                   size={18}
                 />
                 <input
@@ -171,19 +189,19 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
                   value={received}
                   onChange={handleReceivedChange}
                   min="0"
-                  className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] py-4 pl-12 pr-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white"
+                  className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] py-4 pl-12 pr-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:focus:border-[#d97706] dark:focus:bg-[#0B0F19]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763]">
+              <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">
                 Payment Method
               </label>
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
-                className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white"
+                className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-4 font-bold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:focus:border-[#d97706] dark:focus:bg-[#0B0F19]"
               >
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI</option>
@@ -193,7 +211,7 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
           </div>
 
           <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763]">
+            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">
               Note
             </label>
             <input
@@ -201,21 +219,21 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Receipt no / remark"
-              className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-4 font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B89970] focus:border-[#B8641A] focus:bg-white"
+              className="w-full rounded-[18px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-4 font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#B89970] focus:border-[#B8641A] focus:bg-white dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:bg-[#0B0F19]"
             />
           </div>
 
           {balance > 0 ? (
-            <div className="rounded-[18px] border border-[#F3D6A2] bg-[#FFF6E7] px-4 py-3 text-sm font-semibold text-[#B8641A]">
+            <div className="rounded-[18px] border border-[#F3D6A2] bg-[#FFF6E7] px-4 py-3 text-sm font-semibold text-[#B8641A] dark:border-[#d97706]/30 dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
               Remaining balance: ₹{balance.toFixed(2)} will stay due.
             </div>
           ) : balance < 0 ? (
-            <div className="flex items-center gap-2 rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-4 py-3 text-sm font-semibold text-[#4A7C2F]">
+            <div className="flex items-center gap-2 rounded-[18px] border border-[#DDE8D1] bg-[#EEF5E7] px-4 py-3 text-sm font-semibold text-[#4A7C2F] dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300">
               <Wallet size={16} />
               Extra payment: ₹{Math.abs(balance).toFixed(2)} will be added to wallet credit.
             </div>
           ) : (
-            <div className="rounded-[18px] border border-[#E7DAC6] bg-[#F8F3EC] px-4 py-3 text-sm font-semibold text-[#6B5B3E]">
+            <div className="rounded-[18px] border border-[#E7DAC6] bg-[#F8F3EC] px-4 py-3 text-sm font-semibold text-[#6B5B3E] dark:border-[#222B40] dark:bg-[#161C2C] dark:text-slate-300">
               Full bill amount will be settled with this payment.
             </div>
           )}
@@ -224,7 +242,7 @@ const ManualPaymentModal = ({ delivery, onSave, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[16px] border border-[#E7DAC6] bg-white px-5 py-3 text-sm font-bold text-[#8B7355] transition hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+              className="rounded-[16px] border border-[#E7DAC6] bg-white px-5 py-3 text-sm font-bold text-[#8B7355] transition hover:bg-[#FDF6EC] hover:text-[#5C3D1E] dark:border-[#222B40] dark:bg-[#161C2C] dark:text-slate-300 dark:hover:bg-[#1C243A] dark:hover:text-white"
             >
               Cancel
             </button>

@@ -10,6 +10,7 @@ import {
 // Layout Components
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 const PERF_CACHE_KEY = "adminPerformanceCacheV1";
@@ -48,6 +49,14 @@ const writePerformanceCache = (range, payload) => {
 const AdminPerformance = () => {
   const initialCache = readPerformanceCache('7days');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const adminName = useMemo(() => {
+    try {
+      const adminUserStr = localStorage.getItem("adminUser");
+      return adminUserStr ? JSON.parse(adminUserStr)?.name : "Admin";
+    } catch {
+      return "Admin";
+    }
+  }, []);
   const [dateRange, setDateRange] = useState('7days');
   const [loading, setLoading] = useState(!initialCache);
   const [error, setError] = useState('');
@@ -358,8 +367,8 @@ const AdminPerformance = () => {
   }, [dateRange]);
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
-      <AdminMobileTopbar title="Performance Analytics" onMenu={() => setSidebarOpen(true)} />
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+      <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="px-4 py-10 pb-32 sm:px-8 lg:ml-64 lg:px-12">
@@ -619,6 +628,7 @@ const AdminPerformance = () => {
         )}
 
       </main>
+      <AdminMobileBottomNav />
     </div>
   );
 };

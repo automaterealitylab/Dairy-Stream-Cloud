@@ -6,7 +6,6 @@ import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminDashboardSkeleton from "../../components/admin/skeletons/AdminDashboardSkeleton";
 import AdminHeader from "../../components/admin/sections/AdminHeader";
-import AdminKpis from "../../components/admin/sections/AdminKpis";
 import AdminFinancialAlert from "../../components/admin/sections/AdminFinancialAlert";
 import AdminActivity from "../../components/admin/sections/AdminActivity";
 import DailyOperationsSnapshot from "../../components/admin/sections/DailyOperationsSnapshot";
@@ -14,6 +13,7 @@ import DeliveryExceptionDashboard from "../../components/admin/sections/Delivery
 import CustomerRiskIndicator from "../../components/admin/sections/CustomerRiskIndicator";
 import BulkDeliveryActions from "../../components/admin/sections/BulkDeliveryActions";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { adminShellFont } from "../../components/admin/adminTheme";
 
 export default function AdminDashboard() {
@@ -94,7 +94,7 @@ const loadDashboard = useCallback(async (force = false) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminMobileTopbar adminName={data?.dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -105,8 +105,7 @@ const loadDashboard = useCallback(async (force = false) => {
           <>
             <AdminHeader adminName={data?.dairyName || adminName} />
             
-            <DailyOperationsSnapshot stats={data.stats} />
-            <AdminKpis data={data} />
+            <DailyOperationsSnapshot data={data} adminName={data?.dairyName || adminName} />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
               <div className="lg:col-span-2 space-y-8">
@@ -149,6 +148,8 @@ const loadDashboard = useCallback(async (force = false) => {
           />
         )}
       </main>
+
+      <AdminMobileBottomNav />
     </div>
   );
 }

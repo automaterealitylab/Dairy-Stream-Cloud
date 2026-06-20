@@ -11,9 +11,9 @@ body,
 #root {
   min-height: 100%;
 }
+
 .pro-input {
-  @apply mt-1 w-full rounded-xl border border-[#E5D9C7] bg-[#FFFDF8] px-4 py-2 text-[#2C1A0E]
-  focus:outline-none focus:ring-2 focus:ring-[#C98A42] focus:bg-white transition;
+  @apply mt-1 w-full rounded-xl border border-[#E5D9C7] bg-[#FFFDF8] px-4 py-2 text-[#2C1A0E] focus:outline-none focus:ring-2 focus:ring-[#C98A42] focus:bg-white transition;
 }
 
 @layer components {
@@ -67,8 +67,15 @@ body,
 }
 
 @keyframes slideIn {
-  from { transform: translateX(120%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .animate-slide-in {
@@ -76,8 +83,13 @@ body,
 }
 
 @keyframes toastProgress {
-  from { width: 100%; }
-  to { width: 0%; }
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
 }
 
 .animate-toast-progress {
@@ -85,8 +97,7 @@ body,
 }
 
 .input {
-  @apply w-full py-3 px-4 border rounded-lg
-  focus:ring-2 focus:ring-blue-500 outline-none transition;
+  @apply w-full py-3 px-4 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition;
 }
 
 @keyframes fadeUp {
@@ -94,6 +105,7 @@ body,
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -105,6 +117,7 @@ body,
     opacity: 0;
     transform: scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -149,8 +162,233 @@ body,
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
 .scrollbar-none {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
+/* Dark mode global style overrides to ensure all admin panels match the dark navy theme */
+.dark {
+  /* Scrollbar override for dark theme */
+  scrollbar-color: #1e293b transparent;
+}
+
+.dark body {
+  background-color: #0B0F19 !important;
+  color: #ffffff !important;
+}
+
+/* 1. Panel & Card Overrides */
+.dark .bg-white,
+.dark [class*="bg-white"],
+.dark .bg-surface,
+.dark .bg-\#ffffff,
+.dark .bg-[#ffffff] {
+  background-color: #121829 !important;
+  border-color: #1E293B !important;
+  color: #ffffff !important;
+}
+
+/* Re-override translucent overlays so they don't turn solid dark navy */
+.dark [class*="bg-white/10"],
+.dark [class*="bg-white/15"],
+.dark [class*="bg-white/5"],
+.dark [class*="bg-white/20"] {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .shadow-card,
+.dark [class*="shadow-"] {
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Muted panels & inner cards using alphanumeric sub-selectors to avoid PostCSS square bracket bugs */
+.dark [class*="bg-"][class*="FFFDF8"],
+.dark [class*="bg-"][class*="FFF9F2"],
+.dark [class*="bg-"][class*="FFF7ED"],
+.dark [class*="bg-"][class*="FFFBF7"],
+.dark [class*="bg-"][class*="FFF8EE"],
+.dark [class*="bg-"][class*="FFFDF5"],
+.dark [class*="bg-"][class*="FFF0D4"],
+.dark [class*="bg-"][class*="FFF1E5"],
+.dark [class*="bg-"][class*="FDF6EC"],
+.dark [class*="bg-"][class*="FDF5E6"],
+.dark [class*="bg-"][class*="FDF8F5"],
+.dark [class*="bg-"][class*="FDF7F2"],
+.dark [class*="bg-"][class*="FFF8F8"] {
+  background-color: #161C2C !important;
+  border-color: #222B40 !important;
+}
+
+/* Outer/inner frames and page content blocks */
+.dark [class*="bg-"][class*="FAFAF7"],
+.dark .bg-background {
+  background-color: #0B0F19 !important;
+}
+
+/* 2. Text System Overrides */
+.dark .text-gray-950,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-slate-900,
+.dark [class*="text-"][class*="2C1A0E"],
+.dark [class*="text-"][class*="3B210F"],
+.dark [class*="text-"][class*="5C3D1E"],
+.dark [class*="text-"][class*="6F4A27"],
+.dark [class*="text-"][class*="3b210f"],
+.dark .text-text-primary {
+  color: #ffffff !important;
+}
+
+.dark .text-gray-700,
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400,
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .text-text-secondary,
+.dark [class*="text-"][class*="8B7355"],
+.dark [class*="text-"][class*="B89970"],
+.dark [class*="text-"][class*="7B6247"] {
+  color: #94A3B8 !important;
+  /* Tailwind text-slate-400 */
+}
+
+.dark [class*="text-"][class*="A85734"],
+.dark [class*="text-"][class*="C26D2C"] {
+  color: #F87171 !important;
+  /* red-400 for alerts */
+}
+
+.dark [class*="text-"][class*="C4A882"] {
+  color: #E5C79D !important;
+  /* gold-400 */
+}
+
+/* 3. Table & Bootstrap Table Overrides */
+.dark table,
+.dark .table {
+  background-color: #121829 !important;
+  color: #ffffff !important;
+  --bs-table-bg: #121829 !important;
+  --bs-table-color: #ffffff !important;
+  --bs-table-border-color: #1E293B !important;
+  --bs-table-hover-bg: #1C243A !important;
+  --bs-table-striped-bg: #161C2C !important;
+}
+
+.dark thead,
+.dark thead tr,
+.dark tr[class*="bg-"][class*="FFFDF8"],
+.dark tr[class*="bg-"][class*="FFFBF7"] {
+  background-color: #161C2C !important;
+}
+
+.dark th {
+  background-color: #161C2C !important;
+  color: #94A3B8 !important;
+  border-color: #1E293B !important;
+}
+
+.dark td {
+  color: #ffffff !important;
+  border-color: #1E293B !important;
+}
+
+.dark tr:hover,
+.dark tbody tr:hover,
+.dark tr[class*="hover:bg-gray-50"]:hover,
+.dark tr[class*="hover:bg-"][class*="FDF6EC"]:hover,
+.dark tr[class*="hover:bg-"][class*="FFFDF8"]:hover,
+.dark div[class*="hover:bg-"][class*="FFFDF8"]:hover,
+.dark div[class*="hover:bg-"][class*="FDF6EC"]:hover {
+  background-color: #1C243A !important;
+}
+
+/* 4. Border Overrides */
+.dark .border:not([class*="border-transparent"]),
+.dark .border-t,
+.dark .border-b,
+.dark .border-l,
+.dark .border-r,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark [class*="border-"][class*="EDE8DF"],
+.dark [class*="border-"][class*="F2EDE4"],
+.dark [class*="border-"][class*="E5D9C7"],
+.dark [class*="border-"][class*="EFE7DE"],
+.dark [class*="border-"][class*="E5C79D"],
+.dark [class*="border-"][class*="EFE4D6"],
+.dark [class*="border-"][class*="ECE2D5"],
+.dark [class*="border-"][class*="EAD9C2"],
+.dark .border-border {
+  border-color: #1E293B !important;
+}
+
+.dark .border-dashed {
+  border-style: dashed !important;
+  border-color: #222B40 !important;
+}
+
+/* 5. Buttons & Controls (non-brand) */
+.dark .bg-gray-100,
+.dark .bg-slate-100 {
+  background-color: #1C243A !important;
+  color: #ffffff !important;
+}
+
+.dark .hover:bg-gray-100:hover,
+.dark .hover:bg-slate-100:hover {
+  background-color: #242E4A !important;
+}
+
+.dark [class*="hover:bg-"][class*="FDF6EC"]:hover,
+.dark [class*="hover:bg-"][class*="FFFDF8"]:hover,
+.dark [class*="hover:bg-"][class*="FFF0D4"]:hover {
+  background-color: #1C243A !important;
+  color: #ffffff !important;
+}
+
+.dark [class*="bg-"][class*="F4F7ED"] {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #00C896 !important;
+}
+
+.dark [class*="text-"][class*="5C7A35"] {
+  color: #00C896 !important;
+}
+
+/* 6. Inputs & Selectors */
+.dark input[type="text"],
+.dark input[type="search"],
+.dark input[type="number"],
+.dark input[type="password"],
+.dark input[type="email"],
+.dark select,
+.dark textarea,
+.dark .pro-input {
+  background-color: #161C2C !important;
+  border-color: #222B40 !important;
+  color: #ffffff !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748B !important;
+}
+
+/* 7. Modal & Overlays */
+.dark .modal-content,
+.dark .modal-header,
+.dark .modal-body,
+.dark .modal-footer,
+.dark .bg-black\/45+div,
+.dark .bg-black\/40+div,
+.dark [class*="bg-"][class*="white"]>select {
+  background-color: #121829 !important;
+  border-color: #1E293B !important;
+  color: #ffffff !important;
+}

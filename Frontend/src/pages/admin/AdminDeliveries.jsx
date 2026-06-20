@@ -11,6 +11,7 @@ import {
 } from "../../api/admin.api";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
@@ -119,6 +120,16 @@ const FeedbackBanner = ({ feedback }) => {
 
 // --- Main Component ---
 export default function AdminDeliveries() {
+  let adminName = "Admin";
+  try {
+    const adminUserStr = localStorage.getItem("adminUser");
+    if (adminUserStr) {
+      const parsed = JSON.parse(adminUserStr);
+      adminName = parsed?.name || "Admin";
+    }
+  } catch {
+    adminName = "Admin";
+  }
   const RESOLVE_ACTION_OPTIONS = [
     "Replacement milk sent",
     "Refund initiated",
@@ -484,11 +495,11 @@ export default function AdminDeliveries() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
+    <div className="flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
-      <main className="flex-1 lg:ml-64 w-full transition-all duration-300">
-        <AdminMobileTopbar title="Deliveries" onMenu={() => setSidebarOpen(true)} />
+      <main className="flex-1 lg:ml-64 w-full transition-all duration-300 pb-32">
+        <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
           {/* Page Header */}
@@ -921,6 +932,7 @@ export default function AdminDeliveries() {
           </div>
         </div>
       )}
+      <AdminMobileBottomNav />
     </div>
   );
 }
