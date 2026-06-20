@@ -405,6 +405,11 @@ export const fetchAdminPerformanceSummary = async () => {
   return data;
 };
 
+export const fetchAdminPerformanceMonthlyTrends = async () => {
+  const { data } = await client.get('/admin/performance/monthly-trends');
+  return data;
+};
+
 export const fetchAdminAgentTodayWorkSummary = async ({ agentId } = {}) => {
   const { data } = await client.get('/admin/earnings/today-summary', {
     params: { agentId },

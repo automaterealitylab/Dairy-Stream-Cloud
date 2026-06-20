@@ -70,6 +70,7 @@ import {
   getTopPerformers,
   getMissedDeliveries,
   updatePerformanceMetrics,
+  getPerformanceMonthlyTrends,
 } from "../controllers/admin/agentPerformance.controller.js";
 import {
   getEarnings,
@@ -206,6 +207,7 @@ router.delete("/products/:id", verifyAdmin, removeAdminProduct); // Remove produ
 // Agent Performance
 router.get("/performance", verifyAdmin, getPerformance);
 router.get("/performance/summary", verifyAdmin, getPerformanceSummaryData);
+router.get("/performance/monthly-trends", verifyAdmin, getPerformanceMonthlyTrends);
 router.get("/performance/top-performers", verifyAdmin, getTopPerformers);
 router.get("/performance/missed-deliveries", verifyAdmin, getMissedDeliveries);
 router.post("/performance/update", verifyAdmin, updatePerformanceMetrics);

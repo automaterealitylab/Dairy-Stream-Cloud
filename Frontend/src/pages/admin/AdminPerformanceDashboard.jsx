@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart } from 'recharts';
 import { TrendingUp, Users, CheckCircle, XCircle, Zap, Target, Award, Loader2, UserCheck, Clock3, AlertCircle } from 'lucide-react';
 import {
   fetchAdminPerformance,
   fetchAdminMissedDeliveries,
   fetchAdminAgents,
+  fetchAdminPerformanceMonthlyTrends,
 } from "../../api/admin.api";
 
 // Layout Components
@@ -54,6 +55,7 @@ const AdminPerformance = () => {
   const [performanceRows, setPerformanceRows] = useState(initialCache?.performanceRows || []);
   const [missedRows, setMissedRows] = useState(initialCache?.missedRows || []);
   const [registeredAgents, setRegisteredAgents] = useState(initialCache?.registeredAgents || []);
+  const [monthlyTrends, setMonthlyTrends] = useState(initialCache?.monthlyTrends || []);
 
   const getDateRange = (range) => {
     const end = new Date();
@@ -282,6 +284,7 @@ const AdminPerformance = () => {
           setPerformanceRows(Array.isArray(cached.performanceRows) ? cached.performanceRows : []);
           setMissedRows(Array.isArray(cached.missedRows) ? cached.missedRows : []);
           setRegisteredAgents(Array.isArray(cached.registeredAgents) ? cached.registeredAgents : []);
+          setMonthlyTrends(Array.isArray(cached.monthlyTrends) ? cached.monthlyTrends : []);
           setLoading(false);
         }
 
@@ -294,14 +297,17 @@ const AdminPerformance = () => {
         const agentsPromise = shouldFetchAgents
           ? fetchAdminAgents({ lite: true })
           : Promise.resolve({ agents: registeredAgents });
+        const trendsPromise = fetchAdminPerformanceMonthlyTrends();
 
-        const [performanceRes, agentsRes] = await Promise.allSettled([
+        const [performanceRes, agentsRes, trendsRes] = await Promise.allSettled([
           performancePromise,
           agentsPromise,
+          trendsPromise,
         ]);
 
         let nextPerformanceRows = [];
         let nextRegisteredAgents = registeredAgents;
+        let nextMonthlyTrends = monthlyTrends;
         const earlyErrors = [];
 
         if (performanceRes.status === "fulfilled") {
@@ -320,8 +326,17 @@ const AdminPerformance = () => {
           earlyErrors.push("agents");
         }
 
+        if (trendsRes.status === "fulfilled") {
+          nextMonthlyTrends = Array.isArray(trendsRes.value?.data)
+            ? trendsRes.value.data
+            : [];
+        } else {
+          earlyErrors.push("monthly trends");
+        }
+
         setPerformanceRows(nextPerformanceRows);
         setRegisteredAgents(nextRegisteredAgents);
+        setMonthlyTrends(nextMonthlyTrends);
         setLoading(false);
 
         const [missedRes] = await Promise.allSettled([missedPromise]);
@@ -341,6 +356,7 @@ const AdminPerformance = () => {
           performanceRows: nextPerformanceRows,
           missedRows: nextMissedRows,
           registeredAgents: nextRegisteredAgents,
+          monthlyTrends: nextMonthlyTrends,
         });
 
         const allErrors = [...earlyErrors, ...lateErrors];
@@ -510,6 +526,34 @@ const AdminPerformance = () => {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* MONTHLY CUSTOMER & INCOME TRENDS SECTION */}
+        <div className="bg-white p-7 rounded-[36px] shadow-sm border border-slate-100 mb-8">
+          <h3 className="text-base font-black text-slate-800 mb-6 uppercase tracking-tighter flex items-center gap-2">
+            <TrendingUp size={18} className="text-[#B8641A]" /> Monthly Customer & Income Trends
+          </h3>
+          <div className="h-[380px]">
+            {monthlyTrends.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm font-semibold text-slate-500">
+                No monthly trend data available.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={monthlyTrends} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="monthLabel" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11, fontWeight: 700 }} />
+                  <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11 }} label={{ value: 'Customer Count', angle: -90, position: 'insideLeft', offset: -10, style: { fill: '#64748B', fontSize: 11, fontWeight: 700 } }} />
+                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11 }} label={{ value: 'Income (₹)', angle: 90, position: 'insideRight', offset: 0, style: { fill: '#64748B', fontSize: 11, fontWeight: 700 } }} />
+                  <Tooltip contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" />
+                  <Bar yAxisId="right" dataKey="income" fill="#B8641A" radius={[6, 6, 0, 0]} name="Income (₹)" />
+                  <Line yAxisId="left" type="monotone" dataKey="totalCustomers" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Total Customers" />
+                  <Line yAxisId="left" type="monotone" dataKey="activeCustomers" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Active Customers" />
+                </ComposedChart>
+              </ResponsiveContainer>
             )}
           </div>
         </div>
