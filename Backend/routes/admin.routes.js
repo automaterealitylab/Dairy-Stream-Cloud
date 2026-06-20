@@ -53,6 +53,10 @@ import {
   fetchPaymentVerifications,
   rejectPaymentVerification,
   updateStatus,
+  createFarmPlanOrder,
+  verifyFarmPlanPayment,
+  createFarmPlanSubscription,
+  verifyFarmPlanSubscriptionPayment,
 } from "../controllers/admin/adminPayments.controller.js";
 import {
   addAdminProduct,
@@ -183,6 +187,10 @@ router.patch("/payments/verifications/:id/reject", verifyAdmin, rejectPaymentVer
 router.patch("/payments/:id/status", verifyAdmin, updateStatus); // Manually update payment status (PAID/PENDING)
 router.post("/payments/offline-collect", verifyAdmin, collectOfflinePayment); // Collect offline payment and add excess to wallet
 router.patch("/farm-plan", verifyAdmin, changeFarmPlan); // Upgrade/Downgrade the SaaS platform plan
+router.post("/farm-plan/order", verifyAdmin, createFarmPlanOrder);
+router.post("/farm-plan/verify", verifyAdmin, verifyFarmPlanPayment);
+router.post("/farm-plan/subscription", verifyAdmin, createFarmPlanSubscription);
+router.post("/farm-plan/subscription/verify", verifyAdmin, verifyFarmPlanSubscriptionPayment);
 
 // ==========================================
 // 8. PRODUCT & INVENTORY

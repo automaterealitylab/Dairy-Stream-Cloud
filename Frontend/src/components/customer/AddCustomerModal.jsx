@@ -95,9 +95,9 @@ export default function AddCustomerModal({ open, onClose, onCreated }) {
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 overflow-hidden">
-          <div className="px-6 py-4 border-b bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
+      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
+        <div className="w-full max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl ring-1 ring-black/5 overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Add New Customer</h2>
               <p className="text-sm text-gray-500">
@@ -116,7 +116,7 @@ export default function AddCustomerModal({ open, onClose, onCreated }) {
 
           <form
             onSubmit={currentStep === 1 ? handleNext : handleSubmit}
-            className="p-6 space-y-5 max-h-[85vh] overflow-y-auto"
+            className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto"
           >
             {error && <div className="p-3 text-sm bg-red-50 text-red-600 rounded-lg">{error}</div>}
 

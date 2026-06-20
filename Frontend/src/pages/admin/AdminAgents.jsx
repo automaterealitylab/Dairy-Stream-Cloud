@@ -100,9 +100,9 @@ export default function AdminAgents() {
 
       <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
         {/* Page Header */}
-        <div className="mb-8 flex justify-between items-end">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
           <div>
-            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
               Delivery Agents
             </h1>
             <p className="mt-1 text-sm text-[#8B7355]">
@@ -112,7 +112,7 @@ export default function AdminAgents() {
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-xl bg-[#B8641A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9E5415]"
+            className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-[#B8641A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#9E5415]"
           >
             + Add Agent
           </button>
@@ -194,7 +194,7 @@ export default function AdminAgents() {
                   </div>
 
                   {/* Right: Actions */}
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
                     <div className="hidden text-[#8B7355] sm:block">
                       Joined{" "}
                       <span className="font-medium text-[#2C1A0E]">

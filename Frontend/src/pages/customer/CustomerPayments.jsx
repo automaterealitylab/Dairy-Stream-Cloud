@@ -11,6 +11,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Smartphone,
   Wallet,
   X,
   XCircle,
@@ -24,7 +25,12 @@ import {
   getCachedCustomerPayments,
   previewCustomerPaymentScreenshotOcr,
   submitCustomerUpiPaymentVerification,
+  createCustomerPaymentOrder,
+  verifyCustomerPayment,
+  createCustomerWalletTopupOrder,
+  verifyCustomerWalletTopup,
 } from "../../api/customer/customer.api.js";
+import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
 
 const bodyFont = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -214,6 +220,9 @@ export default function Payments() {
   const [error, setError] = useState(null);
   const [showAll, setShowAll] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [paymentSelectorOpen, setPaymentSelectorOpen] = useState(false);
+  const [selectedPaymentTarget, setSelectedPaymentTarget] = useState(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   const applyPaymentsState = (data) => {
     const nextState = toPaymentsViewState(data);
@@ -294,11 +303,26 @@ export default function Payments() {
     };
   }, [walletModalOpen]);
 
-  const handlePayNow = async (payment, { payAll = false } = {}) => {
-    try {
-      if (!payAll && !payment?.id) throw new Error("No pending payment selected.");
-      if (payAll && Number(summary.monthlyDue || 0) <= 0) throw new Error("Nothing to pay.");
+  const handlePayNow = (payment, { payAll = false } = {}) => {
+    if (!payAll && !payment?.id) {
+      setError("No pending payment selected.");
+      return;
+    }
+    if (payAll && Number(summary.monthlyDue || 0) <= 0) {
+      setError("Nothing to pay.");
+      return;
+    }
+    setSelectedPaymentTarget({ payment, payAll });
+    setPaymentSelectorOpen(true);
+    setError(null);
+  };
 
+  const handleExecuteUpiPayment = async () => {
+    if (!selectedPaymentTarget) return;
+    const { payment, payAll } = selectedPaymentTarget;
+    setPaymentSelectorOpen(false);
+
+    try {
       setPayingPaymentId(payAll ? "__ALL__" : payment.id);
       setError(null);
 
@@ -312,12 +336,142 @@ export default function Payments() {
       setError(err?.response?.data?.message || err?.message || "Unable to start UPI payment.");
     } finally {
       setPayingPaymentId(null);
+      setSelectedPaymentTarget(null);
+    }
+  };
+
+  const handleExecuteRazorpayPayment = async () => {
+    if (!selectedPaymentTarget) return;
+    const { payment, payAll } = selectedPaymentTarget;
+    setPaymentSelectorOpen(false);
+    setPaymentProcessing(true);
+    setError(null);
+
+    try {
+      const isLoaded = await loadRazorpayCheckout();
+      if (!isLoaded) {
+        throw new Error("Failed to load Razorpay SDK. Please check your network connection.");
+      }
+
+      const orderData = await createCustomerPaymentOrder(
+        payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
+      );
+
+      const { keyId, order } = orderData;
+
+      const options = {
+        key: keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "DairyStream",
+        description: payAll ? "Clear Pending Bills" : (payment.title || "Dairy Bill"),
+        order_id: order.id,
+        prefill: {
+          name: summary.beneficiary?.customerName || "",
+          email: summary.beneficiary?.customerEmail || "",
+          contact: summary.beneficiary?.customerPhone || "",
+        },
+        theme: {
+          color: "#B8641A",
+        },
+        handler: async (response) => {
+          setPaymentProcessing(true);
+          try {
+            await verifyCustomerPayment({
+              paymentId: payment?.id || null,
+              payAll,
+              includeRunningDue: false,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            await loadPayments({ force: true });
+          } catch (err) {
+            setError(err?.response?.data?.message || err?.message || "Payment verification failed.");
+          } finally {
+            setPaymentProcessing(false);
+            setSelectedPaymentTarget(null);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentProcessing(false);
+            setSelectedPaymentTarget(null);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Unable to start Online payment.");
+      setPaymentProcessing(false);
+      setSelectedPaymentTarget(null);
     }
   };
 
   const handleWalletTopup = async () => {
-    setWalletTopupLoading(false);
-    setError("Wallet top-up through gateway is disabled. Pay bills directly to the dairy UPI ID.");
+    const value = Number(walletTopupAmount);
+    if (!Number.isFinite(value) || value < 10) {
+      setError("Minimum wallet top-up amount is ₹10.");
+      return;
+    }
+
+    setWalletModalOpen(false);
+    setWalletTopupLoading(true);
+    setError(null);
+
+    try {
+      const isLoaded = await loadRazorpayCheckout();
+      if (!isLoaded) {
+        throw new Error("Failed to load Razorpay SDK. Please check your network connection.");
+      }
+
+      const orderData = await createCustomerWalletTopupOrder({
+        amount: value,
+      });
+
+      const { keyId, order } = orderData;
+
+      const options = {
+        key: keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "DairyStream Wallet",
+        description: `Wallet Topup \u2022 \u20B9${value}`,
+        order_id: order.id,
+        theme: {
+          color: "#3B6D11",
+        },
+        handler: async (response) => {
+          setWalletTopupLoading(true);
+          try {
+            await verifyCustomerWalletTopup({
+              amount: value,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            await loadPayments({ force: true });
+          } catch (err) {
+            setError(err?.response?.data?.message || err?.message || "Wallet top-up verification failed.");
+          } finally {
+            setWalletTopupLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setWalletTopupLoading(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Unable to process wallet top-up.");
+      setWalletTopupLoading(false);
+    }
   };
 
   const handleSubmitUpiVerification = async () => {
@@ -382,7 +536,7 @@ export default function Payments() {
   const walletTopupButtonLabel =
     walletTopupLoading || !canTopupWallet ? "Add Money" : `Add ${fmt(walletTopupValue)}`;
   const projectedWalletBalance = summary.walletBalance + (canTopupWallet ? walletTopupValue : 0);
-  const isBusy = Boolean(payingPaymentId) || walletTopupLoading || loading;
+  const isBusy = Boolean(payingPaymentId) || walletTopupLoading || loading || paymentProcessing;
   const hasRunningSubscriptionBill = Number(summary.payableTillDate || 0) > 0;
   const subscriptionDueDateLabel = formatDateLabel(getNextSubscriptionDueDate(), {
     day: "numeric",
@@ -519,13 +673,13 @@ export default function Payments() {
                     disabled={isBusy || !nextUnpaidPayment || !hasDue}
                     className={`inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[10px] px-5 py-3 text-sm font-extrabold transition sm:w-auto lg:min-w-[200px] ${payAllButtonClasses}`}
                   >
-                    {payingPaymentId === "__ALL__" ? (
+                    {payingPaymentId === "__ALL__" || (paymentProcessing && selectedPaymentTarget?.payAll) ? (
                       <Loader2 size={15} className="animate-spin" />
                     ) : (
                       <CreditCard size={15} />
                     )}
-                    {payingPaymentId === "__ALL__"
-                      ? "Preparing UPI..."
+                    {payingPaymentId === "__ALL__" || (paymentProcessing && selectedPaymentTarget?.payAll)
+                      ? "Processing..."
                       : `Pay Now ${fmt(summary.monthlyDue)}`}
                   </button>
                 </div>
@@ -792,12 +946,12 @@ export default function Payments() {
                                       disabled={isBusy}
                                       className="inline-flex min-h-[30px] items-center gap-1 rounded-[9px] bg-[#2C1A0E] px-2.5 py-1.5 text-[10px] font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
                                     >
-                                      {payingPaymentId === payment.id ? (
+                                      {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? (
                                         <Loader2 size={10} className="animate-spin" />
                                       ) : (
                                         <CreditCard size={10} />
                                       )}
-                                      {payingPaymentId === payment.id ? "Preparing..." : "Pay Bill"}
+                                      {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? "Processing..." : "Pay Bill"}
                                     </button>
                                   )}
                                 </div>
@@ -853,12 +1007,12 @@ export default function Payments() {
                                   disabled={isBusy}
                                   className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#2C1A0E] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
                                 >
-                                  {payingPaymentId === payment.id ? (
+                                  {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? (
                                     <Loader2 size={12} className="animate-spin" />
                                   ) : (
                                     <CreditCard size={12} />
                                   )}
-                                  {payingPaymentId === payment.id ? "Preparing..." : "Pay Bill"}
+                                  {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? "Processing..." : "Pay Bill"}
                                 </button>
                               )}
                             </div>
@@ -1019,6 +1173,106 @@ export default function Payments() {
                   {submittingVerification ? <Loader2 size={15} className="animate-spin" /> : <CreditCard size={15} />}
                   Submit For Verification
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentSelectorOpen && selectedPaymentTarget && (
+        <div
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setPaymentSelectorOpen(false);
+              setSelectedPaymentTarget(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-[500px] overflow-hidden rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px] animate-in zoom-in-95 slide-in-from-bottom-6 duration-300">
+            <div className="h-[4px] w-full bg-[linear-gradient(90deg,#B8641A_0%,#F5C87A_100%)]" />
+
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
+                  Select Payment Option
+                </p>
+                <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
+                  Pay {fmt(selectedPaymentTarget.payAll ? summary.monthlyDue : selectedPaymentTarget.payment?.amount)}
+                </h3>
+                <p className="mt-1 text-xs text-[#8B7355]">
+                  Choose how you'd like to pay your dairy bill.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentSelectorOpen(false);
+                  setSelectedPaymentTarget(null);
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8]"
+                aria-label="Close payment options selector"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            {/* Modal Body / Selection Cards */}
+            <div className="space-y-4 p-5 sm:p-6">
+              {/* Option A: Razorpay Online Gateway */}
+              <button
+                type="button"
+                onClick={handleExecuteRazorpayPayment}
+                className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+              >
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#FEF3E6] text-[#B8641A] transition group-hover:bg-[#B8641A] group-hover:text-white">
+                  <CreditCard size={20} className="transition" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-[#2C1A0E]">Instant Online Pay</span>
+                    <span className="inline-flex items-center rounded-full bg-[#EBF7F1] px-2 py-0.5 text-[9px] font-bold text-[#1A7A4A]">
+                      Fastest
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[#B89970]">
+                    Pay using Cards, UPI, Netbanking, or Wallets.
+                  </p>
+                  <p className="mt-2 text-[11px] font-semibold text-[#1A7A4A]">
+                    Instant payment confirmation
+                  </p>
+                </div>
+              </button>
+
+              {/* Option B: Direct UPI Intent/UTR */}
+              <button
+                type="button"
+                onClick={handleExecuteUpiPayment}
+                className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+              >
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#F7F2EB] text-[#8B7355] transition group-hover:bg-[#2C1A0E] group-hover:text-white">
+                  <Smartphone size={20} className="transition" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-[#2C1A0E]">Direct UPI Transfer</span>
+                    <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[9px] font-bold text-[#1D5FA5]">
+                      No Charges
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[#B89970]">
+                    Scan QR / open GPay, PhonePe, Paytm, and paste UTR code.
+                  </p>
+                  <p className="mt-2 text-[11px] font-semibold text-[#8B7355]">
+                    Requires manual dairy verification (1-2 hours)
+                  </p>
+                </div>
+              </button>
+
+              <div className="flex items-center justify-center gap-2 pt-2 text-[11px] text-[#B89970]">
+                <Info size={12} className="flex-shrink-0" />
+                Payments are securely processed and protected.
               </div>
             </div>
           </div>

@@ -150,19 +150,19 @@ export default function AdminProducts() {
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Products & Stock</h1>
+            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Products & Stock</h1>
             <p className="mt-1 text-sm text-[#8B7355]">
               Add milk, dahi, paneer and track available stock for customer orders.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <div className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2 text-sm text-[#8B7355]">
               Total SKUs: <span className="font-semibold text-[#2C1A0E]">{products.length}</span> | Total Stock:{" "}
               <span className="font-semibold text-[#2C1A0E]">{totalStock.toFixed(2)}</span>
             </div>
-            <button type="button" onClick={startAddProduct} className="pro-btn-primary">
+            <button type="button" onClick={startAddProduct} className="pro-btn-primary w-full sm:w-auto">
               Add Product
             </button>
           </div>

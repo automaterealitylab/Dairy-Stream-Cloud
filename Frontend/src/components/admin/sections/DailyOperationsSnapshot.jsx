@@ -47,14 +47,14 @@ const DailyOperationsSnapshot = ({ stats = {} }) => {
 
   return (
     <div className="mb-8 space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex overflow-x-auto flex-nowrap scrollbar-none snap-x snap-mandatory gap-4 pb-4 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible">
         {cards.map((card, i) => (
           <motion.div
             key={card.label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className={`flex items-center gap-4 rounded-[28px] border bg-white/95 p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)] transition-all hover:-translate-y-0.5 ${
+            className={`flex items-center gap-4 rounded-[28px] border bg-white/95 p-4 sm:p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)] transition-all hover:-translate-y-0.5 shrink-0 w-[240px] sm:w-auto sm:shrink snap-center ${
               card.label === "Milk Shortage" && diff !== 0 ? "border-[#E9C194] ring-1 ring-[#FFF1E5]" : "border-[#EDE8DF]"
             }`}
             style={adminShellFont}
@@ -64,7 +64,7 @@ const DailyOperationsSnapshot = ({ stats = {} }) => {
             </div>
             <div className="overflow-hidden">
               <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#C4A882]">{card.label}</p>
-              <h3 className="text-3xl leading-tight text-[#2C1A0E]" style={adminHeadingFont}>
+              <h3 className="text-2xl sm:text-3xl leading-tight text-[#2C1A0E]" style={adminHeadingFont}>
                 {card.value}
               </h3>
               <p className="mt-0.5 text-[9px] font-bold uppercase italic text-[#8B7355]">{card.desc}</p>

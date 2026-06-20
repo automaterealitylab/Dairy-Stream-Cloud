@@ -1,6 +1,9 @@
 import { supabase } from "../../config/supabase.js";
 import { addAmountToCustomerWallet } from "../customer/payments.service.js";
 import { enqueueWhatsAppNotification } from "../shared/whatsapp.service.js";
+import Razorpay from "razorpay";
+import crypto from "crypto";
+import { getRazorpayConfig } from "../../config/razorpay.js";
 
 /* ================================
    1. FARM SUBSCRIPTION (Your Plan)
@@ -657,4 +660,153 @@ export const updateCustomerPlan = async (customerId, newPlanName) => {
 
   if (error) throw error;
   return data;
+};
+
+/* ======================================================
+   ADMIN SaaS SUBSCRIPTION PAYMENTS
+====================================================== */
+
+const PLATFORM_PLAN_PRICES = {
+  Free: { monthly: 499, yearly: 4990 },
+  Growth: { monthly: 999, yearly: 9990 },
+  Prime: { monthly: 2499, yearly: 24990 },
+};
+
+export const createFarmPlanOrder = async ({ dairyId, plan, cycle }) => {
+  const prices = PLATFORM_PLAN_PRICES[plan];
+  if (!prices) {
+    throw new Error(`Invalid plan selected: ${plan}`);
+  }
+
+  const amount = cycle === "yearly" ? prices.yearly : prices.monthly;
+  if (!amount) {
+    throw new Error(`Invalid billing cycle: ${cycle}`);
+  }
+
+  const { keyId, keySecret } = getRazorpayConfig();
+  const razorpay = new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
+
+  const orderPayload = {
+    amount: Math.round(amount * 100),
+    currency: "INR",
+    receipt: `dairy_${dairyId}_plan_${plan}_${Date.now()}`.slice(0, 40),
+    partial_payment: false,
+    notes: {
+      dairy_id: String(dairyId),
+      plan,
+      cycle,
+      payment_type: "saas_subscription",
+    },
+  };
+
+  const order = await razorpay.orders.create(orderPayload);
+  return {
+    keyId,
+    order,
+  };
+};
+
+export const verifyFarmPlanPayment = async ({
+  dairyId,
+  plan,
+  cycle,
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature,
+}) => {
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    throw new Error("Missing Razorpay verification fields");
+  }
+
+  const { keySecret } = getRazorpayConfig();
+  const generatedSignature = crypto
+    .createHmac("sha256", keySecret)
+    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+    .digest("hex");
+
+  if (generatedSignature !== razorpaySignature) {
+    throw new Error("Payment signature verification failed");
+  }
+
+  // Update the dairy's plan to the selected plan
+  return await updateFarmPlan(dairyId, plan);
+};
+
+export const createFarmPlanSubscription = async ({ dairyId, plan, cycle }) => {
+  const prices = PLATFORM_PLAN_PRICES[plan];
+  if (!prices) {
+    throw new Error(`Invalid plan selected: ${plan}`);
+  }
+
+  const amount = cycle === "yearly" ? prices.yearly : prices.monthly;
+  if (!amount) {
+    throw new Error(`Invalid billing cycle: ${cycle}`);
+  }
+
+  const { keyId, keySecret } = getRazorpayConfig();
+  const razorpay = new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
+
+  // 1. Create a plan dynamically in Razorpay
+  const razorpayPlan = await razorpay.plans.create({
+    period: cycle === "yearly" ? "yearly" : "monthly",
+    interval: 1,
+    item: {
+      name: `${plan} Plan SaaS Subscription (${cycle})`,
+      amount: Math.round(amount * 100), // in paise
+      currency: "INR",
+      description: `Recurring SaaS fee for plan: ${plan}`
+    }
+  });
+
+  // 2. Create the subscription mandate
+  const subscription = await razorpay.subscriptions.create({
+    plan_id: razorpayPlan.id,
+    total_count: cycle === "yearly" ? 5 : 60,
+    quantity: 1,
+    customer_notify: 1,
+    notes: {
+      dairy_id: String(dairyId),
+      plan,
+      cycle,
+      payment_type: "saas_subscription_mandate"
+    }
+  });
+
+  return {
+    keyId,
+    subscriptionId: subscription.id,
+    shortUrl: subscription.short_url
+  };
+};
+
+export const verifyFarmPlanSubscriptionPayment = async ({
+  dairyId,
+  plan,
+  cycle,
+  razorpayPaymentId,
+  razorpaySubscriptionId,
+  razorpaySignature,
+}) => {
+  if (!razorpayPaymentId || !razorpaySubscriptionId || !razorpaySignature) {
+    throw new Error("Missing subscription verification fields");
+  }
+
+  const { keySecret } = getRazorpayConfig();
+  const generatedSignature = crypto
+    .createHmac("sha256", keySecret)
+    .update(`${razorpayPaymentId}|${razorpaySubscriptionId}`)
+    .digest("hex");
+
+  if (generatedSignature !== razorpaySignature) {
+    throw new Error("Subscription payment signature verification failed");
+  }
+
+  // Update the dairy's plan to the selected plan since the first transaction cleared successfully!
+  return await updateFarmPlan(dairyId, plan);
 };

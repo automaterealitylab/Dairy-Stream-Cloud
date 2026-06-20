@@ -639,15 +639,15 @@ export default function AdminProfile() {
       <main className="px-4 py-8 pb-24 sm:px-6 lg:ml-64 lg:px-10">
         <section className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-8 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-5">
-              <div className="flex h-24 w-24 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#FDE9C9_0%,#FFF7EA_100%)] text-3xl font-black text-[#B8641A] shadow-[0_16px_30px_rgba(184,100,26,0.14)]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#FDE9C9_0%,#FFF7EA_100%)] text-3xl font-black text-[#B8641A] shadow-[0_16px_30px_rgba(184,100,26,0.14)]">
                 {getInitials(dairyName)}
               </div>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B89970]">
                   Dairy Profile
                 </span>
-                <h1 className="mt-2 text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+                <h1 className="mt-2 text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
                   {dairyName}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#7B6247]">

@@ -60,7 +60,7 @@ export default function AdminHeader({ adminName }) {
       </p>
       
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <h1 className="text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+        <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
           Welcome back, {adminName || "Admin"}
         </h1>
         

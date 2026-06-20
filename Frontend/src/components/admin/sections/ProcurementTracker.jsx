@@ -337,8 +337,8 @@ const ProcurementTracker = ({
       </div>
 
       {showEntryForm ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-5xl rounded-[32px] border border-[#EDE8DF] bg-white p-6 shadow-[0_24px_60px_rgba(44,26,14,0.18)] sm:p-8">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center bg-black/40 p-0 sm:p-4">
+          <div className="w-full max-w-5xl rounded-t-[32px] sm:rounded-[32px] max-h-[90vh] overflow-y-auto border border-[#EDE8DF] bg-white p-6 shadow-[0_24px_60px_rgba(44,26,14,0.18)] sm:p-8">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h3 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>
@@ -485,8 +485,8 @@ const ProcurementTracker = ({
       ) : null}
 
       {activeHistoryGroup ? (
-        <div className="fixed inset-0 z-[82] flex items-center justify-center bg-black/45 px-4">
-          <div className="flex max-h-[86vh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white shadow-[0_24px_60px_rgba(44,26,14,0.18)]">
+        <div className="fixed inset-0 z-[82] flex items-end justify-center sm:items-center bg-black/45 p-0 sm:p-4">
+          <div className="flex max-h-[90vh] sm:max-h-[86vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[32px] sm:rounded-[32px] border border-[#EDE8DF] bg-white shadow-[0_24px_60px_rgba(44,26,14,0.18)]">
             <div className="flex items-start justify-between gap-4 border-b border-[#F2EDE4] px-6 py-4 sm:px-8">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970]">

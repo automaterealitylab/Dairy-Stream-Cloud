@@ -484,3 +484,31 @@ export const markAllAdminNotificationsRead = async () => {
   const { data } = await client.post("/admin/notifications/read-all");
   return data;
 };
+
+export const createAdminFarmPlanOrder = async ({ plan, cycle }) => {
+  const { data } = await client.post("/admin/farm-plan/order", { plan, cycle });
+  return data;
+};
+
+export const verifyAdminFarmPlanPayment = async (payload) => {
+  const { data } = await client.post("/admin/farm-plan/verify", payload);
+  patchCachedDashboard((current) => ({
+    ...current,
+    selectedPlan: data?.selected_plan || payload.plan,
+  }));
+  return data;
+};
+
+export const createAdminFarmPlanSubscription = async ({ plan, cycle }) => {
+  const { data } = await client.post("/admin/farm-plan/subscription", { plan, cycle });
+  return data;
+};
+
+export const verifyAdminFarmPlanSubscriptionPayment = async (payload) => {
+  const { data } = await client.post("/admin/farm-plan/subscription/verify", payload);
+  patchCachedDashboard((current) => ({
+    ...current,
+    selectedPlan: data?.selected_plan || payload.plan,
+  }));
+  return data;
+};

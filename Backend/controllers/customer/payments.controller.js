@@ -2,6 +2,10 @@ import {
   createCustomerUpiPaymentIntent,
   getCustomerPaymentsData,
   submitCustomerUpiPaymentVerification,
+  createCustomerPaymentOrder,
+  verifyCustomerPayment,
+  createCustomerWalletTopupOrder,
+  verifyCustomerWalletTopup,
 } from "../../services/customer/payments.service.js";
 import { getScreenshotHash } from "../../services/customer/smartPaymentVerification.service.js";
 import { runPaymentScreenshotOcr } from "../../services/customer/ocr.service.js";
@@ -39,7 +43,7 @@ export const getPayments = async (req, res) => {
 export const createPaymentOrder = async (req, res) => {
   try {
     const { paymentId, payAll, includeRunningDue } = req.body || {};
-    const data = await createCustomerUpiPaymentIntent({
+    const data = await createCustomerPaymentOrder({
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
@@ -49,7 +53,7 @@ export const createPaymentOrder = async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error("CREATE PAYMENT ORDER ERROR:", err.message);
-    res.status(400).json({
+    res.status(err.statusCode || 400).json({
       message: err.message || "Failed to create payment order",
     });
   }
@@ -161,9 +165,18 @@ export const previewUpiPaymentScreenshotOcr = async (req, res) => {
 
 export const verifyPayment = async (req, res) => {
   try {
-    res.status(410).json({
-      message: "Gateway verification is disabled. Submit UPI UTR verification instead.",
+    const { paymentId, payAll, includeRunningDue, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+    const data = await verifyCustomerPayment({
+      customerId: req.customer.id,
+      paymentId,
+      payAll: Boolean(payAll),
+      includeRunningDue: includeRunningDue === undefined ? true : Boolean(includeRunningDue),
+      dairyId: req.customer?.dairyId ?? null,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
     });
+    res.json(data);
   } catch (err) {
     console.error("VERIFY PAYMENT ERROR:", err.message);
     res.status(400).json({
@@ -174,12 +187,16 @@ export const verifyPayment = async (req, res) => {
 
 export const createWalletTopupOrder = async (req, res) => {
   try {
-    res.status(410).json({
-      message: "Wallet top-up gateway payments are disabled. Pay dairy bills directly through UPI.",
+    const { amount } = req.body || {};
+    const data = await createCustomerWalletTopupOrder({
+      customerId: req.customer.id,
+      dairyId: req.customer?.dairyId ?? null,
+      amount,
     });
+    res.json(data);
   } catch (err) {
     console.error("CREATE WALLET TOPUP ORDER ERROR:", err.message);
-    res.status(400).json({
+    res.status(err.statusCode || 400).json({
       message: err.message || "Failed to create wallet top-up order",
     });
   }
@@ -187,9 +204,16 @@ export const createWalletTopupOrder = async (req, res) => {
 
 export const verifyWalletTopup = async (req, res) => {
   try {
-    res.status(410).json({
-      message: "Wallet top-up gateway verification is disabled.",
+    const { amount, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+    const data = await verifyCustomerWalletTopup({
+      customerId: req.customer.id,
+      dairyId: req.customer?.dairyId ?? null,
+      amount,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
     });
+    res.json(data);
   } catch (err) {
     console.error("VERIFY WALLET TOPUP ERROR:", err.message);
     res.status(400).json({
@@ -197,4 +221,3 @@ export const verifyWalletTopup = async (req, res) => {
     });
   }
 };
-

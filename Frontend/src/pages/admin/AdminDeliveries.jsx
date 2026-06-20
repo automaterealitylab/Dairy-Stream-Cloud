@@ -530,7 +530,7 @@ export default function AdminDeliveries() {
           {/* Delivery Log Section */}
           <div className="overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
             <div className="border-b border-[#F2EDE4] bg-[#FFFDF8] p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_220px_auto] lg:items-end">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_220px_auto] lg:items-end">
                 <label className="block min-w-0">
                   <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
                     Search
@@ -631,8 +631,8 @@ export default function AdminDeliveries() {
 
                     <div className="divide-y divide-[#F3EEE5]">
                       {group.deliveries.map((d) => (
-                        <article key={d.id} className="grid gap-2 px-4 py-2.5 lg:grid-cols-[1.6fr_1fr_0.8fr_0.8fr_auto] lg:items-center">
-                          <div className="min-w-0">
+                        <article key={d.id} className="grid gap-3 px-4 py-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_0.8fr_0.8fr_auto] items-start lg:items-center">
+                          <div className="min-w-0 sm:col-span-2 lg:col-span-1">
                             <p className="truncate text-[13px] font-bold uppercase tracking-[0.12em] text-[#2C1A0E]">
                               Flat {d.roomNo || "-"}
                             </p>
