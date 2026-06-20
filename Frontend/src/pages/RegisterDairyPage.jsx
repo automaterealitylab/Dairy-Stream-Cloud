@@ -58,6 +58,8 @@ const RegisterDairyPage = () => {
     bank_branch: "",
     upi_id: "",
     razorpay_linked_account_id: "",
+    one_time_payment_method: "DIRECT_UPI",
+    subscription_payment_method: "DIRECT_UPI",
 
     selected_plan: "GROWTH",
 
@@ -122,7 +124,9 @@ async (pos) => {
       pincode: address.postcode || ""
     }));
 
-  } catch (err) {}
+  } catch {
+    toast("GPS captured, but address lookup failed. Please enter the address manually.");
+  }
 
   toast.success("GPS Locked!", { id: toastId });
 

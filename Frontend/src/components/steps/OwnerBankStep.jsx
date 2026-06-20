@@ -1,5 +1,5 @@
 import React from "react";
-import { CreditCard, Landmark, ShieldCheck, UserCircle2 } from "lucide-react";
+import { CreditCard, Landmark, QrCode, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
@@ -11,6 +11,53 @@ const labelClassName =
 
 const sectionCardClassName =
   "space-y-4 rounded-[22px] border p-4 sm:rounded-[24px] sm:p-5";
+
+const paymentOptions = [
+  {
+    key: "one_time",
+    title: "One-Time Orders",
+    description: "Extra products and single delivery orders placed by customers.",
+    Icon: ReceiptText,
+    methodName: "one_time_payment_method",
+  },
+  {
+    key: "subscription",
+    title: "Monthly Subscription",
+    description: "Recurring customer milk bills and monthly subscription dues.",
+    Icon: CreditCard,
+    methodName: "subscription_payment_method",
+  },
+];
+
+const PaymentMethodRadio = ({ name, value, checked, onChange, title, description, icon }) => (
+  <label
+    className={`flex cursor-pointer items-start gap-3 rounded-[18px] border px-4 py-3 transition ${
+      checked
+        ? "border-[#B8641A] bg-[#FFF4E2] shadow-sm"
+        : "border-[#E7DAC6] bg-white hover:border-[#D4B896]"
+    }`}
+  >
+    <input
+      type="radio"
+      name={name}
+      value={value}
+      checked={Boolean(checked)}
+      onChange={onChange}
+      className="mt-1 h-4 w-4 accent-[#B8641A]"
+    />
+    <div className="flex min-w-0 flex-1 items-start gap-3">
+      <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${
+        checked ? "bg-white text-[#B8641A]" : "bg-[#FBF7F0] text-[#8B7355]"
+      }`}>
+        {React.createElement(icon, { size: 17 })}
+      </div>
+      <div>
+        <p className="text-sm font-black text-[#2C1A0E]">{title}</p>
+        <p className="mt-1 text-xs font-semibold leading-5 text-[#8B7355]">{description}</p>
+      </div>
+    </div>
+  </label>
+);
 
 const OwnerBankStep = ({ formData, handleChange }) => (
   <div className="custom-scrollbar animate-in fade-in slide-in-from-right-4 max-h-[calc(100vh-320px)] overflow-y-auto p-5 pb-24 pr-3 sm:max-h-[calc(100vh-340px)] sm:p-8 sm:pb-28 sm:pr-4">
@@ -121,6 +168,64 @@ const OwnerBankStep = ({ formData, handleChange }) => (
               />
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className={`${sectionCardClassName} border-[#E7DAC6] bg-white`}>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FBF2E8] text-[#B8641A]">
+            <QrCode size={19} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#5C3D1E]">
+              Customer Payment Acceptance
+            </h3>
+            <p className="mt-1 text-sm text-[#8B7355]">
+              Choose how customers can pay for one-time orders and monthly subscription bills.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {paymentOptions.map(({ key, title, description, Icon: purposeIcon, methodName }) => (
+            <div key={key} className="rounded-[20px] border border-[#E7DAC6] bg-[#FBF7F0] p-4">
+              <div className="mb-4 flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-[#B8641A]">
+                  {React.createElement(purposeIcon, { size: 17 })}
+                </div>
+                <div>
+                  <p className="text-sm font-black text-[#2C1A0E]">{title}</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-[#8B7355]">{description}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <PaymentMethodRadio
+                  name={methodName}
+                  value="DIRECT_UPI"
+                  checked={formData[methodName] === "DIRECT_UPI"}
+                  onChange={handleChange}
+                  title="Direct UPI QR"
+                  description="Customer pays to your UPI QR and must share a screenshot or payment reference id."
+                  icon={QrCode}
+                />
+                <PaymentMethodRadio
+                  name={methodName}
+                  value="RAZORPAY"
+                  checked={formData[methodName] === "RAZORPAY"}
+                  onChange={handleChange}
+                  title="Razorpay Checkout"
+                  description="Gateway payment with 2% Razorpay charge plus 18% GST on that charge."
+                  icon={CreditCard}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-2 rounded-[18px] border border-dashed border-[#DDBF95] bg-[#FFF8EE] px-4 py-3 text-xs font-semibold leading-5 text-[#7B6247] sm:grid-cols-2">
+          <span>Direct UPI proof rule: screenshot or payment reference id is required.</span>
+          <span>Razorpay fee rule: 2% platform charge + 18% GST on that charge.</span>
         </div>
       </div>
 
