@@ -11,6 +11,12 @@ import {
   resolveStoredAccountNumber,
   serializeDairyBankFields,
 } from "../../utils/bankAccountSecurity.js";
+import {
+  createLinkedAccount,
+  createStakeholder,
+  requestRouteProduct,
+  updateRouteSettlementConfig,
+} from "../marketplace/razorpayRoute.service.js";
 
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 const normalizeIfsc = (value) => String(value || "").trim().toUpperCase();
@@ -272,7 +278,7 @@ export const updateAdminDairyProfileService = async ({
 
   const { data: existingDairy, error: existingError } = await supabase
     .from("dairies")
-    .select("id, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, bank_ifsc_code, bank_verified")
+    .select("id, dairy_name, owner_name, dairy_email, dairy_phone, address, city, state, pincode, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, bank_ifsc_code, bank_verified")
     .eq("id", normalizedDairyId)
     .limit(1)
     .maybeSingle();
@@ -295,6 +301,70 @@ export const updateAdminDairyProfileService = async ({
     normalizeIfsc(existingDairy.bank_ifsc_code) !== sanitizedIfsc;
   const timestamp = new Date().toISOString();
   const encryptedAccountNumber = encryptAccountNumber(sanitizedAccountNumber);
+
+  // AUTOMATION: If bank details changed/added and PAN is provided, onboard to Razorpay Route
+  let razorpayOnboarding = {};
+  if (bankDetailsChanged && sanitizedAccountNumber && sanitizedIfsc && payload.pan) {
+    try {
+      const account = await createLinkedAccount({
+        dairyId: normalizedDairyId,
+        dairyName: normalizeString(payload.dairy_name) || existingDairy.dairy_name,
+        ownerName: normalizeString(payload.owner_name) || existingDairy.owner_name,
+        email: normalizeEmail(payload.dairy_email) || existingDairy.dairy_email,
+        phone: normalizeDigits(payload.dairy_phone) || existingDairy.dairy_phone,
+        pan: normalizeString(payload.pan),
+        address: normalizeString(payload.address) || existingDairy.address,
+        city: normalizeString(payload.city) || existingDairy.city || "NA",
+        state: normalizeString(payload.state) || existingDairy.state || "NA",
+        pincode: normalizeDigits(payload.pincode) || existingDairy.pincode || "000000",
+      });
+
+      const stakeholder = await createStakeholder({
+        accountId: account.id,
+        ownerName: normalizeString(payload.owner_name) || existingDairy.owner_name,
+        email: normalizeEmail(payload.dairy_email) || existingDairy.dairy_email,
+        phone: normalizeDigits(payload.dairy_phone) || existingDairy.dairy_phone,
+        pan: normalizeString(payload.pan),
+        address: normalizeString(payload.address) || existingDairy.address,
+        city: normalizeString(payload.city) || existingDairy.city || "NA",
+        state: normalizeString(payload.state) || existingDairy.state || "NA",
+        pincode: normalizeDigits(payload.pincode) || existingDairy.pincode || "000000",
+      });
+
+      const product = await requestRouteProduct(account.id);
+      const productId = product?.id;
+
+      if (productId) {
+        await updateRouteSettlementConfig({
+          accountId: account.id,
+          productId,
+          accountNumber: sanitizedAccountNumber,
+          ifsc: sanitizedIfsc,
+          beneficiaryName: normalizeString(payload.bank_account_holder_name) || normalizeString(payload.owner_name) || "Owner",
+        });
+      }
+
+      razorpayOnboarding = {
+        pan: normalizeString(payload.pan),
+        razorpay_account_id: account.id,
+        razorpay_linked_account_id: account.id,
+        razorpay_stakeholder_id: stakeholder?.id || null,
+        razorpay_route_product_id: productId || null,
+        route_activation_status: "ACTIVATED",
+        payments_enabled: true,
+      };
+    } catch (err) {
+      console.error("Auto-onboarding to Razorpay Route failed:", err.message);
+      razorpayOnboarding = {
+        pan: normalizeString(payload.pan),
+        route_activation_status: "RAZORPAY_SETUP_FAILED",
+      };
+    }
+  } else if (payload.pan) {
+    razorpayOnboarding = {
+      pan: normalizeString(payload.pan),
+    };
+  }
 
   const dairyUpdate = {
     dairy_name: normalizeString(payload.dairy_name),
@@ -320,6 +390,7 @@ export const updateAdminDairyProfileService = async ({
     payment_verification_mode: "MANUAL",
     payments_enabled: Boolean(existingDairy.bank_verified) && !bankDetailsChanged,
     account_last_updated_at: bankDetailsChanged ? timestamp : undefined,
+    ...razorpayOnboarding,
     ...(bankDetailsChanged
       ? buildVerificationResetFields({
           hasBankDetails: Boolean(sanitizedAccountNumber && sanitizedIfsc),
