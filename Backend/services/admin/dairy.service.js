@@ -210,7 +210,7 @@ export const getAdminDairyProfileService = async ({ adminId, dairyId, revealBank
     supabase
       .from("dairies")
       .select(
-        "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at"
+        "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at, pan"
       )
       .eq("id", normalizedDairyId)
       .limit(1)
@@ -302,9 +302,12 @@ export const updateAdminDairyProfileService = async ({
   const timestamp = new Date().toISOString();
   const encryptedAccountNumber = encryptAccountNumber(sanitizedAccountNumber);
 
-  // AUTOMATION: If bank details changed/added and PAN is provided, onboard to Razorpay Route
+  // AUTOMATION: If bank details changed/added (or no linked account exists yet) and PAN is provided, onboard to Razorpay Route
+  const hasLinkedAccount = Boolean(existingDairy.razorpay_linked_account_id);
+  const shouldOnboard = (bankDetailsChanged || !hasLinkedAccount) && sanitizedAccountNumber && sanitizedIfsc && payload.pan;
+
   let razorpayOnboarding = {};
-  if (bankDetailsChanged && sanitizedAccountNumber && sanitizedIfsc && payload.pan) {
+  if (shouldOnboard) {
     try {
       const account = await createLinkedAccount({
         dairyId: normalizedDairyId,
@@ -355,6 +358,9 @@ export const updateAdminDairyProfileService = async ({
       };
     } catch (err) {
       console.error("Auto-onboarding to Razorpay Route failed:", err.message);
+      if (err.response?.data) {
+        console.error("Razorpay API Error Payload:", JSON.stringify(err.response.data, null, 2));
+      }
       razorpayOnboarding = {
         pan: normalizeString(payload.pan),
         route_activation_status: "RAZORPAY_SETUP_FAILED",
@@ -405,7 +411,7 @@ export const updateAdminDairyProfileService = async ({
     .update(dairyUpdate)
     .eq("id", normalizedDairyId)
     .select(
-      "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at"
+      "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at, pan"
     )
     .single();
 
