@@ -6,6 +6,10 @@ import "./index.css";
 import App from "./App.jsx";
 import { AuthProvider } from "./hooks/useAuth.jsx";
 import debugAdmin from "./utils/adminDebug.js";
+import { initTheme } from "./components/admin/adminTheme.js";
+
+// Initialize Theme
+initTheme();
 
 // Expose debug utility globally for development
 window.__debugAdmin = debugAdmin;
@@ -36,5 +40,3 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
       );
   });
 }
-
-

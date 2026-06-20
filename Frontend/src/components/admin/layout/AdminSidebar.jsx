@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { Sun, Moon, X } from "lucide-react";
 
 import { fetchAdminDashboard, getCachedAdminDashboard } from "../../../api/admin.api.js";
 import { canAccessAdminFeature, normalizeAdminPlan } from "../../../utils/adminPlanAccess.js";
-import { adminHeadingFont, adminShellFont } from "../adminTheme";
+import { adminHeadingFont, adminShellFont, useTheme } from "../adminTheme";
 
 const menuItems = [
   {
@@ -110,6 +111,7 @@ const menuItems = [
 
 export default function AdminSidebar({ open, onClose }) {
   const navigate = useNavigate();
+  const { theme, isDark, toggleTheme } = useTheme();
   const [selectedPlan, setSelectedPlan] = useState(() =>
     normalizeAdminPlan(getCachedAdminDashboard()?.selectedPlan)
   );
@@ -172,23 +174,33 @@ export default function AdminSidebar({ open, onClose }) {
           border-r border-[#EDE8DF] bg-white/95 backdrop-blur
           flex h-screen min-h-0 flex-col
           transform transition-transform duration-300 ease-out
+          dark:border-[#1E293B] dark:bg-[#0B0F19]
           ${open ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
         `}
         style={adminShellFont}
       >
         {/* Brand */}
-        <div className="border-b border-[#F2EDE4] px-5 py-4">
-          <h2 className="text-[26px] text-[#B8641A]" style={adminHeadingFont}>
-            DairyStream
-          </h2>
-          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-            Admin Portal
-          </p>
+        <div className="relative border-b border-[#F2EDE4] px-5 py-4 dark:border-[#1E293B]">
+          <div>
+            <h2 className="text-[26px] text-[#B8641A] dark:text-[#00C896] font-black" style={adminHeadingFont}>
+              DairyStream
+            </h2>
+            <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] dark:text-slate-500">
+              Admin Portal
+            </p>
+          </div>
+          {/* Close button on mobile */}
+          <button
+            onClick={onClose}
+            className="lg:hidden absolute right-4 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/5 hover:bg-black/10 text-[#8B7355] dark:bg-white/10 dark:hover:bg-white/15 dark:text-slate-400 transition"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-5">
+        <nav className="flex-1 space-y-1 px-3 py-5 overflow-y-auto">
           {visibleMenuItems.map((item) => (
             <NavLink
               key={item.label}
@@ -196,40 +208,75 @@ export default function AdminSidebar({ open, onClose }) {
               onClick={onClose}
               className={({ isActive }) =>
                 `
-                relative group flex items-center gap-4
+                relative flex items-center justify-between
                 px-3 py-2.5 rounded-xl text-sm font-semibold
-                transition-all
+                transition-all border
                 ${
                   isActive
-                    ? "bg-[#FDE9C9] text-[#B8641A]"
-                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
+                    ? "bg-[#FDE9C9] text-[#B8641A] border-[#E5C79D] dark:bg-transparent dark:text-[#00C896] dark:border-[#00C896]"
+                    : "text-[#8B7355] border-transparent hover:bg-[#FDF6EC] hover:text-[#5C3D1E] dark:text-slate-400 dark:hover:bg-[#121829] dark:hover:text-white"
                 }
               `
               }
             >
-              {/* Active indicator (Stripe-style) */}
-              <span
-                className={`
-                  absolute left-0 top-1/2 -translate-y-1/2
-                  h-6 w-1 rounded-full
-                  bg-[#B8641A]
-                  transition-opacity
-                  opacity-0 group-[.active]:opacity-100
-                `}
-              />
+              {({ isActive }) => (
+                <>
+                  <div className="flex items-center gap-4">
+                    {/* Icon */}
+                    <span
+                      className={`transition-colors ${
+                        isActive
+                          ? "text-[#B8641A] dark:text-[#00C896]"
+                          : "text-[#B89970] dark:text-slate-400 group-hover:text-[#8B7355] dark:group-hover:text-white"
+                      }`}
+                    >
+                      {item.icon}
+                    </span>
 
-              {/* Icon */}
-              <span className="text-[#B89970] group-hover:text-[#8B7355] group-[.active]:text-[#B8641A]">
-                {item.icon}
-              </span>
+                    <span className="truncate">{item.label}</span>
+                  </div>
 
-              <span className="truncate">{item.label}</span>
+                  {/* Active indicators */}
+                  {/* Left stripe in light mode */}
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-[#B8641A] dark:hidden" />
+                  )}
+
+                  {/* Right green dot in dark mode */}
+                  {isActive && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#00C896] hidden dark:block" />
+                  )}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
+        {/* Theme Toggle Button */}
+        <div className="px-3 py-2 shrink-0">
+          <button
+            onClick={toggleTheme}
+            className="
+              w-full flex items-center justify-between
+              rounded-[12px] border-[1px] border-[#EDE8DF] bg-[#ffffff] py-2 px-4
+              text-xs font-bold text-[#8B7355] dark:text-slate-400
+              dark:border-[#1E293B] dark:bg-[#121829]
+              hover:border-[#F2EDE4] hover:bg-[#FDF6EC] dark:hover:bg-[#1C243A]
+              transition focus:outline-none shadow-sm
+            "
+          >
+            <span className="flex items-center gap-2">
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+              <span>{isDark ? "Light Theme" : "Dark Theme"}</span>
+            </span>
+            <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
+              {theme}
+            </span>
+          </button>
+        </div>
+
         {/* Logout */}
-        <div className="shrink-0 border-t border-[#F2EDE4] px-5 py-4">
+        <div className="shrink-0 border-t border-[#F2EDE4] px-5 py-4 dark:border-[#1E293B]">
           <button
             onClick={() => {
               localStorage.clear();
@@ -237,11 +284,13 @@ export default function AdminSidebar({ open, onClose }) {
             }}
             className="
               w-full flex items-center justify-center gap-2
-              rounded-[12px] border border-[#EDE8DF] bg-white py-2.5
+              rounded-[12px] border-[1px] border-[#EDE8DF] bg-[#ffffff] py-2.5
               text-sm font-semibold text-[#B89970]
               hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B]
               transition
               focus:outline-none focus:ring-2 focus:ring-[#E8C6A2]
+              dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400
+              dark:hover:bg-red-500/20 dark:focus:ring-red-500/30
             "
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5">

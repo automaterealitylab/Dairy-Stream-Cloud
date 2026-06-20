@@ -1,5 +1,5 @@
 import React from "react";
-import { ShieldAlert, AlertTriangle, Ghost, MessageSquareWarning } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Ghost, MessageSquareWarning, ShieldCheck } from "lucide-react";
 import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
 const CustomerRiskIndicator = ({ riskData = [] }) => {
@@ -8,24 +8,26 @@ const CustomerRiskIndicator = ({ riskData = [] }) => {
   const getRiskLevel = (customer) => {
     const score = (customer.failed_payments || 0) + (customer.pauses || 0) * 0.5 + (customer.complaints || 0);
 
-    if (score >= 5) return { label: "High Risk", color: "bg-[#A85734]", text: "text-[#A85734]", bg: "bg-[#FFF4EE]" };
-    if (score >= 2.5) return { label: "Moderate", color: "bg-[#C26D2C]", text: "text-[#C26D2C]", bg: "bg-[#FFF1E5]" };
-    return { label: "Stable", color: "bg-[#6F8C45]", text: "text-[#6F8C45]", bg: "bg-[#F4F7ED]" };
+    if (score >= 5) return { label: "High Risk", color: "bg-[#A85734] dark:bg-red-500", text: "text-[#A85734] dark:text-red-400", bg: "bg-[#FFF4EE] dark:bg-red-500/5" };
+    if (score >= 2.5) return { label: "Moderate", color: "bg-[#C26D2C] dark:bg-amber-500", text: "text-[#C26D2C] dark:text-amber-400", bg: "bg-[#FFF1E5] dark:bg-amber-500/5" };
+    return { label: "Stable", color: "bg-[#6F8C45] dark:bg-emerald-500", text: "text-[#6F8C45] dark:text-emerald-400", bg: "bg-[#F4F7ED] dark:bg-emerald-500/5" };
   };
 
   return (
     <div
-      className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]"
+      className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:bg-[#121829] dark:border-[#1E293B] dark:shadow-none"
       style={adminShellFont}
     >
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ShieldAlert size={20} className="text-[#B89970]" />
-          <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>
+          <ShieldAlert size={20} className="text-[#B89970] dark:text-slate-400" />
+          <h3 className="text-xl text-[#2C1A0E] dark:text-white font-black" style={adminHeadingFont}>
             Risk Analysis
           </h3>
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[#C4A882]">30 Day Window</span>
+        <span className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[#FDF6EC] text-[#B89970] dark:bg-slate-800 dark:text-slate-400">
+          30D
+        </span>
       </div>
 
       <div className="space-y-3">
@@ -33,27 +35,27 @@ const CustomerRiskIndicator = ({ riskData = [] }) => {
           safeRiskData.map((customer, i) => {
             const risk = getRiskLevel(customer);
             return (
-              <div key={i} className={`rounded-2xl border border-[#F2EDE4] p-4 transition-all hover:shadow-sm ${risk.bg}`}>
+              <div key={i} className={`rounded-2xl border border-[#F2EDE4] p-4 transition-all hover:shadow-sm dark:border-[#1E293B] ${risk.bg}`}>
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className={`h-2 w-2 rounded-full ${risk.color}`} />
-                      <span className="text-sm font-bold text-[#2C1A0E]">{customer?.name || "Unknown"}</span>
+                      <span className="text-sm font-bold text-[#2C1A0E] dark:text-white">{customer?.name || "Unknown"}</span>
                     </div>
                     <p className={`text-[10px] font-black uppercase ${risk.text}`}>{risk.label}</p>
                   </div>
 
-                  <div className="flex items-center gap-4 text-[#8B7355]">
+                  <div className="flex items-center gap-4 text-[#8B7355] dark:text-slate-400">
                     <div className="flex items-center gap-1">
-                      <AlertTriangle size={12} className="text-[#A85734]" />
+                      <AlertTriangle size={12} className="text-[#A85734] dark:text-red-400" />
                       <span className="text-[11px] font-bold">{customer.failed_payments || 0} Fails</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Ghost size={12} className="text-[#C26D2C]" />
+                      <Ghost size={12} className="text-[#C26D2C] dark:text-amber-400" />
                       <span className="text-[11px] font-bold">{customer.pauses || 0} Pauses</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <MessageSquareWarning size={12} className="text-[#B8641A]" />
+                      <MessageSquareWarning size={12} className="text-[#B8641A] dark:text-orange-400" />
                       <span className="text-[11px] font-bold">{customer.complaints || 0} Issues</span>
                     </div>
                   </div>
@@ -62,8 +64,14 @@ const CustomerRiskIndicator = ({ riskData = [] }) => {
             );
           })
         ) : (
-          <div className="py-8 text-center">
-            <p className="text-sm font-bold italic text-[#B89970]">All customers are healthy.</p>
+          <div className="rounded-[24px] border border-dashed border-[#E5D9C7] bg-[#FFFDF8] py-8 text-center dark:border-slate-800/60 dark:bg-slate-900/20 flex flex-col items-center justify-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-[#00C896] dark:bg-[#10B981]/15 dark:text-[#00C896]">
+              <ShieldCheck size={20} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-bold text-[#6F8C45] dark:text-[#00C896]">All customers healthy</p>
+              <p className="text-[10px] font-semibold text-[#8B7355] dark:text-slate-400 mt-0.5">No churn signals detected</p>
+            </div>
           </div>
         )}
       </div>

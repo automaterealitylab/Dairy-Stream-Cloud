@@ -29,6 +29,7 @@ import {
 } from "../../api/admin.api";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
 const readStoredAdmin = () => {
@@ -634,11 +635,11 @@ export default function AdminProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminMobileTopbar adminName={dairyName || adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 pb-24 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         <section className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-8 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -1014,6 +1015,7 @@ export default function AdminProfile() {
           Loading profile
         </div>
       ) : null}
+      <AdminMobileBottomNav />
     </div>
   );
 }

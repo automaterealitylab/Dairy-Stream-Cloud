@@ -7,6 +7,7 @@ import {
 } from "../../api/admin.api.js";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
+import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
@@ -41,6 +42,15 @@ export default function AdminProducts() {
   const [products, setProducts] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(defaultForm);
+
+  const adminName = useMemo(() => {
+    try {
+      const adminUserStr = localStorage.getItem("adminUser");
+      return adminUserStr ? JSON.parse(adminUserStr)?.name : "Admin";
+    } catch {
+      return "Admin";
+    }
+  }, []);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -145,22 +155,22 @@ export default function AdminProducts() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={adminShellFont}>
-      <AdminMobileTopbar adminName="Products" onMenu={() => setSidebarOpen(true)} />
+    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+      <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Products & Stock</h1>
-            <p className="mt-1 text-sm text-[#8B7355]">
+            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>Products & Stock</h1>
+            <p className="mt-1 text-sm text-[#8B7355] dark:text-slate-400">
               Add milk, dahi, paneer and track available stock for customer orders.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            <div className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2 text-sm text-[#8B7355]">
-              Total SKUs: <span className="font-semibold text-[#2C1A0E]">{products.length}</span> | Total Stock:{" "}
-              <span className="font-semibold text-[#2C1A0E]">{totalStock.toFixed(2)}</span>
+            <div className="rounded-xl border border-[#EDE8DF] bg-[#ffffff] px-4 py-2 text-sm text-[#8B7355] dark:border-[#1E293B] dark:bg-[#121829] dark:text-slate-400">
+              Total SKUs: <span className="font-semibold text-[#2C1A0E] dark:text-white">{products.length}</span> | Total Stock:{" "}
+              <span className="font-semibold text-[#2C1A0E] dark:text-white">{totalStock.toFixed(2)}</span>
             </div>
             <button type="button" onClick={startAddProduct} className="pro-btn-primary w-full sm:w-auto">
               Add Product
@@ -169,8 +179,8 @@ export default function AdminProducts() {
         </div>
 
         <div className="grid grid-cols-1 gap-6">
-          <section className="rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-            <div className="flex flex-col gap-3 border-b border-[#F2EDE4] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <section className="rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
+            <div className="flex flex-col gap-3 border-b border-[#F2EDE4] p-5 sm:flex-row sm:items-center sm:justify-between dark:border-[#1E293B]">
               <input
                 className="pro-input max-w-sm"
                 placeholder="Search by name or type"
@@ -182,11 +192,11 @@ export default function AdminProducts() {
             {loading ? (
               <LoadingIndicator className="py-10" message="Loading products..." />
             ) : products.length === 0 ? (
-              <div className="px-6 py-10 text-[#8B7355]">No products yet. Add your first product.</div>
+              <div className="px-6 py-10 text-[#8B7355] dark:text-slate-400">No products yet. Add your first product.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead className="bg-[#FFFDF8] text-xs uppercase text-[#C4A882]">
+                  <thead className="bg-[#FFFDF8] text-xs uppercase text-[#C4A882] dark:bg-[#161C2C] dark:text-slate-500">
                     <tr>
                       <th className="px-5 py-3">Name</th>
                       <th className="px-5 py-3">Type</th>
@@ -196,23 +206,23 @@ export default function AdminProducts() {
                       <th className="px-5 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
                     {products.map((item) => {
                       const shouldShowActive = item.isActive && !isOutOfStock(item.stockQuantity);
                       return (
                       <tr key={item.id}>
-                        <td className="px-5 py-3 font-medium text-gray-900">{item.name}</td>
-                        <td className="px-5 py-3 text-gray-600">{item.type}</td>
-                        <td className="px-5 py-3 text-gray-600">
+                        <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{item.name}</td>
+                        <td className="px-5 py-3 text-gray-600 dark:text-slate-300">{item.type}</td>
+                        <td className="px-5 py-3 text-gray-600 dark:text-slate-300">
                           Rs {toDecimal(item.ratePerUnit).toFixed(2)} / {item.unit}
                         </td>
-                        <td className="px-5 py-3 text-gray-600">{formatStockValue(item.stockQuantity)}</td>
+                        <td className="px-5 py-3 text-gray-600 dark:text-slate-300">{formatStockValue(item.stockQuantity)}</td>
                         <td className="px-5 py-3">
                           <span
                             className={`px-2 py-1 rounded text-xs font-medium ${
                               shouldShowActive
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-200 text-gray-700"
+                                ? "bg-green-100 text-green-700 dark:bg-emerald-500/10 dark:text-[#00C896]"
+                                : "bg-gray-200 text-gray-700 dark:bg-slate-800 dark:text-slate-400"
                             }`}
                           >
                             {shouldShowActive ? "Active" : "Inactive"}
@@ -223,14 +233,14 @@ export default function AdminProducts() {
                             <button
                               type="button"
                               onClick={() => startEdit(item)}
-                              className="px-3 py-1.5 rounded border text-sm text-gray-700 hover:bg-gray-50"
+                              className="px-3 py-1.5 rounded border text-sm text-gray-700 hover:bg-gray-50 dark:border-[#1E293B] dark:text-slate-300 dark:hover:bg-[#1C243A]"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDelete(item.id)}
-                              className="px-3 py-1.5 rounded border text-sm text-red-600 hover:bg-red-50"
+                              className="px-3 py-1.5 rounded border text-sm text-red-600 hover:bg-red-50 dark:border-red-500/20 dark:text-red-400 dark:hover:bg-red-500/10"
                             >
                               Delete
                             </button>
@@ -250,8 +260,8 @@ export default function AdminProducts() {
           <div
             className={`mt-5 rounded-xl px-4 py-3 text-sm ${
               feedback.type === "error"
-                ? "bg-red-50 text-red-700 border border-red-200"
-                : "bg-green-50 text-green-700 border border-green-200"
+                ? "bg-red-50 text-red-700 border border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20"
+                : "bg-green-50 text-green-700 border border-green-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
             }`}
           >
             {feedback.message}
@@ -260,20 +270,20 @@ export default function AdminProducts() {
 
         {showProductModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-            <div className="w-full max-w-2xl rounded-[28px] border border-[#EDE8DF] bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
+            <div className="w-full max-w-2xl rounded-[28px] border border-[#EDE8DF] bg-[#ffffff] p-5 shadow-[0_18px_45px_rgba(0,0,0,0.18)] dark:border-[#1E293B] dark:bg-[#121829]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>
+                  <h2 className="text-2xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>
                     {editingId ? "Edit Product" : "Add Product"}
                   </h2>
-                  <p className="mt-1 text-sm text-[#8B7355]">
+                  <p className="mt-1 text-sm text-[#8B7355] dark:text-slate-400">
                     Fill in the product details and save them to the catalog.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="rounded-full border border-[#EDE8DF] px-3 py-1.5 text-sm text-[#6F4A27] hover:bg-[#FAF7F1]"
+                  className="rounded-full border border-[#EDE8DF] px-3 py-1.5 text-sm text-[#6F4A27] hover:bg-[#FAF7F1] dark:border-[#1E293B] dark:text-slate-400 dark:hover:bg-[#1C243A]"
                 >
                   Close
                 </button>
@@ -332,7 +342,7 @@ export default function AdminProducts() {
                     required
                   />
                 </div>
-                <label className="inline-flex items-center gap-2 text-sm text-[#6F4A27]">
+                <label className="inline-flex items-center gap-2 text-sm text-[#6F4A27] dark:text-slate-400">
                   <input
                     type="checkbox"
                     checked={form.isActive}
@@ -357,6 +367,7 @@ export default function AdminProducts() {
           </div>
         )}
       </main>
+      <AdminMobileBottomNav />
     </div>
   );
 }
