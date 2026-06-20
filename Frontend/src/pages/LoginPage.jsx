@@ -28,7 +28,7 @@ const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 const headingFont = { fontFamily: "'Lora', serif" };
 
 const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const inputRef = useRef(null);
@@ -62,6 +62,19 @@ const LoginPage = () => {
   const [error, setError] = useState("");
 
   // ================= EFFECTS =================
+  useEffect(() => {
+    if (!authLoading && user) {
+      const role = String(user.role || "").toUpperCase();
+      if (role === "ADMIN") {
+        navigate("/admin/AdminDashboard", { replace: true });
+      } else if (role === "AGENT" || role === "STAFF") {
+        navigate("/agent/dashboard", { replace: true });
+      } else if (role === "CUSTOMER") {
+        navigate("/customer/dashboard", { replace: true });
+      }
+    }
+  }, [user, authLoading, navigate]);
+
   useEffect(() => {
     inputRef.current?.focus();
   }, [step]);

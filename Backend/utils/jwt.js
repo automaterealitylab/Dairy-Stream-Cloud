@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { getRedisConnection } from "../config/redis.js";
 import { supabase } from "../config/supabase.js";
 
-const DEFAULT_ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
+const DEFAULT_ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "30d";
 const DEFAULT_REFRESH_TOKEN_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 30);
 
 const getJwtSecret = () => {
@@ -202,11 +202,11 @@ export const issueLoginTokens = async ({
       dairyId,
       agentId,
       sessionVersion,
-      expiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || "7d",
+      expiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || "30d",
     }),
     refreshToken: null,
     sessionId: null,
-    accessTokenExpiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || "7d",
+    accessTokenExpiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || "30d",
     refreshTokenExpiresAt: null,
   };
 };
