@@ -1,0 +1,36 @@
+name: Keep Backend Alive
+
+on:
+  schedule:
+    # Trigger the action every 10 minutes to prevent the Render free instance from sleeping
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # Allows manual trigger from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend
+        run: |
+          # Use a secret if defined; otherwise default to the suspected backend URL
+          URL="${{ secrets.RENDER_BACKEND_URL }}"
+          if [ -z "$URL" ]; then
+            # Replace this fallback URL with your actual backend URL on Render
+            URL="https://dairy-stream-cloud-backend.onrender.com"
+          fi
+          
+          echo "Pinging backend at: $URL/healthz"
+          RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null "$URL/healthz")
+          
+          if [ "$RESPONSE" -eq 200 ] || [ "$RESPONSE" -eq 301 ] || [ "$RESPONSE" -eq 302 ]; then
+            echo "✅ Backend is awake and responsive (HTTP $RESPONSE)."
+          else
+            echo "⚠️ Backend returned HTTP $RESPONSE. Trying fallback root endpoint..."
+            RESPONSE_ROOT=$(curl -s -w "%{http_code}" -o /dev/null "$URL/")
+            if [ "$RESPONSE_ROOT" -eq 200 ] || [ "$RESPONSE_ROOT" -eq 301 ] || [ "$RESPONSE_ROOT" -eq 302 ]; then
+              echo "✅ Backend root endpoint is awake (HTTP $RESPONSE_ROOT)."
+            else
+              echo "❌ Backend is unresponsive or returned an error (HTTP $RESPONSE_ROOT)."
+              exit 1
+            fi
+          fi
