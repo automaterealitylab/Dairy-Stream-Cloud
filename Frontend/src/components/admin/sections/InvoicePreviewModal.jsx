@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, Download, Share2, Info, QrCode, ReceiptText, LoaderCircle } from "lucide-react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchAdminCustomerBillDetails } from "../../../api/admin.api";
 
@@ -227,6 +225,10 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
     cloneContainer.appendChild(clone);
 
     try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
       const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,

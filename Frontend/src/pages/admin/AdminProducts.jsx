@@ -155,11 +155,11 @@ export default function AdminProducts() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+    <div className="ds-portal ds-admin-portal min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10 xl:ml-80">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl sm:text-4xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>Products & Stock</h1>

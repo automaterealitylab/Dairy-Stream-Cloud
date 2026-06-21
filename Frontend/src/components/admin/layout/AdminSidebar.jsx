@@ -143,7 +143,7 @@ export default function AdminSidebar({ open, onClose }) {
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-64
+          fixed inset-y-0 left-0 z-50 w-64 xl:w-80
           border-r border-[#EDE8DF] bg-white/95 backdrop-blur
           flex h-screen min-h-0 flex-col
           transform transition-transform duration-300 ease-out
@@ -154,12 +154,12 @@ export default function AdminSidebar({ open, onClose }) {
         style={adminShellFont}
       >
         {/* Brand */}
-        <div className="relative mx-6 border-b border-[#F2EDE4] py-12 dark:border-[#222B3D]">
+        <div className="relative border-b border-[#F2EDE4] px-6 py-7 dark:border-[#222B3D] xl:px-[30px] xl:py-[34px]">
           <div>
-            <h2 className="text-[22px] leading-none text-[#B8641A] dark:text-[#00C896] font-black" style={adminHeadingFont}>
+            <h2 className="text-[26px] leading-none text-[#B8641A] dark:text-[#00C896] xl:text-[32px]" style={adminHeadingFont}>
               DairyStream
             </h2>
-            <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] dark:text-slate-500">
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] dark:text-slate-500 xl:mt-2 xl:text-[13px]">
               Admin Portal
             </p>
           </div>
@@ -174,7 +174,10 @@ export default function AdminSidebar({ open, onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto pb-5 pt-2 xl:pt-3">
+          <p className="px-6 pb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882] xl:px-[30px] xl:pb-4 xl:text-[12px]">
+            Menu
+          </p>
           {visibleMenuItems.map((item) => (
             <NavLink
               key={item.label}
@@ -183,12 +186,12 @@ export default function AdminSidebar({ open, onClose }) {
               className={({ isActive }) =>
                 `
                 relative group flex items-center justify-between
-                px-3 py-2.5 text-sm font-medium no-underline
+                px-6 py-3 text-sm no-underline xl:min-h-[56px] xl:gap-5 xl:px-[30px] xl:text-[17px]
                 transition-colors
                 ${
                   isActive
-                    ? "rounded-xl border bg-[#FDE9C9] text-[#B8641A] border-[#E5C79D] dark:bg-[#083A36] dark:text-[#00E0A4] dark:border-[#0A7565]"
-                    : "text-[#8B7355] hover:text-[#5C3D1E] dark:text-[#CBD5E1] dark:hover:text-white"
+                    ? "bg-[#FDE9C9] font-bold text-[#B8641A] dark:bg-[#083A36] dark:text-[#00E0A4]"
+                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] dark:text-[#CBD5E1] dark:hover:bg-white/5 dark:hover:text-white"
                 }
               `
               }
@@ -209,10 +212,13 @@ export default function AdminSidebar({ open, onClose }) {
                   </div>
 
                   {isActive && (
-                    <span
-                      className="h-1.5 w-1.5 rounded-full bg-[#B8641A] dark:bg-[#00E0A4]"
-                      aria-hidden="true"
-                    />
+                    <>
+                      <span className="absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-[#B8641A] dark:bg-[#00E0A4]" />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-[#B8641A] dark:bg-[#00E0A4]"
+                        aria-hidden="true"
+                      />
+                    </>
                   )}
                 </>
               )}
@@ -221,7 +227,7 @@ export default function AdminSidebar({ open, onClose }) {
         </nav>
 
         {/* Theme Toggle Button */}
-        <div className="shrink-0 px-3 pb-3">
+        <div className="shrink-0 px-6 pb-3 xl:px-[30px]">
           <button
             type="button"
             onClick={toggleTheme}
@@ -244,7 +250,7 @@ export default function AdminSidebar({ open, onClose }) {
         </div>
 
         {/* Logout */}
-        <div className="shrink-0 border-t border-[#F2EDE4] px-3 py-4 dark:border-[#222B3D]">
+        <div className="shrink-0 border-t border-[#F2EDE4] px-6 py-5 dark:border-[#222B3D] xl:px-[30px] xl:py-8">
           <button
             onClick={() => {
               localStorage.clear();
@@ -254,7 +260,7 @@ export default function AdminSidebar({ open, onClose }) {
               w-full flex items-center gap-3
               rounded-xl border px-3 py-3
               text-sm font-semibold
-              border-[#F5C6C4] bg-[#FFF4F3] text-[#C0392B]
+              border-[#EDE8DF] bg-white text-[#B89970]
               hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B]
               transition
               focus:outline-none focus:ring-2 focus:ring-[#E8C6A2]

@@ -627,11 +627,11 @@ export default function AdminPayments() {
     });
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+    <div className="ds-portal ds-admin-portal min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10 xl:ml-80">
         
         {/* SECTION 1: STATS */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">

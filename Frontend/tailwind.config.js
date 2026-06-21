@@ -8,23 +8,23 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Base surfaces
-        surface: "#FFFFFF",
-        background: "#F8FAFC",   // dashboard + login background
-        border: "#E5E7EB",
+        // Warm DairyStream light theme surfaces
+        surface: "#FFFDF8",
+        background: "#FAFAF7",
+        border: "#EDE8DF",
 
         // Text system
         text: {
-          primary: "#0F172A",
-          secondary: "#64748B",
-          muted: "#94A3B8",
+          primary: "#2C1A0E",
+          secondary: "#8B7355",
+          muted: "#C4A882",
         },
 
-        // Brand colors (from dashboard)
+        // Brand colors
         brand: {
-          DEFAULT: "#2563EB",
-          hover: "#1D4ED8",
-          soft: "#EFF6FF",
+          DEFAULT: "#B8641A",
+          hover: "#9E5415",
+          soft: "#FDE9C9",
         },
 
         // Status colors
@@ -39,7 +39,7 @@ export default {
 
       boxShadow: {
         // Card shadow used across dashboard
-        card: "0 8px 30px rgba(15, 23, 42, 0.06)",
+        card: "0 18px 45px rgba(92, 61, 30, 0.08)",
       },
 
       borderRadius: {

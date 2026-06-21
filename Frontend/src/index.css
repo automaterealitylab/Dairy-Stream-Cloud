@@ -4,12 +4,79 @@
 
 :root {
   color-scheme: light;
+  --ds-bg: #FAFAF7;
+  --ds-surface: #FFFDF8;
+  --ds-surface-strong: #FFFFFF;
+  --ds-surface-muted: #FDF6EC;
+  --ds-border: #EDE8DF;
+  --ds-border-strong: #E5D9C7;
+  --ds-text: #2C1A0E;
+  --ds-text-soft: #5C3D1E;
+  --ds-muted: #8B7355;
+  --ds-gold: #C4A882;
+  --ds-brand: #B8641A;
+  --ds-brand-hover: #9E5415;
+  --ds-brand-soft: #FDE9C9;
+  --ds-success: #4A7C2F;
+  --ds-success-soft: #EEF5E7;
+  --ds-danger: #C0392B;
+  --ds-danger-soft: #FDECEA;
+  --ds-shadow: 0 18px 45px rgba(92, 61, 30, 0.08);
 }
 
 html,
 body,
 #root {
   min-height: 100%;
+}
+
+body {
+  background: var(--ds-bg);
+  color: var(--ds-text);
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+:root:not(.dark) {
+  scrollbar-color: #c9baa5 transparent;
+}
+
+:root:not(.dark) ::selection {
+  background: var(--ds-brand-soft);
+  color: var(--ds-text);
+}
+
+:root:not(.dark) input,
+:root:not(.dark) select,
+:root:not(.dark) textarea {
+  color-scheme: light;
+}
+
+:root:not(.dark) .bg-background {
+  background-color: var(--ds-bg) !important;
+}
+
+:root:not(.dark) .bg-surface {
+  background-color: var(--ds-surface) !important;
+}
+
+:root:not(.dark) .border-border {
+  border-color: var(--ds-border) !important;
+}
+
+:root:not(.dark) .text-text-primary {
+  color: var(--ds-text) !important;
+}
+
+:root:not(.dark) .text-text-secondary {
+  color: var(--ds-muted) !important;
+}
+
+:root:not(.dark) .text-text-muted {
+  color: var(--ds-gold) !important;
+}
+
+:root:not(.dark) .shadow-card {
+  box-shadow: var(--ds-shadow) !important;
 }
 
 .pro-input {
@@ -408,4 +475,194 @@ body,
   background-color: #121829 !important;
   border-color: #1E293B !important;
   color: #ffffff !important;
+}
+
+/* DairyStream warm light portal theme.
+   Scoped to admin/customer shells so public/auth pages keep their existing design. */
+:root:not(.dark) .ds-portal {
+  background: var(--ds-bg) !important;
+  color: var(--ds-text) !important;
+}
+
+:root:not(.dark) .ds-portal main {
+  background: var(--ds-bg);
+}
+
+:root:not(.dark) .ds-portal h1,
+:root:not(.dark) .ds-portal h2,
+:root:not(.dark) .ds-portal h3,
+:root:not(.dark) .ds-portal h4,
+:root:not(.dark) .ds-portal .text-gray-950,
+:root:not(.dark) .ds-portal .text-gray-900,
+:root:not(.dark) .ds-portal .text-gray-800,
+:root:not(.dark) .ds-portal .text-slate-950,
+:root:not(.dark) .ds-portal .text-slate-900,
+:root:not(.dark) .ds-portal .text-slate-800,
+:root:not(.dark) .ds-portal .text-text-primary {
+  color: var(--ds-text) !important;
+}
+
+:root:not(.dark) .ds-portal .text-gray-700,
+:root:not(.dark) .ds-portal .text-gray-600,
+:root:not(.dark) .ds-portal .text-gray-500,
+:root:not(.dark) .ds-portal .text-gray-400,
+:root:not(.dark) .ds-portal .text-slate-700,
+:root:not(.dark) .ds-portal .text-slate-600,
+:root:not(.dark) .ds-portal .text-slate-500,
+:root:not(.dark) .ds-portal .text-slate-400,
+:root:not(.dark) .ds-portal .text-text-secondary {
+  color: var(--ds-muted) !important;
+}
+
+:root:not(.dark) .ds-portal .text-blue-500,
+:root:not(.dark) .ds-portal .text-blue-600,
+:root:not(.dark) .ds-portal .text-indigo-500,
+:root:not(.dark) .ds-portal .text-indigo-600,
+:root:not(.dark) .ds-portal .text-amber-500,
+:root:not(.dark) .ds-portal .text-amber-600,
+:root:not(.dark) .ds-portal .text-brand,
+:root:not(.dark) .ds-portal [class*="text-"][class*="2563EB"],
+:root:not(.dark) .ds-portal [class*="text-"][class*="d97706"] {
+  color: var(--ds-brand) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-white,
+:root:not(.dark) .ds-portal .bg-\[\#ffffff\],
+:root:not(.dark) .ds-portal .bg-\[\#FFFFFF\],
+:root:not(.dark) .ds-portal .bg-surface {
+  background-color: var(--ds-surface) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-white\/95,
+:root:not(.dark) .ds-portal .bg-white\/90 {
+  background-color: rgba(255, 253, 248, 0.96) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-gray-50,
+:root:not(.dark) .ds-portal .bg-gray-100,
+:root:not(.dark) .ds-portal .bg-slate-50,
+:root:not(.dark) .ds-portal .bg-slate-100,
+:root:not(.dark) .ds-portal [class*="bg-"][class*="F8FAFC"],
+:root:not(.dark) .ds-portal [class*="bg-"][class*="F1F5F9"],
+:root:not(.dark) .ds-portal [class*="bg-"][class*="F9FAFB"],
+:root:not(.dark) .ds-portal [class*="bg-"][class*="F3F4F6"] {
+  background-color: var(--ds-surface-muted) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-blue-50,
+:root:not(.dark) .ds-portal .bg-blue-100,
+:root:not(.dark) .ds-portal .bg-indigo-50,
+:root:not(.dark) .ds-portal .bg-indigo-100,
+:root:not(.dark) .ds-portal .bg-amber-50,
+:root:not(.dark) .ds-portal .bg-amber-100,
+:root:not(.dark) .ds-portal [class*="bg-"][class*="EFF6FF"],
+:root:not(.dark) .ds-portal [class*="bg-"][class*="EEF2FF"] {
+  background-color: var(--ds-brand-soft) !important;
+  color: var(--ds-brand) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-green-50,
+:root:not(.dark) .ds-portal .bg-green-100,
+:root:not(.dark) .ds-portal .bg-emerald-50,
+:root:not(.dark) .ds-portal .bg-emerald-100 {
+  background-color: var(--ds-success-soft) !important;
+  color: var(--ds-success) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-red-50,
+:root:not(.dark) .ds-portal .bg-red-100,
+:root:not(.dark) .ds-portal .bg-rose-50,
+:root:not(.dark) .ds-portal .bg-rose-100 {
+  background-color: var(--ds-danger-soft) !important;
+  color: var(--ds-danger) !important;
+}
+
+:root:not(.dark) .ds-portal .border,
+:root:not(.dark) .ds-portal .border-t,
+:root:not(.dark) .ds-portal .border-b,
+:root:not(.dark) .ds-portal .border-l,
+:root:not(.dark) .ds-portal .border-r,
+:root:not(.dark) .ds-portal .border-gray-100,
+:root:not(.dark) .ds-portal .border-gray-200,
+:root:not(.dark) .ds-portal .border-slate-100,
+:root:not(.dark) .ds-portal .border-slate-200,
+:root:not(.dark) .ds-portal .border-border {
+  border-color: var(--ds-border) !important;
+}
+
+:root:not(.dark) .ds-portal input,
+:root:not(.dark) .ds-portal select,
+:root:not(.dark) .ds-portal textarea {
+  background-color: var(--ds-surface) !important;
+  border-color: var(--ds-border-strong) !important;
+  color: var(--ds-text) !important;
+}
+
+:root:not(.dark) .ds-portal input::placeholder,
+:root:not(.dark) .ds-portal textarea::placeholder {
+  color: #B89970 !important;
+}
+
+:root:not(.dark) .ds-portal table,
+:root:not(.dark) .ds-portal .table {
+  --bs-table-bg: var(--ds-surface) !important;
+  --bs-table-color: var(--ds-text) !important;
+  --bs-table-border-color: var(--ds-border) !important;
+  background-color: var(--ds-surface) !important;
+  color: var(--ds-text) !important;
+}
+
+:root:not(.dark) .ds-portal thead,
+:root:not(.dark) .ds-portal th {
+  background-color: #FFF9F2 !important;
+  color: var(--ds-gold) !important;
+}
+
+:root:not(.dark) .ds-portal td {
+  color: var(--ds-text-soft) !important;
+}
+
+:root:not(.dark) .ds-portal tr:hover,
+:root:not(.dark) .ds-portal tbody tr:hover {
+  background-color: var(--ds-surface-muted) !important;
+}
+
+:root:not(.dark) .ds-portal .shadow,
+:root:not(.dark) .ds-portal .shadow-sm,
+:root:not(.dark) .ds-portal .shadow-md,
+:root:not(.dark) .ds-portal .shadow-lg,
+:root:not(.dark) .ds-portal .shadow-xl,
+:root:not(.dark) .ds-portal .shadow-2xl,
+:root:not(.dark) .ds-portal .shadow-card {
+  box-shadow: var(--ds-shadow) !important;
+}
+
+:root:not(.dark) .ds-portal .bg-blue-600,
+:root:not(.dark) .ds-portal .bg-indigo-600,
+:root:not(.dark) .ds-portal .bg-amber-600,
+:root:not(.dark) .ds-portal .bg-brand {
+  background-color: var(--ds-brand) !important;
+  color: #fff !important;
+}
+
+:root:not(.dark) .ds-portal .hover\:bg-blue-700:hover,
+:root:not(.dark) .ds-portal .hover\:bg-indigo-700:hover,
+:root:not(.dark) .ds-portal .hover\:bg-amber-700:hover {
+  background-color: var(--ds-brand-hover) !important;
+}
+
+:root:not(.dark) .ds-portal .focus\:ring-blue-100:focus,
+:root:not(.dark) .ds-portal .focus\:ring-blue-500:focus,
+:root:not(.dark) .ds-portal .focus\:ring-indigo-500:focus {
+  --tw-ring-color: #F4E1CB !important;
+}
+
+:root:not(.dark) .ds-portal .from-gray-50 {
+  --tw-gradient-from: #FFF9F2 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 249 242 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+:root:not(.dark) .ds-portal .to-white {
+  --tw-gradient-to: var(--ds-surface) var(--tw-gradient-to-position) !important;
 }

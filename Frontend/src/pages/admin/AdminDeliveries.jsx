@@ -495,10 +495,10 @@ export default function AdminDeliveries() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+    <div className="ds-portal ds-admin-portal flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
-      <main className="flex-1 lg:ml-64 w-full transition-all duration-300 pb-32">
+      <main className="flex-1 lg:ml-64 xl:ml-80 w-full transition-all duration-300 pb-32">
         <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">

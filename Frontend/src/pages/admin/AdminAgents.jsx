@@ -96,7 +96,7 @@ export default function AdminAgents() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+    <div className="ds-portal ds-admin-portal min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       {/* Mobile Header */}
       <AdminMobileTopbar
         adminName={adminName}
@@ -109,7 +109,7 @@ export default function AdminAgents() {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10 xl:ml-80">
         {/* Page Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
           <div>

@@ -1034,7 +1034,7 @@ export default function DairyCustomerDashboard() {
 
   return (
     <CustomerLayout>
-      <div className="space-y-5 lg:space-y-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div className="space-y-5 lg:space-y-8 xl:space-y-5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {toast && (
           <div
             className={`fixed inset-x-3 top-4 z-50 flex items-center gap-2 rounded-[18px] border px-4 py-3 text-sm font-semibold shadow-[0_16px_40px_rgba(84,52,16,0.14)] transition-all sm:left-auto sm:right-5 sm:top-5 sm:max-w-md ${toast.type === "success"
@@ -1049,41 +1049,41 @@ export default function DairyCustomerDashboard() {
           </div>
         )}
 
-        <div className="rounded-[24px] border-0 bg-transparent p-0 shadow-none sm:rounded-[30px] sm:bg-[#F5F0E8] sm:p-5 sm:shadow-[0_20px_60px_rgba(84,52,16,0.08)] xl:p-6">
-          <div className="rounded-[26px] border-0 bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-4 shadow-[0_10px_24px_rgba(84,52,16,0.04)] sm:p-6 xl:p-7">
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,320px)] xl:items-start xl:gap-5">
+        <div className="rounded-[24px] border-0 bg-transparent p-0 shadow-none sm:rounded-[30px] sm:bg-[#F5F0E8] sm:p-5 sm:shadow-[0_20px_60px_rgba(84,52,16,0.08)] xl:rounded-[34px] xl:p-0">
+          <div className="rounded-[26px] border-0 bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-4 shadow-[0_10px_24px_rgba(84,52,16,0.04)] sm:p-6 xl:min-h-[200px] xl:rounded-[34px] xl:px-[30px] xl:py-[29px]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_400px] xl:items-start xl:gap-8">
               <div className="min-w-0 max-w-3xl">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882] xl:text-[12px]">
                     Customer Overview
                   </p>
                   <button
                     onClick={() => window.dispatchEvent(new CustomEvent("open-customer-qr-modal"))}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#FFF4E2] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#B8641A] hover:bg-[#FDE9C9] transition"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#FFF4E2] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FDE9C9] xl:hidden"
                   >
                     <QrCode size={10} />
                     My QR Code
                   </button>
                 </div>
                 <h1
-                  className="mt-2 text-[26px] font-semibold leading-[1.08] text-[#2C1A0E] sm:text-[38px] xl:text-[35px]"
+                  className="mt-2 text-[26px] font-semibold leading-[1.08] text-[#2C1A0E] sm:text-[38px] xl:mt-5 xl:text-[43px]"
                   style={headingFont}
                 >
                   {greeting}, <span className="text-[#B8641A]">{customerName}</span>
                 </h1>
-                <p className="mt-2 text-sm text-[#8B7355]">
+                <p className="mt-2 text-sm text-[#8B7355] xl:mt-3 xl:text-[17px]">
                   Member of{" "}
                   <span className="font-bold text-[#5C3D1E]">{dairyName}</span>
                 </p>
               </div>
 
-              <div className="w-full rounded-[18px] border border-[#E7DDCF] bg-white/90 px-4 py-3.5 backdrop-blur-sm xl:justify-self-end xl:py-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">
+              <div className="w-full rounded-[18px] border border-[#E7DDCF] bg-white/90 px-4 py-3.5 backdrop-blur-sm xl:min-h-[112px] xl:justify-self-end xl:rounded-[22px] xl:px-[30px] xl:py-[23px]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882] xl:text-[12px]">
                   Plan Status
                 </p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+                <div className="mt-2.5 flex flex-wrap items-center gap-2.5 xl:mt-5 xl:gap-3">
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${!subscription
+                    className={`rounded-full px-3 py-1 text-xs font-bold xl:px-5 xl:py-1.5 xl:text-sm ${!subscription
                         ? "bg-[#F5F0E8] text-[#8B7355]"
                         : isPaused
                           ? "bg-[#FFF1E4] text-[#C86A2B]"
@@ -1092,7 +1092,7 @@ export default function DairyCustomerDashboard() {
                   >
                     {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
                   </span>
-                  <span className="text-xs font-medium text-[#8B7355]">
+                  <span className="text-xs font-medium text-[#8B7355] xl:text-sm">
                     {subscription
                       ? `${subscription.quantity || "-"} L ${subscription.milkType || "Milk"}`
                       : "No active subscription"}
@@ -1104,7 +1104,7 @@ export default function DairyCustomerDashboard() {
         </div>
 
         {today && (
-          <div className="relative mt-3 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-4 sm:rounded-[28px] sm:p-7">
+          <div className="relative mt-3 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-4 sm:rounded-[28px] sm:p-7 xl:mt-5 xl:min-h-[312px] xl:px-[30px] xl:py-[31px]">
             <div
               className={`pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ${todayMeta.tone === "success"
                   ? "bg-[radial-gradient(circle_at_top_right,rgba(238,245,231,0.16),transparent_40%)]"
@@ -1117,17 +1117,17 @@ export default function DairyCustomerDashboard() {
                         : "bg-[radial-gradient(circle_at_top_right,rgba(255,241,228,0.18),transparent_40%)]"
                 }`}
             />
-            <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/5" />
-            <div className="absolute -bottom-14 left-7 h-36 w-36 rounded-full bg-[#D28A40]/10" />
+            <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/5 xl:-right-7 xl:-top-8 xl:h-48 xl:w-48" />
+            <div className="absolute -bottom-14 left-7 h-36 w-36 rounded-full bg-[#D28A40]/10 xl:left-9" />
 
-            <p className="relative mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/50 sm:mb-4">
+            <p className="relative mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/50 sm:mb-4 xl:text-[12px]">
               Today&apos;s Delivery
             </p>
-            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between xl:gap-10">
               <div className="min-w-0 flex-1">
-                <div className="flex items-start gap-3.5">
+                <div className="flex items-start gap-3.5 xl:gap-4">
                   <div
-                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] ${todayMeta.tone === "success"
+                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] xl:h-[70px] xl:w-[70px] xl:rounded-[21px] ${todayMeta.tone === "success"
                         ? "bg-[#EEF5E7] text-[#4A7C2F]"
                         : todayMeta.tone === "approval"
                           ? "bg-[#F6F0FF] text-[#7C4DAB]"
@@ -1145,23 +1145,23 @@ export default function DairyCustomerDashboard() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="mb-1 text-[22px] font-semibold leading-tight text-white sm:text-[28px]" style={headingFont}>
+                    <h3 className="mb-1 text-[22px] font-semibold leading-tight text-white sm:text-[28px] xl:text-[36px]" style={headingFont}>
                       {todayMeta.title}
                     </h3>
                     <div className="flex flex-col gap-1.5">
-                      <p className="text-sm font-semibold text-white/80">
+                      <p className="text-sm font-semibold text-white/80 xl:text-base">
                         {today.quantity || "-"} - {today.product || "Milk"}
                       </p>
-                      <p className="text-sm font-medium leading-6 text-white/85">
+                      <p className="text-sm font-medium leading-6 text-white/85 xl:mt-7 xl:text-base">
                         {todayMeta.helperText}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-1.5">
+                <div className="mt-3 flex flex-col gap-1.5 xl:mt-10">
                   {today?.agent?.name && (
-                    <p className="flex items-center gap-1.5 text-xs text-white/70">
+                    <p className="flex items-center gap-1.5 text-xs text-white/70 xl:text-sm">
                       <User size={11} />
                       Agent: {today.agent.name} {today.agent.phone ? `(${today.agent.phone})` : ""}
                     </p>
@@ -1174,7 +1174,7 @@ export default function DairyCustomerDashboard() {
                   )}
                 </div>
               </div>
-              <div className="flex w-full flex-col gap-2 self-start lg:w-auto lg:min-w-[250px]">
+              <div className="flex w-full flex-col gap-2 self-start lg:w-auto lg:min-w-[250px] xl:mt-8 xl:min-w-[312px]">
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => {
@@ -1188,7 +1188,7 @@ export default function DairyCustomerDashboard() {
                         String(today?.status || "").toUpperCase()
                       )
                     }
-                    className="w-full rounded-[13px] border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="w-full rounded-[13px] border border-white/70 bg-white/10 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45 xl:h-12 xl:px-5 xl:text-sm"
                   >
                     Track Agent
                   </button>
@@ -1200,7 +1200,7 @@ export default function DairyCustomerDashboard() {
                         String(today?.status || "").toUpperCase()
                       )
                     }
-                    className="w-full rounded-[13px] border border-[#F2D0C8]/70 bg-[#FDECEA] px-3 py-2.5 text-xs font-bold text-[#A33A2B] transition hover:bg-[#F8DDD6]"
+                    className="w-full rounded-[13px] border border-[#F2D0C8]/70 bg-[#FDECEA] px-3 py-2.5 text-xs font-bold text-[#A33A2B] transition hover:bg-[#F8DDD6] xl:h-12 xl:px-5 xl:text-sm"
                   >
                     {reportingIssue ? "Reporting..." : "Report Issue"}
                   </button>
@@ -1245,7 +1245,7 @@ export default function DairyCustomerDashboard() {
           </div>
         )}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-7 md:grid-cols-4 lg:gap-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-7 md:grid-cols-4 lg:gap-4 xl:mt-[60px] xl:gap-5">
           {ACTIONS.map((action) => {
             const { key, label, bg, text, border } = action;
             const ActionIcon = action.Icon;
@@ -1255,15 +1255,15 @@ export default function DairyCustomerDashboard() {
                 key={key}
                 onClick={() => handleAction(key)}
                 disabled={key === "pause" && !canTogglePause}
-                className={`rounded-[18px] border bg-[#FFFDF7] px-3.5 py-4 text-left transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 ${border}`}
+                className={`rounded-[18px] border bg-[#FFFDF7] px-3.5 py-4 text-left transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 xl:min-h-[205px] xl:rounded-[22px] xl:px-5 xl:py-[30px] ${border}`}
               >
-                <div className={`mb-2.5 flex h-10 w-10 items-center justify-center rounded-[13px] ${bg} ${text} sm:h-11 sm:w-11`}>
+                <div className={`mb-2.5 flex h-10 w-10 items-center justify-center rounded-[13px] ${bg} ${text} sm:h-11 sm:w-11 xl:mb-5 xl:h-14 xl:w-14 xl:rounded-[16px]`}>
                   {key === "pause" && isPaused ? <PlayCircle size={18} /> : <ActionIcon size={18} />}
                 </div>
-                <span className="text-[13px] font-bold text-[#2C1A0E] sm:text-sm">
+                <span className="text-[13px] font-bold text-[#2C1A0E] sm:text-sm xl:text-[17px]">
                   {key === "pause" ? pauseToggleLabel : label}
                 </span>
-                <p className="mt-1 text-[11px] leading-5 text-[#B89970] sm:text-xs">
+                <p className="mt-1 text-[11px] leading-5 text-[#B89970] sm:text-xs xl:mt-1.5 xl:text-sm">
                   {key === "pause"
                     ? pauseToggleHelper
                     : key === "add"
@@ -1277,8 +1277,8 @@ export default function DairyCustomerDashboard() {
           })}
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:mt-7 lg:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
-          <div className="space-y-4 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 sm:space-y-5 sm:p-6">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:mt-7 lg:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)] xl:mt-[60px] xl:gap-[30px]">
+          <div className="space-y-4 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 sm:space-y-5 sm:p-6 xl:min-h-[430px] xl:rounded-[28px] xl:px-[30px] xl:py-[31px]">
             {showTomorrowCard ? (
               <div>
                 <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
@@ -1395,7 +1395,7 @@ export default function DairyCustomerDashboard() {
             </div>
           </div>
 
-          <div className="rounded-[22px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#FFFDF7_0%,#FBF7F0_100%)] p-4 sm:p-6">
+          <div className="rounded-[22px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#FFFDF7_0%,#FBF7F0_100%)] p-4 sm:p-6 xl:min-h-[430px] xl:rounded-[28px] xl:px-[30px] xl:py-[31px]">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
               Billing Summary
             </p>

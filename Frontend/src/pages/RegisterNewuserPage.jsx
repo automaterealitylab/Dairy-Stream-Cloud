@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   LocateFixed,
 } from "lucide-react";
-import dairyImage from "../assets/dairyproduct.png";
+import dairyImage from "../assets/dairyproduct.jpg";
 import { useGeolocationAutoRetry } from "../hooks/useGeolocationAutoRetry.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -282,7 +282,15 @@ const CustomerRegister = () => {
       <div className="relative flex w-full items-center justify-center px-4 py-8 sm:px-6 md:w-full">
         <div className="w-full max-w-md rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-6 shadow-[0_24px_60px_rgba(44,26,14,0.12)] sm:p-8">
           <div className="mb-6 text-center">
-            <img src={dairyImage} alt="Logo" className="mx-auto mb-2 h-16 w-auto object-contain" />
+            <img
+              src={dairyImage}
+              alt="Logo"
+              width="1600"
+              height="1080"
+              loading="lazy"
+              decoding="async"
+              className="mx-auto mb-2 h-16 w-auto object-contain"
+            />
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">Customer Register</p>
             <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>
               Create Account

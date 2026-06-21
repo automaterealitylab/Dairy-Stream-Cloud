@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, CreditCard, IndianRupee, ShieldCheck, Upload, X, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Html5Qrcode } from 'html5-qrcode';
 
 const OTP_REGEX = /^\d{4,8}$/;
 
@@ -90,10 +89,12 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     setQrError('');
     let isMounted = true;
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       if (!isMounted) return;
 
       try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        if (!isMounted) return;
         const html5QrCode = new Html5Qrcode("qr-reader");
         html5QrCodeRef.current = html5QrCode;
 

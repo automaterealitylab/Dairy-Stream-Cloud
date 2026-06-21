@@ -9,7 +9,7 @@ import {
   Edit2, ArrowRight
 } from "lucide-react";
 
-import dairyImage from "../assets/dairyproduct.png";
+import dairyImage from "../assets/dairyproduct.jpg";
 
 // 🔗 BACKEND API
 import {
@@ -611,6 +611,10 @@ const LoginPage = () => {
             <img
               src={dairyImage}
               alt="Dairy"
+              width="1600"
+              height="1080"
+              fetchPriority="high"
+              decoding="async"
               className="h-16 w-auto mx-auto mb-4 object-contain"
             />
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">Sign In</p>

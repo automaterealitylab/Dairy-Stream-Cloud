@@ -58,7 +58,16 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
   const todayDate = normalizeDateOnly(startOfDay);
   const startIso = startOfDay.toISOString();
 
-  const [totalCustomers, totalAgents, dairyRow, suppliersRes, deliveriesRes, procurementRes, paymentsRes] =
+  const [
+    totalCustomers,
+    totalAgents,
+    dairyRow,
+    suppliersRes,
+    deliveriesRes,
+    procurementRes,
+    paidTodayRes,
+    createdTodayWithoutPaidAtRes,
+  ] =
     await Promise.all([
       getActiveCustomerCountForDairy(targetDairyId),
       supabase.from("agents").select("id", { count: "exact", head: true }).eq("dairy_id", targetDairyId),
@@ -81,9 +90,17 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
         .order("created_at", { ascending: false }),
       supabase
         .from("payments")
-        .select("amount, paid_at, created_at")
+        .select("id, amount, paid_at, created_at")
         .eq("dairy_id", targetDairyId)
-        .eq("status", "PAID"),
+        .eq("status", "PAID")
+        .gte("paid_at", startIso),
+      supabase
+        .from("payments")
+        .select("id, amount, paid_at, created_at")
+        .eq("dairy_id", targetDairyId)
+        .eq("status", "PAID")
+        .is("paid_at", null)
+        .gte("created_at", startIso),
     ]);
 
   if (totalAgents.error) throw totalAgents.error;
@@ -91,11 +108,15 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
   if (suppliersRes.error) throw suppliersRes.error;
   if (deliveriesRes.error) throw deliveriesRes.error;
   if (procurementRes.error) throw procurementRes.error;
-  if (paymentsRes.error) throw paymentsRes.error;
+  if (paidTodayRes.error) throw paidTodayRes.error;
+  if (createdTodayWithoutPaidAtRes.error) throw createdTodayWithoutPaidAtRes.error;
 
   const deliveriesToday = deliveriesRes.data || [];
   const procurementToday = procurementRes.data || [];
-  const paymentsToday = paymentsRes.data || [];
+  const paymentsToday = [
+    ...(paidTodayRes.data || []),
+    ...(createdTodayWithoutPaidAtRes.data || []),
+  ];
 
   const milkNeeded = deliveriesToday.reduce(
     (sum, delivery) => sum + Number(delivery.quantity_liters || 0),

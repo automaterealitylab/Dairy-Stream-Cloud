@@ -15,17 +15,24 @@ const CustomerRiskIndicator = ({ riskData = [] }) => {
 
   return (
     <div
-      className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:bg-[#121829] dark:border-[#1E293B] dark:shadow-none"
+      className="rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none"
       style={adminShellFont}
     >
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldAlert size={20} className="text-[#B89970] dark:text-slate-400" />
-          <h3 className="text-xl text-[#2C1A0E] dark:text-white font-black" style={adminHeadingFont}>
-            Risk Analysis
-          </h3>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#FDF6EC] text-[#B89970] dark:bg-slate-800 dark:text-slate-400">
+            <ShieldAlert size={20} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#C4A882] dark:text-slate-500">
+              Customers
+            </p>
+            <h3 className="mt-1 text-xl font-black text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>
+              Risk Analysis
+            </h3>
+          </div>
         </div>
-        <span className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[#FDF6EC] text-[#B89970] dark:bg-slate-800 dark:text-slate-400">
+        <span className="rounded-full bg-[#FDF6EC] px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#B89970] dark:bg-slate-800 dark:text-slate-400">
           30D
         </span>
       </div>
@@ -64,13 +71,13 @@ const CustomerRiskIndicator = ({ riskData = [] }) => {
             );
           })
         ) : (
-          <div className="rounded-[24px] border border-dashed border-[#E5D9C7] bg-[#FFFDF8] py-8 text-center dark:border-slate-800/60 dark:bg-slate-900/20 flex flex-col items-center justify-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-[#00C896] dark:bg-[#10B981]/15 dark:text-[#00C896]">
+          <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-[24px] border border-dashed border-[#E5D9C7] bg-[#FFFBF5] px-5 py-8 text-center dark:border-slate-800/60 dark:bg-slate-900/20">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-[#00A878] dark:bg-[#10B981]/15 dark:text-[#00C896]">
               <ShieldCheck size={20} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-bold text-[#6F8C45] dark:text-[#00C896]">All customers healthy</p>
-              <p className="text-[10px] font-semibold text-[#8B7355] dark:text-slate-400 mt-0.5">No churn signals detected</p>
+              <p className="text-sm font-extrabold text-[#2C1A0E] dark:text-white">All customers healthy</p>
+              <p className="mt-1 text-xs font-semibold text-[#8B7355] dark:text-slate-400">No churn signals detected.</p>
             </div>
           </div>
         )}

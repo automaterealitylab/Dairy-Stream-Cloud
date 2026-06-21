@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Building2, Home, History, List, Map as MapIcon, Package, User } from "lucide-react";
 import DeliveryDetailsModal from "../../components/agent/DeliveryDetailsModal";
-import DeliveryProofModal from "../../components/agent/DeliveryProofModal";
+const DeliveryProofModal = lazy(() => import("../../components/agent/DeliveryProofModal"));
 import FailedReasonModal from "../../components/agent/FailedReasonModal";
 import {
   fetchAssignedAgentDeliveries,
@@ -569,7 +569,11 @@ const AgentBuildingTasksPage = () => {
         />
       )}
       {failedDelivery && <FailedReasonModal delivery={failedDelivery} onSubmit={handleFailedSubmit} onClose={() => setFailedDelivery(null)} />}
-      {proofDelivery && <DeliveryProofModal delivery={proofDelivery} onClose={() => setProofDelivery(null)} onSubmit={handleProofSubmit} />}
+      {proofDelivery && (
+        <Suspense fallback={null}>
+          <DeliveryProofModal delivery={proofDelivery} onClose={() => setProofDelivery(null)} onSubmit={handleProofSubmit} />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -1,12 +1,10 @@
 import React, { Suspense, lazy } from "react";
-import "bootstrap/dist/css/bootstrap.min.css";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
 import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
-import LoginPage from "./pages/LoginPage.jsx";
-
+const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
 const RegisterDairyPage = lazy(() => import("./pages/RegisterDairyPage.jsx"));
 const ExploreDairiesPage = lazy(() => import("./pages/public/ExploreDairiesPage.jsx"));

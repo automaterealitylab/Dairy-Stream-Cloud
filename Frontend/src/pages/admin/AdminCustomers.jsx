@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; // Import it as a function
 import {
   FileText,
   IndianRupee,
@@ -22,14 +20,15 @@ import {
 
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
-import CustomerDrawer from "../../components/customer/CustomerDrawer";
-import AddCustomerModal from "../../components/customer/AddCustomerModal.jsx";
-import AddCustomerSubscriptionModal from "../../components/customer/AddCustomerSubscriptionModal.jsx";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
-import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
-import InvoicePreviewModal from "../../components/admin/sections/InvoicePreviewModal.jsx";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { adminHeadingFont, adminShellFont, useTheme } from "../../components/admin/adminTheme";
+
+const CustomerDrawer = lazy(() => import("../../components/customer/CustomerDrawer"));
+const AddCustomerModal = lazy(() => import("../../components/customer/AddCustomerModal.jsx"));
+const AddCustomerSubscriptionModal = lazy(() => import("../../components/customer/AddCustomerSubscriptionModal.jsx"));
+const ManualPaymentModal = lazy(() => import("../../components/admin/sections/ManualPaymentModal"));
+const InvoicePreviewModal = lazy(() => import("../../components/admin/sections/InvoicePreviewModal.jsx"));
 export default function AdminCustomers() {
   const { isDark } = useTheme();
   const customerPanelStyle = {
@@ -132,8 +131,12 @@ export default function AdminCustomers() {
     }
   };
 
-  const handleGenerateBill = (customer) => {
+  const handleGenerateBill = async (customer) => {
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
       const doc = new jsPDF();
 
       doc.setFontSize(22);
@@ -200,14 +203,14 @@ export default function AdminCustomers() {
   const selectedAgent = agents.find((a) => String(a.id) === String(selectedAgentId));
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
+    <div className="ds-portal ds-admin-portal min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminMobileTopbar
         adminName={adminName}
         onMenu={() => setSidebarOpen(true)}
       />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
+      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10 xl:ml-80">
         <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
           <div>
             <h1 className="text-3xl sm:text-4xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>Customers</h1>
@@ -474,6 +477,7 @@ export default function AdminCustomers() {
       </main>
 
       {/* MODALS */}
+      <Suspense fallback={null}>
       {paymentTarget && (
         <ManualPaymentModal
           delivery={paymentTarget}
@@ -617,6 +621,7 @@ export default function AdminCustomers() {
         }}
         onSaved={reloadCustomers}
       />
+      </Suspense>
       <AdminMobileBottomNav />
     </div>
   );
