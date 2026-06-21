@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Building2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Package,
+  RotateCcw,
+  Search,
+  UserRound,
+} from "lucide-react";
+import {
   assignAdminDeliveryPartner,
   approveAdminDelivery,
   approveAllAdminDeliveries,
@@ -102,7 +113,7 @@ const compareLocationPart = (left, right) =>
 // --- Sub-components ---
 function StatusPill({ status }) {
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${statusStyles[status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${statusStyles[status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
       {status}
     </span>
   );
@@ -501,16 +512,17 @@ export default function AdminDeliveries() {
       <main className="flex-1 lg:ml-64 xl:ml-80 w-full transition-all duration-300 pb-32">
         <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
 
-        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
           {/* Page Header */}
-          <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div className="mb-5 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
             <div>
-              <h1 className="text-3xl text-[#2C1A0E]" style={adminHeadingFont}>Delivery Management</h1>
-              <p className="text-xs text-[#8B7355]">Track all deliveries, pending runs, completed drops, and approval queue.</p>
+              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-500">Operations</p>
+              <h1 className="text-3xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>Delivery Management</h1>
+              <p className="mt-1 text-sm text-[#8B7355] dark:text-slate-400">Monitor routes, assignments, delivery status, and approvals.</p>
             </div>
             
             {/* Delivery Sections */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[#E5D9C7] bg-white shadow-sm dark:border-slate-800 dark:bg-[#121829] sm:flex">
               {[
                 { key: "ALL", label: "All Deliveries", val: stats.total, color: "text-slate-700" },
                 { key: "PENDING", label: "Delivery Pending", val: stats.pending, color: "text-amber-600" },
@@ -524,14 +536,14 @@ export default function AdminDeliveries() {
                     setActiveSection(item.key);
                     setPage(1);
                   }}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-left transition-all ${
+                  className={`flex min-h-[50px] items-center justify-between gap-3 border-b border-r border-[#EDE8DF] px-4 py-2 text-left transition-colors last:border-r-0 sm:border-b-0 ${
                     activeSection === item.key
-                      ? "border-[#B8641A] bg-[#FFF8EF] shadow-[0_8px_18px_rgba(184,100,26,0.10)]"
-                      : "border-[#EDE8DF] bg-white/95 hover:border-[#D9C2A2]"
+                      ? "bg-[#FFF1DE] text-[#A95516] dark:bg-[#083A36] dark:text-[#00E0A4]"
+                      : "bg-white text-[#6F604B] hover:bg-[#FFFBF5] dark:bg-[#121829] dark:text-slate-300 dark:hover:bg-slate-800"
                   }`}
                 >
-                  <span className="text-[11px] font-bold text-[#6F604B]">{item.label}</span>
-                  <span className={`rounded-full bg-white px-2 py-0.5 text-xs font-bold ${item.color}`}>{item.val}</span>
+                  <span className="text-[11px] font-bold">{item.label}</span>
+                  <span className={`min-w-6 rounded-full bg-white px-2 py-0.5 text-center text-xs font-black shadow-sm dark:bg-slate-900 ${item.color}`}>{item.val}</span>
                 </button>
               ))}
             </div>
@@ -539,19 +551,22 @@ export default function AdminDeliveries() {
 
           {loadError ? <FeedbackBanner feedback={{ type: "error", message: loadError }} /> : null}
           {/* Delivery Log Section */}
-          <div className="overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-            <div className="border-b border-[#F2EDE4] bg-[#FFFDF8] p-4">
+          <div>
+            <div className="rounded-lg border border-[#E5D9C7] bg-[#FFFDF8] p-4 shadow-sm dark:border-slate-800 dark:bg-[#121829]">
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_220px_auto] lg:items-end">
                 <label className="block min-w-0">
                   <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
                     Search
                   </span>
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="ID, customer, agent or route"
-                    className="pro-input text-sm"
-                  />
+                  <div className="relative mt-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#B89970]" size={16} />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="ID, customer, agent or route"
+                      className="pro-input mt-0 pl-10 text-sm"
+                    />
+                  </div>
                 </label>
 
                 <label className="block min-w-0">
@@ -579,8 +594,8 @@ export default function AdminDeliveries() {
                 </label>
 
                 <label className="block min-w-0">
-                  <span className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
-                    Date
+                  <span className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+                    <CalendarDays size={12} /> Date
                   </span>
                   <div className="mb-2 flex flex-wrap gap-2 px-1">
                     {quickDateOptions.map((option) => {
@@ -611,8 +626,9 @@ export default function AdminDeliveries() {
 
                 <button
                   onClick={resetFilters}
-                  className="h-[42px] rounded-xl border border-[#D8C9B2] bg-white px-4 text-[11px] font-black uppercase tracking-[0.16em] text-[#8B5E34] transition hover:border-[#B8641A] hover:bg-[#FFF5E8] hover:text-[#B8641A]"
+                  className="flex h-[42px] items-center justify-center gap-2 rounded-lg border border-[#D8C9B2] bg-white px-4 text-[11px] font-black uppercase tracking-[0.12em] text-[#8B5E34] transition hover:border-[#B8641A] hover:bg-[#FFF5E8] hover:text-[#B8641A] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                 >
+                  <RotateCcw size={14} />
                   Reset Filters
                 </button>
               </div>
@@ -627,27 +643,33 @@ export default function AdminDeliveries() {
                 <button onClick={resetFilters} className="mt-2 text-blue-600 underline text-sm">Clear all filters</button>
               </div>
             ) : (
-              <div className="space-y-3 p-4">
+              <div className="mt-5 space-y-4">
                 {groupedTodayDeliveries.map((group) => (
-                  <section key={group.buildingName} className="overflow-hidden rounded-xl border border-[#EFE7DA] bg-white shadow-sm">
-                    <div className="flex items-center justify-between gap-3 border-b border-[#F2EDE4] bg-[#FFFDF8] px-4 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">Building</p>
-                        <h3 className="truncate text-sm font-bold text-[#2C1A0E]">{group.buildingName}</h3>
+                  <section key={group.buildingName} className="overflow-hidden rounded-lg border border-[#E5D9C7] bg-white shadow-[0_8px_24px_rgba(92,61,30,0.06)] dark:border-slate-800 dark:bg-[#121829]">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#EDE8DF] bg-[#FFF9F1] px-5 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#B8641A] shadow-sm dark:bg-slate-800 dark:text-[#00C896]">
+                          <Building2 size={17} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#B89970]">Building</p>
+                          <h3 className="truncate text-sm font-extrabold text-[#2C1A0E] dark:text-white">{group.buildingName}</h3>
+                        </div>
                       </div>
-                      <div className="shrink-0 text-[11px] text-[#8B7355]">
-                        Stops: <span className="font-bold text-[#2C1A0E]">{group.deliveries.length}</span>
+                      <div className="shrink-0 rounded-full border border-[#E5D9C7] bg-white px-3 py-1 text-[10px] font-bold text-[#8B7355] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        {group.deliveries.length} {group.deliveries.length === 1 ? "stop" : "stops"}
                       </div>
                     </div>
 
                     <div className="divide-y divide-[#F3EEE5]">
                       {group.deliveries.map((d) => (
-                        <article key={d.id} className="grid gap-3 px-4 py-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_0.8fr_0.8fr_auto] items-start lg:items-center">
+                        <article key={d.id} className="grid grid-cols-1 items-start gap-4 px-5 py-4 transition-colors hover:bg-[#FFFCF7] dark:hover:bg-slate-900/40 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_0.9fr_1.05fr_auto] lg:items-center">
                           <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                            <p className="truncate text-[13px] font-bold uppercase tracking-[0.12em] text-[#2C1A0E]">
-                              Flat {d.roomNo || "-"}
-                            </p>
-                            <p className="mt-0.5 truncate text-[11px] text-slate-600">
+                            <div className="flex items-center gap-2">
+                              <MapPin size={14} className="shrink-0 text-[#B8641A] dark:text-[#00C896]" />
+                              <p className="truncate text-[13px] font-extrabold uppercase tracking-[0.1em] text-[#2C1A0E] dark:text-white">Flat {d.roomNo || "-"}</p>
+                            </div>
+                            <p className="mt-1 truncate pl-[22px] text-[11px] text-[#8B7355] dark:text-slate-400">
                               {buildDeliveryMeta(d).join(" | ")}
                             </p>
                             {d.isProjected ? (
@@ -668,29 +690,33 @@ export default function AdminDeliveries() {
                           </div>
 
                           <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Product</p>
-                            <p className="mt-0.5 truncate text-sm font-semibold text-slate-800">
+                            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-[#B89970]"><Package size={12} /> Product</p>
+                            <p className="mt-1 truncate text-sm font-bold text-[#2C1A0E] dark:text-white">
                               {d.productType || "Milk"}
                             </p>
-                            <p className="mt-1 text-[11px] font-semibold text-slate-700 bg-blue-50 px-2 py-1 rounded inline-block">
-                              {d.quantity}
-                            </p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#8B7355] dark:text-slate-400">{d.quantity}</p>
                           </div>
 
                           <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Agent</p>
-                            <p className="mt-0.5 truncate text-sm font-semibold text-slate-800">{d.agentName || "Unassigned"}</p>
+                            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-[#B89970]"><UserRound size={12} /> Agent</p>
+                            <p className="mt-1 truncate text-sm font-bold text-[#2C1A0E] dark:text-white">{d.agentName || "Unassigned"}</p>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div>
+                              <p className="mb-1 text-[8px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Approval</p>
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
                               d.approvalStatus === "PENDING"
                                 ? "bg-indigo-100 text-indigo-700 border-indigo-200"
                                 : "bg-green-100 text-green-700 border-green-200"
                             }`}>
                               {d.approvalStatus || "APPROVED"}
-                            </span>
-                            <StatusPill status={d.status} />
+                              </span>
+                            </div>
+                            <div>
+                              <p className="mb-1 text-[8px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Delivery</p>
+                              <StatusPill status={d.status} />
+                            </div>
                           </div>
 
                           <div className="flex justify-start lg:justify-end">
@@ -735,7 +761,7 @@ export default function AdminDeliveries() {
               </div>
             )}
             {/* Pagination */}
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-6 py-4">
+            <div className="mt-5 flex items-center justify-between border-t border-[#EDE8DF] px-1 py-4 dark:border-slate-800">
               <span className="text-xs font-medium text-slate-500">
                 Showing {Math.min(filteredAndSortedDeliveries.length, (page - 1) * pageSize + 1)} - {Math.min(page * pageSize, filteredAndSortedDeliveries.length)} of {filteredAndSortedDeliveries.length}
               </span>
@@ -743,16 +769,18 @@ export default function AdminDeliveries() {
                 <button
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}
-                  className="rounded border bg-white px-3 py-1 text-xs font-bold transition-all hover:bg-slate-50 disabled:opacity-50"
+                  className="flex h-9 items-center gap-1 rounded-lg border border-[#E5D9C7] bg-white px-3 text-xs font-bold transition hover:bg-[#FFF8EF] disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                 >
+                  <ChevronLeft size={14} />
                   Prev
                 </button>
                 <button
                   disabled={page === totalPages}
                   onClick={() => setPage((p) => p + 1)}
-                  className="rounded border bg-white px-3 py-1 text-xs font-bold transition-all hover:bg-slate-50 disabled:opacity-50"
+                  className="flex h-9 items-center gap-1 rounded-lg border border-[#E5D9C7] bg-white px-3 text-xs font-bold transition hover:bg-[#FFF8EF] disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                 >
                   Next
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>

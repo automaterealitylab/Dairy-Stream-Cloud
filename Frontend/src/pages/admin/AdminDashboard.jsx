@@ -31,6 +31,7 @@ export default function AdminDashboard() {
       exceptions: [],
       suppliers: [],
       riskData: [],
+      recentActivity: [],
       procurementLogs: []
     };
   }, []);
@@ -63,6 +64,7 @@ const loadDashboard = useCallback(async (force = false) => {
       stats: res.stats || { total_milk: 0, procured_milk: 0, pending: 0, collected: 0, failed: 0 },
       exceptions: res.exceptions || [],
       riskData: res.riskData || [],
+      recentActivity: res.recentActivity || [],
       procurementLogs: res.procurementLogs || []
     });
     
@@ -109,7 +111,7 @@ const loadDashboard = useCallback(async (force = false) => {
               headerAction={<AdminHeader notificationsOnly embedded />}
             />
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div className="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-8">
                 <DeliveryExceptionDashboard 
                   exceptions={data?.exceptions}
@@ -117,12 +119,12 @@ const loadDashboard = useCallback(async (force = false) => {
                   onToggleSelect={toggleDeliverySelection}
                   onReschedule={(id) => console.log("Rescheduling", id)} 
                 />
+                <AdminActivity activities={data.recentActivity} />
               </div>
 
               <div className="space-y-8">
-                <AdminFinancialAlert amount={data.stats?.pendingPayments || 0} />
+                <AdminFinancialAlert amount={data.stats?.outstanding || data.stats?.pendingPayments || 0} />
                 <CustomerRiskIndicator riskData={data.riskData} />
-                <AdminActivity />
               </div>
             </div>
           </>

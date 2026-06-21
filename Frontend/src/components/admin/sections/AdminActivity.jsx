@@ -2,45 +2,43 @@ import React from "react";
 import { CheckCircle2, Truck, UserPlus, AlertCircle } from "lucide-react";
 import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
-export default function AdminActivity() {
-  const activities = [
-    {
-      id: 1,
-      type: "payment",
-      title: "Payment received",
-      desc: "Rajesh Kumar · ₹480",
-      time: "2m ago",
-      icon: CheckCircle2,
-      color: "bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/15 dark:text-[#00C896]",
-    },
-    {
-      id: 2,
-      type: "route",
-      title: "Route completed",
-      desc: "Agent Priya · 6 stops",
-      time: "18m ago",
-      icon: Truck,
-      color: "bg-blue-500/10 text-blue-500 dark:bg-blue-500/15 dark:text-[#60A5FA]",
-    },
-    {
-      id: 3,
-      type: "customer",
-      title: "New customer",
-      desc: "Sunita Devi added",
-      time: "1h ago",
-      icon: UserPlus,
-      color: "bg-amber-500/10 text-amber-500 dark:bg-amber-500/15 dark:text-amber-400",
-    },
-    {
-      id: 4,
-      type: "failed",
-      title: "Delivery failed",
-      desc: "Order #2091 · retry",
-      time: "2h ago",
-      icon: AlertCircle,
-      color: "bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-400",
-    },
-  ];
+const activityMeta = {
+  payment: {
+    icon: CheckCircle2,
+    color: "bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/15 dark:text-[#00C896]",
+  },
+  route: {
+    icon: Truck,
+    color: "bg-blue-500/10 text-blue-500 dark:bg-blue-500/15 dark:text-[#60A5FA]",
+  },
+  customer: {
+    icon: UserPlus,
+    color: "bg-amber-500/10 text-amber-500 dark:bg-amber-500/15 dark:text-amber-400",
+  },
+  failed: {
+    icon: AlertCircle,
+    color: "bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-400",
+  },
+};
+
+const formatRelativeTime = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const diffMs = Date.now() - parsed.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < minute) return "now";
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+  return `${Math.floor(diffMs / day)}d ago`;
+};
+
+export default function AdminActivity({ activities = [] }) {
+  const items = Array.isArray(activities) ? activities : [];
 
   return (
     <section
@@ -62,12 +60,13 @@ export default function AdminActivity() {
       </div>
 
       <div className="space-y-2">
-        {activities.map((act) => {
-          const IconComponent = act.icon;
+        {items.length > 0 ? items.map((act) => {
+          const meta = activityMeta[act.type] || activityMeta.route;
+          const IconComponent = meta.icon;
           return (
             <div key={act.id} className="flex items-center justify-between gap-3 rounded-[18px] px-1 py-2 text-sm transition-colors hover:bg-[#FFFBF5] dark:hover:bg-slate-900/30">
               <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${act.color}`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${meta.color}`}>
                   <IconComponent size={18} />
                 </div>
                 <div className="min-w-0">
@@ -76,11 +75,19 @@ export default function AdminActivity() {
                 </div>
               </div>
               <span className="shrink-0 text-[10px] font-bold text-[#C4A882] dark:text-slate-500">
-                {act.time}
+                {formatRelativeTime(act.at)}
               </span>
             </div>
           );
-        })}
+        }) : (
+          <div className="flex min-h-[132px] flex-col items-center justify-center rounded-[22px] border border-dashed border-[#E5D9C7] bg-[#FFFBF5] px-5 py-7 text-center dark:border-slate-800/60 dark:bg-slate-900/20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B89970] dark:bg-slate-800 dark:text-slate-400">
+              <CheckCircle2 size={19} />
+            </div>
+            <p className="mt-3 text-sm font-extrabold text-[#2C1A0E] dark:text-white">No recent activity</p>
+            <p className="mt-1 text-xs font-semibold text-[#8B7355] dark:text-slate-400">New payments, deliveries, and customers will appear here.</p>
+          </div>
+        )}
       </div>
     </section>
   );
