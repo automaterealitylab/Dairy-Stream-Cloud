@@ -1,4 +1,4 @@
-const CACHE_NAME = "dairystream-cache-v3";
+const CACHE_NAME = "dairystream-cache-v4";
 
 const STATIC_ASSETS = [
   "/",
@@ -27,6 +27,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+const isNavigationRequest = (request) =>
+  request.mode === "navigate" ||
+  (request.headers.get("accept") || "").includes("text/html");
+
 // Fetch strategy: Network first, cache fallback
 self.addEventListener("fetch", (event) => {
   // Never try to cache non-GET requests. The Cache API only supports GET.
@@ -47,7 +51,21 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) return cachedResponse;
+
+        if (isNavigationRequest(event.request)) {
+          const appShell = await caches.match("/index.html");
+          if (appShell) return appShell;
+        }
+
+        return new Response("Network unavailable", {
+          status: 503,
+          statusText: "Service Unavailable",
+          headers: { "Content-Type": "text/plain" },
+        });
+      })
   );
 });
 // ============================================
