@@ -220,9 +220,11 @@ export default function AdminCustomers() {
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="w-full sm:w-auto rounded-2xl bg-[#B8641A] dark:bg-[#d97706] px-6 py-3.5 font-black text-white shadow-lg transition-all hover:bg-[#9E5415] dark:hover:bg-[#b45309]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#26734D] px-6 py-3.5 font-black !text-white shadow-lg transition-colors hover:bg-[#1E5C3E] sm:w-auto dark:bg-[#169B70] dark:hover:bg-[#11805C]"
+            style={{ color: "#FFFFFF" }}
           >
-            + Add Customer
+            <UserPlus size={18} />
+            Add Customer
           </button>
         </header>
 

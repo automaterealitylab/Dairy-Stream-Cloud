@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Bell, 
   CheckCircle2, 
@@ -79,17 +80,21 @@ export default function AdminNotificationsPopup({
   onMarkRead,
   onMarkAllRead 
 }) {
-  const popupRef = useRef(null);
-
-  // Close when clicking outside the popup
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (popupRef.current && !popupRef.current.contains(event.target)) {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
         onClose();
       }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [onClose]);
 
   const getNotificationStyles = (type) => {
@@ -140,12 +145,19 @@ export default function AdminNotificationsPopup({
   const grouped = groupNotifications(notifications);
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  return (
-    <div 
-      ref={popupRef}
-      className="fixed top-0 left-0 lg:absolute lg:inset-auto lg:right-0 lg:mt-3 w-screen lg:w-[420px] h-screen lg:h-auto rounded-none lg:rounded-[24px] border-none lg:border lg:border-[#EDE8DF] bg-white shadow-none lg:shadow-[0_24px_50px_rgba(92,61,30,0.15)] z-50 overflow-hidden flex flex-col"
-      style={adminShellFont}
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
+      onMouseDown={onClose}
     >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Notifications"
+        className="flex max-h-[min(720px,85vh)] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-[#EDE8DF] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.25)]"
+        style={adminShellFont}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#F2EDE4] px-5 py-4 bg-[#FFFDF8] shrink-0">
         <div className="flex items-center gap-2">
@@ -178,7 +190,7 @@ export default function AdminNotificationsPopup({
       </div>
 
       {/* List */}
-      <div className="overflow-y-auto flex-1 lg:max-h-[400px]">
+      <div className="flex-1 overflow-y-auto">
         {grouped.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B89970] mb-3">
@@ -239,6 +251,8 @@ export default function AdminNotificationsPopup({
           ))
         )}
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body
   );
 }

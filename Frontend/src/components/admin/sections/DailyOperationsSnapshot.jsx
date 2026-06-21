@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { 
   Milk, 
   IndianRupee, 
@@ -21,8 +21,6 @@ const DailyOperationsSnapshot = ({
   const stats = data.stats || {};
   const needed = stats?.total_milk || 0;
   const procured = stats?.procured_milk || 0;
-  const diff = procured - needed;
-  const isShortage = needed > procured;
   const progressPercent = needed > 0 ? Math.min((procured / needed) * 100, 100) : 0;
   const unfulfilledPercent = Math.max(0, 100 - Math.round(progressPercent));
 
@@ -37,7 +35,7 @@ const DailyOperationsSnapshot = ({
   return (
     <div className="mb-8 space-y-8" style={adminShellFont}>
       {/* Brown overview hero */}
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative min-h-[312px] overflow-hidden rounded-[28px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-[30px] py-[31px] text-white shadow-[0_22px_55px_rgba(44,26,14,0.18)]"
@@ -63,23 +61,11 @@ const DailyOperationsSnapshot = ({
               </p>
             </div>
 
-            <div className="hidden w-full max-w-[400px] rounded-[22px] border border-white/20 bg-white/10 px-[30px] py-[23px] backdrop-blur-sm xl:block">
-              <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-white/60">
-                Operation Status
-              </p>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <span
-                  className={`rounded-full px-5 py-1.5 text-sm font-bold ${
-                    isShortage ? "bg-[#FFF1E4] text-[#C86A2B]" : "bg-[#EEF5E7] text-[#4A7C2F]"
-                  }`}
-                >
-                  {isShortage ? "Shortage" : "On Track"}
-                </span>
-                <span className="text-sm font-medium text-white/80">
-                  Demand {needed}L
-                </span>
+            {headerAction ? (
+              <div className="hidden shrink-0 xl:block">
+                {headerAction}
               </div>
-            </div>
+            ) : null}
           </div>
 
           <div className="mt-9 grid grid-cols-3 gap-4">
@@ -97,12 +83,12 @@ const DailyOperationsSnapshot = ({
             </div>
           </div>
         </div>
-      </motion.div>
+      </Motion.div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-[22px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-[22px] xl:grid-cols-4">
         {/* Card 1: INVENTORY */}
-        <div className="flex min-h-[178px] items-center justify-between rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] xl:col-span-2">
+        <div className="col-span-2 flex min-h-[178px] items-center justify-between rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] xl:col-span-2">
           <div>
             <p className="text-[12px] font-black uppercase tracking-[0.22em] text-[#C4A882]">Inventory</p>
             <h3 className="mt-4 text-[34px] font-semibold text-[#2C1A0E]" style={adminHeadingFont}>
@@ -147,7 +133,7 @@ const DailyOperationsSnapshot = ({
         </div>
 
         {/* Card 2: AGENTS */}
-        <div className="flex min-h-[178px] items-center justify-between rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] xl:col-span-2">
+        <div className="col-span-2 flex min-h-[178px] items-center justify-between rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)] xl:col-span-2">
           <div>
             <p className="text-[12px] font-black uppercase tracking-[0.22em] text-[#C4A882]">Agents</p>
             <h3 className="mt-4 text-[34px] font-semibold text-[#2C1A0E]" style={adminHeadingFont}>
@@ -194,39 +180,36 @@ const DailyOperationsSnapshot = ({
         </div>
 
         {/* Card 3: Deliveries Today */}
-        <div className="flex min-h-[112px] items-center gap-5 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] border border-[#F2EDE4] bg-white text-[#B8641A]">
-            <Truck size={22} />
+        <div className="relative min-h-[160px] rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4 shadow-[0_18px_45px_rgba(92,61,30,0.08)] sm:rounded-[28px] sm:p-6">
+          <div className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F2EDE4] bg-white text-[#B8641A] sm:right-6 sm:top-6 sm:h-10 sm:w-10 sm:rounded-[14px]">
+            <Truck size={18} />
           </div>
-          <div>
-            <h3 className="text-[34px] font-semibold text-[#2C1A0E]" style={adminHeadingFont}>
-              {data.deliveriesToday || 0}
-            </h3>
-            <p className="text-[11px] font-black uppercase tracking-tight text-[#8B7355]">
-              Deliveries today
-            </p>
-          </div>
+          <p className="pr-10 text-[10px] font-black uppercase tracking-[0.14em] text-[#C4A882] sm:pr-12 sm:text-[12px] sm:tracking-[0.22em]">Deliveries</p>
+          <h3 className="mt-5 text-[28px] font-semibold text-[#2C1A0E] sm:mt-4 sm:text-[34px]" style={adminHeadingFont}>
+            {data.deliveriesToday || 0}
+          </h3>
+          <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-[#8B7355]">Scheduled today</p>
         </div>
 
         {/* Card 4: Customers */}
-        <div className="flex min-h-[112px] items-center gap-5 rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] border border-[#F2EDE4] bg-white text-[#6F8C45]">
-            <Users size={22} />
+        <div className="relative min-h-[160px] rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4 shadow-[0_18px_45px_rgba(92,61,30,0.08)] sm:rounded-[28px] sm:p-6">
+          <div className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F2EDE4] bg-white text-[#6F8C45] sm:right-6 sm:top-6 sm:h-10 sm:w-10 sm:rounded-[14px]">
+            <Users size={18} />
           </div>
-          <div>
-            <h3 className="text-[34px] font-semibold text-[#2C1A0E]" style={adminHeadingFont}>
-              {data.totalCustomers || 0}
-            </h3>
-            <p className="text-[11px] font-black uppercase tracking-tight text-[#8B7355]">
-              Customers
-            </p>
-          </div>
+          <p className="pr-10 text-[10px] font-black uppercase tracking-[0.14em] text-[#C4A882] sm:pr-12 sm:text-[12px] sm:tracking-[0.22em]">Customers</p>
+          <h3 className="mt-5 text-[28px] font-semibold text-[#2C1A0E] sm:mt-4 sm:text-[34px]" style={adminHeadingFont}>
+            {data.totalCustomers || 0}
+          </h3>
+          <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-[#8B7355]">Active accounts</p>
         </div>
 
         {/* Card 5: PENDING */}
-        <div className="min-h-[112px] rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <p className="text-[12px] font-black uppercase tracking-[0.22em] text-[#C4A882]">Pending</p>
-          <h3 className="mt-4 text-[34px] font-semibold text-[#2C1A0E]" style={adminHeadingFont}>
+        <div className="relative min-h-[160px] rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4 shadow-[0_18px_45px_rgba(92,61,30,0.08)] sm:rounded-[28px] sm:p-6">
+          <div className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F2EDE4] bg-white text-[#B8641A] sm:right-6 sm:top-6 sm:h-10 sm:w-10 sm:rounded-[14px]">
+            <IndianRupee size={18} />
+          </div>
+          <p className="pr-10 text-[10px] font-black uppercase tracking-[0.14em] text-[#C4A882] sm:pr-12 sm:text-[12px] sm:tracking-[0.22em]">Pending</p>
+          <h3 className="mt-5 text-[24px] font-semibold text-[#2C1A0E] sm:mt-4 sm:text-[34px]" style={adminHeadingFont}>
             ₹{Number(stats?.pendingPayments || 0).toLocaleString("en-IN")}
           </h3>
           <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-[#8B7355]">
@@ -235,9 +218,12 @@ const DailyOperationsSnapshot = ({
         </div>
 
         {/* Card 6: OUTSTANDING */}
-        <div className="min-h-[112px] rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <p className="text-[12px] font-black uppercase tracking-[0.22em] text-[#C4A882]">Outstanding</p>
-          <h3 className="mt-4 text-[34px] font-semibold text-[#2C1A0E]" style={adminHeadingFont}>
+        <div className="relative min-h-[160px] rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-4 shadow-[0_18px_45px_rgba(92,61,30,0.08)] sm:rounded-[28px] sm:p-6">
+          <div className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#F2EDE4] bg-white text-[#6F8C45] sm:right-6 sm:top-6 sm:h-10 sm:w-10 sm:rounded-[14px]">
+            <AlertCircle size={18} />
+          </div>
+          <p className="pr-10 text-[10px] font-black uppercase tracking-[0.14em] text-[#C4A882] sm:pr-12 sm:text-[12px] sm:tracking-[0.22em]">Outstanding</p>
+          <h3 className="mt-5 text-[22px] font-semibold text-[#2C1A0E] sm:mt-4 sm:text-[34px]" style={adminHeadingFont}>
             Rs {Number(stats?.outstanding || 0).toLocaleString("en-IN")}
           </h3>
           <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-[#6F8C45]">

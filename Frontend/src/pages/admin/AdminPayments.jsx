@@ -115,6 +115,49 @@ export default function AdminPayments() {
 
   const formatCurrency = (value) => `\u20B9${Number(value || 0).toLocaleString("en-IN")}`;
 
+  const getWhatsAppPhone = (phone) => {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length === 10) return `91${digits}`;
+    if (digits.startsWith("0") && digits.length === 11) return `91${digits.slice(1)}`;
+    return digits;
+  };
+
+  const openWhatsAppBillMessage = ({ phone, customer, amount, date, status, paymentCount }) => {
+    const normalizedStatus = String(status || "").toUpperCase();
+    const isDue = normalizedStatus === "PENDING" || normalizedStatus === "OVERDUE" || normalizedStatus === "MIXED";
+    const dairyName = adminName || "your dairy";
+    const messageLines = isDue
+      ? [
+          `Hello ${customer || "Customer"},`,
+          `This is a payment reminder from ${dairyName}.`,
+          "",
+          `Due amount: ${formatCurrency(amount)}`,
+          `Bill date: ${formatPaymentDate(date)}`,
+          paymentCount > 1 ? `Payments included: ${paymentCount}` : null,
+          "",
+          "Please clear this due bill at your earliest convenience.",
+          "Thank you.",
+        ]
+      : [
+          `Hello ${customer || "Customer"},`,
+          `This is a payment update from ${dairyName}.`,
+          "",
+          `Amount: ${formatCurrency(amount)}`,
+          `Date: ${formatPaymentDate(date)}`,
+          `Status: ${normalizedStatus || "PAID"}`,
+          "",
+          "Thank you.",
+        ];
+
+    const message = messageLines.filter(Boolean).join("\n");
+    const phoneNumber = getWhatsAppPhone(phone);
+    const url = phoneNumber
+      ? `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+    window.open(url, "_blank");
+  };
+
   const getGroupStatus = (items) => {
     const statuses = [...new Set(items.map((item) => String(item.status || "").toUpperCase()))];
 
@@ -571,7 +614,14 @@ export default function AdminPayments() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(`https://wa.me/${group.phone}?text=Bill Reminder`, "_blank");
+                    openWhatsAppBillMessage({
+                      phone: group.phone,
+                      customer: group.customer,
+                      amount: group.displayAmount,
+                      date: group.date,
+                      status: group.status,
+                      paymentCount: group.items.length,
+                    });
                   }}
                   className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 text-emerald-500 transition-all hover:bg-emerald-50 hover:text-emerald-700 dark:border-[#222B40] dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
                   title="Send Reminder"
@@ -623,6 +673,115 @@ export default function AdminPayments() {
             </tr>
           )}
         </React.Fragment>
+      );
+    });
+
+  const renderMobilePaymentCards = () =>
+    groupedPayments.map((group) => {
+      const isExpanded = Boolean(expandedPaymentGroups[group.groupKey]);
+
+      return (
+        <article
+          key={group.groupKey}
+          className="rounded-[22px] border border-[#F2EDE4] bg-[#FFFDF8] p-4 dark:border-[#1E293B] dark:bg-[#161C2C]"
+        >
+          <button
+            type="button"
+            onClick={() => togglePaymentGroup(group.groupKey)}
+            className="flex w-full items-start justify-between gap-3 text-left"
+          >
+            <div className="min-w-0">
+              <h4 className="break-words text-base font-black text-[#2C1A0E] dark:text-white">
+                {group.customer || "Customer"}
+              </h4>
+              <p className="mt-1 text-xs font-semibold text-[#8B7355] dark:text-slate-400">
+                {group.items.length} payment{group.items.length > 1 ? "s" : ""} on this day
+              </p>
+            </div>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A] dark:bg-[#0B0F19] dark:text-[#d97706]">
+              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+          </button>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2 dark:border-[#222B40] dark:bg-[#121829]">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970] dark:text-slate-400">Date</p>
+              <p className="mt-1 text-sm font-bold text-[#5C3D1E] dark:text-white">{formatPaymentDate(group.date)}</p>
+            </div>
+            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2 dark:border-[#222B40] dark:bg-[#121829]">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970] dark:text-slate-400">Amount</p>
+              <p className="mt-1 text-sm font-black text-[#2C1A0E] dark:text-white">{formatCurrency(group.displayAmount)}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            {renderStatusBadge(group.status)}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => togglePaymentGroup(group.groupKey)}
+                className="h-9 rounded-xl bg-[#FDF6EC] px-3 text-[11px] font-black uppercase text-[#B8641A] transition hover:bg-[#F7E8D3] dark:bg-[#0B0F19] dark:text-[#d97706] dark:hover:bg-[#1C243A]"
+              >
+                {isExpanded ? "Hide" : "View"} Details
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  openWhatsAppBillMessage({
+                    phone: group.phone,
+                    customer: group.customer,
+                    amount: group.displayAmount,
+                    date: group.date,
+                    status: group.status,
+                    paymentCount: group.items.length,
+                  })
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#EDE8DF] text-emerald-600 transition hover:bg-emerald-50 dark:border-[#222B40] dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                title="Send Reminder"
+              >
+                <Share2 size={16} />
+              </button>
+            </div>
+          </div>
+
+          {group.items.length > 1 && (
+            <p className="mt-3 text-xs font-semibold text-[#8B7355] dark:text-slate-400">
+              {group.hasCollectibleItems
+                ? `Total activity: ${formatCurrency(group.totalAmount)}`
+                : `Recorded total: ${formatCurrency(group.totalAmount)}`}
+            </p>
+          )}
+
+          {isExpanded && (
+            <div className="mt-4 space-y-3 rounded-[18px] border border-[#EFE4D6] bg-white p-3 dark:border-[#222B40] dark:bg-[#121829]">
+              {group.items.map((pay) => (
+                <div
+                  key={pay.id}
+                  className="border-b border-[#F8F2E8] pb-3 last:border-b-0 last:pb-0 dark:border-[#222B40]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-[#2C1A0E] dark:text-white">{formatCurrency(pay.amount)}</p>
+                      <p className="mt-1 text-xs text-[#8B7355] dark:text-slate-400">
+                        {formatPaymentDate(pay.date)} · Payment ID: {pay.id}
+                      </p>
+                    </div>
+                    {renderStatusBadge(pay.status)}
+                  </div>
+                  {isCollectibleStatus(pay.status) && (
+                    <button
+                      type="button"
+                      onClick={() => setActivePaymentModal(pay)}
+                      className="mt-3 h-9 w-full rounded-xl bg-[#B8641A] text-[11px] font-black uppercase text-white transition hover:bg-[#9E5415]"
+                    >
+                      Collect Payment
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
       );
     });
 
@@ -798,17 +957,48 @@ export default function AdminPayments() {
 
         {/* SECTION 2: TABLE */}
         <div className="overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <div className="flex flex-col justify-between gap-4 border-b border-[#F2EDE4] px-6 py-5 sm:flex-row sm:items-center">
+          <div className="flex flex-col justify-between gap-4 border-b border-[#F2EDE4] px-5 py-5 sm:px-6 md:flex-row md:items-center">
             <h3 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Customer Transactions</h3>
-            <div className="flex gap-2">
-              {["ALL", "PAID", "PENDING", "OVERDUE"].map((s) => (
-                <button key={s} onClick={() => setFilter(s)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${filter === s ? "bg-[#B8641A] text-white shadow-sm" : "bg-[#FDF6EC] text-[#8B7355] hover:bg-[#F7E8D3]"}`}>{s}</button>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "ALL", label: "All" },
+                { value: "PAID", label: "Paid" },
+                { value: "PENDING", label: "Due" },
+                { value: "OVERDUE", label: "Overdue" },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  onClick={() => setFilter(item.value)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    filter === item.value
+                      ? "bg-[#B8641A] text-white shadow-sm"
+                      : "bg-[#FDF6EC] text-[#8B7355] hover:bg-[#F7E8D3]"
+                  }`}
+                >
+                  {item.label}
+                </button>
               ))}
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="md:hidden">
+            {loading ? (
+              <div className="py-10 text-center">
+                <LoadingIndicator message="Fetching payments..." />
+              </div>
+            ) : groupedPayments.length === 0 ? (
+              <div className="px-6 py-10 text-sm font-semibold text-[#8B7355] dark:text-slate-400">
+                No transactions found for this filter.
+              </div>
+            ) : (
+              <div className="grid gap-3 p-4">
+                {renderMobilePaymentCards()}
+              </div>
+            )}
+            </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[860px] text-left">
               <thead className="border-b border-[#F2EDE4] bg-[#FFFDF8] text-[10px] font-black uppercase tracking-wider text-[#C4A882]">
                 <tr>
                   <th className="px-6 py-4">Customer</th>
@@ -821,6 +1011,12 @@ export default function AdminPayments() {
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr><td colSpan="5" className="py-10 text-center"><LoadingIndicator message="Fetching Ledger..." /></td></tr>
+                ) : groupedPayments.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-10 text-sm font-semibold text-[#8B7355] dark:text-slate-400">
+                      No transactions found for this filter.
+                    </td>
+                  </tr>
                 ) : (
                   renderGroupedPayments() || payments.map((pay) => (
                     <tr key={pay.id} className="hover:bg-gray-50 transition group">
@@ -839,7 +1035,16 @@ export default function AdminPayments() {
                             </button>
                           )}
                           <button 
-                            onClick={() => window.open(`https://wa.me/${pay.phone}?text=Bill Reminder`, "_blank")} 
+                            onClick={() =>
+                              openWhatsAppBillMessage({
+                                phone: pay.phone,
+                                customer: pay.customer,
+                                amount: pay.amount,
+                                date: pay.date,
+                                status: pay.status,
+                                paymentCount: 1,
+                              })
+                            }
                             className="h-9 w-9 flex items-center justify-center text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-100 rounded-xl transition-all"
                             title="Send Reminder"
                           >

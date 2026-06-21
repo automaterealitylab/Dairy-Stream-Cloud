@@ -60,19 +60,21 @@ export default function AdminHeader({
   const notificationControl = (
     <div className="relative hidden lg:block">
       <button
+        type="button"
         onClick={() => {
           setShowNotifications(!showNotifications);
         }}
-        className={`relative flex items-center justify-center rounded-2xl border p-2.5 transition focus:outline-none ${
+        className={`relative flex items-center justify-center border transition focus:outline-none focus:ring-2 focus:ring-white/30 ${
           embedded
-            ? "border-white/20 bg-white/15 text-white hover:bg-white/25"
-            : "border-[#EDE8DF] bg-white text-[#B89970] shadow-sm hover:bg-[#FDF6EC] hover:text-[#B8641A] dark:border-[#1E293B] dark:bg-[#121829] dark:text-slate-400 dark:hover:text-[#00C896]"
+            ? "h-12 w-12 rounded-2xl border-white/30 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
+            : "rounded-2xl border-[#EDE8DF] bg-white p-2.5 text-[#B89970] shadow-sm hover:bg-[#FDF6EC] hover:text-[#B8641A] dark:border-[#1E293B] dark:bg-[#121829] dark:text-slate-400 dark:hover:text-[#00C896]"
         }`}
         title="Notifications"
+        aria-expanded={showNotifications}
       >
-        <Bell size={22} />
+        <Bell size={embedded ? 24 : 22} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#B8641A] text-[10px] font-black text-white dark:bg-red-500">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#D96C2C] px-1 text-[10px] font-black text-white dark:bg-red-500">
             {unreadCount}
           </span>
         )}
@@ -91,7 +93,7 @@ export default function AdminHeader({
   if (notificationsOnly) {
     return (
       <div
-        className={embedded ? "" : "mb-5 flex justify-end"}
+        className={embedded ? "flex justify-end" : "mb-5 flex justify-end"}
         style={adminShellFont}
       >
         {notificationControl}

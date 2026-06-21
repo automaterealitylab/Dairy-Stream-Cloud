@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { fetchAdminAgents } from "../../api/admin.api";
-import { Search } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 
 // Layout Components
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
@@ -123,9 +123,11 @@ export default function AdminAgents() {
           <button
             type="button"
             onClick={openAddModal}
-            className="w-full sm:w-auto inline-flex items-center justify-center rounded-2xl bg-[#B8641A] dark:bg-[#d97706] px-6 py-3.5 text-sm font-black text-white hover:bg-[#9E5415] dark:hover:bg-[#b45309] shadow-lg"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#26734D] px-6 py-3.5 text-sm font-black !text-white shadow-lg transition-colors hover:bg-[#1E5C3E] sm:w-auto dark:bg-[#169B70] dark:hover:bg-[#11805C]"
+            style={{ color: "#FFFFFF" }}
           >
-            + Add Agent
+            <UserPlus size={18} />
+            Add Agent
           </button>
         </div>
 
