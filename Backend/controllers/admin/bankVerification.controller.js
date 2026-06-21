@@ -30,6 +30,8 @@ export const verifyAdminBankAccount = async (req, res) => {
       accountNumber: req.body?.accountNumber,
       ifsc: req.body?.ifsc,
       ownerName: req.body?.ownerName,
+      pan: req.body?.pan,
+      upiId: req.body?.upiId,
     });
 
     res.json({ success: true, verification: result });

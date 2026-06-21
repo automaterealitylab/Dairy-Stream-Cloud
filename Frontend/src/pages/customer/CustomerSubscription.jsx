@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
-import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X, CircleX } from 'lucide-react';
+import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X, CircleX, Loader2, Smartphone, CreditCard, Info } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchPublicDairyById } from '../../api/public.api.js';
 import {
@@ -12,6 +13,9 @@ import {
   verifyCustomerPayment,
   saveCustomerSubscription,
   clearCustomerSubscription,
+  createCustomerUpiPaymentIntent,
+  submitCustomerUpiPaymentVerification,
+  previewCustomerPaymentScreenshotOcr,
 } from '../../api/customer/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
 
@@ -180,7 +184,15 @@ const Subscribe = () => {
         cachedPaymentsData?.summary?.payableTillDate ??
         0
     ),
+    beneficiary: cachedPaymentsData?.summary?.beneficiary || null,
   });
+
+  const [paymentSelectorOpen, setPaymentSelectorOpen] = useState(false);
+  const [upiIntent, setUpiIntent] = useState(null);
+  const [upiForm, setUpiForm] = useState({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+  const [ocrPreview, setOcrPreview] = useState(null);
+  const [ocrPreviewing, setOcrPreviewing] = useState(false);
+  const [submittingVerification, setSubmittingVerification] = useState(false);
 
   const [toast, setToast] = useState(null);
   const [closing, setClosing] = useState(false);
@@ -280,6 +292,7 @@ const Subscribe = () => {
               data?.summary?.payableTillDate ??
               0
           ),
+          beneficiary: data?.summary?.beneficiary || null,
         });
       } catch {
         if (cancelled) return;
@@ -398,6 +411,7 @@ const Subscribe = () => {
           data?.summary?.payableTillDate ??
           0
       ),
+      beneficiary: data?.summary?.beneficiary || null,
     });
     return data;
   };
@@ -506,13 +520,8 @@ const Subscribe = () => {
     }
   };
 
-  const handlePayDuesAndClose = async () => {
+  const handleExecuteRazorpayPayment = async () => {
     try {
-      if (!hasPendingCloseDue) {
-        await cancelSubscription();
-        return;
-      }
-
       setPayingCloseDue(true);
       if (!(await loadRazorpay())) {
         throw new Error('Could not load payment gateway.');
@@ -568,6 +577,113 @@ const Subscribe = () => {
     } catch (err) {
       setPayingCloseDue(false);
       showToastMessage('error', err?.message || 'Unable to start payment.');
+    }
+  };
+
+  const handleExecuteUpiPayment = async () => {
+    try {
+      setPayingCloseDue(true);
+      const intentPayload = await createCustomerUpiPaymentIntent({ payAll: true, includeRunningDue: true });
+      setUpiIntent({ ...intentPayload, payAll: true });
+      setUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+      setOcrPreview(null);
+    } catch (err) {
+      showToastMessage('error', err?.response?.data?.message || err?.message || "Unable to start UPI payment.");
+    } finally {
+      setPayingCloseDue(false);
+    }
+  };
+
+  const handleScreenshotSelected = async (file) => {
+    setUpiForm((prev) => ({ ...prev, screenshotFile: file || null }));
+    setOcrPreview(null);
+    if (!file) return;
+
+    try {
+      setOcrPreviewing(true);
+      const result = await previewCustomerPaymentScreenshotOcr(file);
+      const extracted = result?.extracted || {};
+      setOcrPreview(result?.ocr || null);
+      setUpiForm((prev) => ({
+        ...prev,
+        utrNumber: extracted.utrNumber || prev.utrNumber,
+        payerUpiId: extracted.payerUpiId || prev.payerUpiId,
+        screenshotFile: file,
+      }));
+    } catch (err) {
+      setOcrPreview({ status: "FAILED", error: err?.response?.data?.message || err?.message });
+    } finally {
+      setOcrPreviewing(false);
+    }
+  };
+
+  const handleSubmitUpiVerification = async () => {
+    try {
+      if (!upiIntent) return;
+      if (!String(upiForm.utrNumber || "").trim()) {
+        showToastMessage('error', "Enter the UTR/reference number after payment.");
+        return;
+      }
+
+      setSubmittingVerification(true);
+      await submitCustomerUpiPaymentVerification({
+        paymentId: upiIntent.paymentId || "",
+        payAll: upiIntent.payAll ? "true" : "false",
+        includeRunningDue: "true",
+        amount: upiIntent.amount,
+        utrNumber: upiForm.utrNumber,
+        payerUpiId: upiForm.payerUpiId,
+        screenshotFile: upiForm.screenshotFile,
+      });
+      setUpiIntent(null);
+      await refreshPaymentsSummary();
+      setPendingDuesModal({ open: false, message: '' });
+      await cancelSubscription();
+    } catch (err) {
+      showToastMessage('error', err?.response?.data?.message || err?.message || "Unable to submit verification.");
+    } finally {
+      setSubmittingVerification(false);
+    }
+  };
+
+  const handlePayDuesAndClose = async () => {
+    if (!hasPendingCloseDue) {
+      await cancelSubscription();
+      return;
+    }
+
+    const beneficiary = paymentsSummary?.beneficiary;
+    const hasRazorpay = Boolean(beneficiary?.razorpayLinkedAccountId);
+    const hasUpi = Boolean(beneficiary?.upiId);
+    let optOnline = false;
+    let optUpi = false;
+
+    // Check what the dairy selected for this type of payment (subscription)
+    const methodSelected = beneficiary?.subscriptionPaymentMethod || "DIRECT_UPI";
+
+    if (hasRazorpay && hasUpi) {
+      if (methodSelected === "RAZORPAY") {
+        optOnline = true;
+      } else {
+        optUpi = true;
+      }
+    } else if (hasRazorpay) {
+      optOnline = true;
+    } else if (hasUpi) {
+      optUpi = true;
+    }
+
+    if (!optOnline && !optUpi) {
+      optOnline = true;
+      optUpi = true;
+    }
+
+    if (optOnline && !optUpi) {
+      handleExecuteRazorpayPayment();
+    } else if (optUpi && !optOnline) {
+      handleExecuteUpiPayment();
+    } else {
+      setPaymentSelectorOpen(true);
     }
   };
 
@@ -867,7 +983,7 @@ const Subscribe = () => {
                 {closing
                   ? (isApprovedSubscription ? 'Closing...' : 'Cancelling...')
                   : payingCloseDue
-                  ? 'Opening Razorpay...'
+                  ? 'Preparing Payment...'
                   : isApprovedSubscription && hasPendingCloseDue
                   ? `Pay ${fmtCurrency(closeSubscriptionDueAmount)} and Close Subscription`
                   : (isApprovedSubscription ? 'Yes, Close Subscription' : 'Yes, Cancel Subscription')}
@@ -900,7 +1016,7 @@ const Subscribe = () => {
                 className="rounded-[14px] bg-[#B8641A] px-6 py-2 text-white transition hover:bg-[#9F5313] disabled:bg-[#D8A678]"
               >
                 {payingCloseDue
-                  ? 'Opening Razorpay...'
+                  ? 'Preparing Payment...'
                   : hasPendingCloseDue
                   ? `Pay ${fmtCurrency(closeSubscriptionDueAmount)} and Close Subscription`
                   : 'Go To Payments'}
@@ -919,6 +1035,244 @@ const Subscribe = () => {
             }`}
           >
             <p className="font-medium">{toast.message}</p>
+          </div>
+        </div>
+      )}
+
+      {paymentSelectorOpen && (
+        <div
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setPaymentSelectorOpen(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-[500px] overflow-hidden rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px] animate-in zoom-in-95 slide-in-from-bottom-6 duration-300">
+            <div className="h-[4px] w-full bg-[linear-gradient(90deg,#B8641A_0%,#F5C87A_100%)]" />
+
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
+                  Select Payment Option
+                </p>
+                <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
+                  Pay {fmtCurrency(closeSubscriptionDueAmount)}
+                </h3>
+                <p className="mt-1 text-xs text-[#8B7355]">
+                  Choose how you'd like to pay your dairy bill.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentSelectorOpen(false);
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8]"
+                aria-label="Close payment options selector"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            {/* Modal Body / Selection Cards */}
+            <div className="space-y-4 p-5 sm:p-6">
+              {/* Option A: Razorpay Online Gateway */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentSelectorOpen(false);
+                  handleExecuteRazorpayPayment();
+                }}
+                className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+              >
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#FEF3E6] text-[#B8641A] transition group-hover:bg-[#B8641A] group-hover:text-white">
+                  <CreditCard size={20} className="transition" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-[#2C1A0E]">Instant Online Pay</span>
+                    <span className="inline-flex items-center rounded-full bg-[#EBF7F1] px-2 py-0.5 text-[9px] font-bold text-[#1A7A4A]">
+                      Fastest
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[#B89970]">
+                    Pay using Cards, UPI, Netbanking, or Wallets.
+                  </p>
+                  <p className="mt-2 text-[11px] font-semibold text-[#1A7A4A]">
+                    Instant payment confirmation
+                  </p>
+                </div>
+              </button>
+
+              {/* Option B: Direct UPI Intent/UTR */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentSelectorOpen(false);
+                  handleExecuteUpiPayment();
+                }}
+                className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+              >
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#F7F2EB] text-[#8B7355] transition group-hover:bg-[#2C1A0E] group-hover:text-white">
+                  <Smartphone size={20} className="transition" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-[#2C1A0E]">Direct UPI Transfer</span>
+                    <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[9px] font-bold text-[#1D5FA5]">
+                      No Charges
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[#B89970]">
+                    Scan QR / open GPay, PhonePe, Paytm, and paste UTR code.
+                  </p>
+                  <p className="mt-2 text-[11px] font-semibold text-[#8B7355]">
+                    Requires manual dairy verification (1-2 hours)
+                  </p>
+                </div>
+              </button>
+
+              <div className="flex items-center justify-center gap-2 pt-2 text-[11px] text-[#B89970]">
+                <Info size={12} className="flex-shrink-0" />
+                Payments are securely processed and protected.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {upiIntent && (
+        <div className="fixed inset-0 z-[92] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px] animate-in zoom-in-95 slide-in-from-bottom-6 duration-300">
+            <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B8641A]">
+                  Direct UPI Payment
+                </p>
+                <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
+                  Pay {fmtCurrency(upiIntent.amount)} to {upiIntent.beneficiary?.dairyName || "Dairy"}
+                </h3>
+                <p className="mt-1 text-sm text-[#8B7355]">
+                  Complete payment in your UPI app, then submit the UTR/reference number for dairy verification.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpiIntent(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8]"
+                aria-label="Close UPI payment"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <div className="grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <div className="rounded-2xl border border-[#EDE8DF] bg-[#FFFDF8] p-4 text-center">
+                <div className="mx-auto inline-flex rounded-xl bg-white p-3 shadow-sm">
+                  <QRCodeSVG value={upiIntent.upiLink} size={196} includeMargin />
+                </div>
+                <p className="mt-3 break-words text-xs font-semibold text-[#7B6247]">
+                  {upiIntent.beneficiary?.upiId}
+                </p>
+                <p className="mt-1 text-[11px] text-[#B89970]">Scan with any UPI app</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ["UPI App", upiIntent.intents?.upi],
+                    ["Google Pay", upiIntent.intents?.googlePay],
+                    ["PhonePe", upiIntent.intents?.phonePe],
+                    ["Paytm", upiIntent.intents?.paytm],
+                  ].map(([label, href]) => (
+                    <a
+                      key={label}
+                      href={href}
+                      className="rounded-xl border border-[#E5DCCF] bg-[#FAFAF7] px-3 py-3 text-center text-xs font-black text-[#5C3D1E] no-underline transition-all duration-150 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF3E2] hover:shadow-sm active:translate-y-0"
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </div>
+
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                    UTR / Reference Number
+                  </span>
+                  <input
+                    value={upiForm.utrNumber}
+                    onChange={(event) =>
+                      setUpiForm((prev) => ({ ...prev, utrNumber: event.target.value.toUpperCase() }))
+                    }
+                    placeholder="Enter UPI reference number"
+                    className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                    Your UPI ID Optional
+                  </span>
+                  <input
+                    value={upiForm.payerUpiId}
+                    onChange={(event) => setUpiForm((prev) => ({ ...prev, payerUpiId: event.target.value }))}
+                    placeholder="name@bank"
+                    className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none focus:border-[#B8641A] focus:ring-4 focus:ring-[#F4E1CB]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                    Payment Screenshot Optional
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(event) =>
+                      handleScreenshotSelected(event.target.files?.[0] || null)
+                    }
+                    className="mt-2 w-full rounded-xl border border-[#E7DAC6] bg-white px-4 py-3 text-sm font-semibold text-[#2C1A0E]"
+                  />
+                </label>
+
+                {(ocrPreviewing || ocrPreview) && (
+                  <div className="rounded-xl border border-[#E7DAC6] bg-[#FFF8F0] px-4 py-3 text-xs text-[#6B5135]">
+                    {ocrPreviewing ? (
+                      <span className="inline-flex items-center gap-2 font-bold">
+                        <Loader2 size={13} className="animate-spin" />
+                        Reading screenshot...
+                      </span>
+                    ) : (
+                      <>
+                        <p className="font-black uppercase tracking-[0.12em] text-[#B8641A]">
+                          OCR {ocrPreview?.status || "READY"}
+                        </p>
+                        <p className="mt-1 leading-5">
+                          Confidence {Number(ocrPreview?.confidence || 0)}%
+                          {ocrPreview?.extracted?.appName ? ` • ${ocrPreview.extracted.appName}` : ""}
+                          {ocrPreview?.extracted?.amount ? ` • ${fmtCurrency(ocrPreview.extracted.amount)}` : ""}
+                        </p>
+                        {ocrPreview?.error ? (
+                          <p className="mt-1 text-[#C53030]">{ocrPreview.error}</p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSubmitUpiVerification}
+                  disabled={submittingVerification}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2C1A0E] px-5 py-3 text-sm font-black text-white transition-all duration-150 hover:bg-[#B8641A] active:scale-[0.99] disabled:bg-[#D8C8B2] disabled:scale-100"
+                >
+                  {submittingVerification ? <Loader2 size={15} className="animate-spin" /> : <CreditCard size={15} />}
+                  Submit For Verification
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

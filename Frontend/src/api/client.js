@@ -75,5 +75,36 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+// Global response interceptor to handle session expiration (401 Unauthorized)
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response ? error.response.status : null;
+    const requestPath = error.config ? String(error.config.url || "") : "";
+
+    // Skip public routes to let them handle their own error messages
+    const isPublicAuthRoute = [
+      "/auth/detect",
+      "/auth/admin/login",
+      "/auth/admin/forgot-password/request-otp",
+      "/auth/admin/forgot-password/reset",
+      "/auth/agent/login",
+      "/auth/agent/forgot-password/request-otp",
+      "/auth/agent/forgot-password/reset",
+      "/auth/login/otp",
+      "/auth/login/otp/verify",
+    ].some((path) => requestPath.startsWith(path));
+
+    if (status === 401 && !isPublicAuthRoute) {
+      console.warn("Unauthorized API request detected (401), logging out user...");
+      localStorage.clear();
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export { client };
 export default client;

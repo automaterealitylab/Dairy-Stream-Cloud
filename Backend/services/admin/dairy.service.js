@@ -34,6 +34,7 @@ export const decryptDairyFields = (dairy) => {
   };
 };
 
+const normalizeString = (value) => String(value || "").trim();
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 const normalizeIfsc = (value) => String(value || "").trim().toUpperCase();
 const normalizeDigits = (value) => String(value || "").replace(/\D/g, "");
@@ -332,7 +333,7 @@ export const getAdminDairyProfileService = async ({ adminId, dairyId, revealBank
     supabase
       .from("dairies")
       .select(
-        "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at, pan"
+        "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at, pan, one_time_accept_direct_upi, one_time_accept_razorpay, subscription_accept_direct_upi, subscription_accept_razorpay"
       )
       .eq("id", normalizedDairyId)
       .limit(1)
@@ -362,10 +363,16 @@ export const getAdminDairyProfileService = async ({ adminId, dairyId, revealBank
     adminResponse.data.phone = decryptDeterministic(adminResponse.data.phone);
   }
 
+  const dairy = serializeDairyBankFields(decryptDairyFields(dairyResponse.data), {
+    revealAccountNumber: Boolean(revealBankDetails),
+  });
+  if (dairy) {
+    dairy.one_time_payment_method = dairyResponse.data.one_time_accept_razorpay ? "RAZORPAY" : "DIRECT_UPI";
+    dairy.subscription_payment_method = dairyResponse.data.subscription_accept_razorpay ? "RAZORPAY" : "DIRECT_UPI";
+  }
+
   return {
-    dairy: serializeDairyBankFields(decryptDairyFields(dairyResponse.data), {
-      revealAccountNumber: Boolean(revealBankDetails),
-    }),
+    dairy,
     admin: adminResponse.data || null,
   };
 };
@@ -521,6 +528,10 @@ export const updateAdminDairyProfileService = async ({
     upi_qr_enabled: payload.upi_qr_enabled === undefined ? true : Boolean(payload.upi_qr_enabled),
     bank_transfer_enabled:
       payload.bank_transfer_enabled === undefined ? true : Boolean(payload.bank_transfer_enabled),
+    one_time_accept_direct_upi: payload.one_time_payment_method ? (payload.one_time_payment_method === "DIRECT_UPI") : undefined,
+    one_time_accept_razorpay: payload.one_time_payment_method ? (payload.one_time_payment_method === "RAZORPAY") : undefined,
+    subscription_accept_direct_upi: payload.subscription_payment_method ? (payload.subscription_payment_method === "DIRECT_UPI") : undefined,
+    subscription_accept_razorpay: payload.subscription_payment_method ? (payload.subscription_payment_method === "RAZORPAY") : undefined,
     payment_verification_mode: "MANUAL",
     payments_enabled: Boolean(existingDairy.bank_verified) && !bankDetailsChanged,
     account_last_updated_at: bankDetailsChanged ? timestamp : undefined,
@@ -539,7 +550,7 @@ export const updateAdminDairyProfileService = async ({
     .update(dairyUpdate)
     .eq("id", normalizedDairyId)
     .select(
-      "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at, pan"
+      "id, dairy_name, dairy_phone, dairy_email, address, city, state, pincode, owner_name, selected_plan, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, masked_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, payment_instructions, upi_qr_enabled, bank_transfer_enabled, payment_verification_mode, payments_enabled, bank_verified, verification_provider, verification_reference_id, bank_verification_status, bank_verification_timestamp, account_name_match_score, bank_metadata, verified_account_holder_name, verified_upi_id, account_verification_response, verification_attempts, verification_last_error, verification_method, vpa_detected, vpa_verified, bank_verification_reset_at, verification_required, account_last_updated_at, pan, one_time_accept_direct_upi, one_time_accept_razorpay, subscription_accept_direct_upi, subscription_accept_razorpay"
     )
     .single();
 
@@ -576,8 +587,14 @@ export const updateAdminDairyProfileService = async ({
     admin.phone = decryptDeterministic(admin.phone);
   }
 
+  const serializedDairy = serializeDairyBankFields(decryptDairyFields(dairy), { revealAccountNumber: false });
+  if (serializedDairy) {
+    serializedDairy.one_time_payment_method = dairy.one_time_accept_razorpay ? "RAZORPAY" : "DIRECT_UPI";
+    serializedDairy.subscription_payment_method = dairy.subscription_accept_razorpay ? "RAZORPAY" : "DIRECT_UPI";
+  }
+
   return {
-    dairy: serializeDairyBankFields(decryptDairyFields(dairy), { revealAccountNumber: false }),
+    dairy: serializedDairy,
     admin,
   };
 };
