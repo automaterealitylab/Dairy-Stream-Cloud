@@ -457,6 +457,7 @@ export const verifyBankAccount = async ({
   ifsc,
   ownerName,
   pan,
+  upiId,
 }) => {
   const input = validateBankAccountInput({ accountNumber, ifsc });
   if (!input.valid) {
