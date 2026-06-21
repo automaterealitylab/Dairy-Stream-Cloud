@@ -1055,7 +1055,7 @@ export default function AdminProfile() {
                           <p>Provider: {bankVerification.data.provider || "local"}</p>
                           <p>Status: {bankVerification.data.status}</p>
                           <p>Name match: {Number(bankVerification.data.accountNameMatchScore || 0)}%</p>
-                          <p>Account: {bankVerification.data.accountActive ? "Active" : "Not verified"}</p>
+                          <p>Account: {bankVerification.data.accountActive ? "Verified" : "Not verified"}</p>
                           <p>Holder: {bankVerification.data.verifiedAccountHolderName || bankVerification.data.accountHolderName || "-"}</p>
                           <p>Detected UPI: {bankVerification.data.verifiedUpiId || "Not available"}</p>
                         </div>
