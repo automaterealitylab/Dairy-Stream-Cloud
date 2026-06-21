@@ -99,7 +99,7 @@ export default function MarketplaceCheckout() {
         key: response.keyId,
         amount: order.amount,
         currency: order.currency,
-        name: "Dairy Stream Marketplace",
+        name: "Dairy Vision Marketplace",
         description: "Milk and dairy products",
         order_id: order.id,
         prefill: {

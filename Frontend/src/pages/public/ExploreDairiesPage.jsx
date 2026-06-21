@@ -240,7 +240,7 @@ const ExploreDairiesPage = () => {
             <div className="flex flex-col gap-2.5 sm:gap-4 sm:items-center justify-between md:flex-row md:justify-start md:gap-6">
               <div className="flex items-center justify-between w-full md:w-auto">
                 <div className="cursor-pointer text-2xl font-bold text-[#2C1A0E]" style={headingFont} onClick={() => navigate("/")}>
-                  Dairy<span className="text-[#B8641A]">Stream</span>
+                  Dairy<span className="text-[#B8641A]">Vision</span>
                 </div>
                 <div className="md:hidden">
                   <button onClick={handleAuthAction} className={`flex items-center gap-2 rounded-[14px] px-4 py-2 text-sm font-bold transition-all ${canOpenCustomerDashboard ? "bg-[#2C2416] text-white hover:bg-[#4A3820]" : "border border-[#EDE8DF] bg-white text-[#6B5B3E] hover:bg-[#FBF7F0]"}`}>

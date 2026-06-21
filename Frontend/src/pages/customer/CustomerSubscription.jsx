@@ -523,7 +523,7 @@ const Subscribe = () => {
         key: orderPayload.keyId,
         amount: orderPayload.order.amount,
         currency: orderPayload.order.currency,
-        name: 'Dairy Stream',
+        name: 'Dairy Vision',
         description: 'Subscription bill payment',
         order_id: orderPayload.order.id,
         handler: async (res) => {

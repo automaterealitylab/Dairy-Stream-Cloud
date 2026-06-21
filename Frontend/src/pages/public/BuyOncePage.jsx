@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock3, MapPin, ShoppingBag, CheckCircle2, CreditCard, Plus, Minus } from "lucide-react";
 import toast from "react-hot-toast";
@@ -352,7 +352,7 @@ const BuyOncePage = () => {
         key: orderPayload.keyId,
         amount: orderPayload.order.amount,
         currency: orderPayload.order.currency,
-        name: "Dairy Stream",
+        name: "Dairy Vision",
         description: orderPayload.payment?.title || "One-time Milk Order",
         order_id: orderPayload.order.id,
         handler: async (response) => {

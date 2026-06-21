@@ -26,7 +26,7 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
   const requiresPaymentCollection = Boolean(delivery?.requiresPaymentCollection);
   const amountDue = Number(delivery?.amountDue || 0);
   const upiId = String(delivery?.upiId || '').trim();
-  const payeeName = String(delivery?.dairyFarmName || 'Dairy Stream').trim();
+  const payeeName = String(delivery?.dairyFarmName || 'Dairy Vision').trim();
   const upiIntentLink =
     upiId && amountDue > 0
       ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${amountDue.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Delivery ${delivery?.id || ''}`.trim())}`
