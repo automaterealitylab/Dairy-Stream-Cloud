@@ -40,7 +40,7 @@ const DeliveryExceptionDashboard = ({ exceptions = [], selectedIds = [], onToggl
         {items.length > 0 ? (
           items.map((exc) => {
             const isSelected = selectedIds.includes(exc.id);
-            const reason = exc?.notes?.split("FAILED_REASON]: ")[1] || "Unknown Reason";
+            const reason = exc?.reason || exc?.notes?.split("FAILED_REASON]: ")[1] || "Unknown Reason";
 
             return (
               <div
