@@ -421,7 +421,7 @@ const verifyWithCashfree = async ({ accountNumber, ifsc, accountHolderName }) =>
   }
 };
 
-const verifyWithConfiguredProvider = async ({ accountNumber, ifsc, accountHolderName }) => {
+const verifyWithConfiguredProvider = async ({ accountNumber, ifsc, accountHolderName, upiId }) => {
   const provider = String(process.env.BANK_VERIFICATION_PROVIDER || "cashfree").trim().toLowerCase();
 
   if (provider === "cashfree") {
@@ -433,6 +433,7 @@ const verifyWithConfiguredProvider = async ({ accountNumber, ifsc, accountHolder
   }
 
   // If provider is local or Cashfree keys are not configured, simulate successful local verification
+  const hasUpi = Boolean(upiId && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(String(upiId).trim()));
   return {
     configured: true,
     provider: "local",
@@ -441,10 +442,10 @@ const verifyWithConfiguredProvider = async ({ accountNumber, ifsc, accountHolder
     accountActive: true,
     referenceId: `local_${Date.now()}`,
     accountHolderName: accountHolderName,
-    upiId: null,
-    upiVerified: false,
+    upiId: hasUpi ? String(upiId).trim() : null,
+    upiVerified: hasUpi,
     reason: null,
-    raw: { status: "SUCCESS", account_status: "ACTIVE" },
+    raw: { status: "SUCCESS", account_status: "ACTIVE", vpa: hasUpi ? String(upiId).trim() : null },
   };
 };
 
@@ -481,6 +482,7 @@ export const verifyBankAccount = async ({
         accountNumber: input.accountNumber,
         ifsc: input.ifsc,
         accountHolderName,
+        upiId,
       });
 
       if (providerResult.configured && isVerifiedProviderStatus(providerResult.status)) {

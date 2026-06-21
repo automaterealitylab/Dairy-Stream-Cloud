@@ -545,6 +545,7 @@ export default function AdminProfile() {
         ifsc: formData.bank_ifsc_code,
         ownerName: formData.owner_name,
         pan: formData.pan,
+        upiId: formData.upi_id,
       });
       setBankVerification({
         status: verification.verified ? "verified" : "warning",
@@ -610,6 +611,7 @@ export default function AdminProfile() {
           ifsc,
           ownerName: formData.owner_name,
           pan: formData.pan,
+          upiId: formData.upi_id,
         });
 
         setBankVerification({
@@ -663,6 +665,7 @@ export default function AdminProfile() {
     formData.bank_verified,
     formData.owner_name,
     formData.pan,
+    formData.upi_id,
     ifscLookup.status,
     lastVerificationKey,
     showEditModal,
