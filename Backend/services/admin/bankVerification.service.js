@@ -180,6 +180,7 @@ export const buildVerificationDecision = ({
   providerResult = {},
   submittedAccountHolderName = "",
   ownerName = "",
+  pan = "",
 }) => {
   const detectedName = providerResult.accountHolderName || null;
   const matchBaseName = detectedName || submittedAccountHolderName;
@@ -198,12 +199,37 @@ export const buildVerificationDecision = ({
     ? "FAILED"
     : "PROVIDER_NOT_CONFIGURED";
 
+  let panLinked = false;
+  let panStatus = "UNVERIFIED";
+  let panHolderName = null;
+
+  if (pan) {
+    const isPanValid = /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(pan).trim().toUpperCase());
+    if (isPanValid) {
+      if (providerVerified || providerResult.provider === "local") {
+        panHolderName = detectedName || ownerName || submittedAccountHolderName;
+        const panNameMatchScore = calculateNameMatchScore(panHolderName, matchBaseName);
+        if (panNameMatchScore >= 80) {
+          panLinked = true;
+          panStatus = "VERIFIED";
+        } else {
+          panStatus = "NAME_MISMATCH";
+        }
+      }
+    } else {
+      panStatus = "INVALID_FORMAT";
+    }
+  }
+
   return {
     status,
     verified: status === "VERIFIED",
     matchScore,
     nameMatchStatus,
     detectedName,
+    panLinked,
+    panStatus,
+    panHolderName,
   };
 };
 
@@ -425,6 +451,7 @@ export const verifyBankAccount = async ({
   accountNumber,
   ifsc,
   ownerName,
+  pan,
 }) => {
   const input = validateBankAccountInput({ accountNumber, ifsc });
   if (!input.valid) {
@@ -475,6 +502,7 @@ export const verifyBankAccount = async ({
     providerResult,
     submittedAccountHolderName: accountHolderName,
     ownerName,
+    pan,
   });
 
   const referenceId = providerResult.referenceId || `local_${Date.now()}`;
@@ -506,6 +534,9 @@ export const verifyBankAccount = async ({
         (decision.status === "PARTIAL_MATCH" || decision.status === "NAME_MISMATCH"
           ? "Verified account holder name does not match the dairy owner name"
           : "Bank account could not be verified by provider"),
+    panLinked: decision.panLinked,
+    panStatus: decision.panStatus,
+    panHolderName: decision.panHolderName,
   });
 
   await writeBankAudit({
@@ -525,6 +556,8 @@ export const verifyBankAccount = async ({
       vpaDetected: Boolean(providerResult.upiId),
       cacheHit,
       reason: providerResult.reason || null,
+      panLinked: decision.panLinked,
+      panStatus: decision.panStatus,
     },
   });
 
@@ -550,6 +583,9 @@ export const verifyBankAccount = async ({
         : null),
     cacheHit,
     timestamp,
+    panLinked: decision.panLinked,
+    panStatus: decision.panStatus,
+    panHolderName: decision.panHolderName,
   };
 };
 
@@ -571,6 +607,9 @@ const updateDairyBankVerification = async ({
   providerResponse,
   method,
   lastError,
+  panLinked,
+  panStatus,
+  panHolderName,
 }) => {
   const { data: existingDairy } = await supabase
     .from("dairies")
@@ -623,6 +662,9 @@ const updateDairyBankVerification = async ({
           verifiedUpiId,
           vpaDetected: Boolean(vpaDetected),
           vpaVerified: Boolean(vpaVerified),
+          panLinked: Boolean(panLinked),
+          panStatus: panStatus || null,
+          panHolderName: panHolderName || null,
         },
       },
       updated_at: timestamp,

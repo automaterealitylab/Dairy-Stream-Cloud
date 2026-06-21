@@ -381,7 +381,7 @@ export default function AdminProfile() {
     setBankVerification({
       status: dairyProfile.bank_verified ? "verified" : "idle",
       message: dairyProfile.bank_verification_status || "",
-      data: null,
+      data: dairyProfile.bank_metadata?.verification || null,
     });
     setLastVerificationKey("");
     setShowEditModal(true);
@@ -453,7 +453,7 @@ export default function AdminProfile() {
     setBankVerification({
       status: bankEditSnapshot?.bank_verified ? "verified" : "idle",
       message: bankEditSnapshot?.bank_verification_status || "",
-      data: null,
+      data: dairyProfile.bank_metadata?.verification || null,
     });
     setLastVerificationKey("");
   };
@@ -544,6 +544,7 @@ export default function AdminProfile() {
         accountNumber,
         ifsc: formData.bank_ifsc_code,
         ownerName: formData.owner_name,
+        pan: formData.pan,
       });
       setBankVerification({
         status: verification.verified ? "verified" : "warning",
@@ -608,6 +609,7 @@ export default function AdminProfile() {
           accountNumber,
           ifsc,
           ownerName: formData.owner_name,
+          pan: formData.pan,
         });
 
         setBankVerification({
@@ -660,6 +662,7 @@ export default function AdminProfile() {
     formData.bank_ifsc_code,
     formData.bank_verified,
     formData.owner_name,
+    formData.pan,
     ifscLookup.status,
     lastVerificationKey,
     showEditModal,
@@ -1058,6 +1061,18 @@ export default function AdminProfile() {
                           <p>Account: {bankVerification.data.accountActive ? "Verified" : "Not verified"}</p>
                           <p>Holder: {bankVerification.data.verifiedAccountHolderName || bankVerification.data.accountHolderName || "-"}</p>
                           <p>Detected UPI: {bankVerification.data.verifiedUpiId || "Not available"}</p>
+                          <p>
+                            PAN Linked:{" "}
+                            {bankVerification.data.panLinked ? (
+                              <span className="text-[#4A7C2F] dark:text-emerald-400 font-bold">Linked (Verified)</span>
+                            ) : bankVerification.data.panStatus === "INVALID_FORMAT" ? (
+                              <span className="text-red-600 dark:text-red-400 font-bold">Invalid PAN Format</span>
+                            ) : bankVerification.data.panStatus === "NAME_MISMATCH" ? (
+                              <span className="text-amber-600 dark:text-amber-400 font-bold">Name Mismatch</span>
+                            ) : (
+                              <span className="text-slate-500 font-bold">Not Linked</span>
+                            )}
+                          </p>
                         </div>
                       ) : null}
 
