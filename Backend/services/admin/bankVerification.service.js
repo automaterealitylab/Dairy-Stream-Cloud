@@ -206,10 +206,11 @@ export const buildVerificationDecision = ({
   if (pan) {
     const isPanValid = /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(pan).trim().toUpperCase());
     if (isPanValid) {
-      if (providerVerified || providerResult.provider === "local") {
+      if (providerVerified || (providerResult.provider === "local" && process.env.NODE_ENV !== "production")) {
         const upperPan = String(pan).trim().toUpperCase();
-        // Deterministically assume PAN belongs to owner if it is the saved PAN or starts with 'M' or 'V'
-        const isOwnerPan = upperPan === "MJIPK2475G" || upperPan.startsWith("M") || upperPan.startsWith("V");
+        // In production, assume the PAN belongs to the dairy owner.
+        // In development/test mock mode, simulate mismatch if first letter is not M or V
+        const isOwnerPan = process.env.NODE_ENV === "production" || upperPan === "MJIPK2475G" || upperPan.startsWith("M") || upperPan.startsWith("V");
         panHolderName = isOwnerPan ? (detectedName || ownerName || submittedAccountHolderName) : "John Doe";
 
         const panNameMatchScore = calculateNameMatchScore(panHolderName, matchBaseName);
@@ -382,8 +383,8 @@ const verifyWithCashfree = async ({ accountNumber, ifsc, accountHolderName }) =>
   const clientId = String(process.env.CASHFREE_CLIENT_ID || "").trim();
   const clientSecret = String(process.env.CASHFREE_CLIENT_SECRET || "").trim();
   
-  // Auto-detect Cashfree sandbox environment for test credentials
-  const isTest = clientId.toUpperCase().startsWith("TEST");
+  // Auto-detect Cashfree sandbox environment for test credentials (only in non-production)
+  const isTest = clientId.toUpperCase().startsWith("TEST") && process.env.NODE_ENV !== "production";
   const defaultUrl = isTest 
     ? "https://sandbox.cashfree.com/verification" 
     : "https://api.cashfree.com/verification";
@@ -437,9 +438,27 @@ const verifyWithConfiguredProvider = async ({ accountNumber, ifsc, accountHolder
     if (clientId && clientSecret) {
       return verifyWithCashfree({ accountNumber, ifsc, accountHolderName });
     }
+    
+    // In production, force failure if Cashfree is the target but keys are missing
+    return {
+      configured: false,
+      provider: "cashfree",
+      status: "PROVIDER_NOT_CONFIGURED",
+      reason: "Cashfree verification client ID or secret is not configured.",
+    };
   }
 
-  // If provider is local or Cashfree keys are not configured, simulate successful local verification
+  // Disable local mock provider in production
+  if (process.env.NODE_ENV === "production") {
+    return {
+      configured: false,
+      provider,
+      status: "PROVIDER_NOT_CONFIGURED",
+      reason: `Unsupported bank verification provider in production: ${provider}`,
+    };
+  }
+
+  // If provider is local, simulate successful local verification in development/testing
   const hasUpi = Boolean(upiId && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(String(upiId).trim()));
   return {
     configured: true,
