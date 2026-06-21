@@ -4,6 +4,8 @@ import {
   Building2,
   CheckCircle2,
   CreditCard,
+  Eye,
+  EyeOff,
   Hash,
   Landmark,
   Loader2,
@@ -152,18 +154,54 @@ const getInitials = (name) =>
     .map((part) => part[0]?.toUpperCase() || "")
     .join("") || "A";
 
-const InfoCard = ({ icon, label, value }) => {
+const maskValue = (val, visibleChars = 4) => {
+  if (!val) return "-";
+  const str = String(val);
+  if (str.length <= visibleChars) return "•".repeat(str.length);
+  return "•".repeat(str.length - visibleChars) + str.slice(-visibleChars);
+};
+
+const maskUpiId = (val) => {
+  if (!val) return "-";
+  const parts = String(val).split("@");
+  if (parts.length < 2) return "•".repeat(val.length);
+  const local = parts[0];
+  const domain = parts[1];
+  const maskedLocal = local.length > 3 ? local.slice(0, 2) + "•".repeat(local.length - 3) + local.slice(-1) : "•".repeat(local.length);
+  return `${maskedLocal}@${domain}`;
+};
+
+const InfoCard = ({ icon, label, value, onToggleReveal, isRevealed, isLoading }) => {
   const IconComponent = icon;
   return (
     <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
-      <div className="flex items-center gap-3">
-        <div className="rounded-2xl bg-[#FFF3E2] p-3 text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
-          <IconComponent size={18} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="rounded-2xl bg-[#FFF3E2] p-3 text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24] shrink-0">
+            <IconComponent size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">{label}</p>
+            <p className="mt-1 break-words text-base font-black text-[#2C1A0E] dark:text-white">{value || "-"}</p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">{label}</p>
-          <p className="mt-1 break-words text-base font-black text-[#2C1A0E] dark:text-white">{value || "-"}</p>
-        </div>
+        {onToggleReveal && (
+          <button
+            type="button"
+            onClick={onToggleReveal}
+            disabled={isLoading}
+            className="rounded-full p-2 text-[#8B7355] transition hover:bg-[#FFF3E2] hover:text-[#B8641A] dark:hover:bg-[#222B40] dark:hover:text-[#fbbf24] shrink-0"
+            title={isRevealed ? "Hide details" : "Show details"}
+          >
+            {isLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isRevealed ? (
+              <EyeOff size={16} />
+            ) : (
+              <Eye size={16} />
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -267,6 +305,13 @@ export default function AdminProfile() {
   const [bankEditMode, setBankEditMode] = useState(false);
   const [bankEditSnapshot, setBankEditSnapshot] = useState(null);
 
+  const [showPan, setShowPan] = useState(false);
+  const [showBankAccount, setShowBankAccount] = useState(false);
+  const [showIfsc, setShowIfsc] = useState(false);
+  const [showUpi, setShowUpi] = useState(false);
+  const [realBankAccount, setRealBankAccount] = useState("");
+  const [loadingRealBank, setLoadingRealBank] = useState(false);
+
   const adminName = admin?.name || dairyProfile.owner_name || "Admin";
   const adminEmail = admin?.email || "-";
   const adminPhone = admin?.phone || "-";
@@ -353,6 +398,28 @@ export default function AdminProfile() {
     } catch (err) {
       setBankEditSnapshot(formData);
       toast.error(err.response?.data?.error || "Could not securely load bank details for editing");
+    }
+  };
+
+  const handleToggleBankAccount = async () => {
+    if (showBankAccount) {
+      setShowBankAccount(false);
+    } else {
+      if (realBankAccount) {
+        setShowBankAccount(true);
+      } else {
+        setLoadingRealBank(true);
+        try {
+          const revealedProfile = await fetchAdminProfile({ revealBankDetails: true });
+          const revealedNumber = revealedProfile?.dairy?.bank_account_number || "";
+          setRealBankAccount(revealedNumber);
+          setShowBankAccount(true);
+        } catch (err) {
+          toast.error("Could not securely load bank account number");
+        } finally {
+          setLoadingRealBank(false);
+        }
+      }
     }
   };
 
@@ -727,10 +794,35 @@ export default function AdminProfile() {
               <InfoCard icon={Mail} label="Owner Email / Login ID" value={adminEmail} />
               <InfoCard icon={Phone} label="Owner Phone" value={adminPhone} />
               <InfoCard icon={Landmark} label="Bank Account Holder" value={dairyProfile.bank_account_holder_name} />
-              <InfoCard icon={Hash} label="PAN Card Number" value={dairyProfile.pan} />
-              <InfoCard icon={CreditCard} label="Bank Account" value={dairyProfile.masked_account_number || maskAccountNumber(dairyProfile.bank_account_number)} />
-              <InfoCard icon={Hash} label="IFSC Code" value={dairyProfile.bank_ifsc_code} />
-              <InfoCard icon={CreditCard} label="UPI ID" value={dairyProfile.upi_id} />
+              <InfoCard 
+                icon={Hash} 
+                label="PAN Card Number" 
+                value={showPan ? dairyProfile.pan : maskValue(dairyProfile.pan, 4)} 
+                onToggleReveal={() => setShowPan(!showPan)}
+                isRevealed={showPan}
+              />
+              <InfoCard 
+                icon={CreditCard} 
+                label="Bank Account" 
+                value={showBankAccount ? (realBankAccount || dairyProfile.bank_account_number) : (dairyProfile.masked_account_number || maskAccountNumber(dairyProfile.bank_account_number))} 
+                onToggleReveal={handleToggleBankAccount}
+                isRevealed={showBankAccount}
+                isLoading={loadingRealBank}
+              />
+              <InfoCard 
+                icon={Hash} 
+                label="IFSC Code" 
+                value={showIfsc ? dairyProfile.bank_ifsc_code : maskValue(dairyProfile.bank_ifsc_code, 4)} 
+                onToggleReveal={() => setShowIfsc(!showIfsc)}
+                isRevealed={showIfsc}
+              />
+              <InfoCard 
+                icon={CreditCard} 
+                label="UPI ID" 
+                value={showUpi ? dairyProfile.upi_id : maskUpiId(dairyProfile.upi_id)} 
+                onToggleReveal={() => setShowUpi(!showUpi)}
+                isRevealed={showUpi}
+              />
               <InfoCard icon={ReceiptText} label="One-Time Orders Payment" value={dairyProfile.one_time_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
               <InfoCard icon={CreditCard} label="Monthly Subscription Payment" value={dairyProfile.subscription_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
               <InfoCard icon={ShieldCheck} label="Bank Verification" value={bankStatusLabel} />
