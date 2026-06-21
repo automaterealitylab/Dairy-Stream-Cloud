@@ -18,8 +18,8 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
       },
       manifest: {
-        name: "DairyStream",
-        short_name: "DairyStream",
+        name: "DairyVision",
+        short_name: "DairyVision",
         start_url: "/",
         display: "standalone",
         description: "Milk delivery management system for dairies, agents and customers",

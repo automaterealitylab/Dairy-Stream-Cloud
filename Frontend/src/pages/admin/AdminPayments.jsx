@@ -325,7 +325,7 @@ export default function AdminPayments() {
         const options = {
           key: keyId,
           subscription_id: subscriptionId,
-          name: "DairyStream SaaS",
+          name: "DairyVision SaaS",
           description: `${getPlanLabel(pendingAutopayPlan)} Plan AutoPay (${billingCycle})`,
           prefill: {
             name: user.name || user.username || user.ownerName || "",
@@ -399,7 +399,7 @@ export default function AdminPayments() {
           key: keyId,
           amount: order.amount,
           currency: order.currency,
-          name: "DairyStream SaaS",
+          name: "DairyVision SaaS",
           description: `${getPlanLabel(pendingAutopayPlan)} Plan (${billingCycle})`,
           order_id: order.id,
           prefill: {

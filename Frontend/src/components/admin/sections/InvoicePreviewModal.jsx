@@ -127,7 +127,7 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
   const [billConfig, setBillConfig] = useState({
     notes: "Please pay by the due date to avoid service interruption.",
     contact: "+91 98765 43210",
-    email: "billing@dairystream.com",
+    email: "billing@dairyvision.com",
     address: "Plot 42, Industrial Area, Milk City",
     upiId: "ayanm102435@okaxis",
   });
@@ -165,7 +165,7 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
     dairyName ||
     billData?.dairy?.dairy_name ||
     resolvedCustomer?.dairy_name ||
-    "DairyStream";
+    "DairyVision";
   const customerAddress = [
     resolvedCustomer?.building_name,
     resolvedCustomer?.wing,
@@ -355,7 +355,7 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
                   <div className="flex items-start justify-between gap-8">
                     <div className="max-w-[60%]">
                       <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#F3D4A6]">
-                        DairyStream Bill
+                        DairyVision Bill
                       </p>
                       <h1 className="mt-4 text-[40px] font-black tracking-tight">{resolvedDairyName}</h1>
                       <div className="mt-5 space-y-1.5 text-[13px] font-semibold text-white/82">
@@ -505,7 +505,7 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
 
                 <div className="mt-auto px-14 py-10">
                   <div className="flex items-center justify-between border-t border-[#EFE7DA] pt-5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">
-                    <span>DairyStream Billing System</span>
+                    <span>DairyVision Billing System</span>
                     <span>{resolvedBilling?.billingPeriod || "-"}</span>
                   </div>
                 </div>

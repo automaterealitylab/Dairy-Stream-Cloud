@@ -69,7 +69,7 @@ export default function AdminMobileTopbar({ adminName, onMenu }) {
       </button>
  
       <span className="text-lg font-black text-[#B8641A] dark:text-[#00C896]" style={adminHeadingFont}>
-        DairyStream
+        DairyVision
       </span>
  
       <div className="flex items-center gap-2 relative">

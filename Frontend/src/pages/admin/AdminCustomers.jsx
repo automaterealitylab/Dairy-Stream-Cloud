@@ -140,7 +140,7 @@ export default function AdminCustomers() {
       const doc = new jsPDF();
 
       doc.setFontSize(22);
-      doc.text("DAIRYSTREAM", 14, 20);
+      doc.text("DAIRYVISION", 14, 20);
 
       // ✅ Use the imported autoTable function directly
       autoTable(doc, {
@@ -490,7 +490,7 @@ export default function AdminCustomers() {
     <InvoicePreviewModal
       customer={invoiceTarget}
       adminName={adminName} // Now this variable exists!
-      dairyName={invoiceTarget?.dairy_name || "DairyStream"} // Uses customer's dairy info
+      dairyName={invoiceTarget?.dairy_name || "DairyVision"} // Uses customer's dairy info
       onClose={() => setInvoiceTarget(null)}
     />
   )}

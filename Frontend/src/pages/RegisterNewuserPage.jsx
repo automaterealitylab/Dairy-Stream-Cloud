@@ -260,7 +260,7 @@ const CustomerRegister = () => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.18),transparent_40%)]" />
         <div className="relative z-10 max-w-lg">
           <h1 className="mb-6 text-5xl font-semibold tracking-tight" style={headingFont}>
-            Join DairyStream
+            Join DairyVision
           </h1>
           <p className="mb-8 text-xl leading-relaxed text-[#F5E6D2]">
             Create your account to start managing your daily milk delivery, billing, and vacations effortlessly.

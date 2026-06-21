@@ -157,7 +157,7 @@ export default function AdminSidebar({ open, onClose }) {
         <div className="relative border-b border-[#F2EDE4] px-6 py-7 dark:border-[#222B3D] xl:px-[30px] xl:py-[34px]">
           <div>
             <h2 className="text-[26px] leading-none text-[#B8641A] dark:text-[#00C896] xl:text-[32px]" style={adminHeadingFont}>
-              DairyStream
+              DairyVision
             </h2>
             <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] dark:text-slate-500 xl:mt-2 xl:text-[13px]">
               Admin Portal

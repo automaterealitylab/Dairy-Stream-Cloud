@@ -540,7 +540,7 @@ const LoginPage = () => {
       <div className="order-1 px-4 pt-6 sm:px-6 lg:hidden">
         <div className="w-full max-w-md mx-auto rounded-[20px] border border-[#E7DAC6] bg-[#FFFDF7] p-4 text-center shadow-[0_8px_30px_rgba(44,26,14,0.06)]">
           <div className="cursor-pointer text-2xl font-bold text-[#2C1A0E]" style={headingFont} onClick={() => navigate("/")}>
-            Dairy<span className="text-[#B8641A]">Stream</span>
+            Dairy<span className="text-[#B8641A]">Vision</span>
           </div>
         </div>
       </div>
@@ -578,7 +578,7 @@ const LoginPage = () => {
       <div className="relative hidden overflow-hidden bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-20 text-white lg:flex lg:flex-col lg:justify-center">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.16),transparent_42%)]" />
         <div className="relative z-10">
-          <h1 className="mt-3 text-5xl font-semibold tracking-tight text-white" style={headingFont}>DairyStream</h1>
+          <h1 className="mt-3 text-5xl font-semibold tracking-tight text-white" style={headingFont}>DairyVision</h1>
           <div className="mb-6 mt-4 h-1 w-12 rounded-full bg-[#D6A15D]" />
           <p className="max-w-md text-lg text-[#F5E6D2]">
             Manage milk deliveries, subscriptions, billing, and customer access from one calm, reliable platform.

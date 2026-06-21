@@ -1,4 +1,4 @@
-const CACHE_NAME = "dairystream-cache-v4";
+const CACHE_NAME = "dairyvision-cache-v4";
 
 const STATIC_ASSETS = [
   "/",

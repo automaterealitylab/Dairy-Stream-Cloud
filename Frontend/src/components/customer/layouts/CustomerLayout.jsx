@@ -165,7 +165,7 @@ const CustomerLayout = ({ children }) => {
       <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-[#EDE8DF] bg-white/95 backdrop-blur md:flex xl:w-80">
         <div className="border-b border-[#F2EDE4] px-6 py-7 xl:px-[30px] xl:py-[34px]">
           <h1 className="text-[26px] text-[#B8641A] xl:text-[32px]" style={brandFont}>
-            DairyStream
+            DairyVision
           </h1>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] xl:mt-2 xl:text-[13px]">
             Customer Portal
@@ -252,7 +252,7 @@ const CustomerLayout = ({ children }) => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg text-[#B8641A]" style={brandFont}>
-                DairyStream
+                DairyVision
               </h1>
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#C4A882]">
                 Customer Portal

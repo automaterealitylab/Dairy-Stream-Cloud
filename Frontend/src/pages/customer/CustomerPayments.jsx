@@ -363,7 +363,7 @@ export default function Payments() {
         key: keyId,
         amount: order.amount,
         currency: order.currency,
-        name: "DairyStream",
+        name: "DairyVision",
         description: payAll ? "Clear Pending Bills" : (payment.title || "Dairy Bill"),
         order_id: order.id,
         prefill: {
@@ -437,7 +437,7 @@ export default function Payments() {
         key: keyId,
         amount: order.amount,
         currency: order.currency,
-        name: "DairyStream Wallet",
+        name: "DairyVision Wallet",
         description: `Wallet Topup \u2022 \u20B9${value}`,
         order_id: order.id,
         theme: {
@@ -1381,7 +1381,7 @@ export default function Payments() {
 
               <div className="flex items-center gap-2 text-xs text-[#B89970]">
                 <Info size={13} />
-                Amount will be credited instantly to your DairyStream wallet.
+                Amount will be credited instantly to your DairyVision wallet.
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
