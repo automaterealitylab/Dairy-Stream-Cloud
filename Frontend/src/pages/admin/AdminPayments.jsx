@@ -529,27 +529,27 @@ export default function AdminPayments() {
       return (
         <React.Fragment key={group.groupKey}>
           <tr
-            className="cursor-pointer hover:bg-gray-50 transition group"
+            className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-[#1C243A]"
             onClick={() => togglePaymentGroup(group.groupKey)}
           >
             <td className="px-6 py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A] dark:bg-[#0B0F19] dark:text-[#d97706]">
                   {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </div>
                 <div>
-                  <div className="font-bold text-gray-900">{group.customer}</div>
-                  <div className="text-xs font-semibold text-gray-500">
+                  <div className="font-bold text-gray-900 dark:text-white">{group.customer}</div>
+                  <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
                     {group.items.length} payment{group.items.length > 1 ? "s" : ""} on this day
                   </div>
                 </div>
               </div>
             </td>
-            <td className="px-6 py-5 text-sm text-gray-500">{formatPaymentDate(group.date)}</td>
+            <td className="px-6 py-5 text-sm text-gray-500 dark:text-slate-400">{formatPaymentDate(group.date)}</td>
             <td className="px-6 py-5">
-              <div className="font-bold text-gray-900">{formatCurrency(group.displayAmount)}</div>
+              <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(group.displayAmount)}</div>
               {group.items.length > 1 && (
-                <div className="text-xs font-semibold text-gray-500">
+                <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
                   {group.hasCollectibleItems
                     ? `Total activity: ${formatCurrency(group.totalAmount)}`
                     : `Recorded total: ${formatCurrency(group.totalAmount)}`}
@@ -564,7 +564,7 @@ export default function AdminPayments() {
                     e.stopPropagation();
                     togglePaymentGroup(group.groupKey);
                   }}
-                  className="h-9 px-4 bg-[#FDF6EC] text-[#B8641A] text-[11px] font-black uppercase rounded-xl hover:bg-[#F7E8D3] transition-all flex items-center justify-center"
+                  className="flex h-9 items-center justify-center rounded-xl bg-[#FDF6EC] px-4 text-[11px] font-black uppercase text-[#B8641A] transition-all hover:bg-[#F7E8D3] dark:bg-[#0B0F19] dark:text-[#d97706] dark:hover:bg-[#1C243A]"
                 >
                   {isExpanded ? "Hide" : "View"} Details
                 </button>
@@ -573,7 +573,7 @@ export default function AdminPayments() {
                     e.stopPropagation();
                     window.open(`https://wa.me/${group.phone}?text=Bill Reminder`, "_blank");
                   }}
-                  className="h-9 w-9 flex items-center justify-center text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-100 rounded-xl transition-all"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 text-emerald-500 transition-all hover:bg-emerald-50 hover:text-emerald-700 dark:border-[#222B40] dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
                   title="Send Reminder"
                 >
                   <Share2 size={16} />
@@ -583,10 +583,10 @@ export default function AdminPayments() {
           </tr>
 
           {isExpanded && (
-            <tr className="bg-[#FFFCF8]">
+            <tr className="bg-[#FFFCF8] dark:bg-[#1C243A]">
               <td colSpan="5" className="px-6 py-4">
-                <div className="overflow-hidden rounded-[24px] border border-[#EFE4D6] bg-white">
-                  <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F2EDE4] bg-[#FFF8F0] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">
+                <div className="overflow-hidden rounded-[24px] border border-[#EFE4D6] bg-white dark:border-[#222B40] dark:bg-[#121829]">
+                  <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F2EDE4] bg-[#FFF8F0] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:border-[#222B40] dark:bg-[#161C2C] dark:text-slate-400">
                     <span>Customer</span>
                     <span>Date</span>
                     <span>Amount</span>
@@ -597,14 +597,14 @@ export default function AdminPayments() {
                   {group.items.map((pay) => (
                     <div
                       key={pay.id}
-                      className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F8F2E8] px-4 py-4 last:border-b-0"
+                      className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F8F2E8] px-4 py-4 last:border-b-0 dark:border-[#222B40]"
                     >
                       <div>
-                        <div className="font-bold text-gray-900">{pay.customer}</div>
-                        <div className="text-xs text-gray-500">Payment ID: {pay.id}</div>
+                        <div className="font-bold text-gray-900 dark:text-white">{pay.customer}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">Payment ID: {pay.id}</div>
                       </div>
-                      <div className="text-sm text-gray-500">{formatPaymentDate(pay.date)}</div>
-                      <div className="font-bold text-gray-900">{formatCurrency(pay.amount)}</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">{formatPaymentDate(pay.date)}</div>
+                      <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(pay.amount)}</div>
                       <div>{renderStatusBadge(pay.status)}</div>
                       <div className="flex items-center justify-end gap-2">
                         {isCollectibleStatus(pay.status) && (
@@ -686,23 +686,23 @@ export default function AdminPayments() {
           </div>
         </div>
 
-        <div className="mb-8 overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-8 overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
+          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-5 dark:border-[#1E293B] lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FDF6EC] text-[#B8641A]">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FDF6EC] text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
                 <ShieldCheck size={20} />
               </div>
               <div>
-                <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>Direct UPI Collection</h3>
-                <p className="mt-1 text-sm font-semibold text-[#8B7355]">
+                <h3 className="text-xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>Direct UPI Collection</h3>
+                <p className="mt-1 text-sm font-semibold text-[#8B7355] dark:text-slate-400">
                   Customers pay directly to the dairy owner. This dashboard tracks UTR submissions and pending verification.
                 </p>
               </div>
             </div>
             <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${
               farmPlan?.upiId
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
             }`}>
               <ShieldCheck size={13} />
               {farmPlan?.upiId ? "UPI READY" : "ADD UPI ID"}
@@ -710,21 +710,21 @@ export default function AdminPayments() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
-            <div className="rounded-[22px] border border-[#EFE4D6] bg-[#FFF8F0] p-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">UPI ID</p>
-              <p className="mt-2 text-sm font-semibold text-[#5C3D1E]">
+            <div className="rounded-[22px] border border-[#EFE4D6] bg-[#FFF8F0] p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:text-slate-400">UPI ID</p>
+              <p className="mt-2 text-sm font-semibold text-[#5C3D1E] dark:text-white">
                 {farmPlan?.upiId || "Configure UPI ID in Dairy Profile"}
               </p>
             </div>
-            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">Bank Account</p>
-              <p className="mt-2 break-all text-sm font-bold text-[#2C1A0E]">
+            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:text-slate-400">Bank Account</p>
+              <p className="mt-2 break-all text-sm font-bold text-[#2C1A0E] dark:text-white">
                 {farmPlan?.bankAccountNumber ? `•••• ${String(farmPlan.bankAccountNumber).slice(-4)}` : "Not configured"}
               </p>
             </div>
-            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970]">Pending Verification</p>
-              <p className="mt-2 text-sm font-semibold text-[#5C3D1E]">
+            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:text-slate-400">Pending Verification</p>
+              <p className="mt-2 text-sm font-semibold text-[#5C3D1E] dark:text-white">
                 {verifications.length} UPI payment{verifications.length === 1 ? "" : "s"} waiting for review.
               </p>
             </div>

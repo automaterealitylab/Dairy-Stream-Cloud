@@ -185,8 +185,7 @@ body,
 .dark .bg-white,
 .dark [class*="bg-white"],
 .dark .bg-surface,
-.dark .bg-\#ffffff,
-.dark .bg-[#ffffff] {
+.dark .bg-\[\#ffffff\] {
   background-color: #121829 !important;
   border-color: #1E293B !important;
   color: #ffffff !important;
@@ -234,6 +233,7 @@ body,
 .dark .text-gray-900,
 .dark .text-gray-800,
 .dark .text-slate-900,
+.dark .text-slate-800,
 .dark [class*="text-"][class*="2C1A0E"],
 .dark [class*="text-"][class*="3B210F"],
 .dark [class*="text-"][class*="5C3D1E"],
@@ -247,6 +247,8 @@ body,
 .dark .text-gray-600,
 .dark .text-gray-500,
 .dark .text-gray-400,
+.dark .text-slate-700,
+.dark .text-slate-400,
 .dark .text-slate-500,
 .dark .text-slate-600,
 .dark .text-text-secondary,
@@ -335,12 +337,27 @@ body,
 
 /* 5. Buttons & Controls (non-brand) */
 .dark .bg-gray-100,
+.dark .bg-gray-50,
+.dark [class*="bg-gray-50"],
+.dark .bg-slate-50,
+.dark [class*="bg-slate-50"],
 .dark .bg-slate-100 {
   background-color: #1C243A !important;
   color: #ffffff !important;
 }
 
+.dark .from-gray-50 {
+  --tw-gradient-from: #161C2C var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(22 28 44 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .to-white {
+  --tw-gradient-to: #121829 var(--tw-gradient-to-position) !important;
+}
+
 .dark .hover:bg-gray-100:hover,
+.dark .hover:bg-gray-50:hover,
 .dark .hover:bg-slate-100:hover {
   background-color: #242E4A !important;
 }

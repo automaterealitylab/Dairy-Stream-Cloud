@@ -103,9 +103,11 @@ const loadDashboard = useCallback(async (force = false) => {
           <AdminDashboardSkeleton />
         ) : (
           <>
-            <AdminHeader adminName={data?.dairyName || adminName} />
-            
-            <DailyOperationsSnapshot data={data} adminName={data?.dairyName || adminName} />
+            <DailyOperationsSnapshot
+              data={data}
+              adminName={data?.dairyName || adminName}
+              headerAction={<AdminHeader notificationsOnly embedded />}
+            />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
               <div className="lg:col-span-2 space-y-8">

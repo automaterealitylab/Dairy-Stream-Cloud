@@ -77,19 +77,19 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 overflow-hidden">
-          <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white flex justify-between items-center">
+        <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 dark:border dark:border-[#1E293B] dark:bg-[#121829] dark:text-white dark:ring-white/10">
+          <div className="flex items-center justify-between border-b bg-gradient-to-r from-gray-50 to-white p-6 dark:border-[#1E293B] dark:from-[#161C2C] dark:to-[#121829]">
             <div>
-              <h2 className="text-lg font-semibold">Agent Details</h2>
-              <p className="text-sm text-gray-500">Profile and routing overview</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Details</h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Profile and routing overview</p>
             </div>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="h-9 w-9 rounded-full border border-red-100 text-red-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50"
+              className="h-9 w-9 rounded-full border border-red-100 text-red-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-red-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10"
             >
               X
             </button>
@@ -98,109 +98,109 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
           {!data ? (
             <LoadingIndicator className="p-6" message="Loading agent details..." />
           ) : (
-            <div className="p-6 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-8 p-6">
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Agent</h3>
+                  <h3 className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Agent</h3>
                   {isEditing ? (
                     <div className="mt-3 space-y-4">
                       <div>
-                        <label className="text-xs text-gray-500">Full Name</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400">Full Name</label>
                         <input
                           name="agent_name"
                           value={form.agent_name}
                           onChange={onInput}
                           placeholder="Full name"
-                          className="w-full border-b border-gray-200 p-2 focus:outline-none"
+                          className="w-full border-b border-gray-200 p-2 focus:outline-none dark:border-[#222B40] dark:bg-[#121829] dark:text-white dark:placeholder:text-slate-500"
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500">Phone</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400">Phone</label>
                         <input
                           name="phone_number"
                           value={form.phone_number}
                           onChange={onInput}
                           placeholder="Phone"
-                          className="w-full border-b border-gray-200 p-2 focus:outline-none"
+                          className="w-full border-b border-gray-200 p-2 focus:outline-none dark:border-[#222B40] dark:bg-[#121829] dark:text-white dark:placeholder:text-slate-500"
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500">Email</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400">Email</label>
                         <input
                           name="email"
                           value={form.email}
                           onChange={onInput}
                           placeholder="Email"
-                          className="w-full border-b border-gray-200 p-2 focus:outline-none"
+                          className="w-full border-b border-gray-200 p-2 focus:outline-none dark:border-[#222B40] dark:bg-[#121829] dark:text-white dark:placeholder:text-slate-500"
                         />
                       </div>
                     </div>
                   ) : (
                     <div className="mt-3 space-y-2">
                       <div>
-                        <p className="text-xs text-gray-500">Full Name</p>
-                        <p className="font-medium">{agent?.full_name || agent?.agent_name || "Unnamed"}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Full Name</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{agent?.full_name || agent?.agent_name || "Unnamed"}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Phone</p>
-                        <p className="text-sm text-gray-700">{agent?.mobile || agent?.phone_number || "-"}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Phone</p>
+                        <p className="text-sm text-gray-700 dark:text-slate-300">{agent?.mobile || agent?.phone_number || "-"}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Email</p>
-                        <p className="text-sm text-gray-700">{agent?.email || "-"}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Email</p>
+                        <p className="text-sm text-gray-700 dark:text-slate-300">{agent?.email || "-"}</p>
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Route</h3>
+                  <h3 className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Route</h3>
                   {isEditing ? (
                     <div className="mt-3 space-y-4">
                       <div>
-                        <label className="text-xs text-gray-500">Building</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400">Building</label>
                         <input
                           name="building"
                           value={form.building}
                           onChange={onInput}
                           placeholder="Building"
-                          className="w-full border-b border-gray-200 p-2 focus:outline-none"
+                          className="w-full border-b border-gray-200 p-2 focus:outline-none dark:border-[#222B40] dark:bg-[#121829] dark:text-white dark:placeholder:text-slate-500"
                         />
                       </div>
                     </div>
                   ) : (
                     <div className="mt-3 space-y-2">
                       <div>
-                        <p className="text-xs text-gray-500">Building</p>
-                        <p className="font-medium">{agent?.building || "-"}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Building</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{agent?.building || "-"}</p>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Joined</h3>
+                  <h3 className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Joined</h3>
                   <div className="mt-3">
-                    <p className="text-xs text-gray-500">Date</p>
-                    <p className="text-sm">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Date</p>
+                    <p className="text-sm text-gray-900 dark:text-white">
                       {agent?.created_at ? new Date(agent.created_at).toLocaleDateString() : "-"}
                     </p>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-xs text-gray-500 uppercase tracking-wide">Availability</h3>
+                  <h3 className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Availability</h3>
                   <div className="mt-3 space-y-1">
                     <p className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold uppercase ${
                       String(agent?.status || "ACTIVE").toUpperCase() === "INACTIVE"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-green-100 text-green-700"
+                        ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                        : "bg-green-100 text-green-700 dark:bg-emerald-500/10 dark:text-emerald-300"
                     }`}>
                       {String(agent?.status || "ACTIVE").toUpperCase()}
                     </p>
                     {String(agent?.status || "ACTIVE").toUpperCase() === "INACTIVE" && agent?.inactive_until && (
-                      <p className="text-xs text-gray-600">
+                      <p className="text-xs text-gray-600 dark:text-slate-400">
                         Until {new Date(agent.inactive_until).toLocaleDateString()}
                       </p>
                     )}
@@ -210,14 +210,14 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
             </div>
           )}
 
-          <div className="p-4 border-t bg-gray-50/60 flex items-center justify-between">
-            <div className="text-xs text-gray-500">ID: {agent?.id}</div>
+          <div className="flex items-center justify-between border-t bg-gray-50/60 p-4 dark:border-[#1E293B] dark:bg-[#161C2C]">
+            <div className="text-xs text-gray-500 dark:text-slate-400">ID: {agent?.id}</div>
             <div className="flex items-center gap-2">
               {isEditing ? (
                 <>
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="px-3 py-2 text-sm border rounded-lg hover:bg-white"
+                    className="rounded-lg border px-3 py-2 text-sm hover:bg-white dark:border-[#222B40] dark:bg-[#121829] dark:text-slate-300 dark:hover:bg-[#1C243A]"
                   >
                     Cancel
                   </button>
@@ -233,7 +233,7 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
                 <>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="px-3 py-2 text-sm border rounded-lg hover:bg-white"
+                    className="rounded-lg border px-3 py-2 text-sm hover:bg-white dark:border-[#222B40] dark:bg-[#121829] dark:text-slate-300 dark:hover:bg-[#1C243A]"
                   >
                     Edit
                   </button>

@@ -150,14 +150,14 @@ const getInitials = (name) =>
 const InfoCard = ({ icon, label, value }) => {
   const IconComponent = icon;
   return (
-    <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5">
+    <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
       <div className="flex items-center gap-3">
-        <div className="rounded-2xl bg-[#FFF3E2] p-3 text-[#B8641A]">
+        <div className="rounded-2xl bg-[#FFF3E2] p-3 text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
           <IconComponent size={18} />
         </div>
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970]">{label}</p>
-          <p className="mt-1 break-words text-base font-black text-[#2C1A0E]">{value || "-"}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">{label}</p>
+          <p className="mt-1 break-words text-base font-black text-[#2C1A0E] dark:text-white">{value || "-"}</p>
         </div>
       </div>
     </div>
@@ -167,21 +167,21 @@ const InfoCard = ({ icon, label, value }) => {
 const SummaryCard = ({ icon, label, value, tone = "warm" }) => {
   const IconComponent = icon;
   const toneClasses = {
-    warm: "bg-[#FFF3E2] text-[#B8641A]",
-    mint: "bg-[#EEF7EB] text-[#6F8C45]",
-    sky: "bg-[#EAF6FB] text-[#2E7D9A]",
-    cream: "bg-[#FDF6EC] text-[#8B7355]",
+    warm: "bg-[#FFF3E2] text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]",
+    mint: "bg-[#EEF7EB] text-[#6F8C45] dark:bg-emerald-500/10 dark:text-emerald-300",
+    sky: "bg-[#EAF6FB] text-[#2E7D9A] dark:bg-cyan-500/10 dark:text-cyan-300",
+    cream: "bg-[#FDF6EC] text-[#8B7355] dark:bg-[#0B0F19] dark:text-slate-400",
   };
 
   return (
-    <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-5 shadow-[0_10px_30px_rgba(92,61,30,0.06)]">
+    <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-5 shadow-[0_10px_30px_rgba(92,61,30,0.06)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
       <div className="flex items-center gap-3">
         <div className={`rounded-2xl p-3 ${toneClasses[tone] || toneClasses.warm}`}>
           <IconComponent size={18} />
         </div>
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970]">{label}</p>
-          <p className="mt-1 text-2xl font-black text-[#2C1A0E]">{value}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">{label}</p>
+          <p className="mt-1 text-2xl font-black text-[#2C1A0E] dark:text-white">{value}</p>
         </div>
       </div>
     </div>
@@ -640,30 +640,30 @@ export default function AdminProfile() {
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
-        <section className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-8 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+        <section className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-8 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#FDE9C9_0%,#FFF7EA_100%)] text-3xl font-black text-[#B8641A] shadow-[0_16px_30px_rgba(184,100,26,0.14)]">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#FDE9C9_0%,#FFF7EA_100%)] text-3xl font-black text-[#B8641A] shadow-[0_16px_30px_rgba(184,100,26,0.14)] dark:bg-none dark:bg-[#d97706]/10 dark:text-[#fbbf24] dark:shadow-none">
                 {getInitials(dairyName)}
               </div>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B89970]">
                   Dairy Profile
                 </span>
-                <h1 className="mt-2 text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>
+                <h1 className="mt-2 text-3xl text-[#2C1A0E] dark:text-white sm:text-4xl" style={adminHeadingFont}>
                   {dairyName}
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#7B6247]">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#7B6247] dark:text-slate-400">
                   Manage dairy identity, owner contact, UPI collection, and bank details.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-[#FFF3E2] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#B8641A]">
+                  <span className="rounded-full bg-[#FFF3E2] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
                     {adminRole}
                   </span>
-                  <span className="rounded-full border border-[#E5D9C7] bg-white px-3 py-1 text-xs font-semibold text-[#7B6247]">
+                  <span className="rounded-full border border-[#E5D9C7] bg-white px-3 py-1 text-xs font-semibold text-[#7B6247] dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-slate-300">
                     Owner: {adminName}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-[#E5D9C7] bg-white px-3 py-1 text-xs font-semibold text-[#7B6247]">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#E5D9C7] bg-white px-3 py-1 text-xs font-semibold text-[#7B6247] dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-slate-300">
                     <CheckCircle2 size={13} className={dairyProfile.payments_enabled ? "text-[#4A7C2F]" : "text-[#B89970]"} />
                     Payments: {paymentStatus}
                   </span>
@@ -671,12 +671,12 @@ export default function AdminProfile() {
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-[#F2E4D1] bg-[#FFF8EF] px-5 py-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970]">
+            <div className="rounded-[24px] border border-[#F2E4D1] bg-[#FFF8EF] px-5 py-4 dark:border-[#222B40] dark:bg-[#161C2C]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">
                 Account Status
               </p>
-              <div className="mt-2 flex items-center gap-2 text-[#2C1A0E]">
-                <ShieldCheck size={18} className="text-[#6F8C45]" />
+              <div className="mt-2 flex items-center gap-2 text-[#2C1A0E] dark:text-white">
+                <ShieldCheck size={18} className="text-[#6F8C45] dark:text-emerald-300" />
                 <span className="text-base font-black">Active Admin Access</span>
               </div>
               <button

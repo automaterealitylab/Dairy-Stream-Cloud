@@ -13,7 +13,11 @@ import {
 } from "lucide-react";
 import { adminHeadingFont, adminShellFont } from "../adminTheme";
 
-const DailyOperationsSnapshot = ({ data = {}, adminName = "Admin" }) => {
+const DailyOperationsSnapshot = ({
+  data = {},
+  adminName = "Admin",
+  headerAction = null,
+}) => {
   const stats = data.stats || {};
   const needed = stats?.total_milk || 0;
   const procured = stats?.procured_milk || 0;
@@ -36,14 +40,19 @@ const DailyOperationsSnapshot = ({ data = {}, adminName = "Admin" }) => {
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[32px] p-6 text-white shadow-lg bg-gradient-to-br from-[#B8641A] to-[#E5C79D] dark:bg-gradient-to-br dark:from-[#059669] dark:to-[#0D9488] dark:border-none"
+        className="relative rounded-[32px] p-6 text-white shadow-lg bg-gradient-to-br from-[#B8641A] to-[#E5C79D] dark:bg-gradient-to-br dark:from-[#059669] dark:to-[#0D9488] dark:border-none"
       >
         {/* Background Decorative Circles */}
-        <div className="absolute right-0 top-0 -mr-6 -mt-6 h-36 w-36 rounded-full bg-white/10" />
-        <div className="absolute right-12 bottom-0 -mb-10 h-28 w-28 rounded-full bg-white/5" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[32px]">
+          <div className="absolute right-0 top-0 -mr-6 -mt-6 h-36 w-36 rounded-full bg-white/10" />
+          <div className="absolute right-12 bottom-0 -mb-10 h-28 w-28 rounded-full bg-white/5" />
+        </div>
 
         <div className="relative z-10">
-          <p className="text-xs font-medium text-white/80">{getGreeting()}</p>
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-xs font-medium text-white/80">{getGreeting()}</p>
+            {headerAction}
+          </div>
           <h2 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight" style={adminHeadingFont}>
             Welcome, {adminName}
           </h2>

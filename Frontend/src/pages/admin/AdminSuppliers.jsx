@@ -209,8 +209,8 @@ export default function AdminSuppliers() {
       <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-3xl sm:text-4xl text-[#2C1A0E]" style={adminHeadingFont}>Suppliers</h1>
-            <p className="mt-1 text-sm text-[#8B7355]">
+            <h1 className="text-3xl text-[#2C1A0E] dark:text-white sm:text-4xl" style={adminHeadingFont}>Suppliers</h1>
+            <p className="mt-1 text-sm text-[#8B7355] dark:text-slate-400">
               Manage active suppliers and keep their details updated for purchase entries.
             </p>
           </div>
@@ -227,50 +227,50 @@ export default function AdminSuppliers() {
           </button>
         </div>
 
-        <div className="rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
+          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-4 dark:border-[#1E293B] sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-[#8B7355]">
-                Total Suppliers <span className="font-medium text-[#2C1A0E]">{suppliers.length}</span>
+              <p className="text-sm text-[#8B7355] dark:text-slate-400">
+                Total Suppliers <span className="font-medium text-[#2C1A0E] dark:text-white">{suppliers.length}</span>
               </p>
             </div>
-            <div className="text-sm text-[#8B7355]">
+            <div className="text-sm text-[#8B7355] dark:text-slate-400">
               Edit details or deactivate suppliers that are no longer active.
             </div>
           </div>
 
-          <div className="divide-y divide-[#F5EFE6]">
+          <div className="divide-y divide-[#F5EFE6] dark:divide-[#1E293B]">
             {loading ? (
-              <div className="px-6 py-10 text-center text-sm text-[#8B7355]">
+              <div className="px-6 py-10 text-center text-sm text-[#8B7355] dark:text-slate-400">
                 Loading suppliers...
               </div>
             ) : suppliers.length === 0 ? (
-              <div className="px-6 py-10 text-center text-sm text-[#8B7355]">
+              <div className="px-6 py-10 text-center text-sm text-[#8B7355] dark:text-slate-400">
                 No active suppliers available.
               </div>
             ) : (
               suppliers.map((supplier) => (
                 <div
                   key={supplier.id}
-                  className="flex flex-col justify-between gap-4 px-6 py-4 transition hover:bg-[#FFFDF8] sm:flex-row sm:items-center"
+                  className="flex flex-col justify-between gap-4 px-6 py-4 transition hover:bg-[#FFFDF8] dark:hover:bg-[#1C243A] sm:flex-row sm:items-center"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDF6EC] font-bold uppercase text-[#B8641A]">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDF6EC] font-bold uppercase text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
                       {supplier.name?.charAt(0) || "S"}
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2 font-medium text-[#2C1A0E]">
+                      <div className="flex items-center gap-2 font-medium text-[#2C1A0E] dark:text-white">
                         <span>{supplier.name || "Unnamed Supplier"}</span>
-                        <span className="rounded-full bg-[#F4F7ED] px-2 py-0.5 text-[10px] font-bold uppercase text-[#6F8C45]">
+                        <span className="rounded-full bg-[#F4F7ED] px-2 py-0.5 text-[10px] font-bold uppercase text-[#6F8C45] dark:bg-emerald-500/10 dark:text-emerald-300">
                           Active
                         </span>
                       </div>
-                      <div className="mt-0.5 flex flex-wrap gap-2 text-sm text-[#8B7355]">
+                      <div className="mt-0.5 flex flex-wrap gap-2 text-sm text-[#8B7355] dark:text-slate-400">
                         <span>{supplier.phone || "No phone"}</span>
-                        {supplier.address ? <span className="text-gray-300">|</span> : null}
+                        {supplier.address ? <span className="text-gray-300 dark:text-slate-600">|</span> : null}
                         {supplier.address ? (
-                          <span className="font-medium text-[#B8641A]">{supplier.address}</span>
+                          <span className="font-medium text-[#B8641A] dark:text-[#d97706]">{supplier.address}</span>
                         ) : null}
                       </div>
                     </div>
@@ -283,21 +283,21 @@ export default function AdminSuppliers() {
                         setSupplierSummaryTarget(supplier);
                         setSummaryDateRange({ from: todayKey, to: todayKey });
                       }}
-                      className="rounded-full bg-[#F8F3EC] px-4 py-2 font-medium text-[#6F4A27] transition hover:bg-[#F1E3D0]"
+                      className="rounded-full bg-[#F8F3EC] px-4 py-2 font-medium text-[#6F4A27] transition hover:bg-[#F1E3D0] dark:bg-[#0B0F19] dark:text-slate-300 dark:hover:bg-[#1C243A] dark:hover:text-white"
                     >
                       View Purchases
                     </button>
                     <button
                       type="button"
                       onClick={() => handleEdit(supplier)}
-                      className="rounded-full bg-[#FFF3E2] px-4 py-2 font-medium text-[#B8641A] transition hover:bg-[#FDE9C9]"
+                      className="rounded-full bg-[#FFF3E2] px-4 py-2 font-medium text-[#B8641A] transition hover:bg-[#FDE9C9] dark:bg-[#d97706]/10 dark:text-[#fbbf24] dark:hover:bg-[#d97706]/20"
                     >
                       Edit Details
                     </button>
                     <button
                       type="button"
                       onClick={() => setSupplierPendingDeactivate(supplier)}
-                      className="rounded-full bg-[#FFF1EE] px-4 py-2 font-medium text-[#A85734] transition hover:bg-[#FBD8D0]"
+                      className="rounded-full bg-[#FFF1EE] px-4 py-2 font-medium text-[#A85734] transition hover:bg-[#FBD8D0] dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
                     >
                       Deactivate
                     </button>
