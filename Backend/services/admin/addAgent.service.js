@@ -1,6 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import bcrypt from "bcryptjs";
 import verifyEmail from "../../utils/verifyEmail.js";
+import { encryptDeterministic } from "../../utils/crypto.js";
 
 const MAX_ID_ATTEMPTS = 25;
 
@@ -63,10 +64,10 @@ export const createAgentService = async (agentData) => {
       .insert([
         {
           agent_id: finalAgentId,
-          email,
+          email: encryptDeterministic(email),
           password: hashedPassword,
           agent_name: agentName,
-          phone_number: phoneNumber,
+          phone_number: encryptDeterministic(phoneNumber),
           building,
           dairy_id: dairyId,
         },

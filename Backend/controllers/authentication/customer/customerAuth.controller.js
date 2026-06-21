@@ -6,6 +6,7 @@ import {
   determineRedirectPath,
 } from "../../../services/authentication/customerAuth.service.js";
 import { supabase } from "../../../config/supabase.js";
+import { decryptDeterministic } from "../../../utils/crypto.js";
 
 // ==========================================
 // 1. REGISTRATION (Public)
@@ -203,8 +204,8 @@ export const validateTokenAuth = async (req, res) => {
       userData = {
         id: data.id,
         name: data.customer_name,
-        email: data.email,
-        mobile: data.phone_number,
+        email: decryptDeterministic(data.email),
+        mobile: decryptDeterministic(data.phone_number),
         role: "CUSTOMER",
       };
     } else if (decoded.role === "ADMIN") {
@@ -224,8 +225,8 @@ export const validateTokenAuth = async (req, res) => {
       userData = {
         id: data.id,
         name: data.name,
-        email: data.email,
-        mobile: data.phone || data.phone_number,
+        email: decryptDeterministic(data.email),
+        mobile: decryptDeterministic(data.phone || data.phone_number),
         role: "ADMIN",
       };
     } else if (decoded.role === "AGENT" || decoded.role === "STAFF") {
@@ -245,8 +246,8 @@ export const validateTokenAuth = async (req, res) => {
       userData = {
         id: data.id,
         name: data.agent_name,
-        email: data.email,
-        mobile: data.phone || data.phone_number,
+        email: decryptDeterministic(data.email),
+        mobile: decryptDeterministic(data.phone || data.phone_number),
         role: decoded.role,
       };
     } else {

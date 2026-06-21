@@ -24,6 +24,8 @@ import {
   verifyWebhookSignature,
 } from "./razorpayRoute.service.js";
 import { detectSuspiciousMarketplaceOrder } from "./fraud.service.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
+import { decryptDairyFields } from "../admin/dairy.service.js";
 
 const normalizeString = (value) => String(value || "").trim();
 const normalizeEmail = (value) => normalizeString(value).toLowerCase();
@@ -123,31 +125,42 @@ const upsertCustomer = async ({ name, phone, address }) => {
     throw error;
   }
 
+  const encryptedPhone = encryptDeterministic(cleanPhone);
   const { data: existing, error: existingError } = await supabase
     .from("customers")
     .select("*")
-    .or(`phone.eq.${cleanPhone},phone_number.eq.${cleanPhone}`)
+    .or(`phone.eq.${cleanPhone},phone_number.eq.${cleanPhone},phone.eq.${encryptedPhone},phone_number.eq.${encryptedPhone}`)
     .limit(1)
     .maybeSingle();
 
   if (existingError) throw existingError;
-  if (existing?.id) return existing;
+  if (existing?.id) {
+    existing.email = decryptDeterministic(existing.email);
+    existing.phone = decryptDeterministic(existing.phone);
+    existing.phone_number = decryptDeterministic(existing.phone_number);
+    return existing;
+  }
 
   const { data, error } = await supabase
     .from("customers")
     .insert({
-      email: getSyntheticMarketplaceEmail(cleanPhone),
+      email: encryptDeterministic(getSyntheticMarketplaceEmail(cleanPhone)),
       password: getSyntheticMarketplacePassword(),
       name: normalizeString(name) || "Customer",
-      phone: cleanPhone,
+      phone: encryptDeterministic(cleanPhone),
       address: normalizeString(address),
       customer_name: normalizeString(name) || "Customer",
-      phone_number: cleanPhone,
+      phone_number: encryptDeterministic(cleanPhone),
     })
     .select("*")
     .single();
 
   if (error) throw error;
+  if (data) {
+    data.email = decryptDeterministic(data.email);
+    data.phone = decryptDeterministic(data.phone);
+    data.phone_number = decryptDeterministic(data.phone_number);
+  }
   return data;
 };
 
@@ -172,7 +185,7 @@ const getDairyById = async (dairyId) => {
     notFound.statusCode = 404;
     throw notFound;
   }
-  return data;
+  return decryptDairyFields(data);
 };
 
 const getOrderByRazorpayOrderId = async (razorpayOrderId) => {
@@ -454,16 +467,16 @@ export const registerMarketplaceDairy = async (payload = {}) => {
     .insert({
       dairy_name: dairyName,
       owner_name: ownerName,
-      email,
-      dairy_email: email,
-      phone,
-      dairy_phone: phone,
-      bank_account: bankAccount,
+      email: encryptDeterministic(email),
+      dairy_email: encryptDeterministic(email),
+      phone: encryptDeterministic(phone),
+      dairy_phone: encryptDeterministic(phone),
+      bank_account: encryptDeterministic(bankAccount),
       bank_account_number: bankAccount,
       bank_account_holder_name: ownerName,
-      ifsc,
-      bank_ifsc_code: ifsc,
-      pan,
+      ifsc: encryptDeterministic(ifsc),
+      bank_ifsc_code: encryptDeterministic(ifsc),
+      pan: encryptDeterministic(pan),
       upi_id: upiId || null,
       address,
       city,
@@ -541,7 +554,7 @@ export const registerMarketplaceDairy = async (payload = {}) => {
     if (updateError) throw updateError;
 
     return {
-      dairy: updatedDairy,
+      dairy: decryptDairyFields(updatedDairy),
       razorpay: {
         account,
         stakeholder,
@@ -569,7 +582,7 @@ export const listMarketplaceDairies = async () => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []).map(decryptDairyFields);
 };
 
 export const listMarketplaceProducts = async (dairyId) => {

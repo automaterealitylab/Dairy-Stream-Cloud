@@ -1,5 +1,6 @@
 import { supabase } from "../../config/supabase.js";
 import { generateCustomerOtp } from "./customerAuth.service.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const normalizeIdentifier = (value) => String(value ?? "").trim();
 const slowDetectThresholdMs = Number(process.env.AUTH_DETECT_SLOW_LOG_MS || 500);
@@ -88,7 +89,7 @@ const findAdminByIdentifier = async (rawIdentifier) => {
     const { data, error } = await supabase
       .from("admins")
       .select("id, email, name")
-      .eq("email", identifier.toLowerCase())
+      .or(`email.eq.${encryptDeterministic(identifier.toLowerCase())},email.eq.${identifier.toLowerCase()}`)
       .limit(1)
       .maybeSingle();
 
@@ -96,6 +97,9 @@ const findAdminByIdentifier = async (rawIdentifier) => {
     if (error) {
       logLookupError("admins.email", error, { identifierType: "email" });
       throw error;
+    }
+    if (data) {
+      data.email = decryptDeterministic(data.email);
     }
     const result = data || null;
     setCachedIdentity(cacheKey, result, result ? identityCacheTtlMs : missingIdentityCacheTtlMs);
@@ -113,12 +117,14 @@ const findAdminByIdentifier = async (rawIdentifier) => {
     const { data, error } = await supabase
       .from("admins")
       .select(`id, email, name, ${column}`)
-      .eq(column, mobile)
+      .or(`${column}.eq.${encryptDeterministic(mobile)},${column}.eq.${mobile}`)
       .limit(1)
       .maybeSingle();
 
     logSlowLookup("admins.mobile", startedAt, { column });
     if (!error && data) {
+      data.email = decryptDeterministic(data.email);
+      data[column] = decryptDeterministic(data[column]);
       setCachedIdentity(cacheKey, data);
       return data;
     }
@@ -148,7 +154,7 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
     const { data, error } = await supabase
       .from("customers")
       .select("id, customer_name, email")
-      .eq("email", identifier.toLowerCase())
+      .or(`email.eq.${encryptDeterministic(identifier.toLowerCase())},email.eq.${identifier.toLowerCase()}`)
       .limit(1)
       .maybeSingle();
 
@@ -156,6 +162,9 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
     if (error) {
       logLookupError("customers.email", error, { identifierType: "email" });
       throw error;
+    }
+    if (data) {
+      data.email = decryptDeterministic(data.email);
     }
     const result = data || null;
     setCachedIdentity(cacheKey, result, result ? identityCacheTtlMs : missingIdentityCacheTtlMs);
@@ -170,8 +179,8 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
 
   const { data, error } = await supabase
     .from("customers")
-    .select("id, customer_name, email")
-    .eq("phone_number", mobile)
+    .select("id, customer_name, email, phone_number")
+    .or(`phone_number.eq.${encryptDeterministic(mobile)},phone_number.eq.${mobile}`)
     .limit(1)
     .maybeSingle();
 
@@ -179,6 +188,10 @@ const findCustomerByIdentifier = async (rawIdentifier) => {
   if (error) {
     logLookupError("customers.phone_number", error);
     throw error;
+  }
+  if (data) {
+    data.email = decryptDeterministic(data.email);
+    data.phone_number = decryptDeterministic(data.phone_number);
   }
   const result = data || null;
   setCachedIdentity(cacheKey, result, result ? identityCacheTtlMs : missingIdentityCacheTtlMs);

@@ -17,6 +17,22 @@ import {
   requestRouteProduct,
   updateRouteSettlementConfig,
 } from "../marketplace/razorpayRoute.service.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
+
+export const decryptDairyFields = (dairy) => {
+  if (!dairy) return dairy;
+  return {
+    ...dairy,
+    dairy_phone: decryptDeterministic(dairy.dairy_phone),
+    dairy_email: decryptDeterministic(dairy.dairy_email),
+    phone: decryptDeterministic(dairy.phone),
+    email: decryptDeterministic(dairy.email),
+    bank_ifsc_code: decryptDeterministic(dairy.bank_ifsc_code),
+    ifsc: decryptDeterministic(dairy.ifsc),
+    pan: decryptDeterministic(dairy.pan),
+    bank_branch: decryptDeterministic(dairy.bank_branch),
+  };
+};
 
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 const normalizeIfsc = (value) => String(value || "").trim().toUpperCase();
@@ -212,8 +228,8 @@ export const registerDairyService = async ({
       .from("dairies")
       .insert({
         dairy_name,
-        dairy_phone,
-        dairy_email: normalizedDairyEmail,
+        dairy_phone: encryptDeterministic(dairy_phone),
+        dairy_email: encryptDeterministic(normalizedDairyEmail),
         image_url: imageUrl || null,
         gstin,
         category,
@@ -235,9 +251,10 @@ export const registerDairyService = async ({
           : sanitizedAccountNumber || null,
         bank_account_number_encrypted: encryptAccountNumber(sanitizedAccountNumber),
         masked_account_number: maskAccountNumber(sanitizedAccountNumber) || null,
-        bank_ifsc_code: sanitizedIfsc || null,
+        bank_ifsc_code: encryptDeterministic(sanitizedIfsc) || null,
+        ifsc: encryptDeterministic(sanitizedIfsc) || null,
         bank_name: String(bank_name || "").trim() || null,
-        bank_branch: String(bank_branch || "").trim() || null,
+        bank_branch: encryptDeterministic(String(bank_branch || "").trim()) || null,
         upi_id: String(upi_id || "").trim() || null,
         razorpay_linked_account_id: normalizedRazorpayLinkedAccountId,
         one_time_payment_method: paymentSettings.oneTimePaymentMethod,
@@ -265,10 +282,10 @@ export const registerDairyService = async ({
       .from("admins")
       .insert({
         dairy_id: dairyData.id,
-        email: normalizedAdminEmail,
+        email: encryptDeterministic(normalizedAdminEmail),
         password: hashedPassword,
         name: owner_name,
-        phone: adminMobile,
+        phone: encryptDeterministic(adminMobile),
         role: "ADMIN",
         status: "ACTIVE",
       })
@@ -282,7 +299,7 @@ export const registerDairyService = async ({
 
     const tokens = await issueLoginTokens({
       id: adminData.id,
-      email: adminData.email,
+      email: decryptDeterministic(adminData.email),
       role: "ADMIN",
       dairyId: dairyData.id,
       actorType: "ADMIN",
@@ -294,8 +311,8 @@ export const registerDairyService = async ({
       refreshToken: tokens.refreshToken,
       accessTokenExpiresIn: tokens.accessTokenExpiresIn,
       refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
-      dairy: dairyData,
-      admin: { id: adminData.id, email: adminData.email, name: adminData.name },
+      dairy: decryptDairyFields(dairyData),
+      admin: { id: adminData.id, email: decryptDeterministic(adminData.email), name: adminData.name },
     };
   } catch (err) {
     console.error("❌ Dairy registration service error:", err.message);
@@ -340,8 +357,13 @@ export const getAdminDairyProfileService = async ({ adminId, dairyId, revealBank
     throw err;
   }
 
+  if (adminResponse.data) {
+    adminResponse.data.email = decryptDeterministic(adminResponse.data.email);
+    adminResponse.data.phone = decryptDeterministic(adminResponse.data.phone);
+  }
+
   return {
-    dairy: serializeDairyBankFields(dairyResponse.data, {
+    dairy: serializeDairyBankFields(decryptDairyFields(dairyResponse.data), {
       revealAccountNumber: Boolean(revealBankDetails),
     }),
     admin: adminResponse.data || null,
@@ -383,7 +405,7 @@ export const updateAdminDairyProfileService = async ({
 
   const { data: existingDairy, error: existingError } = await supabase
     .from("dairies")
-    .select("id, dairy_name, owner_name, dairy_email, dairy_phone, address, city, state, pincode, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, bank_ifsc_code, bank_verified")
+    .select("id, dairy_name, owner_name, dairy_email, dairy_phone, address, city, state, pincode, bank_account_holder_name, bank_account_number, bank_account_number_encrypted, bank_ifsc_code, ifsc, pan, bank_branch, bank_verified, razorpay_linked_account_id, razorpay_route_product_id")
     .eq("id", normalizedDairyId)
     .limit(1)
     .maybeSingle();
@@ -403,7 +425,7 @@ export const updateAdminDairyProfileService = async ({
 
   const bankDetailsChanged =
     resolveStoredAccountNumber(existingDairy) !== sanitizedAccountNumber ||
-    normalizeIfsc(existingDairy.bank_ifsc_code) !== sanitizedIfsc;
+    normalizeIfsc(decryptDeterministic(existingDairy.bank_ifsc_code)) !== sanitizedIfsc;
   const timestamp = new Date().toISOString();
   const encryptedAccountNumber = encryptAccountNumber(sanitizedAccountNumber);
 
@@ -418,8 +440,8 @@ export const updateAdminDairyProfileService = async ({
         dairyId: normalizedDairyId,
         dairyName: normalizeString(payload.dairy_name) || existingDairy.dairy_name,
         ownerName: normalizeString(payload.owner_name) || existingDairy.owner_name,
-        email: normalizeEmail(payload.dairy_email) || existingDairy.dairy_email,
-        phone: normalizeDigits(payload.dairy_phone) || existingDairy.dairy_phone,
+        email: normalizeEmail(payload.dairy_email) || decryptDeterministic(existingDairy.dairy_email),
+        phone: normalizeDigits(payload.dairy_phone) || decryptDeterministic(existingDairy.dairy_phone),
         pan: normalizeString(payload.pan),
         address: normalizeString(payload.address) || existingDairy.address,
         city: normalizeString(payload.city) || existingDairy.city || "NA",
@@ -430,8 +452,8 @@ export const updateAdminDairyProfileService = async ({
       const stakeholder = await createStakeholder({
         accountId: account.id,
         ownerName: normalizeString(payload.owner_name) || existingDairy.owner_name,
-        email: normalizeEmail(payload.dairy_email) || existingDairy.dairy_email,
-        phone: normalizeDigits(payload.dairy_phone) || existingDairy.dairy_phone,
+        email: normalizeEmail(payload.dairy_email) || decryptDeterministic(existingDairy.dairy_email),
+        phone: normalizeDigits(payload.dairy_phone) || decryptDeterministic(existingDairy.dairy_phone),
         pan: normalizeString(payload.pan),
         address: normalizeString(payload.address) || existingDairy.address,
         city: normalizeString(payload.city) || existingDairy.city || "NA",
@@ -453,7 +475,7 @@ export const updateAdminDairyProfileService = async ({
       }
 
       razorpayOnboarding = {
-        pan: normalizeString(payload.pan),
+        pan: encryptDeterministic(normalizeString(payload.pan)),
         razorpay_account_id: account.id,
         razorpay_linked_account_id: account.id,
         razorpay_stakeholder_id: stakeholder?.id || null,
@@ -467,20 +489,20 @@ export const updateAdminDairyProfileService = async ({
         console.error("Razorpay API Error Payload:", JSON.stringify(err.response.data, null, 2));
       }
       razorpayOnboarding = {
-        pan: normalizeString(payload.pan),
+        pan: encryptDeterministic(normalizeString(payload.pan)),
         route_activation_status: "RAZORPAY_SETUP_FAILED",
       };
     }
   } else if (payload.pan) {
     razorpayOnboarding = {
-      pan: normalizeString(payload.pan),
+      pan: encryptDeterministic(normalizeString(payload.pan)),
     };
   }
 
   const dairyUpdate = {
     dairy_name: normalizeString(payload.dairy_name),
-    dairy_phone: normalizeString(payload.dairy_phone),
-    dairy_email: normalizeEmail(payload.dairy_email),
+    dairy_phone: payload.dairy_phone ? encryptDeterministic(normalizeString(payload.dairy_phone)) : undefined,
+    dairy_email: payload.dairy_email ? encryptDeterministic(normalizeEmail(payload.dairy_email)) : undefined,
     address: normalizeString(payload.address),
     city: normalizeString(payload.city),
     state: normalizeString(payload.state),
@@ -490,9 +512,10 @@ export const updateAdminDairyProfileService = async ({
     bank_account_number: encryptedAccountNumber ? null : sanitizedAccountNumber || null,
     bank_account_number_encrypted: encryptedAccountNumber,
     masked_account_number: maskAccountNumber(sanitizedAccountNumber) || null,
-    bank_ifsc_code: sanitizedIfsc || null,
+    bank_ifsc_code: sanitizedIfsc ? encryptDeterministic(sanitizedIfsc) : null,
+    ifsc: sanitizedIfsc ? encryptDeterministic(sanitizedIfsc) : null,
     bank_name: normalizeString(payload.bank_name) || null,
-    bank_branch: normalizeString(payload.bank_branch) || null,
+    bank_branch: payload.bank_branch ? encryptDeterministic(normalizeString(payload.bank_branch)) : null,
     upi_id: normalizeString(payload.upi_id) || null,
     payment_instructions: normalizeString(payload.payment_instructions) || null,
     upi_qr_enabled: payload.upi_qr_enabled === undefined ? true : Boolean(payload.upi_qr_enabled),
@@ -526,8 +549,8 @@ export const updateAdminDairyProfileService = async ({
 
   const adminUpdate = {
     name: normalizeString(payload.owner_name) || normalizeString(payload.admin_name) || undefined,
-    email: normalizeEmail(payload.admin_email),
-    phone: normalizeDigits(payload.admin_phone),
+    email: payload.admin_email ? encryptDeterministic(normalizeEmail(payload.admin_email)) : undefined,
+    phone: payload.admin_phone ? encryptDeterministic(normalizeDigits(payload.admin_phone)) : undefined,
   };
   const cleanAdminUpdate = Object.fromEntries(
     Object.entries(adminUpdate).filter(([, value]) => value !== undefined && value !== "")
@@ -548,8 +571,13 @@ export const updateAdminDairyProfileService = async ({
     admin = adminData;
   }
 
+  if (admin) {
+    admin.email = decryptDeterministic(admin.email);
+    admin.phone = decryptDeterministic(admin.phone);
+  }
+
   return {
-    dairy: serializeDairyBankFields(dairy, { revealAccountNumber: false }),
+    dairy: serializeDairyBankFields(decryptDairyFields(dairy), { revealAccountNumber: false }),
     admin,
   };
 };

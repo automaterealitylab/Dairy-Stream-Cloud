@@ -6,6 +6,7 @@ import cloudinary from "../../config/cloudinary.js";
 import { ensureIdentityIsUnique } from "./identityUniqueness.service.js"; // Reuse existing uniqueness service
 import verifyEmail from "../../utils/verifyEmail.js";
 import { sendEmail } from "../../utils/email.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 // const normalizeIdentifier = (value) => String(value ?? "").trim();
 // const otpStore = new Map();
@@ -272,13 +273,21 @@ const findCustomerByIdentifier = async (identifier) => {
     .select("id, customer_name, email, phone_number");
 
   if (isEmail) {
-    query = query.ilike("email", normalizedIdentifier);
+    query = query.or(`email.eq.${encryptDeterministic(normalizedIdentifier)},email.eq.${normalizedIdentifier}`);
   } else {
-    query = query.in("phone_number", phoneVariants);
+    const searchVariants = [
+      ...phoneVariants,
+      ...phoneVariants.map((v) => encryptDeterministic(v)),
+    ];
+    query = query.in("phone_number", searchVariants);
   }
 
   const { data: customer, error } = await query.limit(1).maybeSingle();
   if (error) throw error;
+  if (customer) {
+    customer.email = decryptDeterministic(customer.email);
+    customer.phone_number = decryptDeterministic(customer.phone_number);
+  }
   return customer || null;
 };
 
@@ -347,8 +356,8 @@ export const registerCustomerService = async (payload) => {
     .insert([
       {
         customer_name: customerName,
-        email: normalizedEmail,
-        phone_number: phoneNumber,
+        email: encryptDeterministic(normalizedEmail),
+        phone_number: encryptDeterministic(phoneNumber),
         address_line_1: String(addressLine1 || "").trim() || null,
         address_line_2: String(addressLine2 || "").trim() || null,
         building_name: buildingName || null,
@@ -374,6 +383,10 @@ export const registerCustomerService = async (payload) => {
     throw new Error(error.message);
   }
 
+  if (data) {
+    data.email = decryptDeterministic(data.email);
+    data.phone_number = decryptDeterministic(data.phone_number);
+  }
   return data;
 };
 /**
@@ -387,9 +400,14 @@ export const loginWithPasswordService = async (emailOrPhone, password) => {
 
   let query = supabase.from("customers").select(selectColumns);
   if (isEmail) {
-    query = query.ilike("email", normalizeEmail(normalizedIdentifier));
+    query = query.or(`email.eq.${encryptDeterministic(normalizeEmail(normalizedIdentifier))},email.eq.${normalizeEmail(normalizedIdentifier)}`);
   } else {
-    query = query.in("phone_number", buildPhoneVariants(normalizedIdentifier));
+    const phoneVariants = buildPhoneVariants(normalizedIdentifier);
+    const searchVariants = [
+      ...phoneVariants,
+      ...phoneVariants.map((v) => encryptDeterministic(v)),
+    ];
+    query = query.in("phone_number", searchVariants);
   }
 
   const { data, error } = await query.limit(1).maybeSingle();
@@ -400,6 +418,11 @@ export const loginWithPasswordService = async (emailOrPhone, password) => {
 
   const isMatch = await bcrypt.compare(password, data.password);
   if (!isMatch) throw new Error("Invalid password");
+
+  if (data) {
+    data.email = decryptDeterministic(data.email);
+    data.phone_number = decryptDeterministic(data.phone_number);
+  }
 
   const tokens = await issueLoginTokens({
     id: data.id,

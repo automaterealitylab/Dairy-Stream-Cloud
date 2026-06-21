@@ -3,6 +3,7 @@ import { supabase } from "../../config/supabase.js";
 import { issueLoginTokens } from "../../utils/jwt.js";
 import { sendEmail } from "../../utils/email.js";
 import { getSetting } from "../shared/appSettings.service.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const adminResetOtpStore = new Map();
 const adminResetOtpRequestStore = new Map();
@@ -53,11 +54,16 @@ export const findAdminByIdentifier = async (identifier) => {
     const { data, error } = await supabase
       .from("admins")
       .select("id, email, name, password, dairy_id, phone, phone_number")
-      .ilike("email", normalizedIdentifier)
+      .or(`email.eq.${encryptDeterministic(normalizedIdentifier)},email.eq.${normalizedIdentifier}`)
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (data) return data;
+    if (data) {
+      data.email = decryptDeterministic(data.email);
+      data.phone = decryptDeterministic(data.phone);
+      data.phone_number = decryptDeterministic(data.phone_number);
+      return data;
+    }
   }
 
   if (mobile.length >= 10) {
@@ -66,11 +72,16 @@ export const findAdminByIdentifier = async (identifier) => {
       const { data, error } = await supabase
         .from("admins")
         .select("id, email, name, password, dairy_id, phone, phone_number")
-        .eq(column, mobile)
+        .or(`${column}.eq.${encryptDeterministic(mobile)},${column}.eq.${mobile}`)
         .limit(1)
         .maybeSingle();
 
-      if (!error && data) return data;
+      if (!error && data) {
+        data.email = decryptDeterministic(data.email);
+        data.phone = decryptDeterministic(data.phone);
+        data.phone_number = decryptDeterministic(data.phone_number);
+        return data;
+      }
       if (error && !isMissingColumnError(error)) throw error;
     }
   }

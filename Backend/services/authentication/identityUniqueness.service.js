@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 
@@ -32,7 +33,7 @@ export const findIdentityConflicts = async ({ email, phone }) => {
       ? supabase
           .from("customers")
           .select("id, email")
-          .ilike("email", normalizedEmail)
+          .or(`email.eq.${encryptDeterministic(normalizedEmail)},email.eq.${normalizedEmail}`)
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -40,7 +41,7 @@ export const findIdentityConflicts = async ({ email, phone }) => {
       ? supabase
           .from("admins")
           .select("id, email")
-          .ilike("email", normalizedEmail)
+          .or(`email.eq.${encryptDeterministic(normalizedEmail)},email.eq.${normalizedEmail}`)
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -64,10 +65,10 @@ export const findIdentityConflicts = async ({ email, phone }) => {
   if (adminsPhoneError) throw adminsPhoneError;
 
   const customerPhoneMatch = (customersWithPhone || []).find(
-    (row) => normalizePhoneDigits(row.phone_number) === normalizedPhone
+    (row) => normalizePhoneDigits(decryptDeterministic(row.phone_number)) === normalizedPhone
   );
   const adminPhoneMatch = (adminsWithPhone || []).find(
-    (row) => normalizePhoneDigits(row.phone) === normalizedPhone
+    (row) => normalizePhoneDigits(decryptDeterministic(row.phone)) === normalizedPhone
   );
 
   return {

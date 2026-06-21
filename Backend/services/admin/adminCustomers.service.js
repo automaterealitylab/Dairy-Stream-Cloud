@@ -6,6 +6,7 @@ import {
   parseDeliveryBillingMeta,
   parseMonthlyBillMeta,
 } from "../customer/monthlyBilling.service.js";
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -257,8 +258,9 @@ export const getAdminCustomers = async ({
   }
 
   if (search) {
+    const encryptedSearch = encryptDeterministic(search.trim());
     query = query.or(
-      `customer_name.ilike.%${search}%,phone_number.ilike.%${search}%,email.ilike.%${search}%`
+      `customer_name.ilike.%${search}%,phone_number.ilike.%${search}%,email.ilike.%${search}%,phone_number.eq.${encryptedSearch},email.eq.${encryptedSearch}`
     );
   }
 
@@ -351,16 +353,22 @@ export const getAdminCustomers = async ({
   }
 
   const enrichedCustomers = customers.map((row) => {
+    const decryptedRow = {
+      ...row,
+      email: decryptDeterministic(row.email),
+      phone_number: decryptDeterministic(row.phone_number),
+      phone: decryptDeterministic(row.phone || row.phone_number),
+    };
     const sub = latestSubscriptionByCustomer.get(row.id) || null;
     const approvalStatus = String(sub?.approval_status || "APPROVED").toUpperCase();
     const subscriptionStatus = String(sub?.status || "ACTIVE").toUpperCase();
     const assignedAgentId = sub?.assigned_agent_id || null;
     const pendingAmount = pendingAmountByCustomer.get(row.id) || 0;
-    const walletBalance = resolveWalletBalance(row);
+    const walletBalance = resolveWalletBalance(decryptedRow);
     const outstandingBalance = Number((pendingAmount - walletBalance).toFixed(2));
 
     return {
-      ...row,
+      ...decryptedRow,
       subscriptionId: sub?.id || null,
       subscriptionStatus,
       subscriptionApprovalStatus: approvalStatus,
@@ -391,6 +399,11 @@ export const getCustomerDetails = async (customerId) => {
     .single();
 
   if (customerError) throw customerError;
+  if (customer) {
+    customer.email = decryptDeterministic(customer.email);
+    customer.phone_number = decryptDeterministic(customer.phone_number);
+    customer.phone = decryptDeterministic(customer.phone || customer.phone_number);
+  }
 
   // Membership (supports multiple possible customer id column names)
   let membership = null;
@@ -439,6 +452,16 @@ export const getCustomerDetails = async (customerId) => {
       .select("*")
       .eq("id", dairyId)
       .single();
+    if (data) {
+      data.dairy_phone = decryptDeterministic(data.dairy_phone);
+      data.dairy_email = decryptDeterministic(data.dairy_email);
+      data.phone = decryptDeterministic(data.phone);
+      data.email = decryptDeterministic(data.email);
+      data.bank_ifsc_code = decryptDeterministic(data.bank_ifsc_code);
+      data.ifsc = decryptDeterministic(data.ifsc);
+      data.pan = decryptDeterministic(data.pan);
+      data.bank_branch = decryptDeterministic(data.bank_branch);
+    }
     dairy = data;
   }
 
@@ -450,6 +473,9 @@ export const getCustomerDetails = async (customerId) => {
       .maybeSingle();
 
     if (agentError) throw agentError;
+    if (agentData) {
+      agentData.phone_number = decryptDeterministic(agentData.phone_number);
+    }
     assignedAgent = agentData ?? null;
   }
 
@@ -550,7 +576,7 @@ export const getCustomerBillDetails = async ({ customerId, dairyId = null }) => 
   );
   const grossPayable = Number((currentBillAmount + previousDueAmount).toFixed(2));
   const walletBalance = resolveWalletBalance(customer);
-  const totalDue = Number(Math.max(0, grossPayable - walletBalance).toFixed(2));
+  const totalDue = Number(Math.max(0, grossPayable - totalDue).toFixed(2));
   const creditAdjustmentAmount = Number(Math.max(0, grossPayable - totalDue).toFixed(2));
   const paymentStatus = String(referencePayment?.status || "PENDING").toUpperCase();
   const overdueDays = getOverdueDays(referencePayment?.due_date);
@@ -596,7 +622,13 @@ export const updateCustomerById = async (customerId, updates) => {
 
   const payload = {};
   for (const key of allowed) {
-    if (updates[key] !== undefined) payload[key] = updates[key];
+    if (updates[key] !== undefined) {
+      if (key === "email" || key === "phone_number") {
+        payload[key] = encryptDeterministic(updates[key]);
+      } else {
+        payload[key] = updates[key];
+      }
+    }
   }
 
   const { data, error } = await supabase
@@ -607,6 +639,10 @@ export const updateCustomerById = async (customerId, updates) => {
     .single();
 
   if (error) throw error;
+  if (data) {
+    data.email = decryptDeterministic(data.email);
+    data.phone_number = decryptDeterministic(data.phone_number);
+  }
 
   return data;
 };

@@ -6,6 +6,7 @@ import {
   encryptAccountNumber,
   maskAccountNumber,
 } from "../../utils/bankAccountSecurity.js";
+import { encryptDeterministic } from "../../utils/crypto.js";
 
 const IFSC_CACHE_TTL_SECONDS = 60 * 60 * 24 * 7;
 const BANK_VERIFICATION_CACHE_TTL_SECONDS = 60 * 15;
@@ -572,12 +573,13 @@ const updateDairyBankVerification = async ({
     .from("dairies")
     .update({
       bank_name: ifscDetails.bankName || null,
-      bank_branch: ifscDetails.branch || null,
+      bank_branch: ifscDetails.branch ? encryptDeterministic(ifscDetails.branch) : null,
       bank_account_holder_name: accountHolderName || null,
       bank_account_number: encryptedAccountNumber ? null : accountNumber || null,
       bank_account_number_encrypted: encryptedAccountNumber,
       masked_account_number: maskAccountNumber(accountNumber) || null,
-      bank_ifsc_code: ifsc || null,
+      bank_ifsc_code: ifsc ? encryptDeterministic(ifsc) : null,
+      ifsc: ifsc ? encryptDeterministic(ifsc) : null,
       upi_id: verifiedUpiId || undefined,
       bank_verified: verified,
       verification_provider: provider,

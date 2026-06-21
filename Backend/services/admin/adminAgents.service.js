@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js"; // Adjust path to match your customer service import
+import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const parseDateSafe = (value) => {
   if (!value) return null;
@@ -42,8 +43,10 @@ const mapAgentForAdmin = (agent = {}) => {
   const availability = deriveAgentAvailability(agent);
   return {
     ...agent,
+    email: decryptDeterministic(agent.email),
+    phone_number: decryptDeterministic(agent.phone_number),
     full_name: agent.agent_name,
-    mobile: agent.phone_number,
+    mobile: decryptDeterministic(agent.phone_number),
     status: availability.status,
     isActive: availability.isActive,
     inactive_until: availability.inactiveUntil,
@@ -70,8 +73,9 @@ export const getAdminAgents = async ({
     }
 
     if (search) {
+      const encryptedSearch = encryptDeterministic(search.trim());
       liteQuery = liteQuery.or(
-        `agent_name.ilike.%${search}%,phone_number.ilike.%${search}%`
+        `agent_name.ilike.%${search}%,phone_number.ilike.%${search}%,phone_number.eq.${encryptedSearch}`
       );
     }
 
@@ -102,8 +106,9 @@ export const getAdminAgents = async ({
 
   // 2. Apply Search
   if (search) {
+    const encryptedSearch = encryptDeterministic(search.trim());
     query = query.or(
-      `agent_name.ilike.%${search}%,email.ilike.%${search}%,phone_number.ilike.%${search}%,building.ilike.%${search}%`
+      `agent_name.ilike.%${search}%,email.ilike.%${search}%,phone_number.ilike.%${search}%,building.ilike.%${search}%,email.eq.${encryptedSearch},phone_number.eq.${encryptedSearch}`
     );
   }
 
@@ -160,7 +165,13 @@ export const updateAgentById = async (agentId, updates) => {
 
   const payload = {};
   for (const key of allowed) {
-    if (updates[key] !== undefined) payload[key] = updates[key];
+    if (updates[key] !== undefined) {
+      if (key === "email" || key === "phone_number") {
+        payload[key] = encryptDeterministic(updates[key]);
+      } else {
+        payload[key] = updates[key];
+      }
+    }
   }
 
   const { data, error } = await supabase

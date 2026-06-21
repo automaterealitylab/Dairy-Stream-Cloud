@@ -36,10 +36,47 @@ import { isQueueEnabled } from "./services/marketplace/queue.service.js";
 import { logger } from "./utils/logger.js";
 import { acquireRedisLock } from "./config/redis.js";
 import { processQueuedWhatsAppNotifications } from "./services/shared/whatsapp.service.js";
+import { decryptRecursive } from "./utils/crypto.js";
 
 // 3. Create App
 validateRuntimeEnv();
 const app = express();
+
+// Global Response Decryption Middleware to ensure no ENC_DET: values leak to frontend
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  const originalSend = res.send;
+
+  res.json = function (body) {
+    if (body !== null && body !== undefined) {
+      body = decryptRecursive(body);
+    }
+    return originalJson.call(this, body);
+  };
+
+  res.send = function (body) {
+    if (body !== null && body !== undefined) {
+      if (typeof body === "object") {
+        body = decryptRecursive(body);
+      } else if (typeof body === "string") {
+        try {
+          const trimmed = body.trim();
+          if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            const parsed = JSON.parse(body);
+            const decrypted = decryptRecursive(parsed);
+            body = JSON.stringify(decrypted);
+          }
+        } catch (e) {
+          // Ignore parse errors and send as-is
+        }
+      }
+    }
+    return originalSend.call(this, body);
+  };
+
+  next();
+});
+
 const httpServer = createServer(app);
 
 // ======================
