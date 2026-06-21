@@ -21,7 +21,35 @@ import {
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
 const normalizeIfsc = (value) => String(value || "").trim().toUpperCase();
 const normalizeDigits = (value) => String(value || "").replace(/\D/g, "");
-const normalizeString = (value) => String(value || "").trim();
+const parseBoolean = (value, fallback = false) => {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null || value === "") return fallback;
+  return String(value).trim().toLowerCase() === "true";
+};
+const normalizePaymentMethod = ({
+  method,
+  acceptDirectUpi,
+  acceptRazorpay,
+  fallback = "DIRECT_UPI",
+} = {}) => {
+  const normalized = String(method || "").trim().toUpperCase();
+  if (["DIRECT_UPI", "UPI", "DIRECT_UPI_QR"].includes(normalized)) return "DIRECT_UPI";
+  if (["RAZORPAY", "PAY_NOW", "ONLINE_PAYMENT"].includes(normalized)) return "RAZORPAY";
+
+  const directEnabled = parseBoolean(acceptDirectUpi, false);
+  const razorpayEnabled = parseBoolean(acceptRazorpay, false);
+  if (directEnabled && razorpayEnabled) {
+    const inputError = new Error("Choose only one payment method for each payment purpose");
+    inputError.statusCode = 400;
+    throw inputError;
+  }
+  if (razorpayEnabled) return "RAZORPAY";
+  if (directEnabled) return "DIRECT_UPI";
+
+  return fallback;
+};
+const RAZORPAY_CHARGE_PERCENT = 2;
+const RAZORPAY_GST_PERCENT_ON_CHARGE = 18;
 const formatAdminIdentityConflictMessage = (conflict = {}) => {
   const issues = [];
 
@@ -73,6 +101,12 @@ export const registerDairyService = async ({
   bank_branch,
   upi_id,
   razorpay_linked_account_id,
+  one_time_payment_method,
+  subscription_payment_method,
+  one_time_accept_direct_upi,
+  one_time_accept_razorpay,
+  subscription_accept_direct_upi,
+  subscription_accept_razorpay,
   imageUrl,
 }) => {
   try {
@@ -82,6 +116,29 @@ export const registerDairyService = async ({
     // Use the exact names from the arguments above
     const sanitizedAccountNumber = normalizeDigits(bank_account_number);
     const sanitizedIfsc = normalizeIfsc(bank_ifsc_code); // ✅ No longer undefined
+    const normalizedUpiId = String(upi_id || "").trim();
+    const normalizedRazorpayLinkedAccountId =
+      String(razorpay_linked_account_id || "").trim() || null;
+    const oneTimePaymentMethod = normalizePaymentMethod({
+      method: one_time_payment_method,
+      acceptDirectUpi: one_time_accept_direct_upi,
+      acceptRazorpay: one_time_accept_razorpay,
+      fallback: "DIRECT_UPI",
+    });
+    const subscriptionPaymentMethod = normalizePaymentMethod({
+      method: subscription_payment_method,
+      acceptDirectUpi: subscription_accept_direct_upi,
+      acceptRazorpay: subscription_accept_razorpay,
+      fallback: "DIRECT_UPI",
+    });
+    const paymentSettings = {
+      oneTimePaymentMethod,
+      subscriptionPaymentMethod,
+      oneTimeAcceptDirectUpi: oneTimePaymentMethod === "DIRECT_UPI",
+      oneTimeAcceptRazorpay: oneTimePaymentMethod === "RAZORPAY",
+      subscriptionAcceptDirectUpi: subscriptionPaymentMethod === "DIRECT_UPI",
+      subscriptionAcceptRazorpay: subscriptionPaymentMethod === "RAZORPAY",
+    };
 
     // 1. Validation Logic
     if (
@@ -95,6 +152,44 @@ export const registerDairyService = async ({
 
     if (sanitizedIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(sanitizedIfsc)) {
       const inputError = new Error("Invalid IFSC code format");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
+    if (
+      !paymentSettings.oneTimeAcceptDirectUpi &&
+      !paymentSettings.oneTimeAcceptRazorpay
+    ) {
+      const inputError = new Error("Select at least one payment option for one-time orders");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
+    if (
+      !paymentSettings.subscriptionAcceptDirectUpi &&
+      !paymentSettings.subscriptionAcceptRazorpay
+    ) {
+      const inputError = new Error("Select at least one payment option for monthly subscription");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
+    if (
+      (paymentSettings.oneTimeAcceptDirectUpi ||
+        paymentSettings.subscriptionAcceptDirectUpi) &&
+      !normalizedUpiId
+    ) {
+      const inputError = new Error("UPI ID is required when Direct UPI QR is enabled");
+      inputError.statusCode = 400;
+      throw inputError;
+    }
+
+    if (
+      (paymentSettings.oneTimeAcceptRazorpay ||
+        paymentSettings.subscriptionAcceptRazorpay) &&
+      !normalizedRazorpayLinkedAccountId
+    ) {
+      const inputError = new Error("Razorpay linked account id is required when Razorpay is enabled");
       inputError.statusCode = 400;
       throw inputError;
     }
@@ -144,6 +239,16 @@ export const registerDairyService = async ({
         bank_name: String(bank_name || "").trim() || null,
         bank_branch: String(bank_branch || "").trim() || null,
         upi_id: String(upi_id || "").trim() || null,
+        razorpay_linked_account_id: normalizedRazorpayLinkedAccountId,
+        one_time_payment_method: paymentSettings.oneTimePaymentMethod,
+        subscription_payment_method: paymentSettings.subscriptionPaymentMethod,
+        one_time_accept_direct_upi: paymentSettings.oneTimeAcceptDirectUpi,
+        one_time_accept_razorpay: paymentSettings.oneTimeAcceptRazorpay,
+        subscription_accept_direct_upi: paymentSettings.subscriptionAcceptDirectUpi,
+        subscription_accept_razorpay: paymentSettings.subscriptionAcceptRazorpay,
+        direct_upi_proof_requirement: "SCREENSHOT_OR_REFERENCE_ID",
+        razorpay_charge_percent: RAZORPAY_CHARGE_PERCENT,
+        razorpay_gst_percent_on_charge: RAZORPAY_GST_PERCENT_ON_CHARGE,
         payment_verification_mode: "MANUAL",
         payments_enabled: false,
         bank_verified: false,

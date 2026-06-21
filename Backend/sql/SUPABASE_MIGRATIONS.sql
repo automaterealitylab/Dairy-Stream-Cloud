@@ -32,11 +32,15 @@ CREATE TABLE IF NOT EXISTS public.dairies (
   upi_id VARCHAR(255),
   razorpay_account_id VARCHAR(50),
   razorpay_linked_account_id VARCHAR(255),
-  razorpay_stakeholder_id VARCHAR(255),
-  razorpay_route_product_id VARCHAR(50),
-  razorpay_onboarding_status VARCHAR(50) DEFAULT 'PENDING',
-  route_activation_status VARCHAR(50) DEFAULT 'PENDING',
-  payments_enabled BOOLEAN DEFAULT FALSE,
+  one_time_payment_method VARCHAR(30) DEFAULT 'DIRECT_UPI',
+  subscription_payment_method VARCHAR(30) DEFAULT 'DIRECT_UPI',
+  one_time_accept_direct_upi BOOLEAN DEFAULT TRUE,
+  one_time_accept_razorpay BOOLEAN DEFAULT FALSE,
+  subscription_accept_direct_upi BOOLEAN DEFAULT TRUE,
+  subscription_accept_razorpay BOOLEAN DEFAULT FALSE,
+  direct_upi_proof_requirement VARCHAR(80) DEFAULT 'SCREENSHOT_OR_REFERENCE_ID',
+  razorpay_charge_percent NUMERIC(5, 2) DEFAULT 2.00,
+  razorpay_gst_percent_on_charge NUMERIC(5, 2) DEFAULT 18.00,
   selected_plan VARCHAR(50) DEFAULT 'GROWTH',
   status VARCHAR(50) DEFAULT 'ACTIVE',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -74,51 +78,64 @@ ALTER TABLE public.dairies
 ALTER TABLE public.dairies
   ADD COLUMN IF NOT EXISTS razorpay_linked_account_id VARCHAR(255);
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS razorpay_stakeholder_id VARCHAR(255);
+  ADD COLUMN IF NOT EXISTS one_time_payment_method VARCHAR(30) DEFAULT 'DIRECT_UPI';
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS razorpay_route_product_id VARCHAR(50);
+  ADD COLUMN IF NOT EXISTS subscription_payment_method VARCHAR(30) DEFAULT 'DIRECT_UPI';
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS razorpay_onboarding_status VARCHAR(50) DEFAULT 'PENDING';
+  ADD COLUMN IF NOT EXISTS one_time_accept_direct_upi BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS route_activation_status VARCHAR(50) DEFAULT 'PENDING';
+  ADD COLUMN IF NOT EXISTS one_time_accept_razorpay BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS payments_enabled BOOLEAN DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS subscription_accept_direct_upi BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS bank_verified BOOLEAN DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS subscription_accept_razorpay BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verification_provider VARCHAR(80);
+  ADD COLUMN IF NOT EXISTS direct_upi_proof_requirement VARCHAR(80) DEFAULT 'SCREENSHOT_OR_REFERENCE_ID';
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verification_reference_id VARCHAR(150);
+  ADD COLUMN IF NOT EXISTS razorpay_charge_percent NUMERIC(5, 2) DEFAULT 2.00;
 ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS bank_verification_status VARCHAR(50) DEFAULT 'NOT_SUBMITTED';
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS bank_verification_timestamp TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS account_name_match_score NUMERIC(5, 2);
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS bank_metadata JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verified_account_holder_name VARCHAR(255);
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verified_upi_id VARCHAR(255);
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS account_verification_response JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verification_attempts INTEGER DEFAULT 0;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verification_last_error TEXT;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verification_method VARCHAR(80);
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS vpa_detected BOOLEAN DEFAULT FALSE;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS vpa_verified BOOLEAN DEFAULT FALSE;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS bank_verification_reset_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS verification_required BOOLEAN DEFAULT FALSE;
-ALTER TABLE public.dairies
-  ADD COLUMN IF NOT EXISTS account_last_updated_at TIMESTAMP WITH TIME ZONE;
+  ADD COLUMN IF NOT EXISTS razorpay_gst_percent_on_charge NUMERIC(5, 2) DEFAULT 18.00;
+
+UPDATE public.dairies
+SET
+  one_time_payment_method = CASE
+    WHEN one_time_payment_method = 'RAZORPAY' THEN 'RAZORPAY'
+    ELSE 'DIRECT_UPI'
+  END,
+  subscription_payment_method = CASE
+    WHEN subscription_payment_method = 'RAZORPAY' THEN 'RAZORPAY'
+    ELSE 'DIRECT_UPI'
+  END;
+
+UPDATE public.dairies
+SET
+  one_time_accept_direct_upi = one_time_payment_method = 'DIRECT_UPI',
+  one_time_accept_razorpay = one_time_payment_method = 'RAZORPAY',
+  subscription_accept_direct_upi = subscription_payment_method = 'DIRECT_UPI',
+  subscription_accept_razorpay = subscription_payment_method = 'RAZORPAY';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_dairies_one_time_payment_method'
+      AND conrelid = 'public.dairies'::regclass
+  ) THEN
+    ALTER TABLE public.dairies
+      ADD CONSTRAINT chk_dairies_one_time_payment_method
+      CHECK (one_time_payment_method IN ('DIRECT_UPI', 'RAZORPAY'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_dairies_subscription_payment_method'
+      AND conrelid = 'public.dairies'::regclass
+  ) THEN
+    ALTER TABLE public.dairies
+      ADD CONSTRAINT chk_dairies_subscription_payment_method
+      CHECK (subscription_payment_method IN ('DIRECT_UPI', 'RAZORPAY'));
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_dairies_email ON public.dairies(dairy_email);
 CREATE INDEX IF NOT EXISTS idx_dairies_city ON public.dairies(city);

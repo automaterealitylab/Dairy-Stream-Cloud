@@ -51,6 +51,16 @@ const RegisterDairyPage = () => {
     password: "",
     confirmPassword: "",
 
+    bank_account_holder_name: "",
+    bank_account_number: "",
+    bank_ifsc_code: "",
+    bank_name: "",
+    bank_branch: "",
+    upi_id: "",
+    razorpay_linked_account_id: "",
+    one_time_payment_method: "DIRECT_UPI",
+    subscription_payment_method: "DIRECT_UPI",
+
     selected_plan: "GROWTH",
 
     products: {},
@@ -115,7 +125,7 @@ async (pos) => {
     }));
 
   } catch {
-    // Address autofill is best-effort; the user can still enter it manually.
+    toast("GPS captured, but address lookup failed. Please enter the address manually.");
   }
 
   toast.success("GPS Locked!", { id: toastId });
