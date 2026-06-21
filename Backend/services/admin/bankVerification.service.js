@@ -381,7 +381,14 @@ export const lookupIfscDetails = async ({ ifsc, adminId = null, dairyId = null }
 const verifyWithCashfree = async ({ accountNumber, ifsc, accountHolderName }) => {
   const clientId = String(process.env.CASHFREE_CLIENT_ID || "").trim();
   const clientSecret = String(process.env.CASHFREE_CLIENT_SECRET || "").trim();
-  const baseUrl = String(process.env.CASHFREE_BASE_URL || "https://api.cashfree.com/verification").trim();
+  
+  // Auto-detect Cashfree sandbox environment for test credentials
+  const isTest = clientId.toUpperCase().startsWith("TEST");
+  const defaultUrl = isTest 
+    ? "https://sandbox.cashfree.com/verification" 
+    : "https://api.cashfree.com/verification";
+
+  const baseUrl = String(process.env.CASHFREE_BASE_URL || defaultUrl).trim();
   if (!clientId || !clientSecret) return { configured: false };
 
   const controller = new AbortController();
