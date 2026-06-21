@@ -534,7 +534,8 @@ export const getCurrentMonthSuccessfulSubscriptionDue = async (customerId) => {
   const paidCurrentMonthBills = (paymentRows || []).reduce((sum, row) => {
     const meta = parseMonthlyBillMeta(row?.description);
     const status = String(row?.status || "PENDING").toUpperCase();
-    if (!meta.isMonthlyBill || meta.monthKey !== currentMonthKey || status !== "PAID") {
+    const isSubmitted = String(row?.verification_status || "").toUpperCase() === "SUBMITTED";
+    if (!meta.isMonthlyBill || meta.monthKey !== currentMonthKey || (status !== "PAID" && !isSubmitted)) {
       return sum;
     }
     return sum + extractPaymentAmount(row);
@@ -574,9 +575,11 @@ export const getUnpaidDeliveredSubscriptionMonthlySummary = async (customerId) =
   for (const row of paymentRows) {
     const meta = parseMonthlyBillMeta(row?.description);
     if (!meta.isMonthlyBill || !meta.monthKey || !row?.dairy_id) continue;
+    const status = String(row?.status || "PENDING").toUpperCase();
+    const isSubmitted = String(row?.verification_status || "").toUpperCase() === "SUBMITTED";
     paidStatusByGroup.set(
       `${row.dairy_id}:${meta.monthKey}`,
-      String(row?.status || "PENDING").toUpperCase()
+      (status === "PAID" || isSubmitted) ? "PAID" : "PENDING"
     );
   }
 

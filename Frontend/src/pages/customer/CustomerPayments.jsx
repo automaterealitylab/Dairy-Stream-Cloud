@@ -312,14 +312,53 @@ export default function Payments() {
       setError("Nothing to pay.");
       return;
     }
-    setSelectedPaymentTarget({ payment, payAll });
-    setPaymentSelectorOpen(true);
-    setError(null);
+
+    const hasRazorpay = Boolean(summary.beneficiary?.razorpayLinkedAccountId);
+    const hasUpi = Boolean(summary.beneficiary?.upiId);
+    let optOnline = false;
+    let optUpi = false;
+
+    // Check what the dairy selected for this type of payment
+    const targetPayment = payment || {};
+    const isOneTime = targetPayment.title && String(targetPayment.title).toUpperCase().includes("ONE_TIME");
+    const methodSelected = isOneTime
+      ? (summary.beneficiary?.oneTimePaymentMethod || "DIRECT_UPI")
+      : (summary.beneficiary?.subscriptionPaymentMethod || "DIRECT_UPI");
+
+    if (hasRazorpay && hasUpi) {
+      if (methodSelected === "RAZORPAY") {
+        optOnline = true;
+      } else {
+        optUpi = true;
+      }
+    } else if (hasRazorpay) {
+      optOnline = true;
+    } else if (hasUpi) {
+      optUpi = true;
+    }
+
+    if (!optOnline && !optUpi) {
+      optOnline = true;
+      optUpi = true;
+    }
+
+    const target = { payment, payAll };
+
+    if (optOnline && !optUpi) {
+      handleExecuteRazorpayPayment(target);
+    } else if (optUpi && !optOnline) {
+      handleExecuteUpiPayment(target);
+    } else {
+      setSelectedPaymentTarget(target);
+      setPaymentSelectorOpen(true);
+      setError(null);
+    }
   };
 
-  const handleExecuteUpiPayment = async () => {
-    if (!selectedPaymentTarget) return;
-    const { payment, payAll } = selectedPaymentTarget;
+  const handleExecuteUpiPayment = async (targetOverride) => {
+    const target = targetOverride || selectedPaymentTarget;
+    if (!target) return;
+    const { payment, payAll } = target;
     setPaymentSelectorOpen(false);
 
     try {
@@ -340,9 +379,10 @@ export default function Payments() {
     }
   };
 
-  const handleExecuteRazorpayPayment = async () => {
-    if (!selectedPaymentTarget) return;
-    const { payment, payAll } = selectedPaymentTarget;
+  const handleExecuteRazorpayPayment = async (targetOverride) => {
+    const target = targetOverride || selectedPaymentTarget;
+    if (!target) return;
+    const { payment, payAll } = target;
     setPaymentSelectorOpen(false);
     setPaymentProcessing(true);
     setError(null);
@@ -597,6 +637,31 @@ export default function Payments() {
     Number(summary.overdueAmount || 0) > 0
       ? "This overdue stays added until that bill is paid"
       : "No overdue is being carried forward";
+
+  const hasRazorpay = Boolean(summary.beneficiary?.razorpayLinkedAccountId);
+  const hasUpi = Boolean(summary.beneficiary?.upiId);
+  let showOnlinePay = false;
+  let showDirectUpi = false;
+
+  if (hasRazorpay && hasUpi) {
+    const targetPayment = selectedPaymentTarget?.payment || {};
+    const isOneTime = targetPayment.title && String(targetPayment.title).toUpperCase().includes("ONE_TIME");
+    const methodSelected = isOneTime
+      ? (summary.beneficiary?.oneTimePaymentMethod || "DIRECT_UPI")
+      : (summary.beneficiary?.subscriptionPaymentMethod || "DIRECT_UPI");
+
+    showOnlinePay = methodSelected === "RAZORPAY";
+    showDirectUpi = methodSelected === "DIRECT_UPI";
+  } else if (hasRazorpay) {
+    showOnlinePay = true;
+  } else if (hasUpi) {
+    showDirectUpi = true;
+  }
+
+  if (!showOnlinePay && !showDirectUpi) {
+    showOnlinePay = true;
+    showDirectUpi = true;
+  }
 
   return (
     <CustomerLayout>
@@ -1221,54 +1286,58 @@ export default function Payments() {
             {/* Modal Body / Selection Cards */}
             <div className="space-y-4 p-5 sm:p-6">
               {/* Option A: Razorpay Online Gateway */}
-              <button
-                type="button"
-                onClick={handleExecuteRazorpayPayment}
-                className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
-              >
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#FEF3E6] text-[#B8641A] transition group-hover:bg-[#B8641A] group-hover:text-white">
-                  <CreditCard size={20} className="transition" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-[#2C1A0E]">Instant Online Pay</span>
-                    <span className="inline-flex items-center rounded-full bg-[#EBF7F1] px-2 py-0.5 text-[9px] font-bold text-[#1A7A4A]">
-                      Fastest
-                    </span>
+              {showOnlinePay && (
+                <button
+                  type="button"
+                  onClick={() => handleExecuteRazorpayPayment()}
+                  className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+                >
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#FEF3E6] text-[#B8641A] transition group-hover:bg-[#B8641A] group-hover:text-white">
+                    <CreditCard size={20} className="transition" />
                   </div>
-                  <p className="mt-0.5 text-xs text-[#B89970]">
-                    Pay using Cards, UPI, Netbanking, or Wallets.
-                  </p>
-                  <p className="mt-2 text-[11px] font-semibold text-[#1A7A4A]">
-                    Instant payment confirmation
-                  </p>
-                </div>
-              </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-[#2C1A0E]">Instant Online Pay</span>
+                      <span className="inline-flex items-center rounded-full bg-[#EBF7F1] px-2 py-0.5 text-[9px] font-bold text-[#1A7A4A]">
+                        Fastest
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-[#B89970]">
+                      Pay using Cards, UPI, Netbanking, or Wallets.
+                    </p>
+                    <p className="mt-2 text-[11px] font-semibold text-[#1A7A4A]">
+                      Instant payment confirmation
+                    </p>
+                  </div>
+                </button>
+              )}
 
               {/* Option B: Direct UPI Intent/UTR */}
-              <button
-                type="button"
-                onClick={handleExecuteUpiPayment}
-                className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
-              >
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#F7F2EB] text-[#8B7355] transition group-hover:bg-[#2C1A0E] group-hover:text-white">
-                  <Smartphone size={20} className="transition" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-[#2C1A0E]">Direct UPI Transfer</span>
-                    <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[9px] font-bold text-[#1D5FA5]">
-                      No Charges
-                    </span>
+              {showDirectUpi && (
+                <button
+                  type="button"
+                  onClick={() => handleExecuteUpiPayment()}
+                  className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+                >
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#F7F2EB] text-[#8B7355] transition group-hover:bg-[#2C1A0E] group-hover:text-white">
+                    <Smartphone size={20} className="transition" />
                   </div>
-                  <p className="mt-0.5 text-xs text-[#B89970]">
-                    Scan QR / open GPay, PhonePe, Paytm, and paste UTR code.
-                  </p>
-                  <p className="mt-2 text-[11px] font-semibold text-[#8B7355]">
-                    Requires manual dairy verification (1-2 hours)
-                  </p>
-                </div>
-              </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-[#2C1A0E]">Direct UPI Transfer</span>
+                      <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[9px] font-bold text-[#1D5FA5]">
+                        No Charges
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-[#B89970]">
+                      Scan QR / open GPay, PhonePe, Paytm, and paste UTR code.
+                    </p>
+                    <p className="mt-2 text-[11px] font-semibold text-[#8B7355]">
+                      Requires manual dairy verification (1-2 hours)
+                    </p>
+                  </div>
+                </button>
+              )}
 
               <div className="flex items-center justify-center gap-2 pt-2 text-[11px] text-[#B89970]">
                 <Info size={12} className="flex-shrink-0" />

@@ -12,6 +12,7 @@ import {
   Package,
   PencilLine,
   Phone,
+  ReceiptText,
   ShieldCheck,
   Truck,
   User,
@@ -94,6 +95,8 @@ const emptyDairyProfile = {
   verification_required: false,
   account_last_updated_at: "",
   pan: "",
+  one_time_payment_method: "DIRECT_UPI",
+  subscription_payment_method: "DIRECT_UPI",
 };
 
 const buildFormFromProfile = (dairy = {}, admin = {}) => ({
@@ -137,6 +140,8 @@ const buildFormFromProfile = (dairy = {}, admin = {}) => ({
   upi_qr_enabled: dairy?.upi_qr_enabled ?? true,
   bank_transfer_enabled: dairy?.bank_transfer_enabled ?? true,
   pan: dairy?.pan || "",
+  one_time_payment_method: dairy?.one_time_payment_method || "DIRECT_UPI",
+  subscription_payment_method: dairy?.subscription_payment_method || "DIRECT_UPI",
 });
 
 const getInitials = (name) =>
@@ -726,6 +731,8 @@ export default function AdminProfile() {
               <InfoCard icon={CreditCard} label="Bank Account" value={dairyProfile.masked_account_number || maskAccountNumber(dairyProfile.bank_account_number)} />
               <InfoCard icon={Hash} label="IFSC Code" value={dairyProfile.bank_ifsc_code} />
               <InfoCard icon={CreditCard} label="UPI ID" value={dairyProfile.upi_id} />
+              <InfoCard icon={ReceiptText} label="One-Time Orders Payment" value={dairyProfile.one_time_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
+              <InfoCard icon={CreditCard} label="Monthly Subscription Payment" value={dairyProfile.subscription_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
               <InfoCard icon={ShieldCheck} label="Bank Verification" value={bankStatusLabel} />
               <InfoCard icon={CheckCircle2} label="Payments Enabled" value={paymentStatus} />
               <InfoCard icon={Users} label="Supplier Count" value={String(dashboard?.suppliers?.length || 0)} />
@@ -974,6 +981,26 @@ export default function AdminProfile() {
                     <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#8B7355]">Payment Settings</p>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <Field label="Payment Instructions" value={formData.payment_instructions} onChange={(value) => setField("payment_instructions", value)} className="md:col-span-2" />
+                      <Field label="One-Time Orders Payment Method">
+                        <select
+                          value={formData.one_time_payment_method}
+                          onChange={(e) => setField("one_time_payment_method", e.target.value)}
+                          className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
+                        >
+                          <option value="DIRECT_UPI">Direct UPI QR</option>
+                          <option value="RAZORPAY">Razorpay Checkout</option>
+                        </select>
+                      </Field>
+                      <Field label="Monthly Subscription Payment Method">
+                        <select
+                          value={formData.subscription_payment_method}
+                          onChange={(e) => setField("subscription_payment_method", e.target.value)}
+                          className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none"
+                        >
+                          <option value="DIRECT_UPI">Direct UPI QR</option>
+                          <option value="RAZORPAY">Razorpay Checkout</option>
+                        </select>
+                      </Field>
                       <label className="flex items-center gap-3 rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5 text-sm font-bold text-[#5C3D1E]">
                         <input type="checkbox" checked={Boolean(formData.upi_qr_enabled)} onChange={(event) => setField("upi_qr_enabled", event.target.checked)} />
                         Enable UPI QR

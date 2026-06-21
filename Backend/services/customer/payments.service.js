@@ -526,7 +526,7 @@ const getDairyPayoutDetails = async (dairyId) => {
   const { data, error } = await supabase
     .from("dairies")
     .select(
-      "id, dairy_name, bank_account_holder_name, bank_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, razorpay_linked_account_id"
+      "id, dairy_name, bank_account_holder_name, bank_account_number, bank_ifsc_code, bank_name, bank_branch, upi_id, razorpay_linked_account_id, upi_qr_enabled, bank_transfer_enabled, one_time_accept_direct_upi, one_time_accept_razorpay, subscription_accept_direct_upi, subscription_accept_razorpay"
     )
     .eq("id", dairyId)
     .limit(1)
@@ -548,6 +548,14 @@ const getDairyPayoutDetails = async (dairyId) => {
     bankName: data.bank_name || null,
     bankBranch: data.bank_branch || null,
     upiId: data.upi_id || null,
+    upiQrEnabled: data.upi_qr_enabled !== false,
+    bankTransferEnabled: data.bank_transfer_enabled !== false,
+    oneTimePaymentMethod: data.one_time_accept_razorpay ? "RAZORPAY" : "DIRECT_UPI",
+    subscriptionPaymentMethod: data.subscription_accept_razorpay ? "RAZORPAY" : "DIRECT_UPI",
+    oneTimeAcceptDirectUpi: data.one_time_accept_direct_upi !== false,
+    oneTimeAcceptRazorpay: Boolean(data.one_time_accept_razorpay),
+    subscriptionAcceptDirectUpi: data.subscription_accept_direct_upi !== false,
+    subscriptionAcceptRazorpay: Boolean(data.subscription_accept_razorpay),
     razorpayLinkedAccountId: String(data.razorpay_linked_account_id || "").trim() || null,
   };
 };
