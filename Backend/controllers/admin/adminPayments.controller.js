@@ -17,7 +17,8 @@ export const fetchPageData = async (req, res) => {
       farm: farmData,
       payments: paymentsData.payments,
       totalPayments: paymentsData.total,
-      totalRevenue: paymentsData.revenue
+      totalRevenue: paymentsData.revenue,
+      pendingDues: paymentsData.pendingDues,
     });
   } catch (err) {
     console.error("PAYMENT PAGE ERROR:", err);

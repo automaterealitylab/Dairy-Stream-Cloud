@@ -40,6 +40,7 @@ export default function AdminPayments() {
   // Data States
   const [farmPlan, setFarmPlan] = useState(null);
   const [revenue, setRevenue] = useState(0);
+  const [pendingDuesSummary, setPendingDuesSummary] = useState({ amount: 0, customerCount: 0 });
   const [payments, setPayments] = useState([]);
   const [verifications, setVerifications] = useState([]);
   
@@ -113,7 +114,11 @@ export default function AdminPayments() {
     return parsed.toLocaleDateString("en-GB");
   };
 
-  const formatCurrency = (value) => `\u20B9${Number(value || 0).toLocaleString("en-IN")}`;
+  const formatCurrency = (value) =>
+    `\u20B9${Number(value || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   const getWhatsAppPhone = (phone) => {
     const digits = String(phone || "").replace(/\D/g, "");
@@ -253,6 +258,10 @@ export default function AdminPayments() {
       });
 
       setRevenue(Number(data?.totalRevenue || 0));
+      setPendingDuesSummary({
+        amount: Number(data?.pendingDues?.amount || 0),
+        customerCount: Number(data?.pendingDues?.customerCount || 0),
+      });
       setPayments(Array.isArray(data?.payments) ? data.payments : []);
       setVerifications(Array.isArray(verificationRows) ? verificationRows : []);
     } catch (err) {
@@ -564,6 +573,12 @@ export default function AdminPayments() {
       ? activePlanDetails?.yearlyPrice ?? 0
       : activePlanDetails?.monthlyPrice ?? 0;
   const activePlanPeriod = billingCycle === "yearly" ? "/yr" : "/mo";
+  const pendingDuesAmount = Number(pendingDuesSummary.amount || 0);
+  const pendingDueCustomerCount = Number(pendingDuesSummary.customerCount || 0);
+  const pendingDueCustomerText =
+    pendingDueCustomerCount === 0
+      ? "No customer dues"
+      : `${pendingDueCustomerCount} customer${pendingDueCustomerCount === 1 ? "" : "s"} with dues`;
 
   const renderGroupedPayments = () =>
     groupedPayments.map((group) => {
@@ -683,7 +698,7 @@ export default function AdminPayments() {
       return (
         <article
           key={group.groupKey}
-          className="rounded-[22px] border border-[#F2EDE4] bg-[#FFFDF8] p-4 dark:border-[#1E293B] dark:bg-[#161C2C]"
+          className="rounded-[20px] border border-[#F2EDE4] bg-[#FFFDF8] p-4 dark:border-[#1E293B] dark:bg-[#161C2C]"
         >
           <button
             type="button"
@@ -698,23 +713,23 @@ export default function AdminPayments() {
                 {group.items.length} payment{group.items.length > 1 ? "s" : ""} on this day
               </p>
             </div>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A] dark:bg-[#0B0F19] dark:text-[#d97706]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A] dark:bg-[#0B0F19] dark:text-[#d97706]">
               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </span>
           </button>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2 dark:border-[#222B40] dark:bg-[#121829]">
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2.5 dark:border-[#222B40] dark:bg-[#121829]">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970] dark:text-slate-400">Date</p>
               <p className="mt-1 text-sm font-bold text-[#5C3D1E] dark:text-white">{formatPaymentDate(group.date)}</p>
             </div>
-            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2 dark:border-[#222B40] dark:bg-[#121829]">
+            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2.5 dark:border-[#222B40] dark:bg-[#121829]">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970] dark:text-slate-400">Amount</p>
               <p className="mt-1 text-sm font-black text-[#2C1A0E] dark:text-white">{formatCurrency(group.displayAmount)}</p>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             {renderStatusBadge(group.status)}
             <div className="flex items-center gap-2">
               <button
@@ -790,26 +805,26 @@ export default function AdminPayments() {
       <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="px-4 py-8 pb-32 sm:px-6 lg:ml-64 lg:px-10 xl:ml-80">
+      <main className="px-4 py-5 pb-40 sm:px-6 lg:ml-64 lg:px-10 lg:py-8 lg:pb-32 xl:ml-80">
         
         {/* SECTION 1: STATS */}
-        <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] p-6 text-white shadow-lg">
-            <div className="absolute top-0 right-0 p-4 opacity-10"><CreditCard size={120} /></div>
+        <div className="mb-6 grid grid-cols-1 gap-4 lg:mb-8 lg:grid-cols-3 lg:gap-6">
+          <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] p-5 text-white shadow-lg lg:rounded-[32px] lg:p-6">
+            <div className="absolute right-0 top-0 p-4 opacity-10"><CreditCard className="h-24 w-24 lg:h-[120px] lg:w-[120px]" /></div>
             <div className="relative z-10">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-blue-200 text-sm font-medium tracking-wide">
+                  <p className="text-xs font-medium tracking-wide text-blue-200 lg:text-sm">
                     SUBSCRIPTION PLAN
                   </p>
-                  <h2 className="text-2xl font-bold mt-1">{activePlanLabel}</h2>
+                  <h2 className="mt-1 text-xl font-bold lg:text-2xl">{activePlanLabel}</h2>
                 </div>
                 <span className="bg-green-400/20 text-green-100 text-xs px-2 py-1 rounded-full border border-green-400/30 font-bold uppercase tracking-widest">
                   {farmPlan?.status}
                 </span>
               </div>
-              <div className="mt-6 flex items-end gap-2">
-                <span className="text-3xl font-bold">₹{activePlanPrice}</span>
+              <div className="mt-7 flex items-end gap-2 lg:mt-6">
+                <span className="text-3xl font-bold lg:text-3xl">₹{activePlanPrice}</span>
                 <span className="text-blue-200 text-xs font-medium pb-1">{activePlanPeriod}</span>
               </div>
               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/90">
@@ -818,38 +833,38 @@ export default function AdminPayments() {
                   ? `Autopay active via ${farmPlan.autopayMethod}`
                   : "Autopay not configured"}
               </div>
-              <div className="mt-6 pt-6 border-t border-blue-500/30 flex justify-between items-center">
+              <div className="mt-6 flex items-center justify-between border-t border-blue-500/30 pt-5 lg:pt-6">
                 <div className="text-xs text-blue-200">Refreshed: {farmPlan?.nextBilling ? new Date(farmPlan.nextBilling).toLocaleDateString() : "-"}</div>
                 <button onClick={() => setPlanModalOpen(true)} className="px-3 py-1.5 bg-white text-blue-900 text-sm font-bold rounded-lg hover:bg-blue-50 transition">Change Plan</button>
               </div>
             </div>
           </div>
 
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div className="flex items-center gap-4 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-              <div className="rounded-xl bg-[#F4F7ED] p-3 text-[#6F8C45]"><DollarSign size={28} /></div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 lg:gap-6">
+            <div className="flex min-h-[130px] items-center gap-4 rounded-[26px] border border-[#EDE8DF] bg-white/95 p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)] lg:min-h-0 lg:rounded-[28px] lg:p-6">
+              <div className="shrink-0 rounded-xl bg-[#F4F7ED] p-3 text-[#6F8C45]"><DollarSign size={28} /></div>
               <div>
                 <p className="text-sm text-gray-500 font-medium">Total Revenue</p>
-                <h3 className="text-2xl font-bold text-gray-900">₹{revenue.toLocaleString()}</h3>
+                <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(revenue)}</h3>
                 {revenue > 0 && <p className="text-xs text-green-600 flex items-center mt-1 font-bold"><TrendingUp size={12} className="mr-1" /> Stable Growth</p>}
               </div>
             </div>
-            <div className="flex items-center gap-4 rounded-[28px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-              <div className="rounded-xl bg-[#FFF1E5] p-3 text-[#C26D2C]"><Wallet size={28} /></div>
+            <div className="flex min-h-[130px] items-center gap-4 rounded-[26px] border border-[#EDE8DF] bg-white/95 p-5 shadow-[0_18px_45px_rgba(92,61,30,0.08)] lg:min-h-0 lg:rounded-[28px] lg:p-6">
+              <div className="shrink-0 rounded-xl bg-[#FFF1E5] p-3 text-[#C26D2C]"><Wallet size={28} /></div>
               <div>
                 <p className="text-sm text-gray-500 font-medium">Pending Dues</p>
-                <h3 className="text-2xl font-bold text-gray-900">₹{payments.filter(p => isCollectibleStatus(p.status)).reduce((s, p) => s + Number(p.amount || 0), 0).toLocaleString()}</h3>
-                <p className="text-xs text-gray-500 mt-1 font-bold italic">{groupedPayments.filter(group => group.hasCollectibleItems).length} Customer Dues</p>
+                <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(pendingDuesAmount)}</h3>
+                <p className="text-xs text-gray-500 mt-1 font-bold italic">{pendingDueCustomerText}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mb-8 overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
-          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-6 py-5 dark:border-[#1E293B] lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-6 overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none lg:mb-8 lg:rounded-[32px]">
+          <div className="flex flex-col gap-4 border-b border-[#F2EDE4] px-5 py-5 dark:border-[#1E293B] lg:flex-row lg:items-center lg:justify-between lg:px-6">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FDF6EC] text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]">
-                <ShieldCheck size={20} />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#FDF6EC] text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24] lg:h-11 lg:w-11">
+                <ShieldCheck size={18} />
               </div>
               <div>
                 <h3 className="text-xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>Direct UPI Collection</h3>
@@ -868,20 +883,20 @@ export default function AdminPayments() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
-            <div className="rounded-[22px] border border-[#EFE4D6] bg-[#FFF8F0] p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
+          <div className="grid grid-cols-1 gap-3 p-5 md:grid-cols-3 lg:gap-4 lg:p-6">
+            <div className="rounded-[20px] border border-[#EFE4D6] bg-[#FFF8F0] p-4 dark:border-[#222B40] dark:bg-[#161C2C] lg:rounded-[22px] lg:p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:text-slate-400">UPI ID</p>
               <p className="mt-2 text-sm font-semibold text-[#5C3D1E] dark:text-white">
                 {farmPlan?.upiId || "Configure UPI ID in Dairy Profile"}
               </p>
             </div>
-            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
+            <div className="rounded-[20px] border border-[#EFE4D6] bg-white p-4 dark:border-[#222B40] dark:bg-[#161C2C] lg:rounded-[22px] lg:p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:text-slate-400">Bank Account</p>
               <p className="mt-2 break-all text-sm font-bold text-[#2C1A0E] dark:text-white">
                 {farmPlan?.bankAccountNumber ? `•••• ${String(farmPlan.bankAccountNumber).slice(-4)}` : "Not configured"}
               </p>
             </div>
-            <div className="rounded-[22px] border border-[#EFE4D6] bg-white p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
+            <div className="rounded-[20px] border border-[#EFE4D6] bg-white p-4 dark:border-[#222B40] dark:bg-[#161C2C] lg:rounded-[22px] lg:p-5">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:text-slate-400">Pending Verification</p>
               <p className="mt-2 text-sm font-semibold text-[#5C3D1E] dark:text-white">
                 {verifications.length} UPI payment{verifications.length === 1 ? "" : "s"} waiting for review.
@@ -891,8 +906,8 @@ export default function AdminPayments() {
         </div>
 
         {verifications.length > 0 && (
-          <div className="mb-8 overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
-            <div className="border-b border-[#F2EDE4] px-6 py-5">
+          <div className="mb-6 overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] lg:mb-8 lg:rounded-[32px]">
+            <div className="border-b border-[#F2EDE4] px-5 py-5 lg:px-6">
               <h3 className="text-xl text-[#2C1A0E]" style={adminHeadingFont}>Payment Verification Queue</h3>
               <p className="mt-1 text-sm font-semibold text-[#8B7355]">
                 Match each UTR with your UPI app/bank statement before approving.
@@ -900,7 +915,7 @@ export default function AdminPayments() {
             </div>
             <div className="divide-y divide-[#F2EDE4]">
               {verifications.map((item) => (
-                <div key={item.id} className="grid gap-4 px-6 py-4 lg:grid-cols-[minmax(0,1.5fr)_1fr_auto] lg:items-center">
+                <div key={item.id} className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.5fr)_1fr_auto] lg:items-center lg:px-6 lg:py-4">
                   <div>
                     <p className="text-sm font-black text-[#2C1A0E]">{item.customerName}</p>
                     <p className="mt-1 text-xs font-semibold text-[#8B7355]">
@@ -933,7 +948,7 @@ export default function AdminPayments() {
                       Confidence: {Number(item.confidence_score ?? 0)}%
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:flex">
                     <button
                       type="button"
                       onClick={() => handleApproveVerification(item.id)}
@@ -956,10 +971,10 @@ export default function AdminPayments() {
         )}
 
         {/* SECTION 2: TABLE */}
-        <div className="overflow-hidden rounded-[32px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
+        <div className="overflow-hidden rounded-[28px] border border-[#EDE8DF] bg-white/95 shadow-[0_18px_45px_rgba(92,61,30,0.08)] lg:rounded-[32px]">
           <div className="flex flex-col justify-between gap-4 border-b border-[#F2EDE4] px-5 py-5 sm:px-6 md:flex-row md:items-center">
             <h3 className="text-2xl text-[#2C1A0E]" style={adminHeadingFont}>Customer Transactions</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
               {[
                 { value: "ALL", label: "All" },
                 { value: "PAID", label: "Paid" },
@@ -969,7 +984,7 @@ export default function AdminPayments() {
                 <button
                   key={item.value}
                   onClick={() => setFilter(item.value)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                  className={`min-w-0 rounded-lg px-2 py-2 text-xs font-bold transition sm:px-3 sm:py-1.5 ${
                     filter === item.value
                       ? "bg-[#B8641A] text-white shadow-sm"
                       : "bg-[#FDF6EC] text-[#8B7355] hover:bg-[#F7E8D3]"
@@ -991,7 +1006,7 @@ export default function AdminPayments() {
                 No transactions found for this filter.
               </div>
             ) : (
-              <div className="grid gap-3 p-4">
+              <div className="grid gap-3 p-3 sm:p-4">
                 {renderMobilePaymentCards()}
               </div>
             )}

@@ -82,7 +82,22 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
 
   const customerIds = [...new Set((payments || []).map((item) => item.customer_id).filter(Boolean))];
 
-  const [customersResp, membershipsResp, paidRowsResp] = await Promise.all([
+  let paidRowsQuery = supabase
+    .from("payments")
+    .select("amount")
+    .eq("status", "PAID");
+
+  let pendingRowsQuery = supabase
+    .from("payments")
+    .select("customer_id, amount")
+    .in("status", ["PENDING", "OVERDUE"]);
+
+  if (dairyId) {
+    paidRowsQuery = paidRowsQuery.eq("dairy_id", dairyId);
+    pendingRowsQuery = pendingRowsQuery.eq("dairy_id", dairyId);
+  }
+
+  const [customersResp, membershipsResp, paidRowsResp, pendingRowsResp] = await Promise.all([
     customerIds.length
       ? supabase
           .from("customers")
@@ -95,16 +110,14 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
           .select("customer_id, dairy_id, plan_name")
           .in("customer_id", customerIds)
       : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from("payments")
-      .select("amount")
-      .eq("status", "PAID")
-      .eq("dairy_id", dairyId),
+    paidRowsQuery,
+    pendingRowsQuery,
   ]);
 
   if (customersResp.error) throw customersResp.error;
   if (membershipsResp.error) throw membershipsResp.error;
   if (paidRowsResp.error) throw paidRowsResp.error;
+  if (pendingRowsResp.error) throw pendingRowsResp.error;
 
   const customersById = new Map((customersResp.data || []).map((row) => [row.id, row]));
   const membershipByCustomer = new Map();
@@ -135,11 +148,22 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
     (sum, row) => sum + Number(row.amount || 0),
     0
   );
+  const pendingAmount = (pendingRowsResp.data || []).reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0
+  );
+  const pendingCustomerCount = new Set(
+    (pendingRowsResp.data || []).map((row) => row.customer_id).filter(Boolean)
+  ).size;
 
   return {
     payments: normalizedPayments,
     total: count || 0,
     revenue: totalAmount,
+    pendingDues: {
+      amount: Number(pendingAmount.toFixed(2)),
+      customerCount: pendingCustomerCount,
+    },
   };
 };
 

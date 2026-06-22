@@ -169,9 +169,9 @@ const ProcurementTracker = ({
   const renderEntryCard = (entry, onEdit) => (
     <div
       key={entry.id}
-      className="rounded-[18px] border border-[#EEDFCB] bg-white px-3 py-2.5 shadow-[0_8px_20px_rgba(92,61,30,0.04)] dark:border-[#222B40] dark:bg-[#121829] dark:shadow-none"
+      className="rounded-[14px] border border-[#EEDFCB] bg-white p-3 shadow-[0_8px_20px_rgba(92,61,30,0.04)] dark:border-[#222B40] dark:bg-[#121829] dark:shadow-none lg:rounded-[18px] lg:px-3 lg:py-2.5"
     >
-      <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+      <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap lg:gap-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[15px] font-black leading-tight text-[#2C1A0E] dark:text-white">{entry.item_name || "-"}</p>
@@ -185,19 +185,19 @@ const ProcurementTracker = ({
           <p className="mt-0.5 text-[13px] font-semibold leading-tight text-[#8B7355] dark:text-slate-400">{entry.supplier_name || "-"}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#6F4A27] dark:text-slate-300 lg:flex-nowrap">
-          <span className="whitespace-nowrap rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C]">
+        <div className="grid w-full grid-cols-2 gap-1.5 text-[11px] text-[#6F4A27] dark:text-slate-300 lg:flex lg:w-auto lg:flex-nowrap">
+          <span className="whitespace-nowrap rounded-lg bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C] lg:rounded-full">
             Qty: <span className="font-black text-[#2C1A0E] dark:text-white">{entry.quantity ?? "-"} {entry.unit || ""}</span>
           </span>
-          <span className="whitespace-nowrap rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C]">
+          <span className="whitespace-nowrap rounded-lg bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C] lg:rounded-full">
             Rate: <span className="font-black text-[#2C1A0E] dark:text-white">Rs {entry.rate_per_unit || entry.rate_per_liter || "-"}</span>
           </span>
-          <span className="whitespace-nowrap rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C]">
+          <span className="whitespace-nowrap rounded-lg bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C] lg:rounded-full">
             Total: <span className="font-black text-[#2C1A0E] dark:text-white">
               Rs {entry.total_cost ?? Number(entry.quantity || 0) * Number(entry.rate_per_unit || entry.rate_per_liter || 0)}
             </span>
           </span>
-          <span className="whitespace-nowrap rounded-full bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C]">
+          <span className="whitespace-nowrap rounded-lg bg-[#FFF9F2] px-2.5 py-1.5 font-semibold dark:bg-[#161C2C] lg:rounded-full">
             Unit: <span className="font-black uppercase text-[#2C1A0E] dark:text-white">{entry.unit || "-"}</span>
           </span>
         </div>
@@ -218,52 +218,52 @@ const ProcurementTracker = ({
   return (
     <>
       <div
-        className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-8 shadow-[0_18px_45px_rgba(92,61,30,0.08)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none"
+        className="bg-transparent dark:bg-transparent lg:rounded-[32px] lg:border lg:border-[#EDE8DF] lg:bg-white/95 lg:p-8 lg:shadow-[0_18px_45px_rgba(92,61,30,0.08)] lg:dark:border-[#1E293B] lg:dark:bg-[#121829] lg:dark:shadow-none"
         style={adminShellFont}
       >
-        <div className="rounded-[28px] border border-[#F0E2D0] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_58%,#FFFCF7_100%)] p-5 shadow-[0_12px_30px_rgba(92,61,30,0.05)] dark:border-[#222B40] dark:bg-none dark:bg-[#161C2C] dark:shadow-none">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="rounded-[20px] border border-[#F0E2D0] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_58%,#FFFCF7_100%)] p-4 shadow-[0_12px_30px_rgba(92,61,30,0.05)] dark:border-[#222B40] dark:bg-none dark:bg-[#161C2C] dark:shadow-none lg:rounded-[28px] lg:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between xl:gap-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6">
               <div>
-                <h3 className="flex items-center gap-3 text-3xl text-[#2C1A0E] dark:text-white" style={adminHeadingFont}>
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF1DC] text-[#B8641A] shadow-sm dark:bg-[#d97706]/10 dark:text-[#fbbf24] dark:shadow-none">
+                <h3 className="flex items-center gap-3 text-2xl text-[#2C1A0E] dark:text-white lg:text-3xl" style={adminHeadingFont}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFF1DC] text-[#B8641A] shadow-sm dark:bg-[#d97706]/10 dark:text-[#fbbf24] dark:shadow-none lg:h-12 lg:w-12 lg:rounded-2xl">
                     <Landmark size={24} />
                   </span>
                   Purchase Entries
                 </h3>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-[#8B7355] dark:text-slate-400">
+                <p className="mt-2 max-w-xl text-sm leading-5 text-[#8B7355] dark:text-slate-400 lg:mt-3 lg:leading-6">
                   Check purchase history by date, manage entries, and keep supplier activity organized from one place.
                 </p>
               </div>
 
-              <label className="inline-flex min-w-[220px] flex-col rounded-[24px] border border-[#E8D8C3] bg-white px-5 py-4 shadow-[0_10px_24px_rgba(184,100,26,0.06)] dark:border-[#222B40] dark:bg-[#0B0F19] dark:shadow-none">
+              <label className="inline-flex min-w-0 flex-col rounded-[16px] border border-[#E8D8C3] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(184,100,26,0.06)] dark:border-[#222B40] dark:bg-[#0B0F19] dark:shadow-none lg:min-w-[220px] lg:rounded-[24px] lg:px-5 lg:py-4">
                 <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">Select Date</span>
                 <input
                   type="date"
                   value={selectedDate}
                   max={maxDate}
                   onChange={(e) => onChangeSelectedDate?.(e.target.value)}
-                  className="mt-3 block bg-transparent text-base font-black text-[#2C1A0E] outline-none dark:text-white"
+                  className="mt-2 block w-full bg-transparent text-base font-black text-[#2C1A0E] outline-none dark:text-white lg:mt-3"
                 />
               </label>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 xl:justify-end">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882] dark:text-slate-500">Manage Entries</span>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 xl:justify-end">
+              <span className="col-span-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882] dark:text-slate-500 sm:col-auto">Manage Entries</span>
               <button
                 type="button"
                 onClick={() => {
                   resetEntryForm();
                   setShowEntryForm(true);
                 }}
-                className="rounded-full bg-[#B8641A] px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_10px_24px_rgba(184,100,26,0.2)] transition hover:-translate-y-0.5 hover:bg-[#9E5415]"
+                className="rounded-[12px] bg-[#B8641A] px-3 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(184,100,26,0.2)] transition hover:-translate-y-0.5 hover:bg-[#9E5415] lg:rounded-full lg:px-5 lg:text-[11px] lg:tracking-[0.18em]"
               >
                 Add Entry
               </button>
               <button
                 type="button"
                 onClick={onOpenSupplierForm}
-                className="rounded-full border border-[#E5D9C7] bg-white px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#B8641A] transition hover:bg-[#FFF3E2] dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-[#fbbf24] dark:hover:bg-[#1C243A]"
+                className="rounded-[12px] border border-[#E5D9C7] bg-white px-3 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FFF3E2] dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-[#fbbf24] dark:hover:bg-[#1C243A] lg:rounded-full lg:px-5 lg:text-[11px] lg:tracking-[0.18em]"
               >
                 Manage Suppliers
               </button>
@@ -271,21 +271,21 @@ const ProcurementTracker = ({
           </div>
         </div>
 
-        <div className="mt-8 border-t border-[#F2EDE4] pt-6 dark:border-[#1E293B]">
-        {breakdownSection ? <div className="mb-8">{breakdownSection}</div> : null}
+        <div className="mt-5 border-t border-[#F2EDE4] pt-5 dark:border-[#1E293B] lg:mt-8 lg:pt-6">
+        {breakdownSection ? <div className="mb-5 lg:mb-8">{breakdownSection}</div> : null}
         {procurementLogs.length > 0 ? (
           <>
-            <div className="space-y-5">
+            <div className="space-y-4 lg:space-y-5">
               {groupedLogs.map((group) => (
                 <div
                   key={group.key}
-                  className={`rounded-[24px] border p-4 ${
+                  className={`rounded-[18px] border p-3 lg:rounded-[24px] lg:p-4 ${
                     group.key === selectedDate
                       ? "border-[#E5C79D] bg-[linear-gradient(180deg,#FFF8EF_0%,#FFFFFF_100%)] shadow-[0_14px_28px_rgba(184,100,26,0.08)] dark:border-[#d97706]/40 dark:bg-none dark:bg-[#161C2C] dark:shadow-none"
                       : "border-[#EDE8DF] bg-[linear-gradient(180deg,#FFFDF8_0%,#FFFFFF_100%)] dark:border-[#222B40] dark:bg-none dark:bg-[#121829]"
                   }`}
                 >
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-2">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3 lg:mb-4 lg:px-2">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FFF1DC] text-[#B8641A] shadow-sm dark:bg-[#d97706]/10 dark:text-[#fbbf24] dark:shadow-none">
                         <Landmark size={16} />
