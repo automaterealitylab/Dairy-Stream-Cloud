@@ -576,7 +576,7 @@ export const getCustomerBillDetails = async ({ customerId, dairyId = null }) => 
   );
   const grossPayable = Number((currentBillAmount + previousDueAmount).toFixed(2));
   const walletBalance = resolveWalletBalance(customer);
-  const totalDue = Number(Math.max(0, grossPayable - totalDue).toFixed(2));
+  const totalDue = Number(Math.max(0, grossPayable - walletBalance).toFixed(2));
   const creditAdjustmentAmount = Number(Math.max(0, grossPayable - totalDue).toFixed(2));
   const paymentStatus = String(referencePayment?.status || "PENDING").toUpperCase();
   const overdueDays = getOverdueDays(referencePayment?.due_date);
