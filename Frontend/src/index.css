@@ -488,10 +488,6 @@ body {
   background: var(--ds-bg);
 }
 
-:root:not(.dark) .ds-portal h1,
-:root:not(.dark) .ds-portal h2,
-:root:not(.dark) .ds-portal h3,
-:root:not(.dark) .ds-portal h4,
 :root:not(.dark) .ds-portal .text-gray-950,
 :root:not(.dark) .ds-portal .text-gray-900,
 :root:not(.dark) .ds-portal .text-gray-800,
