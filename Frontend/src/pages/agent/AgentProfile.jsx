@@ -14,6 +14,7 @@ import {
   History,
   Map,
   LogOut,
+  ChevronRight,
 } from "lucide-react";
 import { fetchAgentProfile, updateAgentAvailability } from "../../api/agent/agent.api";
 
@@ -227,6 +228,8 @@ const AgentProfile = () => {
           <InfoRow icon={<Mail size={16} />} label="Email Address" value={profile.email} />
           <InfoRow icon={<MapPin size={16} />} label="Home Address" value={profile.address} />
         </div>
+
+
 
         <div className="rounded-[30px] border border-[#EDE8DF] bg-white p-6 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
           <div className="mb-4 flex items-center gap-2">

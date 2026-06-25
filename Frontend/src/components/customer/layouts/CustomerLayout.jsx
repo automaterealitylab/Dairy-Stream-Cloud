@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { QRCodeSVG } from "qrcode.react";
 import {
   Home,
   Calendar,
@@ -10,7 +9,6 @@ import {
   Bell,
   LogOut,
   MapPin,
-  QrCode,
   X
 } from "lucide-react";
 import {
@@ -87,13 +85,6 @@ const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 const CustomerLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [showQrModal, setShowQrModal] = useState(false);
-
-  useEffect(() => {
-    const handleOpenQr = () => setShowQrModal(true);
-    window.addEventListener("open-customer-qr-modal", handleOpenQr);
-    return () => window.removeEventListener("open-customer-qr-modal", handleOpenQr);
-  }, []);
 
   const isActive = (path) => location.pathname === path;
   const warmRouteChunk = (item) => {
@@ -230,14 +221,6 @@ const CustomerLayout = ({ children }) => {
 
         <div className="mt-auto border-t border-[#F2EDE4] px-6 py-5 xl:px-[30px] xl:py-12">
           <button
-            onClick={() => setShowQrModal(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#EFD7B3] bg-[#FFF4E2] px-4 py-2.5 text-sm font-semibold text-[#B8641A] transition hover:bg-[#FCE8CB] xl:hidden"
-          >
-            <QrCode size={16} />
-            My QR Code
-          </button>
-
-          <button
             onClick={handleLogout}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#EDE8DF] px-4 py-2.5 text-sm font-semibold text-[#B89970] transition hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B] xl:mt-0 xl:h-[52px] xl:text-[16px]"
           >
@@ -259,13 +242,6 @@ const CustomerLayout = ({ children }) => {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowQrModal(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355] transition hover:border-[#B8641A] hover:bg-[#FFF4E2] hover:text-[#B8641A]"
-                title="My QR Code"
-              >
-                <QrCode size={18} />
-              </button>
               <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355]">
                 <Bell size={18} />
               </div>
@@ -312,91 +288,7 @@ const CustomerLayout = ({ children }) => {
         </div>
       </div>
 
-      {/* MY QR CODE MODAL */}
-      {showQrModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#2C2416]/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setShowQrModal(false)}
-        >
-          <div
-            className="w-full max-w-md overflow-hidden rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-5 shadow-[0_24px_60px_rgba(44,26,14,0.18)] animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#F2EDE4] pb-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B8641A]">Delivery Verification</p>
-                <h3 className="mt-1 text-xl font-semibold text-[#2C1A0E]" style={brandFont}>My QR Code</h3>
-              </div>
-              <button
-                onClick={() => setShowQrModal(false)}
-                className="rounded-full border border-[#EDE8DF] bg-white p-2 text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E]"
-              >
-                <X size={18} />
-              </button>
-            </div>
 
-            <div className="py-5 text-center">
-              <div className="mx-auto inline-flex rounded-[24px] border border-[#EDE8DF] bg-white p-4.5 shadow-sm">
-                <QRCodeSVG
-                  value={(() => {
-                    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-                    return JSON.stringify({
-                      customerId: storedUser?.id || storedUser?.customerId || "GUEST",
-                      name: storedUser?.name || storedUser?.customer_name || "Customer",
-                      dairy: storedUser?.dairy || storedUser?.dairyName || localStorage.getItem("guest_dairy_name") || "Not linked",
-                      address: storedUser?.address || "Address not set"
-                    });
-                  })()}
-                  size={200}
-                  includeMargin
-                />
-              </div>
-
-              <p className="mt-4 text-xs font-semibold text-[#8B7355]">
-                Show this code to your delivery agent to verify drops
-              </p>
-
-              <div className="mt-6 space-y-2.5 rounded-[20px] border border-[#F2EDE4] bg-[#FBF7F0] p-4 text-left">
-                <div className="flex items-center justify-between border-b border-[#EDE8DF]/60 pb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#C4A882]">Name</span>
-                  <span className="text-sm font-bold text-[#2C1A0E]">
-                    {(() => {
-                      const u = JSON.parse(localStorage.getItem("user") || "{}");
-                      return u?.name || u?.customer_name || "Customer";
-                    })()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-b border-[#EDE8DF]/60 pb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#C4A882]">Dairy</span>
-                  <span className="text-sm font-bold text-[#B8641A]">
-                    {(() => {
-                      const u = JSON.parse(localStorage.getItem("user") || "{}");
-                      return u?.dairy || u?.dairyName || localStorage.getItem("guest_dairy_name") || "Not linked";
-                    })()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#C4A882]">ID / Room</span>
-                  <span className="text-sm font-bold text-[#2C1A0E]">
-                    {(() => {
-                      const u = JSON.parse(localStorage.getItem("user") || "{}");
-                      const room = [u?.wing, u?.room_no || u?.roomNo].filter(Boolean).join(" - ");
-                      return room ? `#${u?.id || ""} (${room})` : `#${u?.id || "GUEST"}`;
-                    })()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowQrModal(false)}
-              className="w-full rounded-[16px] bg-[#2C2416] py-3 text-sm font-bold text-white transition hover:bg-[#4A3820]"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

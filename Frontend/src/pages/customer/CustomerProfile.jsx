@@ -4,7 +4,7 @@ import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } f
 import "leaflet/dist/leaflet.css";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
-import { Mail, Phone, MapPin, Edit, Camera, Loader2, X, LocateFixed, QrCode } from "lucide-react";
+import { Mail, Phone, MapPin, Edit, Camera, Loader2, X, LocateFixed } from "lucide-react";
 import {
   fetchCustomerProfile,
   getCachedCustomerDashboard,
@@ -443,14 +443,6 @@ const CustomerProfile = () => {
         <div className="grid gap-4 sm:gap-5 md:grid-cols-2">
           <InfoCard icon={<Mail />} label="Email" value={profile.email || "Not set"} />
           <InfoCard icon={<Phone />} label="Phone" value={profile.phone || "Not set"} />
-          <InfoCard
-            icon={<QrCode />}
-            label="My QR Code"
-            value="Show to verify delivery drops"
-            actionLabel="Show QR Code"
-            onAction={() => window.dispatchEvent(new CustomEvent("open-customer-qr-modal"))}
-            full
-          />
           <InfoCard
             icon={<MapPin />}
             label="Delivery Address"
