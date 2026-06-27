@@ -115,8 +115,9 @@ const CustomerDistributionMap = ({ customers, dairy }) => {
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/80">
-        <MapContainer center={mapCenter} zoom={13} scrollWheelZoom className="h-[450px] w-full z-0">
+      <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/80">
+        <div className="relative w-full h-[450px]">
+        <MapContainer center={mapCenter} zoom={13} scrollWheelZoom className="h-full w-full z-0">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -198,9 +199,11 @@ const CustomerDistributionMap = ({ customers, dairy }) => {
             );
           })}
         </MapContainer>
-          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
-      DairyVision Maps
-    </div>
+        <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+          DairyVision Maps
+        </div>
+      </div>
+          
       </div>
     </div>
   );

@@ -173,6 +173,39 @@ const CustomerRow = ({ customer, onOpen }) => {
   );
 };
 
+const playBeepSound = (type = "success") => {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    if (type === "success") {
+      // Cheerful high-pitch double beep
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      oscillator.start();
+      
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08); // A5
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.08);
+      
+      oscillator.stop(audioCtx.currentTime + 0.22);
+    } else {
+      // Lower warning tone for failure
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Low G3
+      gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.35);
+    }
+  } catch (error) {
+    console.error("Failed to play notification sound:", error);
+  }
+};
+
 const AgentBuildingTasksPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -380,6 +413,7 @@ const AgentBuildingTasksPage = () => {
       )
     );
     setProofDelivery(null);
+    playBeepSound("success");
 
     try {
       await Promise.all(
@@ -407,6 +441,7 @@ const AgentBuildingTasksPage = () => {
       prev.map((d) => (String(d.id) === String(deliveryId) ? { ...d, status: "FAILED", failedReason: reason } : d))
     );
     setFailedDelivery(null);
+    playBeepSound("failure");
 
     try {
       await updateAssignedAgentDeliveryStatus({ deliveryId, status: "FAILED", reason });

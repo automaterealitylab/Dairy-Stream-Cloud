@@ -356,7 +356,7 @@ const DeliveryETADisplay = ({
         </div>
       </div>
 
-      <div className="relative mt-4 overflow-hidden rounded-[18px] border border-[#EFD7B3] bg-white">
+      <div className="mt-4 overflow-hidden rounded-[18px] border border-[#EFD7B3] bg-white">
         <div className="border-b border-[#F2E6D7] px-4 py-3">
           <h4 className="text-sm font-bold text-[#2C1A0E]">Agent Current Location</h4>
           <p className="mt-1 text-xs text-[#8B7355]">
@@ -372,11 +372,12 @@ const DeliveryETADisplay = ({
         </div>
 
         {shouldShowLiveLocation && agentCoordinates ? (
-          <MapContainer
+          <div className="relative w-full h-[240px]">
+        <MapContainer
             center={agentCoordinates}
             zoom={16}
             scrollWheelZoom={false}
-            className="h-[240px] w-full"
+            className="h-full w-full"
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -418,9 +419,11 @@ const DeliveryETADisplay = ({
               />
             ) : null}
           </MapContainer>
-          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
-      DairyVision Maps
-    </div>
+        <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+          DairyVision Maps
+        </div>
+      </div>
+          
         ) : (
           <div className="flex h-[240px] items-center justify-center bg-[#FBF7F0] px-6 text-center text-sm font-medium text-[#8B7355]">
             <div className="flex max-w-sm flex-col items-center gap-3">

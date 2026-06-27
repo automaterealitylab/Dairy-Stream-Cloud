@@ -243,14 +243,15 @@ const TrackAgentMap = ({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-[18px] border border-[#EDE8DF]">
+    <div className="overflow-hidden rounded-[18px] border border-[#EDE8DF]">
       {!position ? (
         <div className="bg-[#FBF7F0] px-4 py-4 text-center text-sm text-[#8B7355]">
           Waiting for agent location...
         </div>
       ) : null}
 
-      <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={false} className="h-[340px] w-full">
+      <div className="relative w-full h-[340px]">
+        <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={false} className="h-full w-full">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -291,9 +292,11 @@ const TrackAgentMap = ({
           />
         ) : null}
       </MapContainer>
-          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
-      DairyVision Maps
-    </div>
+        <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+          DairyVision Maps
+        </div>
+      </div>
+          
 
       {lastUpdatedAt ? (
         <div className="border-t border-[#EDE8DF] bg-white px-4 py-2 text-xs text-[#8B7355]">
