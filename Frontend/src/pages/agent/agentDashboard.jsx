@@ -572,6 +572,7 @@ const AgentDashboard = () => {
   const joinedOrderIdsRef = useRef(new Set());
   const liveOrderIdsRef = useRef([]);
   const liveAgentIdRef = useRef(null);
+  const gpsRetryTimeoutRef = useRef(null);
 
   const agentSocketId = useMemo(() => {
     const directUser = user || {};
@@ -636,6 +637,12 @@ const AgentDashboard = () => {
 
     locationWatcherIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
+        // Clear any scheduled retry timeout upon successful location acquisition
+        if (gpsRetryTimeoutRef.current !== null) {
+          clearTimeout(gpsRetryTimeoutRef.current);
+          gpsRetryTimeoutRef.current = null;
+        }
+
         const coords = [pos.coords.latitude, pos.coords.longitude];
         setAgentLocation(coords);
         storeAgentLocation({ lat: coords[0], lng: coords[1] });
@@ -664,7 +671,21 @@ const AgentDashboard = () => {
           });
         });
       },
-      (err) => console.error("GPS Error:", err.message),
+      (err) => {
+        console.error("GPS Error:", err.message);
+        // Clear current failed watch
+        if (locationWatcherIdRef.current !== null) {
+          navigator.geolocation.clearWatch(locationWatcherIdRef.current);
+          locationWatcherIdRef.current = null;
+        }
+        // Retry connection in 0.5 seconds
+        if (gpsRetryTimeoutRef.current !== null) {
+          clearTimeout(gpsRetryTimeoutRef.current);
+        }
+        gpsRetryTimeoutRef.current = setTimeout(() => {
+          startAgentLocationWatcher();
+        }, 500);
+      },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, []);
@@ -701,6 +722,11 @@ const AgentDashboard = () => {
       if (locationWatcherIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(locationWatcherIdRef.current);
         locationWatcherIdRef.current = null;
+      }
+
+      if (gpsRetryTimeoutRef.current !== null) {
+        clearTimeout(gpsRetryTimeoutRef.current);
+        gpsRetryTimeoutRef.current = null;
       }
 
       if (joinedOrderIdsRef.current.size > 0 || liveAgentIdRef.current) {
@@ -1581,7 +1607,11 @@ const AgentDashboard = () => {
           <MapIcon size={16} className="text-[#B8641A]" />
           <div>
             <p className="text-[10px] font-black uppercase text-[#A88763]">Live Route Map</p>
-            <p className="text-xs font-medium text-[#6B5B3E]">Customer pins and your current position</p>
+            <p className="text-xs font-medium text-[#6B5B3E]">
+              {isDeliveryRunActive
+                ? "Solid line shows the nearest customer. Dotted lines show the remaining."
+                : "The map highlights the nearest customer and previews the rest of the route."}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1787,6 +1817,9 @@ const AgentDashboard = () => {
                   )
                 )}
               </MapContainer>
+          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+            DairyVision Maps
+          </div>
               <button
                 type="button"
                 onClick={() => setIsSpeechMuted((value) => !value)}
@@ -1838,13 +1871,6 @@ const AgentDashboard = () => {
               >
                 <GoogleMapsBadgeIcon size={18} />
               </button>
-              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[600] rounded-[16px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
-                <p className="text-[11px] font-semibold leading-snug text-[#6B5B3E]">
-                  {isDeliveryRunActive
-                    ? "Solid line shows the nearest customer. Dotted lines show the remaining customers on your route."
-                    : "The map highlights the nearest customer and previews the rest of the route."}
-                </p>
-              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3">

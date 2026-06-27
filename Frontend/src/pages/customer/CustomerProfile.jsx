@@ -603,7 +603,7 @@ const CustomerProfile = () => {
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-[20px] border border-[#E7DAC6]">
+                  <div className="relative overflow-hidden rounded-[20px] border border-[#E7DAC6]">
                     <MapContainer 
                       center={mapCenter} 
                       zoom={17} 
@@ -639,6 +639,9 @@ const CustomerProfile = () => {
                         />
                       )}
                     </MapContainer>
+          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+      DairyVision Maps
+    </div>
                   </div>
 
                   <p className="text-xs font-medium text-[#8B7355]">

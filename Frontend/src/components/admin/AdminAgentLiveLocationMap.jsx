@@ -567,7 +567,7 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
         {lastUpdatedAt ? <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span> : null}
       </div>
 
-      <div className="overflow-hidden rounded-[18px] border border-[#EDE8DF]">
+      <div className="relative overflow-hidden rounded-[18px] border border-[#EDE8DF]">
         <MapContainer center={mapCenter} zoom={15} scrollWheelZoom className="h-[420px] w-full">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -685,6 +685,9 @@ const AdminAgentLiveLocationMap = ({ agentId, agentName = "" }) => {
             />
           ) : null}
         </MapContainer>
+          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+      DairyVision Maps
+    </div>
       </div>
     </div>
   );
