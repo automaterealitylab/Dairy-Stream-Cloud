@@ -14,6 +14,7 @@ const DEFAULT_CORS_ORIGINS = [
   "https://dairy-stream-cloud-fronten.onrender.com",
   "http://localhost:5173",
   "http://localhost:3000",
+  "http://localhost",
 ];
 
 export const getAllowedCorsOrigins = () => {

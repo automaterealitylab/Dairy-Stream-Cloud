@@ -15,6 +15,7 @@ import {
   AlertCircle,
   ShieldCheck,
   LocateFixed,
+  X,
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.jpg";
 import { useGeolocationAutoRetry } from "../hooks/useGeolocationAutoRetry.js";
@@ -82,6 +83,8 @@ const CustomerRegister = () => {
   const [error, setError] = useState("");
   const [gpsLocation, setGpsLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_MAP_CENTER);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   useEffect(() => {
     if (location.state?.mobile) {
@@ -249,6 +252,205 @@ const CustomerRegister = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderTermsModal = () => {
+    if (!showTerms) return null;
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="relative w-full max-w-lg rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-6 shadow-[0_24px_60px_rgba(44,26,14,0.18)] max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between border-b border-[#F2EDE4] pb-4">
+            <h3 className="text-xl font-semibold text-[#2C1A0E]" style={{ fontFamily: "'Lora', serif" }}>
+              Terms & Conditions of Service
+            </h3>
+            <button
+              type="button"
+              onClick={() => setShowTerms(false)}
+              className="rounded-full p-1.5 text-[#A88763] hover:bg-[#F5F0E8] hover:text-[#2C1A0E] transition"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="overflow-y-auto my-4 pr-2 space-y-4 text-[#5C3D1E] text-sm leading-relaxed flex-1 scrollbar-thin">
+            <p className="font-semibold text-xs text-[#A88763] uppercase tracking-[0.1em]">Effective Date: June 28, 2026</p>
+            <p className="text-xs">
+              Welcome to the DairyVision platform. These Terms and Conditions govern your engagement with the Dairy Automation System, acting as a binding agreement for all Customers, Delivery Agents, Admins, and Milk Suppliers.
+            </p>
+            
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">1. PLATFORM SCOPE & ROLES</h4>
+              <p className="text-xs text-[#5C3D1E] mb-2">
+                DairyVision serves as a centralized dairy distribution system. The platform maintains distinct operational portals for each of the following system roles:
+              </p>
+              <ul className="list-decimal pl-5 space-y-2 text-xs">
+                <li><strong>Customers:</strong> Subscribe to daily fresh milk products, configure vacations, view delivery logs, and settle ledger invoices.</li>
+                <li><strong>Delivery Agents:</strong> Route-assigned drivers who retrieve bulk crates from dairy hubs, verify batch counts, and execute morning dispatches.</li>
+                <li><strong>Suppliers:</strong> Local dairy farms and raw milk suppliers who deliver bulk milk to the collection centers, subject to quality analysis.</li>
+                <li><strong>Admins:</strong> System coordinators responsible for auditing ledgers, verifying payments, managing procurement records, and adjusting routes.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">2. CUSTOMER SUBSCRIPTIONS & DELIVERY CUTOFFS</h4>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>Subscription Customization:</strong> Customers can set up recurring dispatches (daily, alternate days, weekly, or custom schedules) for products like cow milk, buffalo milk, paneer, and other dairy items.</li>
+                <li><strong>Strict 10:00 PM Cutoff:</strong> Modifications to your delivery plan—such as quantity adjustments, item additions, pause requests, or vacation holds—must be saved in the application before <strong>10:00 PM</strong> on the evening preceding the delivery. Changes submitted after 10:00 PM are automatically processed for the next delivery cycle.</li>
+                <li><strong>Delivery Coordinates Pinning:</strong> To ensure accurate early-morning dispatches, customers must drop a precise marker on the interactive GPS map. You must also supply clear details like building names, wing labels, room numbers, and preferred drop-box locations. Neither the platform nor the delivery agents are liable for deliveries missed due to locked gates or incorrect map pins.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">3. FINANCIAL TRANSACTIONS, PAYMENT SYSTEMS & LEDGER AUDITS</h4>
+              <p className="text-xs text-[#5C3D1E] mb-2">
+                DairyVision employs a strict billing ledger system designed to track customer orders, payments, and balances. You agree to the following financial terms:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>Prepaid Wallet Balance:</strong> Customers may pre-fund their account wallet. The system automatically calculates delivery costs at fulfillment and deducts matching amounts. Overpayments or double deposits automatically convert into wallet credits applied to future deliveries.</li>
+                <li><strong>Postpaid Invoicing Cycles:</strong> For postpaid customers, invoices are generated automatically at the end of each billing period (weekly or monthly). Balance statements must be cleared within <strong>5 calendar days</strong>. Unresolved balances after 5 days trigger automatic delivery suspensions.</li>
+                <li><strong>Integrated Gateway Payments:</strong> Online payments are processed securely via integrated gateways (e.g. Razorpay). By using online checkout, you agree to the payment provider's terms and consent to pay any transaction surcharges or local service taxes.</li>
+                <li><strong>Manual Invoice Uploads & Audits:</strong> In cases where bank transfers or offline deposits are performed, customers must upload digital transaction receipts (screenshot proofs) via their panel. These uploads enter a pending state and will update your active balance only after manual validation and clearance by a Platform Admin.</li>
+                <li><strong>Agent Field Collections:</strong> Delivery agents are authorized to record offline collections (Cash, UPI, Bank Transfer) in the field using the Agent App. Payments logged by agents update the customer's ledger balance immediately. If a customer pays less than the due bill, the remaining balance stays due; if they pay extra, the remainder is credited to their wallet balance.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">4. LOGISTICAL AGENT DELIVERY OPERATIONS</h4>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>Fulfillment Timelines:</strong> Agents must retrieve designated crate batches from distribution hubs and complete all deliveries along their assigned routes between <strong>5:00 AM and 8:00 AM</strong> daily.</li>
+                <li><strong>Proof of Delivery (PoD):</strong> For each drop-off, agents must upload verified proof, including geo-tagged photos, customer signature logs, or customer QR code scans. Deliveries marked completed without PoD will trigger review audits.</li>
+                <li><strong>Live Location Consent:</strong> Agents consent to the active tracking and broadcasting of their GPS coordinates to customers and admins during working hours to provide real-time ETAs and route progress.</li>
+                <li><strong>Ratings & Route Assigns:</strong> Agent performance is calculated based on on-time delivery rates, customer ratings, and PoD compliance. Persistent low ratings (below 4.0 stars over a rolling 30-day window) will result in route suspension.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">5. SUPPLIER PROCUREMENT, QUALITY CRITERIA & SETTLEMENTS</h4>
+              <p className="text-xs text-[#5C3D1E] mb-2">
+                Suppliers delivering bulk raw milk to collection centers agree to the following quality-based payout terms:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>FAT & SNF Testing:</strong> Every raw milk batch is tested at intake using laboratory analyzers to measure <strong>FAT percentage</strong> and <strong>SNF (Solid Not Fat) percentage</strong>. These parameters determine milk quality and density.</li>
+                <li><strong>Quality Multipliers:</strong> Payout rates are calculated based on a quality-multiplier matrix. Raw milk falling below standard thresholds (e.g. low FAT or SNF content) may be rejected or subject to price deductions.</li>
+                <li><strong>Supplier Ledger Settle:</strong> Payout calculations are compiled weekly/monthly under the Supplier Ledger. Admins process disbursements directly to verified supplier bank accounts after auditing records.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">6. OPERATOR ADMIN PRIVILEGES</h4>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>System Override:</strong> Admins retain full rights to update product catalogs, modify pricing tiers, adjust delivery routes, assign or terminate agent tasks, and audit logs.</li>
+                <li><strong>Route Clustering:</strong> Admins use coordinate grouping algorithms to reallocate customer clusters, optimizing agent travel distances and route efficiency.</li>
+                <li><strong>Governance & Suspensions:</strong> Admins reserve the right to suspend or block any customer, agent, or supplier account found in breach of terms or defaulting on financial/delivery obligations.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">7. LIMITATION OF LIABILITY & FORCE MAJEURE</h4>
+              <p className="text-xs">
+                DairyVision acts as a service connector. We do not warrant that delivery services will be uninterrupted or error-free. Neither party shall be liable for delivery failures, stock shortages, or delay occurrences resulting from force majeure conditions, including extreme weather events, road blockages, labor strikes, vehicle failures, pandemic restrictions, or source farm shortages.
+              </p>
+            </div>
+          </div>
+          <div className="border-t border-[#F2EDE4] pt-4">
+            <button
+              type="button"
+              onClick={() => setShowTerms(false)}
+              className="w-full rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white transition hover:bg-[#9F5313]"
+            >
+              I Agree & Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPrivacyModal = () => {
+    if (!showPrivacy) return null;
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="relative w-full max-w-lg rounded-[28px] border border-[#E7DAC6] bg-[#FFFDF7] p-6 shadow-[0_24px_60px_rgba(44,26,14,0.18)] max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between border-b border-[#F2EDE4] pb-4">
+            <h3 className="text-xl font-semibold text-[#2C1A0E]" style={{ fontFamily: "'Lora', serif" }}>
+              Privacy & Data Policy
+            </h3>
+            <button
+              type="button"
+              onClick={() => setShowPrivacy(false)}
+              className="rounded-full p-1.5 text-[#A88763] hover:bg-[#F5F0E8] hover:text-[#2C1A0E] transition"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="overflow-y-auto my-4 pr-2 space-y-4 text-[#5C3D1E] text-sm leading-relaxed flex-1 scrollbar-thin">
+            <p className="font-semibold text-xs text-[#A88763] uppercase tracking-[0.1em]">Last Updated: June 28, 2026</p>
+            <p className="text-xs">
+              DairyVision is committed to securing your personal and operational information. This Privacy Policy details how we collect, store, and utilize data metrics generated by Customers, Delivery Agents, Suppliers, and Platform Admins.
+            </p>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">1. METRIC COLLECTION SCHEMAS</h4>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>Customer Data:</strong> Profile details (name, email, verified mobile number), billing address, custom delivery coordinates, payment transaction logs, manual invoice uploads, subscription preferences, and delivery history logs.</li>
+                <li><strong>Agent Data:</strong> Physical identity verification metadata, driver licenses, vehicle parameters, background check indicators, shift availability schedules, real-time background GPS tracking entries, fulfillment ratings, and payout histories.</li>
+                <li><strong>Supplier Data:</strong> Bank profiles, raw milk quality testing logs (FAT & SNF percentages), invoice histories, and payment settlement records.</li>
+                <li><strong>Admin Data:</strong> System credentials, activity records, database modifications, and audit logs.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">2. DETAILED GEOLOCATION PROCESSING</h4>
+              <p className="text-xs text-[#5C3D1E] mb-2">
+                Location processing is critical to our early-morning logistical flow. Geolocation is tracked in the following ways:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>Customer Pins:</strong> The latitude and longitude pinned by the customer is parsed by our route-grouping algorithm to automatically organize customers into spatial clusters. This minimizes delivery path lengths for our agents.</li>
+                <li><strong>Agent Geolocation tracking:</strong> Delivery agents undergo foreground and background geolocation tracking when active on their delivery route. This coordinate stream is securely broadcast to assigned customers via active tracking pages, providing real-time ETAs and map tracking. Geolocation tracking ceases automatically once the agent updates their status to off-duty.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">3. FINANCIAL & TRANSACTION DATA PROTECTION</h4>
+              <p className="text-xs">
+                To process payments safely, the platform collects bank account numbers, payment transaction identifiers, and uploaded bank receipts. Online payments are secured using tokenized transactions processed directly by third-party processors, meaning no raw card details are cached or stored on our servers. Uploaded manual payment screenshots are restricted exclusively to Admin auditing teams and are deleted automatically once the balance is reconciled. Supplier bank profiles are encrypted at rest using database security features.
+              </p>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">4. CORE DATA PROCESSING GOALS</h4>
+              <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li><strong>Logistics Operations:</strong> Planning dispatch rosters, managing daily products distribution, and tracking route progress.</li>
+                <li><strong>Billing & Account Security:</strong> Resolving monthly transaction logs, processing billing queries, and generating payment tokens.</li>
+                <li><strong>Audit Trails:</strong> Monitoring procurement records, supplier quality (FAT & SNF) histories, admin adjustments, and platform transactions to ensure complete platform safety.</li>
+              </ul>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">5. SHARING RESTRICTIONS & ZERO-COMMERCIAL USE</h4>
+              <p className="text-xs">
+                We implement a strict zero-sharing protocol with external marketers. Customer details are only shared internally with the assigned delivery agent (restricted to name, physical address, and contact number) to complete delivery routes. Financial queries are sent via tokenized requests to our secure payment gateway providers.
+              </p>
+            </div>
+
+            <div className="border-t border-[#F2EDE4] pt-3">
+              <h4 className="font-bold text-[#2C1A0E] mb-1.5">6. DATABASE ENCRYPTION & DATA RETENTION</h4>
+              <p className="text-xs">
+                Passwords are encrypted using bcrypt hashing protocols. Geolocation coordinate tables are periodically archived or cleared to minimize historical storage overhead. Active profiles are maintained in secure, encrypted Supabase PostgreSQL database tables. Users may request account closures and profile deactivation by sending a ticket to support.
+              </p>
+            </div>
+          </div>
+          <div className="border-t border-[#F2EDE4] pt-4">
+            <button
+              type="button"
+              onClick={() => setShowPrivacy(false)}
+              className="w-full rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white transition hover:bg-[#9F5313]"
+            >
+              I Understand & Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -536,13 +738,21 @@ const CustomerRegister = () => {
 
           <div className="mt-6 border-t border-[#F2EDE4] pt-6 text-center text-xs text-[#A88763]">
             By joining, you agree to our{" "}
-            <a href="#" className="underline">
+            <button
+              type="button"
+              onClick={() => setShowTerms(true)}
+              className="underline hover:text-[#B8641A] transition-colors font-semibold"
+            >
               Terms
-            </a>{" "}
+            </button>{" "}
             &{" "}
-            <a href="#" className="underline">
+            <button
+              type="button"
+              onClick={() => setShowPrivacy(true)}
+              className="underline hover:text-[#B8641A] transition-colors font-semibold"
+            >
               Privacy Policy
-            </a>
+            </button>
             .
             <div className="mt-2">
               Already have an account?{" "}
@@ -553,6 +763,8 @@ const CustomerRegister = () => {
           </div>
         </div>
       </div>
+      {renderTermsModal()}
+      {renderPrivacyModal()}
     </div>
   );
 };
