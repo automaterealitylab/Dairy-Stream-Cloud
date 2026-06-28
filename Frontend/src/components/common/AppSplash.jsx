@@ -28,14 +28,14 @@ const AppSplash = () => {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-[#EDE8DF] dark:border-white/10 bg-white dark:bg-[#1E1E1E] p-5 shadow-[0_18px_40px_rgba(92,61,30,0.06)] dark:shadow-[0_18px_40px_rgba(0,0,0,0.35)]"
+          className="relative flex h-32 w-32 items-center justify-center rounded-[32px] border border-[#EDE8DF] dark:border-white/10 bg-white dark:bg-[#1E1E1E] p-4 shadow-[0_22px_45px_rgba(92,61,30,0.08)] dark:shadow-[0_22px_45px_rgba(0,0,0,0.4)]"
         >
           <motion.img
             src="/favicon.png"
             alt="DairyVision Logo"
             className="h-full w-full object-contain"
             animate={{
-              y: [0, -5, 0],
+              y: [0, -6, 0],
             }}
             transition={{
               duration: 2,
