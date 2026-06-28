@@ -224,6 +224,10 @@ export default function Payments() {
   const [selectedPaymentTarget, setSelectedPaymentTarget] = useState(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
+  const hasRazorpay = Boolean(summary.beneficiary?.razorpayLinkedAccountId);
+  const hasUpi = Boolean(summary.beneficiary?.upiId);
+
+
   const applyPaymentsState = (data) => {
     const nextState = toPaymentsViewState(data);
     setSummary(nextState.summary);
@@ -450,6 +454,7 @@ export default function Payments() {
     }
   };
 
+
   const handleWalletTopup = async () => {
     const value = Number(walletTopupAmount);
     if (!Number.isFinite(value) || value < 10) {
@@ -526,7 +531,8 @@ export default function Payments() {
       await submitCustomerUpiPaymentVerification({
         paymentId: upiIntent.paymentId || "",
         payAll: upiIntent.payAll ? "true" : "false",
-        includeRunningDue: upiIntent.payAll ? "false" : "true",
+        includeRunningDue: upiIntent.isWalletTopup ? "false" : (upiIntent.payAll ? "false" : "true"),
+        isWalletTopup: upiIntent.isWalletTopup ? "true" : "false",
         amount: upiIntent.amount,
         utrNumber: upiForm.utrNumber,
         payerUpiId: upiForm.payerUpiId,
@@ -638,8 +644,6 @@ export default function Payments() {
       ? "This overdue stays added until that bill is paid"
       : "No overdue is being carried forward";
 
-  const hasRazorpay = Boolean(summary.beneficiary?.razorpayLinkedAccountId);
-  const hasUpi = Boolean(summary.beneficiary?.upiId);
   let showOnlinePay = false;
   let showDirectUpi = false;
 

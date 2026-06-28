@@ -186,18 +186,18 @@ const playBeepSound = (type = "success") => {
       // Cheerful high-pitch double beep
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.40, audioCtx.currentTime);
       oscillator.start();
       
       oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08); // A5
-      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.08);
+      gainNode.gain.setValueAtTime(0.40, audioCtx.currentTime + 0.08);
       
       oscillator.stop(audioCtx.currentTime + 0.22);
     } else {
       // Lower warning tone for failure
       oscillator.type = "triangle";
       oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Low G3
-      gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.50, audioCtx.currentTime);
       oscillator.start();
       oscillator.stop(audioCtx.currentTime + 0.35);
     }

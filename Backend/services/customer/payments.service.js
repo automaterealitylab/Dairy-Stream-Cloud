@@ -1337,9 +1337,21 @@ const getPaymentIntentTarget = async ({
   paymentId = null,
   payAll = false,
   includeRunningDue = true,
+  isWalletTopup = false,
 }) => {
   await syncCustomerMonthlyBills(customerId);
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+
+  if (isWalletTopup) {
+    return {
+      resolvedDairyId,
+      payment: null,
+      paymentIds: [],
+      monthlyBillId: null,
+      amount: 0,
+      title: "Wallet Topup",
+    };
+  }
 
   if (payAll) {
     const { payments } = await getEligiblePendingPaymentsForCustomer(customerId, resolvedDairyId);
@@ -1418,6 +1430,8 @@ export const createCustomerUpiPaymentIntent = async ({
   dairyId = null,
   payAll = false,
   includeRunningDue = true,
+  isWalletTopup = false,
+  amount = 0,
 }) => {
   const target = await getPaymentIntentTarget({
     customerId,
@@ -1425,6 +1439,7 @@ export const createCustomerUpiPaymentIntent = async ({
     paymentId,
     payAll,
     includeRunningDue,
+    isWalletTopup,
   });
   const beneficiary = await getDairyPayoutDetails(target.resolvedDairyId);
   const upiId = normalizeUpiId(beneficiary?.upiId);
@@ -1443,12 +1458,13 @@ export const createCustomerUpiPaymentIntent = async ({
     throw error;
   }
 
+  const finalAmount = isWalletTopup ? Number(amount || 0) : target.amount;
   const transactionRef = `DS${customerId}${Date.now()}`.slice(0, 35);
-  const note = `${target.title} - DairyStream`;
+  const note = isWalletTopup ? "Wallet Topup - DairyStream" : `${target.title} - DairyStream`;
   const upiLink = buildUpiDeepLink({
     upiId,
     payeeName: beneficiary?.dairyName || "Dairy",
-    amount: target.amount,
+    amount: finalAmount,
     note,
     transactionRef,
   });
@@ -1459,25 +1475,26 @@ export const createCustomerUpiPaymentIntent = async ({
     dairyId: target.resolvedDairyId,
     customerId,
     entityType: "payment",
-    entityId: target.payment?.id || "pay_all",
+    entityId: isWalletTopup ? "wallet_topup" : (target.payment?.id || "pay_all"),
     action: "UPI_INTENT_CREATED",
     metadata: {
-      amount: target.amount,
+      amount: finalAmount,
       paymentIds: target.paymentIds,
       transactionRef,
+      isWalletTopup,
     },
   });
 
   return {
     payment: {
-      id: target.payment?.id || null,
+      id: isWalletTopup ? null : (target.payment?.id || null),
       paymentIds: target.paymentIds,
       monthlyBillId: target.monthlyBillId,
-      amount: target.amount,
-      title: target.title,
+      amount: finalAmount,
+      title: isWalletTopup ? "Wallet Topup" : target.title,
     },
     beneficiary,
-    amount: target.amount,
+    amount: finalAmount,
     transactionRef,
     upiLink,
     intents: buildUpiIntentUrls(upiLink),
@@ -1490,6 +1507,7 @@ export const submitCustomerUpiPaymentVerification = async ({
   dairyId = null,
   payAll = false,
   includeRunningDue = true,
+  isWalletTopup = false,
   amount,
   utrNumber,
   payerUpiId = "",
@@ -1511,6 +1529,7 @@ export const submitCustomerUpiPaymentVerification = async ({
     paymentId,
     payAll,
     includeRunningDue,
+    isWalletTopup,
   });
   const submittedAmount = Number(Number(amount || target.amount).toFixed(2));
 
@@ -1519,7 +1538,7 @@ export const submitCustomerUpiPaymentVerification = async ({
     error.statusCode = 400;
     throw error;
   }
-  if (Math.abs(submittedAmount - Number(target.amount || 0)) > 1) {
+  if (!isWalletTopup && Math.abs(submittedAmount - Number(target.amount || 0)) > 1) {
     const error = new Error("Submitted amount does not match the payable amount");
     error.statusCode = 400;
     throw error;

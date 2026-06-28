@@ -61,13 +61,15 @@ export const createPaymentOrder = async (req, res) => {
 
 export const createUpiPaymentIntent = async (req, res) => {
   try {
-    const { paymentId, payAll, includeRunningDue } = req.body || {};
+    const { paymentId, payAll, includeRunningDue, isWalletTopup, amount } = req.body || {};
     const data = await createCustomerUpiPaymentIntent({
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
       includeRunningDue: includeRunningDue === undefined ? true : Boolean(includeRunningDue),
       dairyId: req.customer?.dairyId ?? null,
+      isWalletTopup: String(isWalletTopup || "false") === "true" || isWalletTopup === true,
+      amount: Number(amount || 0),
     });
     res.json(data);
   } catch (err) {
@@ -110,6 +112,7 @@ export const submitUpiPaymentVerification = async (req, res) => {
         req.body?.includeRunningDue === undefined
           ? true
           : String(req.body.includeRunningDue) === "true" || req.body.includeRunningDue === true,
+      isWalletTopup: String(req.body?.isWalletTopup || "false") === "true" || req.body?.isWalletTopup === true,
       dairyId: req.customer?.dairyId ?? null,
       amount: req.body?.amount,
       utrNumber: req.body?.utrNumber,

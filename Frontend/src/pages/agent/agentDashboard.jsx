@@ -949,11 +949,6 @@ const AgentDashboard = () => {
     setStats(statsForToday);
   }, [statsForToday]);
 
-  useEffect(() => {
-    if (todayOpenDeliveries.length > 0) return;
-    setDeliveryRunStartedAt(null);
-    localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
-  }, [todayOpenDeliveries.length]);
 
   useEffect(() => {
     liveOrderIdsRef.current = liveTrackedOrderIds;
@@ -1030,7 +1025,10 @@ const AgentDashboard = () => {
   const completedMapDeliveries = useMemo(
     () =>
       todayDeliveries
-        .filter((delivery) => String(delivery?.status || "").toUpperCase() === "COMPLETED")
+        .filter((delivery) => {
+          const status = String(delivery?.status || "").toUpperCase();
+          return status === "COMPLETED" || status === "FAILED";
+        })
         .map((delivery) => ({
           ...delivery,
           coordinates: getDeliveryCoordinates(delivery),
@@ -1709,10 +1707,11 @@ const AgentDashboard = () => {
                   if (!coordinates) return null;
 
                   const isCompleted = String(delivery?.status || "").toUpperCase() === "COMPLETED";
+                  const isFailed = String(delivery?.status || "").toUpperCase() === "FAILED";
                   const isNearestDestination = String(delivery.id) === String(nearestRouteDelivery?.id);
                   const isNextDestination = String(delivery.id) === String(nextTask?.id);
                   const markerColor =
-                    isCompleted
+                    isCompleted || isFailed
                       ? "#9CA3AF"
                       : isNearestDestination
                         ? "#6BB071"
@@ -1735,14 +1734,16 @@ const AgentDashboard = () => {
                           <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
                           <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
                           <p className="text-[10px] font-semibold text-[#5F4426]">{getProductLabel(delivery)}</p>
-                          <p className={`text-[10px] font-semibold ${isCompleted ? "text-[#6B7280]" : "text-[#6BB071]"}`}>
+                          <p className={`text-[10px] font-semibold ${isCompleted || isFailed ? "text-[#6B7280]" : "text-[#6BB071]"}`}>
                             {isCompleted
                               ? "Delivered customer"
-                              : isNearestDestination
-                                ? "Nearest customer on your route"
-                                : isNextDestination
-                                  ? "Next scheduled delivery"
-                                  : "Customer delivery pin"}
+                              : isFailed
+                                ? "Failed delivery"
+                                : isNearestDestination
+                                  ? "Nearest customer on your route"
+                                  : isNextDestination
+                                    ? "Next scheduled delivery"
+                                    : "Customer delivery pin"}
                           </p>
                           <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
                             Quick actions
