@@ -92,6 +92,19 @@ const getTomorrowDateInput = () => {
   return getDateInputValue(tomorrow);
 };
 
+const deriveProductType = (type, name) => {
+  const t = String(type || "").trim().toUpperCase();
+  if (t && t !== "OTHER" && ["MILK", "CURD", "PANEER", "GHEE"].includes(t)) {
+    return t;
+  }
+  const n = String(name || "").toLowerCase();
+  if (n.includes("milk")) return "MILK";
+  if (n.includes("curd") || n.includes("dahi") || n.includes("yogurt")) return "CURD";
+  if (n.includes("paneer") || n.includes("panner") || n.includes("cheese")) return "PANEER";
+  if (n.includes("ghee") || n.includes("butter")) return "GHEE";
+  return "OTHER";
+};
+
 const normalizeProducts = (dairy = {}) => {
   const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
   if (explicitItems.length > 0) {
@@ -99,6 +112,7 @@ const normalizeProducts = (dairy = {}) => {
       .map((item) => ({
         id: item.id || item.name,
         name: String(item.name || "").trim(),
+        type: deriveProductType(item.type || item.product_type, item.name),
         ratePerUnit: Number(item.ratePerUnit || 0),
         stockQuantity: Number(item.stockQuantity || 0),
         unit: item.unit || "LITER",
@@ -110,6 +124,7 @@ const normalizeProducts = (dairy = {}) => {
   return Object.keys(legacyProducts).map((name) => ({
     id: name,
     name,
+    type: deriveProductType("MILK", name),
     ratePerUnit: Number(legacyProducts[name] || 0),
     stockQuantity: Number.POSITIVE_INFINITY,
     unit: "LITER",
@@ -196,6 +211,22 @@ const getAddExtraOrderPaymentMethod = (option) => {
   if (option === "ADD_TO_SUBSCRIPTION") return "MONTHLY_BILL";
   if (option === "PAY_NOW_CASH") return "COD";
   return "PAY_NOW";
+};
+
+const getProductImage = (type) => {
+  const t = String(type || "").toUpperCase();
+  switch (t) {
+    case "MILK":
+      return <img src="/images/products/milk.png" alt="Milk" className="h-full w-full object-contain" />;
+    case "CURD":
+      return <img src="/images/products/curd.png" alt="Curd" className="h-full w-full object-contain" />;
+    case "PANEER":
+      return <img src="/images/products/paneer.png" alt="Paneer" className="h-full w-full object-contain" />;
+    case "GHEE":
+      return <img src="/images/products/ghee.png" alt="Ghee" className="h-full w-full object-contain" />;
+    default:
+      return <img src="/images/products/other.png" alt="Other" className="h-full w-full object-contain" />;
+  }
 };
 
 const normalizeAddExtraSlot = (value) => {
@@ -687,26 +718,18 @@ export default function DairyCustomerDashboard() {
     setShowDuplicateExtraConfirm(false);
     setShowAddExtraModal(true);
     setAddExtraForm({
-      selectedProducts: preferredProductName ? [preferredProductName] : [],
-      quantities: preferredProductName ? { [preferredProductName]: preferredQuantity } : {},
+      selectedProducts: [],
+      quantities: {},
       paymentMethod: preferredPaymentMethod,
       address: preferredAddress,
       slot: preferredSlot,
     });
 
     if (String(addExtraDairy?.id || "") === String(linkedExtraDairyId) && addExtraProducts.length) {
-      const defaultProduct =
-        addExtraProducts.find((item) => item.name === preferredProductName)?.name ||
-        addExtraProducts.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
-        addExtraProducts[0]?.name ||
-        "";
-      const defaultProductItem = addExtraProducts.find((item) => item.name === defaultProduct);
       setAddExtraForm((prev) => ({
         ...prev,
-        selectedProducts: defaultProduct ? [defaultProduct] : [],
-        quantities: defaultProduct
-          ? { [defaultProduct]: getDefaultProductQuantity(defaultProductItem, preferredQuantity) }
-          : {},
+        selectedProducts: [],
+        quantities: {},
         paymentMethod: preferredPaymentMethod,
         address: preferredAddress,
         slot: preferredSlot,
@@ -727,19 +750,10 @@ export default function DairyCustomerDashboard() {
       setAddExtraDairy(resolvedDairy);
       setAddExtraProducts(products);
 
-      const defaultProduct =
-        products.find((item) => item.name === preferredProductName)?.name ||
-        products.find((item) => !isProductOutOfStock(item.stockQuantity))?.name ||
-        products[0]?.name ||
-        "";
-      const defaultProductItem = products.find((item) => item.name === defaultProduct);
-
       setAddExtraForm((prev) => ({
         ...prev,
-        selectedProducts: defaultProduct ? [defaultProduct] : [],
-        quantities: defaultProduct
-          ? { [defaultProduct]: getDefaultProductQuantity(defaultProductItem, preferredQuantity) }
-          : {},
+        selectedProducts: [],
+        quantities: {},
         paymentMethod: preferredPaymentMethod,
         address: preferredAddress,
         slot: preferredSlot,
@@ -1510,7 +1524,7 @@ export default function DairyCustomerDashboard() {
                         </span>
                       </div>
 
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {addExtraProducts.map((product) => {
                           const isSelected = addExtraForm.selectedProducts?.includes(product.name);
                           const isDisabled = isProductOutOfStock(product.stockQuantity);
@@ -1544,38 +1558,48 @@ export default function DairyCustomerDashboard() {
                                   };
                                 })
                               }
-                              className={`rounded-[18px] border px-4 py-3 text-left transition ${isDisabled
+                              className={`rounded-[20px] border p-3.5 text-left transition-all duration-300 flex gap-3 group items-center relative ${isDisabled
                                   ? "cursor-not-allowed border-[#F2EDE4] bg-[#FBF7F0] opacity-60"
                                   : isSelected
-                                    ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_16px_30px_rgba(184,100,26,0.12)]"
+                                    ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_12px_24px_rgba(184,100,26,0.08)] ring-2 ring-[#B8641A]/10"
                                     : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
                                 }`}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-[15px] font-bold leading-tight text-[#2C1A0E]">{product.name}</p>
-                                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C4A882]">
-                                    {getProductUnitLabel(product.unit)}
-                                  </p>
-                                </div>
-                                {isSelected && (
-                                  <span className="rounded-full bg-[#B8641A] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
-                                    Selected
-                                  </span>
-                                )}
-                                {!isSelected && !isDisabled && (
-                                  <span className="rounded-full border border-[#EDE8DF] bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7355]">
-                                    Add
-                                  </span>
-                                )}
+                              {/* Product Image with dynamic background */}
+                              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl p-1.5 shadow-sm border border-black/5 ${
+                                product.type === "MILK" ? "bg-blue-50/80" :
+                                product.type === "CURD" ? "bg-rose-50/80" :
+                                product.type === "PANEER" ? "bg-amber-50/80" :
+                                product.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
+                              }`}>
+                                {getProductImage(product.type)}
                               </div>
 
-                              <p className="mt-3 text-[24px] font-bold leading-none text-[#B8641A]">
-                                Rs.{Number(product.ratePerUnit || 0).toFixed(2)}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-[#8B7355]">
-                                Per {getProductUnitLabel(product.unit, { lowercase: true })}
-                              </p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-1">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-bold leading-tight text-[#2C1A0E] truncate group-hover:text-[#B8641A] transition-colors">{product.name}</p>
+                                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C4A882]">
+                                      {getProductUnitLabel(product.unit)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <p className="mt-2 text-lg font-black leading-none text-[#B8641A]">
+                                  ₹{Number(product.ratePerUnit || 0).toFixed(2)}
+                                </p>
+                              </div>
+
+                              {isSelected && (
+                                <span className="absolute top-2 right-2 rounded-full bg-[#B8641A] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-white">
+                                  Selected
+                                </span>
+                              )}
+                              {!isSelected && !isDisabled && (
+                                <span className="absolute top-2 right-2 rounded-full border border-[#EDE8DF] bg-white px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-[#8B7355] opacity-0 group-hover:opacity-100 transition-opacity">
+                                  Add
+                                </span>
+                              )}
                             </button>
                           );
                         })}
@@ -1626,68 +1650,80 @@ export default function DairyCustomerDashboard() {
                                 return (
                                   <div
                                     key={line.product.id}
-                                    className="rounded-[14px] border border-[#EDE8DF] bg-white px-3 py-2.5"
+                                    className="rounded-2xl border border-[#EDE8DF] bg-white p-3.5 flex gap-3 shadow-sm hover:border-[#D4B896] transition-all"
                                   >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-[13px] font-bold text-[#2C1A0E]">
-                                          {line.product.name}
-                                        </p>
-                                        <p className="text-[11px] text-[#8B7355]">
-                                          Rs.{Number(line.product.ratePerUnit || 0).toFixed(2)} per {unitLower}
+                                    {/* Product image wrapper */}
+                                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-1 shadow-sm border border-black/5 ${
+                                      line.product.type === "MILK" ? "bg-blue-50/80" :
+                                      line.product.type === "CURD" ? "bg-rose-50/80" :
+                                      line.product.type === "PANEER" ? "bg-amber-50/80" :
+                                      line.product.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
+                                    }`}>
+                                      {getProductImage(line.product.type)}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <p className="truncate text-xs font-extrabold text-[#2C1A0E]">
+                                            {line.product.name}
+                                          </p>
+                                          <p className="text-[10px] text-[#8B7355]">
+                                            ₹{Number(line.product.ratePerUnit || 0).toFixed(2)} per {unitLower}
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setAddExtraForm((prev) => {
+                                              const quantities = { ...(prev.quantities || {}) };
+                                              delete quantities[line.product.name];
+                                              return {
+                                                ...prev,
+                                                selectedProducts: (prev.selectedProducts || []).filter(
+                                                  (name) => name !== line.product.name
+                                                ),
+                                                quantities,
+                                              };
+                                            })
+                                          }
+                                          className="rounded-lg border border-[#EDE8DF] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B7355] transition hover:border-red-200 hover:text-red-600 hover:bg-red-50"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+                                        <input
+                                          type="number"
+                                          min={quantityStep}
+                                          step={quantityStep}
+                                          value={line.quantityValue}
+                                          onChange={(event) =>
+                                            setAddExtraForm((prev) => ({
+                                              ...prev,
+                                              quantities: {
+                                                ...(prev.quantities || {}),
+                                                [line.product.name]: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                          className="w-full rounded-[10px] border border-[#EDE8DF] bg-[#FFFDF7] px-2.5 py-1.5 text-xs font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
+                                        />
+                                        <span className="min-w-5 text-[10px] font-bold text-[#8B7355]">
+                                          {unitShort}
+                                        </span>
+                                        <p className="text-right text-xs font-black text-[#B8641A]">
+                                          ₹{Number.isFinite(line.lineTotal) ? line.lineTotal.toFixed(2) : "0.00"}
                                         </p>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setAddExtraForm((prev) => {
-                                            const quantities = { ...(prev.quantities || {}) };
-                                            delete quantities[line.product.name];
-                                            return {
-                                              ...prev,
-                                              selectedProducts: (prev.selectedProducts || []).filter(
-                                                (name) => name !== line.product.name
-                                              ),
-                                              quantities,
-                                            };
-                                          })
-                                        }
-                                        className="rounded-full border border-[#EDE8DF] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E]"
-                                      >
-                                        Remove
-                                      </button>
+                                      {(line.isOutOfStock || line.exceedsStock) && (
+                                        <p className="mt-1.5 text-[10px] font-semibold text-[#C0392B]">
+                                          {line.isOutOfStock
+                                            ? `${line.product.name} is out of stock`
+                                            : `Requested quantity is more than available ${unitLower} stock`}
+                                        </p>
+                                      )}
                                     </div>
-                                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
-                                      <input
-                                        type="number"
-                                        min={quantityStep}
-                                        step={quantityStep}
-                                        value={line.quantityValue}
-                                        onChange={(event) =>
-                                          setAddExtraForm((prev) => ({
-                                            ...prev,
-                                            quantities: {
-                                              ...(prev.quantities || {}),
-                                              [line.product.name]: event.target.value,
-                                            },
-                                          }))
-                                        }
-                                        className="w-full rounded-[12px] border border-[#EDE8DF] bg-[#FFFDF7] px-3 py-2 text-sm font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
-                                      />
-                                      <span className="min-w-7 text-xs font-bold text-[#8B7355]">
-                                        {unitShort}
-                                      </span>
-                                      <p className="text-right text-[11px] font-bold text-[#B8641A]">
-                                        Rs.{Number.isFinite(line.lineTotal) ? line.lineTotal.toFixed(2) : "0.00"}
-                                      </p>
-                                    </div>
-                                    {(line.isOutOfStock || line.exceedsStock) && (
-                                      <p className="mt-1.5 text-[11px] font-semibold text-[#C0392B]">
-                                        {line.isOutOfStock
-                                          ? `${line.product.name} is out of stock`
-                                          : `Requested quantity is more than available ${unitLower} stock`}
-                                      </p>
-                                    )}
                                   </div>
                                 );
                               })}

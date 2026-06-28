@@ -37,6 +37,19 @@ const DAY_OPTIONS = [
 
 const headingFont = { fontFamily: "'Lora', serif" };
 
+const deriveProductType = (type, name) => {
+  const t = String(type || "").trim().toUpperCase();
+  if (t && t !== "OTHER" && ["MILK", "CURD", "PANEER", "GHEE"].includes(t)) {
+    return t;
+  }
+  const n = String(name || "").toLowerCase();
+  if (n.includes("milk")) return "MILK";
+  if (n.includes("curd") || n.includes("dahi") || n.includes("yogurt")) return "CURD";
+  if (n.includes("paneer") || n.includes("panner") || n.includes("cheese")) return "PANEER";
+  if (n.includes("ghee") || n.includes("butter")) return "GHEE";
+  return "OTHER";
+};
+
 const normalizeAllProducts = (dairy = {}) => {
   const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
   if (explicitItems.length > 0) {
@@ -44,7 +57,7 @@ const normalizeAllProducts = (dairy = {}) => {
       .map((item) => ({
         id: item.id || item.name,
         name: String(item.name || "").trim(),
-        type: String(item.type || "MILK").trim().toUpperCase(),
+        type: deriveProductType(item.type || item.product_type, item.name),
         ratePerUnit: Number(item.ratePerUnit || 0),
         stockQuantity: Number(item.stockQuantity || 0),
         unit: item.unit || "LITER",
@@ -62,7 +75,7 @@ const normalizeAllProducts = (dairy = {}) => {
   return Object.keys(legacy).map((name) => ({
     id: name,
     name,
-    type: "MILK",
+    type: deriveProductType("MILK", name),
     ratePerUnit: Number(legacy[name] || 0),
     stockQuantity: Number.POSITIVE_INFINITY,
     unit: "LITER",
