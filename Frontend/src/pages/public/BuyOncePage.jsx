@@ -91,6 +91,7 @@ const normalizeProducts = (dairy = {}) => {
       .map((item) => ({
         id: item.id || item.name,
         name: String(item.name || "").trim(),
+        type: String(item.type || "MILK").trim().toUpperCase(),
         ratePerUnit: Number(item.ratePerUnit || 0),
         stockQuantity: Number(item.stockQuantity || 0),
         unit: item.unit || "LITER",
@@ -108,6 +109,7 @@ const normalizeProducts = (dairy = {}) => {
   return Object.keys(legacyProducts).map((name) => ({
     id: name,
     name,
+    type: "MILK",
     ratePerUnit: Number(legacyProducts[name] || 0),
     stockQuantity: Number.POSITIVE_INFINITY,
     unit: "LITER",
@@ -129,6 +131,22 @@ const formatProductStockLabel = (stockQuantity) => {
 const hasOpenSubscriptionStatus = (status) => {
   const value = String(status || "ACTIVE").trim().toUpperCase();
   return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
+};
+
+const getProductImage = (type) => {
+  const t = String(type || "").toUpperCase();
+  switch (t) {
+    case "MILK":
+      return <img src="/images/products/milk.png" alt="Milk" className="h-full w-full object-contain" />;
+    case "CURD":
+      return <img src="/images/products/curd.png" alt="Curd" className="h-full w-full object-contain" />;
+    case "PANEER":
+      return <img src="/images/products/paneer.png" alt="Paneer" className="h-full w-full object-contain" />;
+    case "GHEE":
+      return <img src="/images/products/ghee.png" alt="Ghee" className="h-full w-full object-contain" />;
+    default:
+      return <img src="/images/products/other.png" alt="Other" className="h-full w-full object-contain" />;
+  }
 };
 
 const BuyOncePage = () => {
@@ -628,7 +646,7 @@ const BuyOncePage = () => {
                 <ShoppingBag size={18} className="text-blue-600" />
                 <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Select Products</h2>
               </div>
-              <div className="p-6 grid grid-cols-2 sm:grid-cols-2 gap-3">
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {dairy.productItems.map((item) => (
                   <button
                     key={item.id}
@@ -638,7 +656,7 @@ const BuyOncePage = () => {
                       setForm((prev) => ({ ...prev, milkType: item.name }));
                       toggleProductSelection(item.name);
                     }}
-                    className={`relative p-4 rounded-xl border-2 text-left transition-all group ${
+                    className={`relative p-3.5 rounded-xl border-2 text-left transition-all group flex gap-3 ${
                       isProductOutOfStock(item.stockQuantity)
                       ? "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
                       :
@@ -647,17 +665,24 @@ const BuyOncePage = () => {
                       : "border-slate-100 hover:border-slate-300 bg-white"
                     }`}
                   >
-                    {Number(form.items?.[item.name] || 0) > 0 && (
-                      <CheckCircle2 size={18} className="absolute top-2 right-2 text-blue-600" />
-                    )}
-                    <p className={`text-sm font-bold ${Number(form.items?.[item.name] || 0) > 0 ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
-                    <p className="text-lg font-black text-slate-900 mt-1">Rs {item.ratePerUnit}<span className="text-[10px] text-slate-400 font-normal">/{item.unit}</span></p>
-                    <p className={`text-[11px] mt-1 font-medium ${isProductOutOfStock(item.stockQuantity) ? "text-red-500" : "text-emerald-600"}`}>
-                      Stock: {formatProductStockLabel(item.stockQuantity)}
-                    </p>
-                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      {Number(form.items?.[item.name] || 0) > 0 ? `${form.items?.[item.name]}L selected` : "Tap to add"}
-                    </p>
+                    {/* Product Image */}
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#FAF9F5] border border-slate-200/50 p-1 shadow-sm">
+                      {getProductImage(item.type)}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {Number(form.items?.[item.name] || 0) > 0 && (
+                        <CheckCircle2 size={16} className="absolute top-2 right-2 text-blue-600" />
+                      )}
+                      <p className={`text-sm font-bold truncate ${Number(form.items?.[item.name] || 0) > 0 ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
+                      <p className="text-base font-black text-slate-900 mt-0.5">Rs {item.ratePerUnit}<span className="text-[9px] text-slate-400 font-normal">/{item.unit}</span></p>
+                      <p className={`text-[10px] mt-0.5 font-semibold ${isProductOutOfStock(item.stockQuantity) ? "text-red-500" : "text-emerald-600"}`}>
+                        Stock: {formatProductStockLabel(item.stockQuantity)}
+                      </p>
+                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                        {Number(form.items?.[item.name] || 0) > 0 ? `${form.items?.[item.name]}L selected` : "Tap to add"}
+                      </p>
+                    </div>
                   </button>
                 ))}
               </div>

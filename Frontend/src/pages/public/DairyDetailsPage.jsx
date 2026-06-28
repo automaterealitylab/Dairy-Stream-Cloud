@@ -84,6 +84,22 @@ const formatProductStockLabel = (stockQuantity) => {
   return `${stock} left`;
 };
 
+const getProductImage = (type) => {
+  const t = String(type || "").toUpperCase();
+  switch (t) {
+    case "MILK":
+      return <img src="/images/products/milk.png" alt="Milk" className="h-full w-full object-contain" />;
+    case "CURD":
+      return <img src="/images/products/curd.png" alt="Curd" className="h-full w-full object-contain" />;
+    case "PANEER":
+      return <img src="/images/products/paneer.png" alt="Paneer" className="h-full w-full object-contain" />;
+    case "GHEE":
+      return <img src="/images/products/ghee.png" alt="Ghee" className="h-full w-full object-contain" />;
+    default:
+      return <img src="/images/products/other.png" alt="Other" className="h-full w-full object-contain" />;
+  }
+};
+
 const DairyDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -297,57 +313,105 @@ const handleContinueFromStep2 = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-8">
-          <div className="aspect-video w-full rounded-[40px] overflow-hidden border border-[#E7DAC6] shadow-[0_20px_60px_rgba(84,52,16,0.08)] bg-[#F3E6D6]">
-            {dairy.image ? (
-              <img src={dairy.image} alt={dairy.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#B89E80]">No Image Available</div>
-            )}
+          <div className="relative overflow-hidden rounded-[36px] border border-[#E7DAC6] bg-white p-8 shadow-[0_16px_40px_rgba(84,52,16,0.05)] flex flex-col sm:flex-row items-center sm:items-start gap-8">
+            {/* Background design elements */}
+            <div className="absolute right-0 top-0 h-40 w-40 bg-gradient-to-br from-[#F5F0E8]/50 to-transparent rounded-full blur-3xl pointer-events-none" />
+            
+            {/* Logo Container with double border and glow */}
+            <div className="h-32 w-32 shrink-0 overflow-hidden rounded-3xl border-2 border-[#EDE8DF] bg-white shadow-md flex items-center justify-center p-1 transition-transform duration-500 hover:rotate-3">
+              {dairy.image ? (
+                <img src={dairy.image} alt={dairy.name} className="h-full w-full object-cover rounded-2xl" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-[#B89E80] text-xs font-bold bg-[#FAF8F5] rounded-2xl">No Image</div>
+              )}
+            </div>
+
+            <div className="flex-1 text-center sm:text-left">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-100">
+                <ShieldCheck size={12} />
+                <span>VERIFIED DAIRY PARTNER</span>
+              </div>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-[#2C1A0E] tracking-tight leading-none" style={headingFont}>
+                {dairy.name}
+              </h2>
+              <div className="mt-3 flex flex-wrap justify-center sm:justify-start items-center gap-4 text-sm text-[#8B7355]">
+                <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1">
+                  <MapPin size={14} className="text-[#B8641A]" />
+                  <span className="font-medium">{dairy.address}</span>
+                </div>
+                <div className="flex items-center gap-1 rounded-lg bg-amber-50/70 border border-amber-100/50 px-2.5 py-1 text-[#B8641A] font-bold">
+                  <Star size={14} fill="#B8641A" />
+                  <span>{dairy.rating} Rating</span>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-[#6F5B46] leading-relaxed max-w-2xl">
+                {dairy.description}
+              </p>
+            </div>
           </div>
 
-          <section className="rounded-[32px] border border-[#E7DAC6] bg-[#FFFDF8] p-6 shadow-[0_12px_32px_rgba(84,52,16,0.06)]">
-            <div className="flex items-center justify-between gap-4 mb-4">
+          <section className="rounded-[36px] border border-[#E7DAC6] bg-white p-8 shadow-[0_16px_40px_rgba(84,52,16,0.05)]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-[#F5ECE0] pb-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Dairy Menu</p>
-                <h2 className="mt-2 text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>Available Products</h2>
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#C4A882]">Dairy Menu</p>
+                <h2 className="mt-1 text-2xl font-bold text-[#2C1A0E]" style={headingFont}>Available Products</h2>
                 <p className="mt-1 text-sm text-[#8B7355]">
-                  See everything this dairy currently offers before you subscribe or place a one-time order.
+                  Select from our fresh organic products to subscribe or order.
                 </p>
               </div>
             </div>
 
             {dairy.allProductItems.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
                 {dairy.allProductItems.map((item) => {
                   const outOfStock = isProductOutOfStock(item.stockQuantity);
 
                   return (
                     <div
                       key={item.id}
-                      className="rounded-[18px] border border-[#EDE8DF] bg-[#FBF7F0] p-3.5"
+                      className="group rounded-[24px] border border-[#EDE8DF] bg-white p-4 flex gap-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(92,61,30,0.06)] hover:border-[#D4B896]"
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      {/* Product Image with dynamic background */}
+                      <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] p-2 transition-transform duration-300 group-hover:scale-105 ${
+                        item.type === "MILK" ? "bg-blue-50/80" :
+                        item.type === "CURD" ? "bg-rose-50/80" :
+                        item.type === "PANEER" ? "bg-amber-50/80" :
+                        item.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
+                      }`}>
+                        {getProductImage(item.type)}
+                      </div>
+
+                      <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
-                          <p className="text-sm font-bold leading-5 text-[#2C1A0E]">{item.name}</p>
-                          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C4A882]">
-                            {item.type}
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-[#2C1A0E] truncate leading-snug group-hover:text-[#B8641A] transition-colors">{item.name}</p>
+                              <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase ${
+                                item.type === "MILK" ? "bg-blue-100/70 text-blue-700" :
+                                item.type === "CURD" ? "bg-rose-100/70 text-rose-700" :
+                                item.type === "PANEER" ? "bg-amber-100/70 text-amber-700" :
+                                item.type === "GHEE" ? "bg-yellow-100/70 text-yellow-800" : "bg-slate-100/70 text-slate-700"
+                              }`}>
+                                {item.type}
+                              </span>
+                            </div>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold whitespace-nowrap leading-none ${
+                                outOfStock
+                                  ? "bg-red-50 text-red-600 border border-red-100"
+                                  : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                              }`}
+                            >
+                              {formatProductStockLabel(item.stockQuantity)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-baseline justify-between border-t border-[#F5ECE0] pt-2">
+                          <p className="text-lg font-black text-[#2C1A0E]">
+                            ₹{item.ratePerUnit}
+                            <span className="ml-1 text-[11px] font-medium text-[#8B7355]">/{item.unit.toLowerCase()}</span>
                           </p>
                         </div>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
-                            outOfStock
-                              ? "bg-[#FDECEA] text-[#C0392B]"
-                              : "bg-[#EEF5E7] text-[#4A7C2F]"
-                          }`}
-                        >
-                          {formatProductStockLabel(item.stockQuantity)}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex items-end justify-between">
-                        <p className="text-lg font-black text-[#2C1A0E]">
-                          Rs {item.ratePerUnit}
-                          <span className="ml-1 text-xs font-medium text-[#8B7355]">/{item.unit}</span>
-                        </p>
                       </div>
                     </div>
                   );
@@ -362,27 +426,29 @@ const handleContinueFromStep2 = () => {
         </div>
 
         <div className="lg:col-span-1">
-          <div className="sticky top-28 rounded-[40px] border border-[#E7DAC6] bg-[#FFFDF8] p-8 shadow-[0_20px_60px_rgba(84,52,16,0.08)]">
+          <div className="sticky top-28 rounded-[36px] border border-[#E7DAC6] bg-white p-8 shadow-[0_20px_50px_rgba(84,52,16,0.07)] overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#B8641A] to-[#E5D9C7]" />
             <div className="flex justify-between items-start mb-6">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">Starting from</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-[#2C1A0E]">Rs {currentPrice}</span>
-                  <span className="font-medium text-[#8B7355]">/L</span>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-4xl font-extrabold text-[#2C1A0E]">₹{currentPrice || 57}</span>
+                  <span className="text-sm font-medium text-[#8B7355]">/liter</span>
                 </div>
               </div>
-              <div className="rounded-xl bg-[#EEF5E7] px-3 py-1 text-[#4A7C2F] flex items-center gap-1 font-bold">
-                {dairy.rating} <Star size={14} fill="currentColor" />
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-1.5 text-[#B8641A] flex items-center gap-1.5 font-bold shadow-sm">
+                <span className="text-sm">{dairy.rating}</span>
+                <Star size={14} fill="#B8641A" />
               </div>
             </div>
 
-            <div className="space-y-4 mb-8">
-              <div className="flex items-center gap-3 rounded-2xl bg-[#FBF7F0] p-4 text-[#6B5B3E]">
-                <ShieldCheck className="text-[#B8641A]" size={20} />
+            <div className="space-y-3 mb-8">
+              <div className="flex items-center gap-3 rounded-2xl bg-[#FAF8F5] border border-[#F2ECE0] p-4 text-[#6F5B46] transition-all hover:bg-white hover:border-[#D4B896]">
+                <ShieldCheck className="text-[#B8641A] shrink-0" size={20} />
                 <span className="text-sm font-semibold">100% Organic & Verified</span>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl bg-[#FBF7F0] p-4 text-[#6B5B3E]">
-                <Truck className="text-[#B8641A]" size={20} />
+              <div className="flex items-center gap-3 rounded-2xl bg-[#FAF8F5] border border-[#F2ECE0] p-4 text-[#6F5B46] transition-all hover:bg-white hover:border-[#D4B896]">
+                <Truck className="text-[#B8641A] shrink-0" size={20} />
                 <span className="text-sm font-semibold">Free Delivery (6 AM - 9 AM)</span>
               </div>
             </div>
@@ -391,17 +457,17 @@ const handleContinueFromStep2 = () => {
               <div className="space-y-3">
                 <button
                   onClick={() => navigate("/customer/dashboard/subscriptions")}
-                  className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-[#4A7C2F] py-5 font-bold text-white shadow-[0_16px_30px_rgba(74,124,47,0.18)] transition hover:bg-[#3E6928]"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4A7C2F] py-4 font-bold text-white shadow-[0_12px_24px_rgba(74,124,47,0.18)] transition hover:bg-[#3E6928]"
                 >
                   <CheckCircle2 size={20} /> Active Subscription
                 </button>
                 <button
                   onClick={handleBuyOnceClick}
                   disabled={isSubscribedToThis && hasActiveSubscription}
-                  className={`w-full py-4 rounded-[20px] font-bold border transition-all flex items-center justify-center gap-2 ${
+                  className={`w-full py-3.5 rounded-2xl font-bold border transition-all flex items-center justify-center gap-2 ${
                     isSubscribedToThis && hasActiveSubscription
-                      ? "bg-[#F5F0E8] text-[#BBA88E] border-[#EDE8DF] cursor-not-allowed"
-                      : "bg-white text-[#5C3D1E] border-[#EDE8DF] hover:border-[#D4B896] hover:bg-[#FDF6EC]"
+                      ? "bg-[#FAF8F5] text-[#C4A882]/70 border-[#EDE8DF] cursor-not-allowed"
+                      : "bg-white text-[#5C3D1E] border-[#EDE8DF] hover:border-[#D4B896] hover:bg-[#FAF8F5] shadow-sm hover:-translate-y-0.5 active:translate-y-0"
                   }`}
                 >
                   <Calendar size={18} />
@@ -414,13 +480,13 @@ const handleContinueFromStep2 = () => {
               <div className="space-y-3">
                 <button
                   onClick={handleSubscribeClick}
-                  className="group flex w-full items-center justify-center gap-2 rounded-[24px] bg-[#B8641A] py-5 font-bold text-white shadow-[0_16px_30px_rgba(184,100,26,0.18)] transition-all hover:bg-[#9F5313]"
+                  className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#B8641A] to-[#9F5313] py-4 font-bold text-white shadow-[0_12px_24px_rgba(184,100,26,0.15)] hover:shadow-[0_16px_30px_rgba(184,100,26,0.25)] transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0"
                 >
                   Subscribe Now <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
                 <button
                   onClick={handleBuyOnceClick}
-                  className="flex w-full items-center justify-center gap-2 rounded-[20px] border border-[#EDE8DF] bg-white py-4 font-bold text-[#5C3D1E] transition-all hover:border-[#D4B896] hover:bg-[#FDF6EC]"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#EDE8DF] bg-white py-3.5 font-bold text-[#5C3D1E] shadow-sm hover:border-[#D4B896] hover:bg-[#FAF8F5] transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <Calendar size={18} /> Buy Once
                 </button>
