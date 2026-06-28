@@ -72,12 +72,7 @@ import {
   updatePerformanceMetrics,
   getPerformanceMonthlyTrends,
 } from "../controllers/admin/agentPerformance.controller.js";
-import {
-  getEarnings,
-  getTodayWorkSummaryData,
-  getSummary,
-  calculateEarnings,
-} from "../controllers/admin/agentEarnings.controller.js";
+
 import { 
   addProcurementLog, 
   fetchProcurementLogs,
@@ -212,11 +207,7 @@ router.get("/performance/top-performers", verifyAdmin, getTopPerformers);
 router.get("/performance/missed-deliveries", verifyAdmin, getMissedDeliveries);
 router.post("/performance/update", verifyAdmin, updatePerformanceMetrics);
 
-// Earnings & Work Summaries
-router.get("/earnings", verifyAdmin, getEarnings);
-router.get("/earnings/today-summary", verifyAdmin, getTodayWorkSummaryData);
-router.get("/earnings/summary", verifyAdmin, getSummary);
-router.post("/earnings/calculate", verifyAdmin, calculateEarnings);
+
 
 // Utilities
 router.get("/buildings", verifyAdmin, getUniqueBuildings); // Fetch list of service locations

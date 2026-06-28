@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, CreditCard, IndianRupee, ShieldCheck, Upload, X, QrCode } from 'lucide-react';
+import { Camera, CreditCard, IndianRupee, ShieldCheck, Upload, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const OTP_REGEX = /^\d{4,8}$/;
 
 const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
-  const [proofType, setProofType] = useState('QR');
+  const [proofType, setProofType] = useState('PHOTO');
   const [otp, setOtp] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -14,13 +14,8 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
   const [onlineError, setOnlineError] = useState('');
   const [showQrPopup, setShowQrPopup] = useState(false);
 
-  const [qrError, setQrError] = useState('');
-  const [qrSuccess, setQrSuccess] = useState(false);
-  const [scannedName, setScannedName] = useState('');
-
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const html5QrCodeRef = useRef(null);
 
   const isSubscriptionDelivery = String(delivery?.deliveryType || '').toUpperCase() === 'SUBSCRIPTION';
   const requiresPaymentCollection = Boolean(delivery?.requiresPaymentCollection);
@@ -33,7 +28,7 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
       : '';
 
   useEffect(() => {
-    setProofType(isSubscriptionDelivery ? '' : 'QR');
+    setProofType(isSubscriptionDelivery ? '' : 'PHOTO');
     setOtp('');
     setImage(null);
     setImagePreview(null);
@@ -41,93 +36,9 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     setOnlinePaid(false);
     setOnlineError('');
     setShowQrPopup(false);
-    setQrSuccess(false);
-    setQrError('');
-    setScannedName('');
   }, [delivery?.id, isSubscriptionDelivery]);
 
-  const cleanupScanner = () => {
-    if (html5QrCodeRef.current) {
-      const scanner = html5QrCodeRef.current;
-      html5QrCodeRef.current = null;
-      if (scanner.isScanning) {
-        scanner.stop().catch(() => {});
-      }
-    }
-  };
 
-  const handleQrScanSuccess = (decodedText) => {
-    try {
-      const data = JSON.parse(decodedText);
-      const expectedId = String(delivery?.customerId || '');
-      const scannedId = String(data?.customerId || data?.id || '');
-
-      if (!scannedId) {
-        setQrError("Invalid QR Code content.");
-        return;
-      }
-
-      if (scannedId === expectedId) {
-        setQrSuccess(true);
-        setScannedName(data?.name || "Customer");
-        setQrError('');
-        cleanupScanner();
-      } else {
-        setQrError(`Mismatch: Customer ID #${scannedId} does not match delivery.`);
-      }
-    } catch (err) {
-      setQrError("Unable to parse QR code data.");
-    }
-  };
-
-  useEffect(() => {
-    if (proofType !== 'QR' || qrSuccess) {
-      cleanupScanner();
-      return;
-    }
-
-    setQrError('');
-    let isMounted = true;
-
-    const timer = setTimeout(async () => {
-      if (!isMounted) return;
-
-      try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        if (!isMounted) return;
-        const html5QrCode = new Html5Qrcode("qr-reader");
-        html5QrCodeRef.current = html5QrCode;
-
-        html5QrCode.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 200, height: 200 }
-          },
-          (decodedText) => {
-            handleQrScanSuccess(decodedText);
-          },
-          (errorMessage) => {
-            // Frame search error, safe to ignore
-          }
-        ).catch((err) => {
-          if (isMounted) {
-            setQrError("Camera access denied or camera not found.");
-          }
-        });
-      } catch (err) {
-        if (isMounted) {
-          setQrError("Failed to start scanner.");
-        }
-      }
-    }, 250);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timer);
-      cleanupScanner();
-    };
-  }, [proofType, qrSuccess]);
 
   const handleImagePick = (event) => {
     const file = event.target.files?.[0];
@@ -141,14 +52,13 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
     reader.readAsDataURL(file);
   };
 
-  const isQrValid = isSubscriptionDelivery ? true : proofType === 'QR' ? qrSuccess : true;
   const isPhotoValid = isSubscriptionDelivery ? true : proofType === 'PHOTO' ? Boolean(image) : true;
   const isOtpValid = isSubscriptionDelivery ? true : proofType === 'OTP' ? OTP_REGEX.test(String(otp || '').trim()) : true;
   const canUseOnlineCollection = Boolean(upiIntentLink);
   const isCollectionValid = requiresPaymentCollection
     ? collectionMethod === 'CASH' || (collectionMethod === 'ONLINE' && onlinePaid && canUseOnlineCollection)
     : true;
-  const isValid = isQrValid && isPhotoValid && isOtpValid && isCollectionValid;
+  const isValid = isPhotoValid && isOtpValid && isCollectionValid;
 
   const handleOpenOnlineCheckout = async () => {
     if (!delivery?.id) return;
@@ -201,16 +111,7 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setProofType('QR')}
-                  className={`px-2 py-2 rounded-lg text-xs font-bold border transition-all ${
-                    proofType === 'QR' ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  QR Scanner
-                </button>
+              <div className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
                   onClick={() => setProofType('PHOTO')}
@@ -230,28 +131,6 @@ const DeliveryProofModal = ({ delivery, onClose, onSubmit }) => {
                   OTP Confirm
                 </button>
               </div>
-
-              {proofType === 'QR' && (
-                <div className="space-y-3">
-                  <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-black aspect-square w-full max-w-[280px] mx-auto">
-                    <div id="qr-reader" className="w-full h-full"></div>
-                    {qrError && (
-                      <div className="absolute inset-x-0 bottom-0 bg-red-600/90 px-3 py-2 text-[11px] font-semibold text-white text-center backdrop-blur-sm">
-                        {qrError}
-                      </div>
-                    )}
-                    {qrSuccess && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-green-600/90 px-4 py-3 text-center text-white backdrop-blur-sm animate-in fade-in">
-                        <span className="text-sm font-bold">✓ QR Verified</span>
-                        <span className="mt-1 text-xs text-white/90">Customer: {scannedName}</span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-center text-xs font-medium text-gray-500">
-                    {!qrSuccess ? "Point camera at customer's personal drop QR code" : "Verification complete. Press confirm to complete delivery."}
-                  </p>
-                </div>
-              )}
 
               {proofType === 'PHOTO' && (
                 <div className="space-y-3">

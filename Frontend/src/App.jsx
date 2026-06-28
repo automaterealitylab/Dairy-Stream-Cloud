@@ -35,6 +35,7 @@ const AgentProfile = lazy(() => import("./pages/agent/AgentProfile.jsx"));
 const AgentWorkingPage = lazy(() => import("./pages/agent/AgentWorkingPage.jsx"));
 const AgentBuildingTasksPage = lazy(() => import("./pages/agent/AgentBuildingTasksPage.jsx"));
 
+
 const RouteFallback = () => (
   <LoadingIndicator fullScreen message="Loading page..." />
 );
@@ -252,6 +253,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

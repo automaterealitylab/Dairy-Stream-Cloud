@@ -680,11 +680,12 @@ const CustomerRegister = () => {
                 </div>
 
                 <div className="overflow-hidden rounded-[20px] border border-[#E7DAC6]">
-                  <MapContainer
+                  <div className="relative w-full h-[320px]">
+        <MapContainer
                     center={mapCenter}
                     zoom={17}
                     scrollWheelZoom
-                    className="h-[320px] w-full"
+                    className="h-full w-full"
                   >
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -714,6 +715,11 @@ const CustomerRegister = () => {
                         />
                       )}
                   </MapContainer>
+        <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+          DairyVision Maps
+        </div>
+      </div>
+          
                 </div>
 
                 <div className="mt-6 flex gap-3">

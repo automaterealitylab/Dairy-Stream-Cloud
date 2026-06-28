@@ -40,43 +40,7 @@ export const agentPerformanceAPI = {
   },
 };
 
-// ============================================
-// Agent Earnings APIs
-// ============================================
 
-export const agentEarningsAPI = {
-  // Get earnings for date range
-  getEarnings: (agentId, startDate = null, endDate = null) => {
-    const params = new URLSearchParams({ agentId });
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-
-    return client.get(`/admin/earnings?${params}`);
-  },
-
-  // Get today's work summary
-  getTodayWorkSummary: (agentId) => {
-    return client.get(`/admin/earnings/today-summary?agentId=${agentId}`);
-  },
-
-  // Get earnings summary
-  getSummary: (agentId, startDate = null, endDate = null) => {
-    const params = new URLSearchParams({ agentId });
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-
-    return client.get(`/admin/earnings/summary?${params}`);
-  },
-
-  // Calculate and update earnings
-  calculateEarnings: (agentId, earningDate, earningPerDelivery = 50) => {
-    return client.post("/admin/earnings/calculate", {
-      agentId,
-      earningDate,
-      earningPerDelivery,
-    });
-  },
-};
 
 // ============================================
 // Delivery APIs
@@ -137,6 +101,5 @@ export const deliveryAPI = {
 
 export default {
   agentPerformanceAPI,
-  agentEarningsAPI,
   deliveryAPI,
 };

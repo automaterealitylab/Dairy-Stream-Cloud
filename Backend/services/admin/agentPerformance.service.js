@@ -296,11 +296,32 @@ export const getMissedDeliveriesSummary = async (startDate, endDate, dairyId = n
       query = query.eq('dairy_id', toIdValue(dairyId));
     }
 
-    const { data, error } = await query;
+    const { data: deliveries, error } = await query;
 
     if (error) throw error;
 
-    return data;
+    const deliveryRows = deliveries || [];
+    if (deliveryRows.length === 0) {
+      return [];
+    }
+
+    // Fetch customer names for these deliveries
+    const customerIds = [...new Set(deliveryRows.map((r) => r.customer_id).filter(Boolean))];
+    let customersById = new Map();
+    if (customerIds.length > 0) {
+      const { data: customers, error: customerError } = await supabase
+        .from('customers')
+        .select('id, customer_name, name')
+        .in('id', customerIds);
+
+      if (customerError) throw customerError;
+      customersById = new Map((customers || []).map((c) => [c.id, c.customer_name || c.name]));
+    }
+
+    return deliveryRows.map((row) => ({
+      ...row,
+      customer_name: customersById.get(row.customer_id) || `Customer #${row.customer_id}`,
+    }));
   } catch (error) {
     console.error('Error fetching missed deliveries:', error.message);
     throw error;
@@ -392,6 +413,35 @@ export const getMonthlyTrends = async (dairyId) => {
       });
       t.activeCustomers = activeCustIds.size;
 
+      // Churned customers count: unique customer IDs with subscriptions closed/cancelled during the month
+      const churnedCustIds = new Set();
+      (subscriptions || []).forEach(s => {
+        if (!s.customer_id) return;
+        const updateDate = new Date(s.updated_at);
+        const isClosed = ["CLOSED", "CANCELLED", "CANCELED"].includes(String(s.status).toUpperCase());
+        if (isClosed && updateDate >= t.monthStart && updateDate <= t.monthEnd) {
+          churnedCustIds.add(s.customer_id);
+        }
+      });
+      t.churnedCustomers = churnedCustIds.size;
+
+      // New customers count: unique customer IDs with subscriptions created during the month
+      const newCustIds = new Set();
+      (subscriptions || []).forEach(s => {
+        if (!s.customer_id) return;
+        const createDate = new Date(s.created_at);
+        if (createDate >= t.monthStart && createDate <= t.monthEnd) {
+          newCustIds.add(s.customer_id);
+        }
+      });
+      t.newCustomers = newCustIds.size;
+
+      // Churn rate calculation: ratio of churned to (active + churned)
+      const totalActiveThisMonth = t.activeCustomers;
+      t.churnRate = totalActiveThisMonth > 0
+        ? Number(((t.churnedCustomers / (totalActiveThisMonth + t.churnedCustomers)) * 100).toFixed(1))
+        : 0;
+
       // Income sum: successful payments in this month
       let incomeSum = 0;
       (payments || []).forEach(p => {
@@ -409,7 +459,11 @@ export const getMonthlyTrends = async (dairyId) => {
       monthLabel: t.monthLabel,
       totalCustomers: t.totalCustomers,
       activeCustomers: t.activeCustomers,
+      churnedCustomers: t.churnedCustomers,
+      newCustomers: t.newCustomers,
+      churnRate: t.churnRate,
       income: t.income,
+      selectedPlan: "GROWTH" // matching schema defaults/placeholders if useful
     }));
   } catch (error) {
     console.error('Error fetching monthly performance trends:', error.message);

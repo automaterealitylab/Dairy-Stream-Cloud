@@ -27,7 +27,6 @@ import {
   X,
   AlertCircle,
   Loader2,
-  QrCode,
 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -1057,13 +1056,6 @@ export default function DairyCustomerDashboard() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882] xl:text-[12px]">
                     Customer Overview
                   </p>
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent("open-customer-qr-modal"))}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#FFF4E2] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FDE9C9] xl:hidden"
-                  >
-                    <QrCode size={10} />
-                    My QR Code
-                  </button>
                 </div>
                 <h1
                   className="mt-2 text-[26px] font-semibold leading-[1.08] text-[#2C1A0E] sm:text-[38px] xl:mt-5 xl:text-[43px]"
