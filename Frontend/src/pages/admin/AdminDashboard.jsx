@@ -6,7 +6,6 @@ import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminDashboardSkeleton from "../../components/admin/skeletons/AdminDashboardSkeleton";
 import AdminHeader from "../../components/admin/sections/AdminHeader";
-import AdminFinancialAlert from "../../components/admin/sections/AdminFinancialAlert";
 import AdminActivity from "../../components/admin/sections/AdminActivity";
 import DailyOperationsSnapshot from "../../components/admin/sections/DailyOperationsSnapshot";
 import DeliveryExceptionDashboard from "../../components/admin/sections/DeliveryExceptionDashboard";
@@ -123,7 +122,6 @@ const loadDashboard = useCallback(async (force = false) => {
               </div>
 
               <div className="space-y-8">
-                <AdminFinancialAlert amount={data.stats?.outstanding || data.stats?.pendingPayments || 0} />
                 <CustomerRiskIndicator riskData={data.riskData} />
               </div>
             </div>
