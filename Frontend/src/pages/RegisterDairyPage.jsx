@@ -166,14 +166,22 @@ async (pos) => {
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep((prev) => prev + 1);
-    } else {
-      toast.error("Please fill required fields");
+    setCurrentStep((prev) => prev + 1);
+  };
+
+  const validateAllSteps = () => {
+    for (let s = 1; s <= 4; s++) {
+      if (!validateStep(s)) {
+        setCurrentStep(s);
+        return false;
+      }
     }
+    return true;
   };
 
   const handleSubmit = async () => {
+    if (!validateAllSteps()) return;
+
     setLoading(true);
 
     try {
@@ -245,7 +253,7 @@ async (pos) => {
             </button>
           </div>
 
-          <StepperHeader currentStep={currentStep} />
+          <StepperHeader currentStep={currentStep} onStepClick={setCurrentStep} />
         </div>
       </div>
 
