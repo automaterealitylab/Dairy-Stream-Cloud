@@ -123,39 +123,43 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
+      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={closeModal} />
 
       <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-        <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl ring-1 ring-black/5 dark:border dark:border-[#1E293B] dark:bg-[#121829] dark:ring-white/10 sm:max-h-[85vh] sm:rounded-2xl">
-          <div className="flex items-center justify-between border-b bg-gradient-to-r from-gray-50 to-white px-4 py-3 dark:border-[#1E293B] dark:from-[#161C2C] dark:to-[#121829] sm:px-6 sm:py-4">
+        <div className="flex w-full max-w-2xl flex-col rounded-t-[28px] bg-[#FFFDF8] shadow-[0_28px_60px_rgba(44,26,14,0.18)] dark:border dark:border-[#1E293B] dark:bg-[#121829] sm:rounded-[28px]">
+          
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[#F2EDE4] bg-[#FFFDF8] px-6 py-5 dark:border-[#1E293B] dark:bg-[#121829]">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add New Delivery Agent</h2>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Create agent login and route assignment</p>
+              <h2 className="text-xl font-bold text-[#2C1A0E] dark:text-white">Add New Delivery Agent</h2>
+              <p className="text-xs font-semibold text-[#8B7355] dark:text-slate-400">Create agent login credentials and route assignment</p>
             </div>
             <button
               type="button"
               onClick={closeModal}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-red-100 text-red-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-red-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-[#A88763] hover:bg-[#F5F0E8] hover:text-[#2C1A0E] transition dark:border-[#222B40] dark:bg-[#0B0F19] dark:hover:bg-[#1C243A]"
               aria-label="Close"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-4 dark:text-white sm:space-y-6 sm:p-6">
-            <section>
-              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-[#3B82F6]">
+          <form onSubmit={handleSubmit} className="space-y-6 p-6 dark:text-white">
+            
+            {/* Login Credentials Section */}
+            <section className="space-y-4">
+              <h3 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider text-[#B8641A] dark:text-[#fbbf24]">
                 <Lock size={16} />
                 Login Credentials
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="agentId" className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <label htmlFor="agentId" className="mb-1.5 block text-xs font-black uppercase text-[#8B7355] dark:text-slate-300">
                     Staff ID <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex overflow-hidden rounded-lg border border-gray-300 dark:border-[#222B40]">
-                    <div className="flex items-center bg-gray-50 px-3 dark:bg-[#0B0F19]">
-                      <User size={16} className="text-gray-500 dark:text-slate-500" />
+                  <div className="flex overflow-hidden rounded-xl border border-[#EDE8DF] dark:border-[#222B40]">
+                    <div className="flex items-center bg-[#FAF7F2] px-3 dark:bg-[#0B0F19]">
+                      <User size={16} className="text-[#A88763] dark:text-slate-500" />
                     </div>
                     <input
                       type="text"
@@ -164,12 +168,12 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                       value={agent.agentId}
                       readOnly
                       required
-                      className="flex-1 bg-gray-50 px-3 py-2 font-semibold uppercase text-gray-600 outline-none dark:bg-[#161C2C] dark:text-slate-200"
+                      className="flex-1 bg-[#FAF7F2] px-3 py-2.5 font-bold uppercase text-[#5C3D1E] outline-none dark:bg-[#161C2C] dark:text-slate-200"
                     />
                     <button
                       type="button"
                       onClick={generateNewAgentId}
-                      className="border-l border-gray-300 bg-white px-3 hover:bg-gray-50 dark:border-[#222B40] dark:bg-[#121829] dark:text-slate-300 dark:hover:bg-[#1C243A]"
+                      className="border-l border-[#EDE8DF] bg-white px-3 text-[#B8641A] hover:bg-[#FDF6EC] transition dark:border-[#222B40] dark:bg-[#121829] dark:text-slate-300 dark:hover:bg-[#1C243A]"
                       title="Generate new ID"
                     >
                       <RefreshCw size={14} />
@@ -178,12 +182,12 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <label htmlFor="password" className="mb-1.5 block text-xs font-black uppercase text-[#8B7355] dark:text-slate-300">
                     Password <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex overflow-hidden rounded-lg border border-gray-300 dark:border-[#222B40]">
-                    <div className="flex items-center bg-gray-50 px-3 dark:bg-[#0B0F19]">
-                      <Lock size={16} className="text-gray-500 dark:text-slate-500" />
+                  <div className="flex overflow-hidden rounded-xl border border-[#EDE8DF] dark:border-[#222B40] focus-within:ring-2 focus-within:ring-[#B8641A]/20">
+                    <div className="flex items-center bg-[#FAF7F2] px-3 dark:bg-[#0B0F19]">
+                      <Lock size={16} className="text-[#A88763] dark:text-slate-500" />
                     </div>
                     <input
                       type="password"
@@ -193,21 +197,22 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                       onChange={inputHandler}
                       placeholder="Set login password"
                       required
-                      className="flex-1 px-3 py-2 outline-none dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
+                      className="flex-1 px-3 py-2.5 outline-none bg-white text-[#2C1A0E] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
                     />
                   </div>
                 </div>
               </div>
             </section>
 
-            <section>
-              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-[#3B82F6]">
+            {/* Agent Details Section */}
+            <section className="space-y-4 border-t border-[#F2EDE4] pt-6 dark:border-[#1E293B]">
+              <h3 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider text-[#B8641A] dark:text-[#fbbf24]">
                 <Briefcase size={16} />
                 Agent Details
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label htmlFor="agentName" className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <label htmlFor="agentName" className="mb-1.5 block text-xs font-black uppercase text-[#8B7355] dark:text-slate-300">
                     Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -218,17 +223,17 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                     onChange={inputHandler}
                     placeholder="e.g., Rajesh Kumar"
                     required
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-100 dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500 dark:focus:ring-blue-500/20"
+                    className="w-full rounded-xl border border-[#EDE8DF] px-4 py-2.5 text-[#2C1A0E] outline-none transition focus:ring-2 focus:ring-[#B8641A]/20 focus:border-[#B8641A] dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="phoneNumber" className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <label htmlFor="phoneNumber" className="mb-1.5 block text-xs font-black uppercase text-[#8B7355] dark:text-slate-300">
                     Mobile Number <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex overflow-hidden rounded-lg border border-gray-300 dark:border-[#222B40]">
-                    <div className="flex items-center bg-gray-50 px-3 dark:bg-[#0B0F19]">
-                      <Phone size={16} className="text-gray-500 dark:text-slate-500" />
+                  <div className="flex overflow-hidden rounded-xl border border-[#EDE8DF] dark:border-[#222B40] focus-within:ring-2 focus-within:ring-[#B8641A]/20">
+                    <div className="flex items-center bg-[#FAF7F2] px-3 dark:bg-[#0B0F19]">
+                      <Phone size={16} className="text-[#A88763] dark:text-slate-500" />
                     </div>
                     <input
                       type="tel"
@@ -238,18 +243,18 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                       onChange={inputHandler}
                       placeholder="e.g., 9876543210"
                       required
-                      className="flex-1 px-3 py-2 outline-none dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
+                      className="flex-1 px-3 py-2.5 outline-none bg-white text-[#2C1A0E] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <label htmlFor="email" className="mb-1.5 block text-xs font-black uppercase text-[#8B7355] dark:text-slate-300">
                     Email Address <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex overflow-hidden rounded-lg border border-gray-300 dark:border-[#222B40]">
-                    <div className="flex items-center bg-gray-50 px-3 dark:bg-[#0B0F19]">
-                      <Mail size={16} className="text-gray-500 dark:text-slate-500" />
+                  <div className="flex overflow-hidden rounded-xl border border-[#EDE8DF] dark:border-[#222B40] focus-within:ring-2 focus-within:ring-[#B8641A]/20">
+                    <div className="flex items-center bg-[#FAF7F2] px-3 dark:bg-[#0B0F19]">
+                      <Mail size={16} className="text-[#A88763] dark:text-slate-500" />
                     </div>
                     <input
                       type="email"
@@ -259,33 +264,34 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                       onChange={inputHandler}
                       placeholder="agent@dairy.com"
                       required
-                      className="flex-1 px-3 py-2 outline-none dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
+                      className="flex-1 px-3 py-2.5 outline-none bg-white text-[#2C1A0E] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
                     />
                   </div>
                 </div>
               </div>
             </section>
 
-            <section>
-              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-[#3B82F6]">
+            {/* Route Assignment Section */}
+            <section className="space-y-4 border-t border-[#F2EDE4] pt-6 dark:border-[#1E293B]">
+              <h3 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider text-[#B8641A] dark:text-[#fbbf24]">
                 <MapPin size={16} />
                 Route Assignment
               </h3>
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="building" className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <label htmlFor="building" className="text-xs font-black uppercase text-[#8B7355] dark:text-slate-300">
                     Assigned Route / Building <span className="text-red-500">*</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setIsManualEntry((prev) => !prev)}
-                    className="rounded-md border border-blue-200 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 dark:border-blue-500/30 dark:text-blue-300 dark:hover:bg-blue-500/10"
+                    className="rounded-full border border-[#EDE8DF] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#B8641A] hover:bg-[#FDF6EC] transition-colors dark:border-slate-800 dark:text-slate-300 dark:hover:bg-[#1C243A]"
                   >
                     {isManualEntry ? "Select from List" : "Type Manually"}
                   </button>
                 </div>
 
-                {fetchError && <p className="text-sm text-red-500 mb-2">{fetchError}</p>}
+                {fetchError && <p className="text-xs text-red-500 mb-2 font-bold">{fetchError}</p>}
 
                 {isManualEntry ? (
                   <input
@@ -296,7 +302,7 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                     onChange={inputHandler}
                     placeholder="Type new building name"
                     required
-                    className="w-full rounded-lg border border-blue-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-100 dark:border-blue-500/40 dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500 dark:focus:ring-blue-500/20"
+                    className="w-full rounded-xl border border-[#EDE8DF] px-4 py-2.5 text-[#2C1A0E] outline-none transition focus:ring-2 focus:ring-[#B8641A]/20 focus:border-[#B8641A] dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:placeholder:text-slate-500"
                   />
                 ) : (
                   <div>
@@ -307,7 +313,7 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                       onChange={inputHandler}
                       disabled={isLoadingBuildings}
                       required
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-gray-50 dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:focus:ring-blue-500/20 dark:disabled:bg-[#0B0F19]"
+                      className="w-full rounded-xl border border-[#EDE8DF] px-4 py-2.5 text-[#2C1A0E] outline-none transition focus:ring-2 focus:ring-[#B8641A]/20 focus:border-[#B8641A] disabled:bg-gray-50 dark:border-[#222B40] dark:bg-[#161C2C] dark:text-white dark:disabled:bg-[#0B0F19]"
                     >
                       <option value="" disabled>
                         -- Select Route --
@@ -319,8 +325,8 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
                       ))}
                     </select>
                     {isLoadingBuildings && (
-                      <div className="mt-2 inline-flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
-                        <Loader2 size={14} className="animate-spin" />
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-[#8B7355] dark:text-slate-400">
+                        <Loader2 size={12} className="animate-spin text-[#B8641A]" />
                         Loading available routes...
                       </div>
                     )}
@@ -329,32 +335,32 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
               </div>
             </section>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pt-2">
               <input
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-[#222B40] dark:bg-[#161C2C]"
+                className="h-4 w-4 rounded border-[#EDE8DF] text-[#B8641A] focus:ring-[#B8641A]/30 dark:border-[#222B40] dark:bg-[#161C2C]"
                 type="checkbox"
                 id="isActive"
                 name="isActive"
                 checked={agent.isActive}
                 onChange={inputHandler}
               />
-              <label className="text-sm text-gray-700 dark:text-slate-300" htmlFor="isActive">
-                Agent Account is <span className="font-semibold">Active</span>
+              <label className="text-xs font-bold text-[#5C3D1E] dark:text-slate-300 cursor-pointer" htmlFor="isActive">
+                Agent Account is <span className="font-semibold text-[#B8641A] dark:text-[#fbbf24]">Active</span>
               </label>
             </div>
 
-            <div className="flex justify-end gap-3 border-t pt-2 dark:border-[#1E293B]">
+            <div className="flex justify-end gap-3 border-t border-[#F2EDE4] pt-5 dark:border-[#1E293B]">
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 dark:border-[#222B40] dark:bg-[#161C2C] dark:text-slate-300 dark:hover:bg-[#1C243A] dark:hover:text-white"
+                className="rounded-xl border border-[#EDE8DF] bg-white px-5 py-2.5 text-sm font-bold text-[#8B7355] hover:bg-[#FDF6EC] transition dark:border-[#222B40] dark:bg-[#161C2C] dark:text-slate-300 dark:hover:bg-[#1C243A]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || isLoadingBuildings}
-                className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-[#B8641A] px-6 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#9E5415] disabled:opacity-50"
               >
                 {isSubmitting ? "Saving..." : "Save Agent"}
               </button>
