@@ -159,6 +159,19 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
     };
   }, [customer?.id]);
 
+  useEffect(() => {
+    if (billData?.dairy) {
+      const d = billData.dairy;
+      setBillConfig((current) => ({
+        ...current,
+        upiId: d.verified_upi_id || d.upi_id || current.upiId,
+        contact: d.dairy_phone || d.phone || d.owner_phone || current.contact,
+        email: d.dairy_email || d.email || current.email,
+        address: d.dairy_address || d.address || current.address,
+      }));
+    }
+  }, [billData]);
+
   const resolvedCustomer = billData?.customer || customer || {};
   const resolvedBilling = billData?.billing || {};
   const resolvedDairyName =
