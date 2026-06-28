@@ -69,7 +69,7 @@ const buildCustomerMap = async (customerIds = []) => {
 
   const { data, error } = await supabase
     .from("customers")
-    .select("id, customer_name, name, email, phone_number, phone, outstanding_balance, created_at")
+    .select("id, customer_name, name, email, phone_number, phone, wallet_balance, created_at")
     .in("id", ids);
 
   if (error) throw error;
@@ -174,7 +174,7 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
         .in("status", ["PENDING", "OVERDUE"]),
       supabase
         .from("customers")
-        .select("id, outstanding_balance")
+        .select("id, wallet_balance")
         .eq("dairy_id", targetDairyId),
       supabase
         .from("deliveries")
@@ -184,7 +184,7 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
         .or("status.in.(FAILED,CANCELLED,CANCELED,SKIPPED,MISSED),customer_issue_status.in.(OPEN,PENDING,REPORTED)"),
       supabase
         .from("customers")
-        .select("id, customer_name, name, email, outstanding_balance, created_at")
+        .select("id, customer_name, name, email, wallet_balance, created_at")
         .eq("dairy_id", targetDairyId),
       supabase
         .from("payments")
@@ -270,11 +270,25 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
     (sum, row) => sum + Number(row.amount || 0),
     0
   );
+
+  // Group pending payments by customer ID
+  const pendingByCustomer = new Map();
+  for (const row of pendingPaymentsRes.data || []) {
+    if (!row.customer_id) continue;
+    const amount = Number(row.amount || 0);
+    pendingByCustomer.set(row.customer_id, (pendingByCustomer.get(row.customer_id) || 0) + amount);
+  }
+
+  // Calculate true outstanding balance dynamically
   const customerOutstanding = (outstandingCustomersRes.data || []).reduce(
-    (sum, row) => sum + Math.max(0, Number(row.outstanding_balance || 0)),
+    (sum, row) => {
+      const pendingAmount = pendingByCustomer.get(row.id) || 0;
+      const walletBalance = Number(row.wallet_balance || 0);
+      return sum + Math.max(0, pendingAmount - walletBalance);
+    },
     0
   );
-  const outstanding = Math.max(customerOutstanding, pendingPayments);
+  const outstanding = customerOutstanding;
 
   const dashboardCustomerIds = [
     ...(exceptionDeliveriesRes.data || []).map((row) => row.customer_id),
@@ -311,26 +325,35 @@ export const getAdminDashboardStats = async ({ dairyId, forceRefresh = false } =
   });
 
   const riskByCustomer = new Map(
-    (riskCustomersRes.data || []).map((customer) => [
-      customer.id,
-      {
-        customer_id: customer.id,
-        name: formatCustomerName(customer, customer.id),
-        outstanding_balance: Number(customer.outstanding_balance || 0),
-        failed_payments: 0,
-        pauses: 0,
-        complaints: 0,
-      },
-    ])
+    (riskCustomersRes.data || []).map((customer) => {
+      const pendingAmount = pendingByCustomer.get(customer.id) || 0;
+      const walletBalance = Number(customer.wallet_balance || 0);
+      const outstandingBalance = Math.max(0, pendingAmount - walletBalance);
+      return [
+        customer.id,
+        {
+          customer_id: customer.id,
+          name: formatCustomerName(customer, customer.id),
+          outstanding_balance: outstandingBalance,
+          failed_payments: 0,
+          pauses: 0,
+          complaints: 0,
+        },
+      ];
+    })
   );
 
   const ensureRisk = (customerId) => {
     if (!customerId) return null;
     if (!riskByCustomer.has(customerId)) {
+      const customer = customersById.get(customerId) || {};
+      const pendingAmount = pendingByCustomer.get(customerId) || 0;
+      const walletBalance = Number(customer.wallet_balance || 0);
+      const outstandingBalance = Math.max(0, pendingAmount - walletBalance);
       riskByCustomer.set(customerId, {
         customer_id: customerId,
-        name: formatCustomerName(customersById.get(customerId), customerId),
-        outstanding_balance: Number(customersById.get(customerId)?.outstanding_balance || 0),
+        name: formatCustomerName(customer, customerId),
+        outstanding_balance: outstandingBalance,
         failed_payments: 0,
         pauses: 0,
         complaints: 0,

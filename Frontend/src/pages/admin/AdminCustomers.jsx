@@ -311,7 +311,7 @@ export default function AdminCustomers() {
                             amount_due: c.outstanding_balance || 0,
                           })
                         }
-                        className="rounded-xl bg-[#F4F7ED] dark:bg-[#22c55e]/15 px-4 py-2.5 text-[10px] font-black text-[#5C7A35] dark:text-[#22c55e] transition-all hover:bg-[#6F8C45] hover:text-white dark:hover:bg-[#22c55e] dark:hover:text-black"
+                        className="rounded-xl bg-[#F4F7ED] dark:bg-[#22c55e]/15 px-4 py-2.5 text-[10px] font-black text-[#5C7A35] dark:text-[#22c55e] transition-all hover:bg-[#6F8C45] hover:!text-white dark:hover:bg-[#22c55e] dark:hover:!text-black"
                       >
                         ₹ RECORD
                       </button>
@@ -327,7 +327,7 @@ export default function AdminCustomers() {
                       ) : (
                         <button
                           onClick={() => openAssignModal(c)}
-                          className="rounded-xl bg-[#FDF6EC] dark:bg-[#d97706]/15 px-4 py-2.5 text-[10px] font-black text-[#B8641A] dark:text-[#d97706] transition-all hover:bg-[#B8641A] hover:text-white dark:hover:bg-[#d97706] dark:hover:text-black"
+                          className="rounded-xl bg-[#FDF6EC] dark:bg-[#d97706]/15 px-4 py-2.5 text-[10px] font-black text-[#B8641A] dark:text-[#d97706] transition-all hover:bg-[#FDE9C9] dark:hover:bg-[#d97706]/35"
                         >
                           PARTNER
                         </button>
@@ -582,13 +582,13 @@ export default function AdminCustomers() {
             <div className="flex gap-3">
               <button
                 onClick={() => setAssignModalOpen(false)}
-                className="flex-1 rounded-2xl font-bold text-gray-400 transition hover:bg-[#FDF6EC] hover:text-[#8B7355] dark:text-slate-400 dark:hover:bg-[#1C243A] dark:hover:text-white"
+                className="flex-1 rounded-2xl border border-[#EDE8DF] bg-white py-4 font-bold text-[#8B7355] transition hover:bg-[#FDF6EC] dark:border-slate-800 dark:bg-[#121829] dark:text-slate-400 dark:hover:bg-slate-900/50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAssignPartner}
-                className="flex-[2] rounded-2xl bg-blue-600 py-4 font-black text-white transition hover:bg-blue-700 dark:bg-[#d97706] dark:hover:bg-[#b45309]"
+                className="flex-[2] rounded-2xl bg-[#B8641A] py-4 font-extrabold text-white transition hover:bg-[#9E5415]"
               >
                 Save Assignment
               </button>

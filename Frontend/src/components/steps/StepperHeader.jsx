@@ -1,7 +1,7 @@
 import React from "react";
 import { Building2, MapPin, User, Milk, CreditCard, CheckCircle } from "lucide-react";
 
-const StepperHeader = ({ currentStep }) => {
+const StepperHeader = ({ currentStep, onStepClick }) => {
   const steps = [
     { id: 1, label: "Brand", icon: Building2 },
     { id: 2, label: "Location", icon: MapPin },
@@ -16,7 +16,11 @@ const StepperHeader = ({ currentStep }) => {
       <div className="relative flex min-w-[540px] justify-between sm:min-w-0">
         <div className="absolute left-0 top-1/2 -z-0 h-1 w-full -translate-y-1/2 bg-[#E7DAC6]"></div>
         {steps.map((step) => (
-          <div key={step.id} className="relative z-10 flex min-w-[72px] flex-col items-center bg-[#FFFDF7] px-2 sm:min-w-0 sm:px-3">
+          <div
+            key={step.id}
+            onClick={() => onStepClick && onStepClick(step.id)}
+            className="relative z-10 flex min-w-[72px] cursor-pointer flex-col items-center bg-[#FFFDF7] px-2 sm:min-w-0 sm:px-3 hover:opacity-80 transition-opacity"
+          >
             <div
               className={`flex h-9 w-9 items-center justify-center rounded-full border-[3px] transition-all duration-500 sm:h-10 sm:w-10 ${
                 currentStep >= step.id

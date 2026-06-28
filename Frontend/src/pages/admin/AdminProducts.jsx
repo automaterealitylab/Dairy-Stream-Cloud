@@ -8,6 +8,11 @@ import {
   Search,
   Trash2,
   XCircle,
+  Milk,
+  Droplets,
+  Layers,
+  Flame,
+  Package,
 } from "lucide-react";
 import {
   createAdminProduct,
@@ -43,6 +48,22 @@ const formatStockValue = (value) => {
 const formatRateValue = (value, unit) => `Rs ${toDecimal(value).toFixed(2)} / ${unit || "UNIT"}`;
 
 const isOutOfStock = (value) => toDecimal(value) <= 0;
+
+const getProductIcon = (type) => {
+  const t = String(type || "").toUpperCase();
+  switch (t) {
+    case "MILK":
+      return <img src="/images/products/milk.png" alt="Milk" className="h-full w-full object-contain" />;
+    case "CURD":
+      return <img src="/images/products/curd.png" alt="Curd" className="h-full w-full object-contain" />;
+    case "PANEER":
+      return <img src="/images/products/paneer.png" alt="Paneer" className="h-full w-full object-contain" />;
+    case "GHEE":
+      return <img src="/images/products/ghee.png" alt="Ghee" className="h-full w-full object-contain" />;
+    default:
+      return <img src="/images/products/other.png" alt="Other" className="h-full w-full object-contain" />;
+  }
+};
 
 function ProductStatusBadge({ active }) {
   return (
@@ -241,11 +262,16 @@ export default function AdminProducts() {
                         className="rounded-2xl border border-[#F2EDE4] bg-[#FFFDF8] p-4 dark:border-[#1E293B] dark:bg-[#161C2C]"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h2 className="truncate text-lg font-bold text-[#2C1A0E] dark:text-white">{item.name}</h2>
-                            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#C4A882] dark:text-slate-500">
-                              {item.type || "Product"}
-                            </p>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-[#121829] border border-[#F2EDE4] dark:border-slate-700 shadow-sm p-1">
+                              {getProductIcon(item.type)}
+                            </div>
+                            <div className="min-w-0">
+                              <h2 className="truncate text-base font-bold text-[#2C1A0E] dark:text-white leading-tight">{item.name}</h2>
+                              <p className="mt-0.5 text-xs font-semibold uppercase tracking-wide text-[#C4A882] dark:text-slate-500">
+                                {item.type || "Product"}
+                              </p>
+                            </div>
                           </div>
                           <ProductStatusBadge active={shouldShowActive} />
                         </div>
@@ -311,7 +337,14 @@ export default function AdminProducts() {
                         const shouldShowActive = item.isActive && !isOutOfStock(item.stockQuantity);
                         return (
                           <tr key={item.id}>
-                            <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{item.name}</td>
+                            <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-0.5">
+                                  {getProductIcon(item.type)}
+                                </div>
+                                <span>{item.name}</span>
+                              </div>
+                            </td>
                             <td className="px-5 py-3 text-gray-600 dark:text-slate-300">{item.type}</td>
                             <td className="px-5 py-3 text-gray-600 dark:text-slate-300">
                               {formatRateValue(item.ratePerUnit, item.unit)}

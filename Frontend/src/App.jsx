@@ -1,9 +1,11 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
 import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
+import AppSplash from "./components/common/AppSplash.jsx";
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
 const RegisterDairyPage = lazy(() => import("./pages/RegisterDairyPage.jsx"));
@@ -41,9 +43,23 @@ const RouteFallback = () => (
 );
 
 function App() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <Suspense fallback={<RouteFallback />}>
-      <Routes>
+    <>
+      <AnimatePresence mode="wait">
+        {isLoading && <AppSplash />}
+      </AnimatePresence>
+
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/explore" element={<ExploreDairiesPage />} />
         <Route path="/join/:id" element={<DairyDetailsPage />} />
@@ -258,6 +274,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+    </>
   );
 }
 

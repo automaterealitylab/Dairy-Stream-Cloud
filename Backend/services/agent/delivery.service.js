@@ -1175,6 +1175,33 @@ export const updateAgentDeliveryStatus = async ({
   }
 
   if (nextStatus === "COMPLETED") {
+    // Reduce product stock for subscription-based/regular deliveries
+    if (normalizeStatusForCard(existing.status) !== "COMPLETED" && deliveryType !== "BUY ONCE") {
+      const { data: product, error: productError } = await supabase
+        .from("products")
+        .select("id, stock_quantity")
+        .eq("dairy_id", existing.dairy_id)
+        .ilike("name", existing.milk_type)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!productError && product) {
+        const availableStock = Number(product.stock_quantity || 0);
+        const quantity = Number(existing.quantity_liters || 0);
+        const nextStock = Number(Math.max(0, availableStock - quantity).toFixed(2));
+
+        await supabase
+          .from("products")
+          .update({
+            stock_quantity: nextStock,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", product.id)
+          .eq("dairy_id", existing.dairy_id);
+      }
+    }
+
     if (
       deliveryType === "BUY ONCE" &&
       orderPaymentMeta.paymentMethod === "COD" &&
