@@ -27,6 +27,8 @@ import {
   X,
   AlertCircle,
   Loader2,
+  Banknote,
+  Receipt,
 } from "lucide-react";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -492,10 +494,10 @@ export default function DairyCustomerDashboard() {
     linkedExtraDairyId != null &&
     String(subscription.dairyId) === String(linkedExtraDairyId);
   const addExtraPaymentOptions = [
-    { id: "PAY_NOW_ONLINE", label: "Pay Now Online" },
-    { id: "PAY_NOW_CASH", label: "Cash on Delivery" },
+    { id: "PAY_NOW_ONLINE", label: "Pay Online" },
+    { id: "PAY_NOW_CASH", label: "Cash / COD" },
     ...(canAddExtraToSubscriptionBill
-      ? [{ id: "ADD_TO_SUBSCRIPTION", label: "Add to Subscription Bill" }]
+      ? [{ id: "ADD_TO_SUBSCRIPTION", label: "Add to Bill" }]
       : []),
   ];
   const todayMeta = getTodayDeliveryMeta(today);
@@ -1494,133 +1496,135 @@ export default function DairyCustomerDashboard() {
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 grid xl:grid-cols-[minmax(0,1.35fr)_360px]">
-                <div className={`min-h-0 overflow-y-auto p-4 sm:p-7 ${addExtraStep === 1 ? "block" : "hidden xl:block"}`}>
-                  {addExtraLoading ? (
-                    <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0]">
-                      <Loader2 size={28} className="animate-spin text-[#B8641A]" />
-                      <p className="text-sm font-semibold text-[#8B7355]">
-                        Loading dairy products...
-                      </p>
-                    </div>
-                  ) : !addExtraProducts.length ? (
-                    <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0] px-6 text-center">
-                      <PlusCircle size={28} className="text-[#C4A882]" />
-                      <p className="text-base font-semibold text-[#5C3D1E]">
-                        No products available right now
-                      </p>
-                      <p className="max-w-md text-sm text-[#8B7355]">
-                        Ask the dairy owner to add products in the catalog, then try again.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="mb-5 flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-[#FFF4E2] px-3 py-1 text-xs font-bold text-[#B8641A]">
-                          Delivery: {nextExtraDeliveryLabel}
-                        </span>
-                        <span className="rounded-full bg-[#F5F0E8] px-3 py-1 text-xs font-bold text-[#8B7355]">
-                          {addExtraForm.slot} slot
-                        </span>
+              <div className="min-h-0 flex-1 flex flex-col xl:grid xl:grid-cols-[minmax(0,1.35fr)_360px]">
+                <div className={`min-h-0 flex flex-col ${addExtraStep === 1 ? "flex-1" : "hidden xl:flex xl:flex-1"}`}>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7">
+                    {addExtraLoading ? (
+                      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0]">
+                        <Loader2 size={28} className="animate-spin text-[#B8641A]" />
+                        <p className="text-sm font-semibold text-[#8B7355]">
+                          Loading dairy products...
+                        </p>
                       </div>
+                    ) : !addExtraProducts.length ? (
+                      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0] px-6 text-center">
+                        <PlusCircle size={28} className="text-[#C4A882]" />
+                        <p className="text-base font-semibold text-[#5C3D1E]">
+                          No products available right now
+                        </p>
+                        <p className="max-w-md text-sm text-[#8B7355]">
+                          Ask the dairy owner to add products in the catalog, then try again.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-5 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-[#FFF4E2] px-3 py-1 text-xs font-bold text-[#B8641A]">
+                            Delivery: {nextExtraDeliveryLabel}
+                          </span>
+                          <span className="rounded-full bg-[#F5F0E8] px-3 py-1 text-xs font-bold text-[#8B7355]">
+                            {addExtraForm.slot} slot
+                          </span>
+                        </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        {addExtraProducts.map((product) => {
-                          const isSelected = addExtraForm.selectedProducts?.includes(product.name);
-                          const isDisabled = isProductOutOfStock(product.stockQuantity);
+                        <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {addExtraProducts.map((product) => {
+                            const isSelected = addExtraForm.selectedProducts?.includes(product.name);
+                            const isDisabled = isProductOutOfStock(product.stockQuantity);
 
-                          return (
-                            <button
-                              key={product.id}
-                              type="button"
-                              disabled={isDisabled}
-                              onClick={() =>
-                                setAddExtraForm((prev) => {
-                                  const selectedProducts = prev.selectedProducts || [];
-                                  const quantities = { ...(prev.quantities || {}) };
+                            return (
+                              <button
+                                key={product.id}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() =>
+                                  setAddExtraForm((prev) => {
+                                    const selectedProducts = prev.selectedProducts || [];
+                                    const quantities = { ...(prev.quantities || {}) };
 
-                                  if (selectedProducts.includes(product.name)) {
-                                    delete quantities[product.name];
+                                    if (selectedProducts.includes(product.name)) {
+                                      delete quantities[product.name];
+                                      return {
+                                        ...prev,
+                                        selectedProducts: selectedProducts.filter((name) => name !== product.name),
+                                        quantities,
+                                      };
+                                    }
+
                                     return {
                                       ...prev,
-                                      selectedProducts: selectedProducts.filter((name) => name !== product.name),
-                                      quantities,
+                                      selectedProducts: [...selectedProducts, product.name],
+                                      quantities: {
+                                        ...quantities,
+                                        [product.name]: quantities[product.name] || getDefaultProductQuantity(product),
+                                      },
                                     };
-                                  }
-
-                                  return {
-                                    ...prev,
-                                    selectedProducts: [...selectedProducts, product.name],
-                                    quantities: {
-                                      ...quantities,
-                                      [product.name]: quantities[product.name] || getDefaultProductQuantity(product),
-                                    },
-                                  };
-                                })
-                              }
-                              className={`rounded-[20px] border p-3.5 text-left transition-all duration-300 flex gap-3 group items-center relative ${isDisabled
-                                  ? "cursor-not-allowed border-[#F2EDE4] bg-[#FBF7F0] opacity-60"
-                                  : isSelected
-                                    ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_12px_24px_rgba(184,100,26,0.08)] ring-2 ring-[#B8641A]/10"
-                                    : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
-                                }`}
-                            >
-                              {/* Product Image with dynamic background */}
-                              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl p-1.5 shadow-sm border border-black/5 ${
-                                product.type === "MILK" ? "bg-blue-50/80" :
-                                product.type === "CURD" ? "bg-rose-50/80" :
-                                product.type === "PANEER" ? "bg-amber-50/80" :
-                                product.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
-                              }`}>
-                                {getProductImage(product.type)}
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-1">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-bold leading-tight text-[#2C1A0E] truncate group-hover:text-[#B8641A] transition-colors">{product.name}</p>
-                                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C4A882]">
-                                      {getProductUnitLabel(product.unit)}
-                                    </p>
-                                  </div>
+                                  })
+                                }
+                                className={`rounded-[20px] border p-3 text-left transition-all duration-300 flex flex-col sm:flex-row gap-2.5 group items-start sm:items-center relative ${isDisabled
+                                    ? "cursor-not-allowed border-[#F2EDE4] bg-[#FBF7F0] opacity-60"
+                                    : isSelected
+                                      ? "border-[#B8641A] bg-[#FFF4E2] shadow-[0_12px_24px_rgba(184,100,26,0.08)] ring-2 ring-[#B8641A]/10"
+                                      : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
+                                  }`}
+                              >
+                                {/* Product Image with dynamic background */}
+                                <div className={`flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl p-1.5 shadow-sm border border-black/5 ${
+                                  product.type === "MILK" ? "bg-blue-50/80" :
+                                  product.type === "CURD" ? "bg-rose-50/80" :
+                                  product.type === "PANEER" ? "bg-amber-50/80" :
+                                  product.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
+                                }`}>
+                                  {getProductImage(product.type)}
                                 </div>
 
-                                <p className="mt-2 text-lg font-black leading-none text-[#B8641A]">
-                                  ₹{Number(product.ratePerUnit || 0).toFixed(2)}
-                                </p>
-                              </div>
+                                <div className="flex-1 min-w-0 w-full">
+                                  <div className="flex items-start justify-between gap-1">
+                                    <div className="min-w-0 w-full">
+                                      <p className="text-xs sm:text-sm font-bold leading-tight text-[#2C1A0E] truncate group-hover:text-[#B8641A] transition-colors">{product.name}</p>
+                                      <p className="mt-0.5 text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C4A882]">
+                                        {getProductUnitLabel(product.unit)}
+                                      </p>
+                                    </div>
+                                  </div>
 
-                              {isSelected && (
-                                <span className="absolute top-2 right-2 rounded-full bg-[#B8641A] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-white">
-                                  Selected
-                                </span>
-                              )}
-                              {!isSelected && !isDisabled && (
-                                <span className="absolute top-2 right-2 rounded-full border border-[#EDE8DF] bg-white px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-[#8B7355] opacity-0 group-hover:opacity-100 transition-opacity">
-                                  Add
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {/* Mobile Step 1 Continue button */}
-                      <div className="mt-6 border-t border-[#EDE8DF]/60 pt-4 xl:hidden">
-                        <button
-                          type="button"
-                          onClick={() => setAddExtraStep(2)}
-                          disabled={selectedAddExtraOrderLines.length === 0}
-                          className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3.5 text-sm font-bold text-white shadow-lg hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Continue to Details ({selectedAddExtraOrderLines.length} selected)
-                        </button>
-                      </div>
-                    </>
-                  )}
+                                  <p className="mt-1.5 text-base sm:text-lg font-black leading-none text-[#B8641A]">
+                                    ₹{Number(product.ratePerUnit || 0).toFixed(2)}
+                                  </p>
+                                </div>
+
+                                {isSelected && (
+                                  <span className="absolute top-2 right-2 rounded-full bg-[#B8641A] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-white">
+                                    Selected
+                                  </span>
+                                )}
+                                {!isSelected && !isDisabled && (
+                                  <span className="absolute top-2 right-2 rounded-full border border-[#EDE8DF] bg-white px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-[#8B7355] opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Add
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {/* Sticky Mobile Step 1 Continue button */}
+                  <div className="shrink-0 border-t border-[#F2EDE4] bg-white p-4 shadow-[0_-8px_30px_rgba(44,26,14,0.06)] xl:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAddExtraStep(2)}
+                      disabled={selectedAddExtraOrderLines.length === 0}
+                      className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3.5 text-sm font-bold text-white shadow-lg hover:bg-[#9F5313] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Continue to Details ({selectedAddExtraOrderLines.length} selected)
+                    </button>
+                  </div>
                 </div>
 
-                <div className={`min-h-0 border-t border-[#F2EDE4] bg-[#FBF7F0] xl:border-l xl:border-t-0 ${addExtraStep === 2 ? "block" : "hidden xl:block"}`}>
-                  <div className="flex h-full min-h-0 flex-col">
+                <div className={`min-h-0 border-t border-[#F2EDE4] bg-[#FBF7F0] xl:border-l xl:border-t-0 ${addExtraStep === 2 ? "flex flex-col flex-1" : "hidden xl:flex xl:flex-col xl:h-full"}`}>
+                  <div className="flex flex-col flex-1 min-h-0 xl:h-full">
                     <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7">
                       {addExtraError && (
                         <div className="rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-sm text-[#C0392B]">
@@ -1629,8 +1633,11 @@ export default function DairyCustomerDashboard() {
                       )}
 
                       <div className="space-y-4">
-                        <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EC] px-4 py-3 text-sm font-medium text-[#8B7355]">
-                          Tomorrow delivery: Daily delivery ({dailyDeliverySummary}) +
+                        <div className="rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EC] px-4 py-3 text-sm font-medium text-[#8B7355] flex items-center gap-2.5">
+                          <Truck size={16} className="text-[#B8641A] shrink-0" />
+                          <span>
+                            Tomorrow delivery: <span className="font-bold text-[#5C3D1E]">Daily delivery ({dailyDeliverySummary})</span> +
+                          </span>
                         </div>
                         <div>
                           <label className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
@@ -1687,31 +1694,49 @@ export default function DairyCustomerDashboard() {
                                               };
                                             })
                                           }
-                                          className="rounded-lg border border-[#EDE8DF] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B7355] transition hover:border-red-200 hover:text-red-600 hover:bg-red-50"
+                                          className="rounded-lg border border-red-100 bg-red-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-red-600 transition hover:bg-red-100/60"
                                         >
                                           Remove
                                         </button>
                                       </div>
-                                      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
-                                        <input
-                                          type="number"
-                                          min={quantityStep}
-                                          step={quantityStep}
-                                          value={line.quantityValue}
-                                          onChange={(event) =>
-                                            setAddExtraForm((prev) => ({
-                                              ...prev,
-                                              quantities: {
-                                                ...(prev.quantities || {}),
-                                                [line.product.name]: event.target.value,
-                                              },
-                                            }))
-                                          }
-                                          className="w-full rounded-[10px] border border-[#EDE8DF] bg-[#FFFDF7] px-2.5 py-1.5 text-xs font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
-                                        />
-                                        <span className="min-w-5 text-[10px] font-bold text-[#8B7355]">
-                                          {unitShort}
-                                        </span>
+                                      <div className="mt-2.5 flex items-center justify-between gap-3 bg-slate-50/50 p-2 rounded-xl border border-[#EDE8DF]/60">
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextVal = Math.max(quantityStep, Number(line.quantityValue || 0) - quantityStep);
+                                              setAddExtraForm((prev) => ({
+                                                ...prev,
+                                                quantities: {
+                                                  ...(prev.quantities || {}),
+                                                  [line.product.name]: nextVal,
+                                                },
+                                              }));
+                                            }}
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#EDE8DF] bg-white text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E] active:scale-95"
+                                          >
+                                            -
+                                          </button>
+                                          <span className="min-w-[32px] text-center text-xs font-bold text-[#2C1A0E]">
+                                            {line.quantityValue} {unitShort}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextVal = Number(line.quantityValue || 0) + quantityStep;
+                                              setAddExtraForm((prev) => ({
+                                                ...prev,
+                                                quantities: {
+                                                  ...(prev.quantities || {}),
+                                                  [line.product.name]: nextVal,
+                                                },
+                                              }));
+                                            }}
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#EDE8DF] bg-white text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E] active:scale-95"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
                                         <p className="text-right text-xs font-black text-[#B8641A]">
                                           ₹{Number.isFinite(line.lineTotal) ? line.lineTotal.toFixed(2) : "0.00"}
                                         </p>
@@ -1730,46 +1755,50 @@ export default function DairyCustomerDashboard() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    </div>
 
-                        <div>
-                          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
-                            Payment Option
-                          </label>
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            {addExtraPaymentOptions.map((method) => (
-                              <button
-                                key={method.id}
-                                type="button"
-                                onClick={() =>
-                                  setAddExtraForm((prev) => ({
-                                    ...prev,
-                                    paymentMethod: method.id,
-                                  }))
-                                }
-                                className={`flex min-h-[84px] items-center justify-center rounded-[14px] border px-3 py-2.5 text-center text-sm font-bold leading-6 transition ${addExtraForm.paymentMethod === method.id
-                                    ? "border-[#B8641A] bg-[#FFF4E2] text-[#B8641A]"
-                                    : "border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
-                                  }`}
-                              >
-                                {method.label}
-                              </button>
-                            ))}
-                          </div>
-                          {!canAddExtraToSubscriptionBill && (
-                            <p className="mt-2 text-xs font-medium text-[#8B7355]">
-                              Add to Subscription Bill is available only for customers with an active subscription in this dairy.
-                            </p>
-                          )}
-                          {addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && (
-                            <p className="mt-2 text-xs font-medium text-[#8B7355]">
-                              This extra order will be added to your subscription bill.
-                            </p>
-                          )}
+                    <div className="space-y-4 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 pb-8 sm:p-7 shrink-0 shadow-[0_-8px_30px_rgba(44,26,14,0.06)] xl:shadow-none">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">
+                          Payment Option
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {addExtraPaymentOptions.map((method) => (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() =>
+                                setAddExtraForm((prev) => ({
+                                  ...prev,
+                                  paymentMethod: method.id,
+                                }))
+                              }
+                              className={`flex flex-col min-h-[74px] items-center justify-center gap-1.5 rounded-[12px] border px-1.5 py-2 text-center text-[10px] sm:text-xs font-bold leading-tight transition ${addExtraForm.paymentMethod === method.id
+                                  ? "border-[#B8641A] bg-[#FFF4E2] text-[#B8641A]"
+                                  : "border-[#EDE8DF] bg-white text-[#8B7355] hover:border-[#D4B896] hover:text-[#5C3D1E]"
+                                }`}
+                            >
+                              {method.id === "PAY_NOW_ONLINE" && <CreditCard size={18} />}
+                              {method.id === "PAY_NOW_CASH" && <Banknote size={18} />}
+                              {method.id === "ADD_TO_SUBSCRIPTION" && <Receipt size={18} />}
+                              <span>{method.label}</span>
+                            </button>
+                          ))}
                         </div>
-
+                        {!canAddExtraToSubscriptionBill && (
+                          <p className="mt-1.5 text-[10px] font-medium text-[#8B7355] leading-tight">
+                            Add to Subscription Bill is available only for customers with an active subscription in this dairy.
+                          </p>
+                        )}
+                        {addExtraForm.paymentMethod === "ADD_TO_SUBSCRIPTION" && (
+                          <p className="mt-1.5 text-[10px] font-medium text-[#8B7355] leading-tight">
+                            This extra order will be added to your subscription bill.
+                          </p>
+                        )}
                       </div>
 
-                      <div className="space-y-3 border-t border-[#E7DAC6] bg-[#FBF7F0] p-4 sm:p-7">
+                      <div className="space-y-3">
                         <button
                           type="button"
                           onClick={() => handleSubmitExtraOrder(false)}
@@ -1784,24 +1813,26 @@ export default function DairyCustomerDashboard() {
                           <span>{addExtraSubmitLabel}</span>
                         </button>
 
-                        {/* Back to Products on mobile */}
-                        <button
-                          type="button"
-                          onClick={() => setAddExtraStep(1)}
-                          disabled={addExtraSubmitting}
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2.5 text-sm font-bold text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E] xl:hidden"
-                        >
-                          Back to Products
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={closeAddExtraModal}
-                          disabled={addExtraSubmitting}
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Cancel
-                        </button>
+                        <div className="flex gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setAddExtraStep(1)}
+                            disabled={addExtraSubmitting}
+                            className="flex-1 rounded-[16px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2.5 text-sm font-bold text-[#8B7355] transition hover:border-[#D4B896] hover:text-[#5C3D1E] xl:hidden"
+                          >
+                            Back to Products
+                          </button>
+                          <button
+                            type="button"
+                            onClick={closeAddExtraModal}
+                            disabled={addExtraSubmitting}
+                            className={`rounded-[16px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-60 ${
+                              addExtraStep === 2 ? "flex-1 xl:w-full xl:flex-initial" : "w-full"
+                            }`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

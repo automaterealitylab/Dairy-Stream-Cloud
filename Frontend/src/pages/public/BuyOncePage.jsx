@@ -659,7 +659,7 @@ const BuyOncePage = () => {
                 <ShoppingBag size={18} className="text-blue-600" />
                 <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Select Products</h2>
               </div>
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-2.5">
                 {dairy.productItems.map((item) => (
                   <button
                     key={item.id}
@@ -669,7 +669,7 @@ const BuyOncePage = () => {
                       setForm((prev) => ({ ...prev, milkType: item.name }));
                       toggleProductSelection(item.name);
                     }}
-                    className={`relative p-3.5 rounded-xl border-2 text-left transition-all group flex gap-3 ${
+                    className={`relative p-3 rounded-xl border-2 text-left transition-all group flex flex-col sm:flex-row gap-2.5 ${
                       isProductOutOfStock(item.stockQuantity)
                       ? "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
                       :
@@ -679,7 +679,7 @@ const BuyOncePage = () => {
                     }`}
                   >
                     {/* Product Image */}
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#FAF9F5] border border-slate-200/50 p-1 shadow-sm">
+                    <div className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-lg bg-[#FAF9F5] border border-slate-200/50 p-1 shadow-sm">
                       {getProductImage(item.type)}
                     </div>
 
@@ -687,9 +687,9 @@ const BuyOncePage = () => {
                       {Number(form.items?.[item.name] || 0) > 0 && (
                         <CheckCircle2 size={16} className="absolute top-2 right-2 text-blue-600" />
                       )}
-                      <p className={`text-sm font-bold truncate ${Number(form.items?.[item.name] || 0) > 0 ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
-                      <p className="text-base font-black text-slate-900 mt-0.5">Rs {item.ratePerUnit}<span className="text-[9px] text-slate-400 font-normal">/{item.unit}</span></p>
-                      <p className={`text-[10px] mt-0.5 font-semibold ${isProductOutOfStock(item.stockQuantity) ? "text-red-500" : "text-emerald-600"}`}>
+                      <p className={`text-xs sm:text-sm font-bold truncate ${Number(form.items?.[item.name] || 0) > 0 ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
+                      <p className="text-sm sm:text-base font-black text-slate-900 mt-0.5">Rs {item.ratePerUnit}<span className="text-[9px] text-slate-400 font-normal">/{item.unit}</span></p>
+                      <p className={`text-[9px] sm:text-[10px] mt-0.5 font-semibold ${isProductOutOfStock(item.stockQuantity) ? "text-red-500" : "text-emerald-600"}`}>
                         Stock: {formatProductStockLabel(item.stockQuantity)}
                       </p>
                       <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">
@@ -819,7 +819,7 @@ const BuyOncePage = () => {
             </section>
           </div>
 
-          <div className="lg:w-[380px] space-y-6">
+          <div id="order-summary-section" className="lg:w-[380px] space-y-6 scroll-mt-24">
             <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl sticky top-24">
               <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                 <CreditCard size={20} className="text-blue-400" /> Order Summary
@@ -931,6 +931,28 @@ const BuyOncePage = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Sticky Mobile Bottom Bar */}
+      {selectedItems.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 p-4 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] flex items-center justify-between lg:hidden animate-in slide-in-from-bottom duration-300">
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-semibold">{selectedItems.length} Product{selectedItems.length > 1 ? "s" : ""} Selected</span>
+            <span className="text-lg font-black text-slate-900">Rs {totalPrice.toFixed(2)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const summaryEl = document.getElementById("order-summary-section");
+              if (summaryEl) {
+                summaryEl.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all transform active:scale-95"
+          >
+            Continue to Details
+          </button>
         </div>
       )}
     </div>

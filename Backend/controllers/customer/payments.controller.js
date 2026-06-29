@@ -6,6 +6,7 @@ import {
   verifyCustomerPayment,
   createCustomerWalletTopupOrder,
   verifyCustomerWalletTopup,
+  payCustomerBillWithWallet,
 } from "../../services/customer/payments.service.js";
 import { getScreenshotHash } from "../../services/customer/smartPaymentVerification.service.js";
 import { runPaymentScreenshotOcr } from "../../services/customer/ocr.service.js";
@@ -221,6 +222,25 @@ export const verifyWalletTopup = async (req, res) => {
     console.error("VERIFY WALLET TOPUP ERROR:", err.message);
     res.status(400).json({
       message: err.message || "Wallet top-up verification failed",
+    });
+  }
+};
+
+export const payBillWithWallet = async (req, res) => {
+  try {
+    const { paymentId, payAll, includeRunningDue } = req.body || {};
+    const data = await payCustomerBillWithWallet({
+      customerId: req.customer.id,
+      paymentId,
+      payAll: Boolean(payAll),
+      includeRunningDue: includeRunningDue === undefined ? true : Boolean(includeRunningDue),
+      dairyId: req.customer?.dairyId ?? null,
+    });
+    res.json(data);
+  } catch (err) {
+    console.error("PAY BILL WITH WALLET ERROR:", err.message);
+    res.status(err.statusCode || 400).json({
+      message: err.message || "Failed to pay bill using wallet balance",
     });
   }
 };

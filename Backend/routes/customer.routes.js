@@ -29,6 +29,7 @@ import {
   submitUpiPaymentVerification,
   verifyPayment,
   verifyWalletTopup,
+  payBillWithWallet,
 } from "../controllers/customer/payments.controller.js";
 import {
   getSubscription,
@@ -110,6 +111,7 @@ router.post("/payments/order", authenticate, createPaymentOrder);
 router.post("/payments/verify", authenticate, verifyPayment);
 router.post("/payments/wallet/order", authenticate, createWalletTopupOrder);
 router.post("/payments/wallet/verify", authenticate, verifyWalletTopup);
+router.post("/payments/pay-wallet", authenticate, payBillWithWallet);
 router.get("/invoices", authenticate, fetchCustomerInvoices);
 router.get("/invoices/:id", authenticate, fetchCustomerInvoiceDetail);
 router.get("/invoices/:id/pdf", authenticate, downloadCustomerInvoicePdf);

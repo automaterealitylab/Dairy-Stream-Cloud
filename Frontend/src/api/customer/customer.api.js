@@ -324,6 +324,13 @@ export const verifyCustomerWalletTopup = async (payload) => {
   return data;
 };
 
+export const payCustomerBillWithWallet = async (payload) => {
+  const { data } = await client.post("/customer/payments/pay-wallet", payload);
+  invalidateCustomerDashboardCache();
+  invalidateCustomerReadCache("payments");
+  return data;
+};
+
 export const fetchCustomerInvoices = async ({ limit = 24 } = {}) => {
   const { data } = await client.get("/customer/invoices", { params: { limit } });
   return data?.invoices || [];

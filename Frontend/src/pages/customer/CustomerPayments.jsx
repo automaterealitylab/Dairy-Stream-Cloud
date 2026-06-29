@@ -29,6 +29,7 @@ import {
   verifyCustomerPayment,
   createCustomerWalletTopupOrder,
   verifyCustomerWalletTopup,
+  payCustomerBillWithWallet,
 } from "../../api/customer/customer.api.js";
 import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
 
@@ -347,8 +348,14 @@ export default function Payments() {
     }
 
     const target = { payment, payAll };
+    const paymentAmount = payAll ? Number(summary.monthlyDue || 0) : Number(payment?.amount || 0);
+    const hasSufficientWallet = Number(summary.walletBalance || 0) >= paymentAmount && paymentAmount > 0;
 
-    if (optOnline && !optUpi) {
+    if (hasSufficientWallet) {
+      setSelectedPaymentTarget(target);
+      setPaymentSelectorOpen(true);
+      setError(null);
+    } else if (optOnline && !optUpi) {
       handleExecuteRazorpayPayment(target);
     } else if (optUpi && !optOnline) {
       handleExecuteUpiPayment(target);
@@ -470,6 +477,26 @@ export default function Payments() {
       rzp.open();
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Unable to start Online payment.");
+      setPaymentProcessing(false);
+    }
+  };
+
+  const handleExecuteWalletPayment = async (targetOverride) => {
+    const target = targetOverride || selectedPaymentTarget;
+    if (!target) return;
+    const { payment, payAll } = target;
+    setPaymentSelectorOpen(false);
+    setPaymentProcessing(true);
+    setError(null);
+
+    try {
+      await payCustomerBillWithWallet(
+        payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
+      );
+      await loadPayments({ force: true });
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Wallet payment failed.");
+    } finally {
       setPaymentProcessing(false);
       setSelectedPaymentTarget(null);
     }
@@ -705,6 +732,13 @@ export default function Payments() {
     showOnlinePay = true;
     showDirectUpi = true;
   }
+
+  const selectedTargetPayment = selectedPaymentTarget?.payment || {};
+  const selectedPaymentAmount = selectedPaymentTarget?.payAll
+    ? Number(summary.monthlyDue || 0)
+    : Number(selectedTargetPayment.amount || 0);
+
+  const showWalletPay = Number(summary.walletBalance || 0) >= selectedPaymentAmount && selectedPaymentAmount > 0;
 
   return (
     <CustomerLayout>
@@ -1377,6 +1411,33 @@ export default function Payments() {
                     </p>
                     <p className="mt-2 text-[11px] font-semibold text-[#8B7355]">
                       Requires manual dairy verification (1-2 hours)
+                    </p>
+                  </div>
+                </button>
+              )}
+
+              {/* Option C: Pay with Wallet */}
+              {showWalletPay && (
+                <button
+                  type="button"
+                  onClick={() => handleExecuteWalletPayment()}
+                  className="group w-full flex items-start gap-4 rounded-[16px] border border-[#E5DCCF] bg-[#FFFDF9] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF8EE] hover:shadow-md active:translate-y-0"
+                >
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#EFF6FF] text-[#1D5FA5] transition group-hover:bg-[#1D5FA5] group-hover:text-white">
+                    <Wallet size={20} className="transition" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-[#2C1A0E]">Pay using Wallet</span>
+                      <span className="inline-flex items-center rounded-full bg-[#EBF7F1] px-2.5 py-0.5 text-[9px] font-bold text-[#1A7A4A]">
+                        Balance: {fmt(summary.walletBalance)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-[#B89970]">
+                      Deduct instantly from your platform wallet balance.
+                    </p>
+                    <p className="mt-2 text-[11px] font-semibold text-[#1A7A4A]">
+                      Instant settlement & confirmation
                     </p>
                   </div>
                 </button>

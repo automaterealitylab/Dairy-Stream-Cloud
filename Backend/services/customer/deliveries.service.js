@@ -228,6 +228,7 @@ const toApprovalStatus = (approvalStatus, { isOneTimeOrder = false } = {}) => {
   if (normalized === "APPROVED") return "APPROVED";
   if (normalized === "REJECTED") return "REJECTED";
   if (normalized === "PENDING") return "PENDING";
+  if (normalized === "PENDING_PAYMENT") return "PENDING_PAYMENT";
   if (normalized === "CANCELLED" || normalized === "CANCELED") return "CANCELLED";
   return isOneTimeOrder ? "PENDING" : "APPROVED";
 };
@@ -1085,7 +1086,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
           milk_type: item.milkType,
           quantity_liters: item.quantity,
           status: "PENDING",
-          approval_status: "PENDING",
+          approval_status: paymentMethod === "PAY_NOW" ? "PENDING_PAYMENT" : "PENDING",
           notes: deliveryNotes,
         })
         .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, created_at")

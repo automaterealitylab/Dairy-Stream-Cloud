@@ -13,6 +13,7 @@ import {
   analyzeUpiVerificationSubmission,
   writeFraudAlertsForVerification,
 } from "./smartPaymentVerification.service.js";
+import { writeSettlementLedgerEntry } from "../marketplace/auditLedger.service.js";
 
 const PAYMENT_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
 const MEMBERSHIP_CUSTOMER_COLUMNS = ["customer_id", "user_id", "customerId", "customerid"];
@@ -82,6 +83,13 @@ const parseDeliveryIdFromPaymentDescription = (description) => {
 
   const parsed = Number(match[1]);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const parseDeliveryIdsFromDescription = (description) => {
+  const text = String(description || "");
+  const match = text.match(/delivery_ids=([\d,]+)/i);
+  if (!match) return [];
+  return match[1].split(",").map(Number).filter(Boolean);
 };
 
 const isSubscriptionDeliveryPaymentRow = (row) =>
@@ -432,6 +440,63 @@ const creditCustomerWalletBalance = async ({
     creditedAmount: normalizedAmount,
   };
 };
+
+const debitCustomerWalletBalance = async ({
+  customerId,
+  amount,
+}) => {
+  const normalizedAmount = Number(Number(amount || 0).toFixed(2));
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    throw new Error("Wallet debit amount must be greater than zero");
+  }
+
+  const customer = await getCustomerById(customerId);
+  if (!customer) throw new Error("Customer not found");
+
+  const currentWallet =
+    toNumber(customer.wallet_balance, NaN) ||
+    toNumber(customer.walletBalance, NaN) ||
+    toNumber(customer.balance, 0);
+
+  if (currentWallet < normalizedAmount) {
+    throw new Error("Insufficient wallet balance");
+  }
+
+  const nextWallet = Number((currentWallet - normalizedAmount).toFixed(2));
+  const payload = { updated_at: new Date().toISOString() };
+
+  if (Object.prototype.hasOwnProperty.call(customer, "wallet_balance")) {
+    payload.wallet_balance = nextWallet;
+  }
+  if (Object.prototype.hasOwnProperty.call(customer, "walletBalance")) {
+    payload.walletBalance = nextWallet;
+  }
+  if (Object.prototype.hasOwnProperty.call(customer, "balance")) {
+    payload.balance = nextWallet;
+  }
+
+  if (
+    !Object.prototype.hasOwnProperty.call(payload, "wallet_balance") &&
+    !Object.prototype.hasOwnProperty.call(payload, "walletBalance") &&
+    !Object.prototype.hasOwnProperty.call(payload, "balance")
+  ) {
+    payload.wallet_balance = nextWallet;
+  }
+
+  const { error: updateError } = await supabase
+    .from("customers")
+    .update(payload)
+    .eq("id", customerId);
+
+  if (updateError) throw updateError;
+
+  return {
+    previousWalletBalance: Number(currentWallet.toFixed(2)),
+    walletBalance: nextWallet,
+    debitedAmount: normalizedAmount,
+  };
+};
+
 
 const createWalletLedgerEntry = async ({
   customerId,
@@ -1062,6 +1127,15 @@ export const verifyCustomerPayment = async ({
           paymentId: row.id,
           payloadVariants: payloadVariantsWithAmount,
         });
+
+        const deliveryIds = parseDeliveryIdsFromDescription(row.description);
+        if (deliveryIds.length > 0) {
+          await supabase
+            .from("deliveries")
+            .update({ approval_status: "PENDING" })
+            .in("id", deliveryIds)
+            .eq("approval_status", "PENDING_PAYMENT");
+        }
       }
     }
 
@@ -1174,6 +1248,15 @@ export const verifyCustomerPayment = async ({
     })),
   });
 
+  const deliveryIds = parseDeliveryIdsFromDescription(existingPayment.description);
+  if (deliveryIds.length > 0) {
+    await supabase
+      .from("deliveries")
+      .update({ approval_status: "PENDING" })
+      .in("id", deliveryIds)
+      .eq("approval_status", "PENDING_PAYMENT");
+  }
+
   return {
     success: true,
     paymentId: normalizedPaymentId,
@@ -1203,25 +1286,21 @@ export const createCustomerWalletTopupOrder = async ({
     dairy_id: String(resolvedDairyId ?? ""),
     amount_inr: String(amountInRupees),
   };
-  const { razorpay, keyId, beneficiary, transfers } = await getRazorpayOrderContext({
-    dairyId: resolvedDairyId,
-    amountInRupees,
-    notes: orderNotes,
-  });
+  const razorpay = getRazorpayClient();
+  const keyId = getRazorpayConfig().keyId;
   const orderPayload = {
     amount: Math.round(amountInRupees * 100),
     currency: "INR",
     receipt: `cust_${customerId}_wallet_${Date.now()}`.slice(0, 40),
     notes: orderNotes,
   };
-  if (transfers) orderPayload.transfers = transfers;
   const order = await razorpay.orders.create(orderPayload);
 
   return {
     keyId,
     order,
     amount: amountInRupees,
-    beneficiary,
+    beneficiary: null,
   };
 };
 
@@ -1768,6 +1847,144 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
       beneficiary,
     },
     history,
+  };
+};
+
+export const payCustomerBillWithWallet = async ({
+  customerId,
+  paymentId,
+  payAll = false,
+  includeRunningDue = true,
+  dairyId = null,
+}) => {
+  const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
+  let amountInRupees = 0;
+  let paymentsToPay = [];
+
+  const { payments: pendingPayments, customerColumn } = await getEligiblePendingPaymentsForCustomer(
+    customerId,
+    resolvedDairyId
+  );
+
+  if (payAll) {
+    const currentMonthKey = getCurrentMonthKey();
+    const historicalPendingAmount = pendingPayments.reduce((sum, row) => {
+      return getPaymentMonthKey(row) === currentMonthKey
+        ? sum
+        : sum + getEffectivePaymentAmount(row).totalAmount;
+    }, 0);
+    const currentMonthPendingAmount = pendingPayments.reduce((sum, row) => {
+      return getPaymentMonthKey(row) === currentMonthKey
+        ? sum + getEffectivePaymentAmount(row).totalAmount
+        : sum;
+    }, 0);
+    const runningDueData = includeRunningDue
+      ? await getCurrentMonthSuccessfulSubscriptionDue(customerId)
+      : null;
+    const runningDueAmount = includeRunningDue
+      ? Number(runningDueData?.payableTillDate || 0)
+      : 0;
+
+    amountInRupees = historicalPendingAmount + Math.max(currentMonthPendingAmount, runningDueAmount);
+
+    if (!pendingPayments.length && runningDueAmount <= 0) {
+      throw new Error("No pending payment found");
+    }
+
+    paymentsToPay = pendingPayments;
+  } else {
+    if (!paymentId) throw new Error("No pending payment selected");
+    const { payment } = await getPendingPaymentForCustomer(customerId, paymentId, resolvedDairyId);
+    if (!payment) throw new Error("Payment record not found");
+    amountInRupees = getEffectivePaymentAmount(payment).totalAmount;
+    paymentsToPay = [payment];
+  }
+
+  if (amountInRupees <= 0) {
+    throw new Error("Payment amount must be greater than zero");
+  }
+
+  const walletBalance = await getCustomerWalletBalance(customerId);
+  if (walletBalance < amountInRupees) {
+    throw new Error("Insufficient wallet balance");
+  }
+
+  const walletUpdate = await debitCustomerWalletBalance({ customerId, amount: amountInRupees });
+
+  const paidAtIso = new Date().toISOString();
+  const payloadVariants = buildPaidUpdatePayloadVariants({
+    paymentMethod: "WALLET",
+    paidAtIso,
+    razorpayOrderId: null,
+    razorpayPaymentId: null,
+    razorpaySignature: null,
+  });
+
+  if (payAll) {
+    if (paymentsToPay.length && customerColumn) {
+      for (const row of paymentsToPay) {
+        const { totalAmount } = getEffectivePaymentAmount(row);
+        const payloadVariantsWithAmount = payloadVariants.map((payload) => ({
+          ...payload,
+          amount: totalAmount,
+        }));
+        await updatePaymentsWithFallbacks({
+          customerColumn,
+          customerId,
+          dairyId: resolvedDairyId,
+          paymentId: row.id,
+          payloadVariants: payloadVariantsWithAmount,
+        });
+
+        await writeSettlementLedgerEntry({
+          paymentId: row.id,
+          dairyId: resolvedDairyId,
+          amount: totalAmount,
+          status: "PENDING",
+          metadata: { paid_via: "WALLET", pay_all: true },
+        });
+      }
+    }
+  } else {
+    const singlePayment = paymentsToPay[0];
+    if (singlePayment && customerColumn) {
+      const { totalAmount } = getEffectivePaymentAmount(singlePayment);
+      const payloadVariantsWithAmount = payloadVariants.map((payload) => ({
+        ...payload,
+        amount: totalAmount,
+      }));
+      await updatePaymentsWithFallbacks({
+        customerColumn,
+        customerId,
+        dairyId: resolvedDairyId,
+        paymentId: singlePayment.id,
+        payloadVariants: payloadVariantsWithAmount,
+      });
+
+      await writeSettlementLedgerEntry({
+        paymentId: singlePayment.id,
+        dairyId: resolvedDairyId,
+        amount: totalAmount,
+        status: "PENDING",
+        metadata: { paid_via: "WALLET" },
+      });
+    }
+  }
+
+  await createWalletLedgerEntry({
+    customerId,
+    dairyId: resolvedDairyId,
+    amount: amountInRupees,
+    method: "WALLET",
+    description: `[WALLET_DEBIT_CUSTOMER] paid bills with wallet; amount=${amountInRupees}`,
+    paidAtIso,
+  });
+
+  return {
+    success: true,
+    amount: amountInRupees,
+    previousWalletBalance: walletUpdate.previousWalletBalance,
+    walletBalance: walletUpdate.walletBalance,
   };
 };
 
