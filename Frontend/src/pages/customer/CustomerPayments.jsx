@@ -403,6 +403,27 @@ export default function Payments() {
 
       const { keyId, order } = orderData;
 
+      if (order.id.startsWith("order_mock_")) {
+        setPaymentProcessing(true);
+        try {
+          await verifyCustomerPayment({
+            paymentId: payment?.id || null,
+            payAll,
+            includeRunningDue: false,
+            razorpayOrderId: order.id,
+            razorpayPaymentId: `pay_mock_${Math.random().toString(36).substr(2, 9)}`,
+            razorpaySignature: "mock_signature",
+          });
+          await loadPayments({ force: true });
+        } catch (err) {
+          setError(err?.response?.data?.message || err?.message || "Payment verification failed.");
+        } finally {
+          setPaymentProcessing(false);
+          setSelectedPaymentTarget(null);
+        }
+        return;
+      }
+
       const options = {
         key: keyId,
         amount: order.amount,
@@ -477,6 +498,24 @@ export default function Payments() {
       });
 
       const { keyId, order } = orderData;
+
+      if (order.id.startsWith("order_mock_")) {
+        setWalletTopupLoading(true);
+        try {
+          await verifyCustomerWalletTopup({
+            amount: value,
+            razorpayOrderId: order.id,
+            razorpayPaymentId: `pay_mock_${Math.random().toString(36).substr(2, 9)}`,
+            razorpaySignature: "mock_signature",
+          });
+          await loadPayments({ force: true });
+        } catch (err) {
+          setError(err?.response?.data?.message || err?.message || "Wallet top-up verification failed.");
+        } finally {
+          setWalletTopupLoading(false);
+        }
+        return;
+      }
 
       const options = {
         key: keyId,
