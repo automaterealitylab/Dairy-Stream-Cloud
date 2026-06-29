@@ -752,9 +752,36 @@ export default function Deliveries() {
         )}
 
         {loading ? (
-          <div className="flex flex-col items-center gap-3 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] py-24 sm:rounded-[24px] sm:py-32">
-            <Loader2 size={32} className="animate-spin text-[#B8641A]" />
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-300">Loading...</p>
+          <div className="space-y-4 animate-pulse">
+            {/* 3 Insight Cards Skeletons */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-[74px] sm:h-[90px] rounded-[18px] sm:rounded-[20px] border border-[#EDE8DF] bg-white p-3 sm:p-4" />
+              ))}
+            </div>
+
+            {/* Today's Delivery Card Skeleton */}
+            <div className="h-32 sm:h-40 rounded-[22px] sm:rounded-[26px] bg-[#EDE8DF]/35 p-4 sm:p-8" />
+
+            {/* Recent Deliveries List Header Skeleton */}
+            <div className="h-4 w-32 rounded bg-[#E7DAC6] mt-6" />
+
+            {/* Recent Deliveries Items skeletons */}
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-2xl border border-[#EDE8DF] bg-white p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 w-28 rounded bg-[#E7DAC6]" />
+                    <div className="h-5 w-16 rounded-full bg-[#E7DAC6]" />
+                  </div>
+                  <div className="h-5 w-40 rounded-lg bg-[#E7DAC6]/50" />
+                  <div className="flex gap-2">
+                    <div className="h-4 w-12 rounded bg-[#E7DAC6]/30" />
+                    <div className="h-4 w-16 rounded bg-[#E7DAC6]/30" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : deliveries.length === 0 ? (
           <div className="rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FFFDF7] py-16 text-center sm:rounded-[24px] sm:py-20">

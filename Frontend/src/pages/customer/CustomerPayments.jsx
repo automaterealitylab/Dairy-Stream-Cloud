@@ -828,7 +828,7 @@ export default function Payments() {
               </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-3 [grid-auto-rows:1fr] sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 [grid-auto-rows:1fr] sm:grid-cols-2 xl:grid-cols-4">
               <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
                 <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#FDE9C9] text-[#B8641A]">
                   <Wallet size={16} />
@@ -960,7 +960,22 @@ export default function Payments() {
               </div>
 
               {loading ? (
-                <LoadingIndicator className="py-16" message="Loading payments..." />
+                <div className="divide-y divide-[#EDE8DF] animate-pulse">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex flex-col gap-3 p-4 md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(120px,0.95fr)_minmax(130px,0.95fr)_minmax(170px,1fr)] md:gap-4 md:px-6 md:py-4 items-center">
+                      <div className="flex w-full items-center gap-3 md:w-auto">
+                        <div className="h-9 w-9 rounded-full bg-[#E7DAC6]" />
+                        <div className="flex-1 space-y-1.5">
+                          <div className="h-4 w-32 rounded bg-[#E7DAC6]" />
+                          <div className="h-3.5 w-44 rounded bg-[#E7DAC6]/60" />
+                        </div>
+                      </div>
+                      <div className="h-4 w-20 rounded bg-[#E7DAC6]/50 self-start md:self-center" />
+                      <div className="h-5 w-16 rounded-full bg-[#E7DAC6]/40 self-start md:self-center" />
+                      <div className="h-5 w-24 rounded bg-[#E7DAC6] self-end md:self-center ml-auto" />
+                    </div>
+                  ))}
+                </div>
               ) : filteredHistory.length === 0 ? (
                 <div className="px-6 py-16 text-center">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#EDE8DF] bg-[#FDF6EC] text-[#B89970]">

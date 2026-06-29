@@ -1034,7 +1034,43 @@ export default function DairyCustomerDashboard() {
   if (loading && !resolvedData) {
     return (
       <CustomerLayout>
-        <LoadingIndicator className="py-20" message="Loading your dashboard..." />
+        <div className="space-y-5 lg:space-y-8 xl:space-y-5 animate-pulse" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          {/* Header Banner Skeleton */}
+          <div className="rounded-[24px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-4 sm:p-6 xl:rounded-[34px] xl:p-[30px]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_400px] xl:items-start xl:gap-8">
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="h-4 w-28 rounded-full bg-[#E7DAC6]" />
+                <div className="h-9 w-64 rounded-xl bg-[#E7DAC6]" />
+                <div className="h-5 w-44 rounded-lg bg-[#E7DAC6]/60" />
+              </div>
+              <div className="w-full rounded-[18px] border border-[#E7DDCF] bg-white/90 p-4 h-[72px] sm:h-[84px] xl:h-[96px] xl:rounded-[22px]" />
+            </div>
+          </div>
+
+          {/* Today's Delivery Card Skeleton */}
+          <div className="rounded-[24px] bg-[#EDE8DF]/40 p-4 sm:rounded-[28px] sm:p-7 xl:min-h-[200px] xl:px-[30px] xl:py-[31px]">
+            <div className="h-4 w-32 rounded-full bg-[#E7DAC6] mb-4" />
+            <div className="flex items-start gap-4">
+              <div className="h-11 w-11 rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] bg-[#E7DAC6]" />
+              <div className="flex-1 space-y-2.5">
+                <div className="h-7 w-48 rounded-xl bg-[#E7DAC6]" />
+                <div className="h-4 w-36 rounded-lg bg-[#E7DAC6]" />
+              </div>
+            </div>
+          </div>
+
+          {/* Grid Layout Cards Skeleton */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="h-[120px] rounded-[24px] bg-white border border-[#EDE8DF] p-5 space-y-3">
+              <div className="h-8 w-8 rounded-lg bg-[#E7DAC6]" />
+              <div className="h-4 w-24 rounded bg-[#E7DAC6]" />
+            </div>
+            <div className="h-[120px] rounded-[24px] bg-white border border-[#EDE8DF] p-5 space-y-3">
+              <div className="h-8 w-8 rounded-lg bg-[#E7DAC6]" />
+              <div className="h-4 w-24 rounded bg-[#E7DAC6]" />
+            </div>
+          </div>
+        </div>
       </CustomerLayout>
     );
   }
