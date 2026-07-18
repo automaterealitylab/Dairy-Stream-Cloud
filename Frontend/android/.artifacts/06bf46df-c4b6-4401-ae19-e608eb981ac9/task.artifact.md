@@ -1,0 +1,3 @@
+- [ ] Update Backend CORS settings in `.env`
+- [ ] Update Backend server to listen on `0.0.0.0`
+- [ ] Advise user to check firewall and rebuild
