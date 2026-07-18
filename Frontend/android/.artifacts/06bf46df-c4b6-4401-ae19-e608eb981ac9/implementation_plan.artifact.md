@@ -1,32 +1,31 @@
-# Fix Network Error on Physical Device
+# Fix Persistent Network Error on Physical Device
 
-The network error is likely caused by the app trying to connect to `localhost:4000`. On a physical device, `localhost` refers to the device itself, not your development machine. Additionally, Android blocks cleartext (HTTP) traffic by default.
+The previous fixes enabled cleartext traffic and set the IP address, but the network error persists. This is likely due to the backend's security configuration (CORS) or the server not listening on all network interfaces.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> You need to provide your computer's local IP address (e.g., `192.168.1.10`) so the app can reach the backend server running on your machine.
-> Both your phone and computer must be connected to the same Wi-Fi network.
+> **Check your Firewall:** Ensure that your computer's firewall is not blocking incoming connections on port **4000**.
+> **Same Network:** Double-check that your phone and computer are on the same Wi-Fi.
 
 ## Proposed Changes
 
-### Frontend API Configuration
+### Backend Configuration
 
-#### [MODIFY] [client.js](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Frontend/src/api/client.js)
-Update the `BASE_URL` to use your computer's local IP address instead of `localhost`.
+#### [MODIFY] [server.js](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Backend/server.js)
+Explicitly set the server to listen on `0.0.0.0` so it accepts connections from other devices on the network.
 
-#### [MODIFY] [adminDebug.js](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Frontend/src/utils/adminDebug.js)
-Similarly, update the debug base URL.
+#### [MODIFY] [.env](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Backend/.env)
+Update `CORS_ORIGINS` to include Capacitor's default origins (`https://localhost`, `capacitor://localhost`).
 
-### Android Manifest Configuration
+### Frontend Configuration (Double Check)
 
-#### [MODIFY] [AndroidManifest.xml](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Frontend/android/app/src/main/AndroidManifest.xml)
-Enable `android:usesCleartextTraffic="true"` in the `<application>` tag to allow HTTP connections (since the local backend usually runs on HTTP).
+#### [MODIFY] [capacitor.config.ts](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Frontend/capacitor.config.ts)
+Temporarily disable the `https` scheme for the internal server to ensure it matches the `http` backend calls better, or ensure the backend accepts the `https` origin. (We will try adding origins first).
 
 ## Verification Plan
 
 ### Manual Verification
-1. Open a terminal on your computer and run `ipconfig` (Windows) or `ifconfig` (Mac/Linux) to find your IPv4 address.
-2. Update the `BASE_URL` with that IP address.
-3. Re-build and deploy the app to your phone.
-4. Try logging in again.
+1. Restart the backend server after applying changes.
+2. Re-build and re-deploy the frontend.
+3. Test login.

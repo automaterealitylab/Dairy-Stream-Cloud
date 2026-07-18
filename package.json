@@ -1,0 +1,13 @@
+{
+  "name": "dairy-stream-cloud",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:backend": "npm --prefix Backend run dev",
+    "dev:frontend": "npm --prefix Frontend run dev",
+    "build": "npm --prefix Frontend run build",
+    "build:android": "npm --prefix Frontend run build && npm --prefix Frontend run sync:android",
+    "sync:android": "npm --prefix Frontend run sync:android"
+  }
+}

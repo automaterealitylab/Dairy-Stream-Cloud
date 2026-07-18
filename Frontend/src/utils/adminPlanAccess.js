@@ -19,7 +19,13 @@ const FEATURE_MIN_PLAN = {
 
 export const normalizeAdminPlan = (plan) => {
   const normalized = String(plan || "").trim();
-  if (normalized in PLAN_RANK) return normalized;
+  const mapping = {
+    STARTER: "Free",
+    GROWTH: "Growth",
+    ENTERPRISE: "Prime",
+  };
+  const mapped = mapping[normalized] || normalized;
+  if (mapped in PLAN_RANK) return mapped;
   return "Free";
 };
 

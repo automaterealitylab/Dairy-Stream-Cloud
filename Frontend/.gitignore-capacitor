@@ -1,0 +1,21 @@
+# Capacitor
+android/
+ios/
+.capacitor/
+capacitor-cordova-android/
+capacitor-cordova-ios/
+
+# Build outputs
+dist/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.log
+
+# Environment
+.env
+.env.local

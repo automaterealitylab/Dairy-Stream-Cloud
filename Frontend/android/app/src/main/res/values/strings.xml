@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DairyVision</string>
+    <string name="title_activity_main">DairyVision</string>
+    <string name="package_name">com.dairystream.app</string>
+    <string name="custom_url_scheme">com.dairystream.app</string>
+</resources>

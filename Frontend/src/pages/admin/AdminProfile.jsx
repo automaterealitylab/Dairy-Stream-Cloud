@@ -11,15 +11,11 @@ import {
   Loader2,
   Mail,
   MapPin,
-  Package,
   PencilLine,
   Phone,
   ReceiptText,
   ShieldCheck,
-  Truck,
   User,
-  Users,
-  Wallet,
   X,
 } from "lucide-react";
 import {
@@ -207,30 +203,6 @@ const InfoCard = ({ icon, label, value, onToggleReveal, isRevealed, isLoading })
   );
 };
 
-const SummaryCard = ({ icon, label, value, tone = "warm" }) => {
-  const IconComponent = icon;
-  const toneClasses = {
-    warm: "bg-[#FFF3E2] text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24]",
-    mint: "bg-[#EEF7EB] text-[#6F8C45] dark:bg-emerald-500/10 dark:text-emerald-300",
-    sky: "bg-[#EAF6FB] text-[#2E7D9A] dark:bg-cyan-500/10 dark:text-cyan-300",
-    cream: "bg-[#FDF6EC] text-[#8B7355] dark:bg-[#0B0F19] dark:text-slate-400",
-  };
-
-  return (
-    <div className="rounded-[24px] border border-[#EDE8DF] bg-white p-5 shadow-[0_10px_30px_rgba(92,61,30,0.06)] dark:border-[#1E293B] dark:bg-[#121829] dark:shadow-none">
-      <div className="flex items-center gap-3">
-        <div className={`rounded-2xl p-3 ${toneClasses[tone] || toneClasses.warm}`}>
-          <IconComponent size={18} />
-        </div>
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">{label}</p>
-          <p className="mt-1 text-2xl font-black text-[#2C1A0E] dark:text-white">{value}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const Field = ({
   label,
   value,
@@ -327,7 +299,6 @@ export default function AdminProfile() {
     : dairyProfile.verification_required || dairyProfile.bank_verification_status === "PENDING_REVERIFY"
     ? "PENDING REVERIFY"
     : "NOT VERIFIED";
-  const stats = dashboard?.stats || {};
 
   useEffect(() => {
     let active = true;
@@ -775,13 +746,6 @@ export default function AdminProfile() {
           </div>
         ) : null}
 
-        <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard icon={Users} label="Suppliers" value={dashboard?.suppliers?.length || 0} tone="warm" />
-          <SummaryCard icon={Truck} label="Pending Deliveries" value={stats.pending || 0} tone="sky" />
-          <SummaryCard icon={Wallet} label="Pending Payments" value={stats.pendingPayments || 0} tone="mint" />
-          <SummaryCard icon={Package} label="Procured Milk" value={stats.procured_milk || 0} tone="cream" />
-        </section>
-
         <section className="mt-8">
           <div className="rounded-[32px] border border-[#EDE8DF] bg-white/95 p-6 shadow-[0_18px_45px_rgba(92,61,30,0.08)]">
             <div>
@@ -833,7 +797,6 @@ export default function AdminProfile() {
               <InfoCard icon={CreditCard} label="Monthly Subscription Payment" value={dairyProfile.subscription_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
               <InfoCard icon={ShieldCheck} label="Bank Verification" value={bankStatusLabel} />
               <InfoCard icon={CheckCircle2} label="Payments Enabled" value={paymentStatus} />
-              <InfoCard icon={Users} label="Supplier Count" value={String(dashboard?.suppliers?.length || 0)} />
             </div>
           </div>
         </section>

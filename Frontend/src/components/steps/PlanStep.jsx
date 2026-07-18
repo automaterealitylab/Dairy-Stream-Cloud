@@ -35,8 +35,8 @@ const PlanStep = ({ selected_plan, setPlan }) => {
     {
       id: "ENTERPRISE",
       name: "Enterprise",
-      monthlyPrice: 1499,
-      yearlyPrice: 14990,
+      monthlyPrice: 2499,
+      yearlyPrice: 24990,
       features: [
         "Everything in Growth plan",
         "Procurement and supplier management",

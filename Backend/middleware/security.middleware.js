@@ -13,9 +13,31 @@ const parseCsv = (value) =>
 const DEFAULT_CORS_ORIGINS = [
   "https://dairy-stream-cloud-fronten.onrender.com",
   "http://localhost:5173",
+  "http://localhost:5174",
   "http://localhost:3000",
   "http://localhost",
+  "https://localhost",
+  "capacitor://localhost",
 ];
+
+const isLocalDevOrigin = (origin) => {
+  if (String(process.env.NODE_ENV || "development").toLowerCase() === "production") {
+    return false;
+  }
+
+  try {
+    const url = new URL(origin);
+    const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    return isLocalHost && /^51\d{2}$/.test(url.port);
+  } catch {
+    return false;
+  }
+};
+
+export const isAllowedCorsOrigin = (origin) => {
+  if (!origin) return true;
+  return getAllowedCorsOrigins().includes(origin) || isLocalDevOrigin(origin);
+};
 
 export const getAllowedCorsOrigins = () => {
   const configured = [

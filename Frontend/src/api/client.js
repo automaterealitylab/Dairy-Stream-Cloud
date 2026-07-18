@@ -1,7 +1,11 @@
 import axios from "axios";
 
-// Cleanly fetch and trim the base URL
-export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:4000").trim();
+const normalizeBaseUrl = (value) => {
+  return "https://dairy-stream-cloud-backend.onrender.com";
+};
+
+export const BASE_URL = "https://dairy-stream-cloud-backend.onrender.com";
+console.log("🚀 API BASE_URL (Hardcoded Render):", BASE_URL);
 export const API_BASE_URL = `${BASE_URL}/api`;
 
 const client = axios.create({

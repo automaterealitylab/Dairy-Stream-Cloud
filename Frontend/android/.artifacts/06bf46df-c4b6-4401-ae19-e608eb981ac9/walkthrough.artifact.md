@@ -1,33 +1,27 @@
-# Fix Network Error on Physical Device
+# Project Resolution: Proguard & Network Connectivity
 
-I have applied the following fixes to resolve the "network error" during login:
+The initial build error was resolved, and connectivity between the physical Android device and the local backend has been established.
 
-1.  **Enabled Cleartext Traffic:** Updated `AndroidManifest.xml` to allow HTTP connections. This is necessary because your local backend runs on `http`, not `https`.
-2.  **Configured API Base URL:** Created a `.env` file in the `Frontend` directory with your computer's local IP address (`10.116.203.163`). This ensures the app points to your computer instead of `localhost`.
+## 🛠️ Changes Implemented
 
-## Changes Made
+### 1. Build Configuration
+- Updated `app/build.gradle` to use `proguard-android-optimize.txt` instead of the deprecated `proguard-android.txt`. This enables R8 optimizations and resolves the Gradle sync error.
 
-### Android Manifest
-- [AndroidManifest.xml](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Frontend/android/app/src/main/AndroidManifest.xml)
-    - Added `android:usesCleartextTraffic="true"` to the `<application>` tag.
+### 2. Network Connectivity (Phone to Backend)
+To allow your physical phone to communicate with the backend running on your computer:
+- **Android Manifest:** Enabled `android:usesCleartextTraffic="true"` to allow HTTP (non-SSL) connections.
+- **Frontend API Config:** Hardcoded the computer's local IP address (`10.116.203.163`) as the `BASE_URL` in `src/api/client.js` and `src/utils/adminDebug.js`.
+- **Backend CORS:** Updated `Backend/.env` to include the phone's origin (`http://localhost`, `https://localhost`, and the local IP) in the allowed list.
+- **Backend Listener:** Modified `Backend/server.js` to listen on `0.0.0.0`, allowing it to accept connections from other devices on the network.
 
-### Frontend Configuration
-- [NEW] [.env](file:///C:/Users/swapn/OneDrive/Documents/project/Dairy-Stream-Cloud/Frontend/.env)
-    - Added `VITE_API_BASE_URL=http://10.116.203.163:4000`.
+### 3. IDE Setup
+- Resolved a "Configuration is still incorrect" error in Android Studio by ensuring the correct module and activity were selected in the Run/Debug settings.
 
-## Next Steps for You
+## ✅ Verification
+- **Gradle Sync:** Completed successfully.
+- **App Launch:** The app opens successfully on the OnePlus device.
+- **Login:** Confirmed working on the physical device.
 
-Since these changes involve both the Android configuration and the web assets, you need to rebuild and sync the app:
-
-1.  **Rebuild Web Assets:** In your terminal (in the `Frontend` folder), run:
-    ```bash
-    npm run build
-    ```
-2.  **Sync Capacitor:** Run:
-    ```bash
-    npx cap sync android
-    ```
-3.  **Run the App:** Re-deploy the app to your phone from Android Studio.
-
-> [!IMPORTANT]
-> Ensure your phone is connected to the same Wi-Fi network as your computer.
+## 📌 Reminders for Future Development
+- **IP Changes:** If your computer connects to a different Wi-Fi, its local IP address might change. You will need to update the `BASE_URL` in `src/api/client.js` if login stops working again.
+- **Production:** When deploying to a real server, ensure you revert `usesCleartextTraffic` to `false` and use `https` for security.

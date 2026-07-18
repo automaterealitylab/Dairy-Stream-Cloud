@@ -15,7 +15,7 @@ import {
   apiRateLimit,
   botProtection,
   csrfProtection,
-  getAllowedCorsOrigins,
+  isAllowedCorsOrigin,
   requestFingerprinting,
   secureHeaders,
   ssrfGuard,
@@ -37,6 +37,7 @@ import { logger } from "./utils/logger.js";
 import { acquireRedisLock } from "./config/redis.js";
 import { processQueuedWhatsAppNotifications } from "./services/shared/whatsapp.service.js";
 import { decryptRecursive } from "./utils/crypto.js";
+import { getAvailablePort } from "./utils/portResolver.js";
 
 // 3. Create App
 validateRuntimeEnv();
@@ -87,8 +88,7 @@ app.use(correlationMiddleware);
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      return callback(null, getAllowedCorsOrigins().includes(origin));
+      return callback(null, isAllowedCorsOrigin(origin));
     },
     credentials: true,
   })
@@ -206,7 +206,7 @@ app.use((err, req, res, next) => {
 // ======================
 // 🚀 Start Server
 // ======================
-const PORT = process.env.PORT || 4000;
+const preferredPort = Number(process.env.PORT || 4000);
 
 const io = new SocketIOServer(httpServer, {
   cors: {
@@ -217,9 +217,16 @@ const io = new SocketIOServer(httpServer, {
 
 registerLocationSocketHandlers(io);
 
-const server = httpServer.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  const port = await getAvailablePort(preferredPort);
+  const server = httpServer.listen(port, '0.0.0.0', () => {
+    console.log(`✅ Server running on http://0.0.0.0:${port}`);
+  });
+
+  return server;
+};
+
+const server = await startServer();
 
 const localWorkers =
   [];

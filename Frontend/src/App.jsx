@@ -6,6 +6,7 @@ import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
 import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
 import AppSplash from "./components/common/AppSplash.jsx";
+import { useAuth } from "./hooks/useAuth.jsx";
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
 const RegisterDairyPage = lazy(() => import("./pages/RegisterDairyPage.jsx"));
@@ -42,6 +43,31 @@ const RouteFallback = () => (
   <LoadingIndicator fullScreen message="Loading page..." />
 );
 
+const getRoleHomePath = (role) => {
+  const normalizedRole = String(role || "").toUpperCase();
+  if (normalizedRole === "ADMIN") return "/admin/AdminDashboard";
+  if (normalizedRole === "AGENT" || normalizedRole === "STAFF") return "/agent/dashboard";
+  if (normalizedRole === "CUSTOMER") return "/customer/dashboard";
+  return null;
+};
+
+const AuthLandingRoute = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingIndicator fullScreen message="Restoring session..." />;
+  }
+
+  const role = user?.role || localStorage.getItem("userRole");
+  const homePath = getRoleHomePath(role);
+
+  if (homePath) {
+    return <Navigate to={homePath} replace />;
+  }
+
+  return <LoginPage />;
+};
+
 function App() {
   const [isLoading, setIsLoading] = useState(true);
 
@@ -60,7 +86,7 @@ function App() {
 
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-        <Route path="/" element={<LoginPage />} />
+        <Route path="/" element={<AuthLandingRoute />} />
         <Route path="/explore" element={<ExploreDairiesPage />} />
         <Route path="/join/:id" element={<DairyDetailsPage />} />
         <Route path="/buy-once/:id" element={<BuyOncePage />} />
