@@ -125,6 +125,7 @@ export const registerDairyService = async ({
   subscription_accept_direct_upi,
   subscription_accept_razorpay,
   imageUrl,
+  couponCode,
 }) => {
   try {
     const normalizedDairyEmail = normalizeEmail(dairy_email);
@@ -276,6 +277,94 @@ export const registerDairyService = async ({
       .single();
 
     if (dairyError) throw new Error(`Failed to create dairy: ${dairyError.message}`);
+
+    // Create Initial platform_subscriptions row applying trial length
+    const PLATFORM_PLAN_PRICES = {
+      STARTER: { monthly: 499, yearly: 4990, trialDays: 14 },
+      GROWTH: { monthly: 999, yearly: 9990, trialDays: 14 },
+      ENTERPRISE: { monthly: 2499, yearly: 24990, trialDays: 14 },
+    };
+
+    let planKey = String(selected_plan || "GROWTH").toUpperCase().trim();
+    if (planKey === "FREE" || planKey === "Starter") planKey = "STARTER";
+    if (planKey === "PRIME" || planKey === "Enterprise" || planKey === "PRIME ENTERPRISE") planKey = "ENTERPRISE";
+
+    let trialDays = 14;
+    let originalAmount = 999.00;
+    if (PLATFORM_PLAN_PRICES[planKey]) {
+      originalAmount = PLATFORM_PLAN_PRICES[planKey].monthly;
+      trialDays = PLATFORM_PLAN_PRICES[planKey].trialDays;
+    }
+
+    let discountApplied = 0;
+    let trialExtension = 0;
+    let couponRecord = null;
+
+    if (couponCode) {
+      const { data: coupon } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", String(couponCode).toUpperCase().trim())
+        .limit(1)
+        .maybeSingle();
+
+      if (coupon && coupon.status === "ACTIVE") {
+        const now = new Date();
+        const withinDates = now >= new Date(coupon.start_date) && now <= new Date(coupon.end_date);
+        const underUsageLimit = coupon.current_uses < coupon.max_uses;
+
+        if (withinDates && underUsageLimit) {
+          couponRecord = coupon;
+          trialExtension = Number(coupon.trial_extension_days || 0);
+
+          if (coupon.discount_type === "PERCENTAGE") {
+            discountApplied = (originalAmount * coupon.discount_value) / 100;
+          } else if (coupon.discount_type === "FLAT") {
+            discountApplied = coupon.discount_value;
+          } else if (coupon.discount_type === "FIRST_MONTH_FREE") {
+            discountApplied = originalAmount;
+          }
+        }
+      }
+    }
+
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + trialDays + trialExtension);
+
+    const { data: planRow } = await supabase
+      .from("platform_plans")
+      .select("id")
+      .eq("plan_key", planKey)
+      .maybeSingle();
+
+    await supabase.from("platform_subscriptions").insert({
+      dairy_id: dairyData.id,
+      plan_id: planRow?.id || null,
+      plan_key: planKey,
+      billing_cycle: "monthly",
+      amount: originalAmount,
+      payable_amount: Math.max(0, originalAmount - discountApplied),
+      trial_start_date: new Date(),
+      trial_end_date: trialEndDate.toISOString(),
+      start_date: new Date(),
+      end_date: trialEndDate.toISOString(),
+      status: "ACTIVE",
+      coupon_code: couponRecord ? couponRecord.code : null,
+    });
+
+    if (couponRecord) {
+      await supabase
+        .from("coupons")
+        .update({ current_uses: couponRecord.current_uses + 1 })
+        .eq("id", couponRecord.id);
+
+      await supabase.from("coupon_redemptions").insert({
+        coupon_id: couponRecord.id,
+        coupon_code: couponRecord.code,
+        dairy_id: dairyData.id,
+        discount_applied: Math.min(discountApplied, originalAmount),
+      });
+    }
 
     // 4. Create Admin Account
     const hashedPassword = await bcrypt.hash(password, 10);

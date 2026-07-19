@@ -113,9 +113,11 @@ export const validateCoupon = async (req, res) => {
   try {
     const { code, dairyId, planKey, purchaseAmount } = req.body || {};
 
-    if (!code || !dairyId || !planKey || purchaseAmount === undefined) {
+    if (!code || dairyId === undefined || !planKey || purchaseAmount === undefined) {
       return res.status(400).json({ success: false, error: "Missing validation parameters" });
     }
+
+    console.log("🔍 Checking coupon validation request:", { code, dairyId, planKey, purchaseAmount });
 
     const { data: coupon, error } = await supabase
       .from("coupons")
@@ -123,6 +125,8 @@ export const validateCoupon = async (req, res) => {
       .eq("code", String(code).toUpperCase().trim())
       .limit(1)
       .maybeSingle();
+
+    console.log("📊 Database coupon result:", { coupon, error });
 
     if (error) throw error;
     if (!coupon) {
@@ -156,7 +160,7 @@ export const validateCoupon = async (req, res) => {
     }
 
     // Check if one_time_per_dairy constraint is violated
-    if (coupon.one_time_per_dairy) {
+    if (coupon.one_time_per_dairy && Number(dairyId) > 0) {
       const { data: previousRedemption, error: prErr } = await supabase
         .from("coupon_redemptions")
         .select("id")
@@ -190,8 +194,9 @@ export const validateCoupon = async (req, res) => {
         id: coupon.id,
         code: coupon.code,
         discountType: coupon.discount_type,
-        discountValue: coupon.discount_value,
-        trialExtensionDays: coupon.trial_extension_days,
+        discountValue: Number(coupon.discount_value),
+        trialExtensionDays: Number(coupon.trial_extension_days || 0),
+        applicablePlans: coupon.applicable_plans || [],
         discountApplied,
         payableAmount: Number((purchaseAmount - discountApplied).toFixed(2)),
       },

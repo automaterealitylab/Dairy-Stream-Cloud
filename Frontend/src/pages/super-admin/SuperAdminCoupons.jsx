@@ -416,9 +416,9 @@ const SuperAdminCoupons = () => {
               <div className="space-y-2 border-t border-slate-850 pt-4">
                 <label className="text-slate-400 font-bold uppercase tracking-wider text-[9px] font-mono block">Scope Applicability</label>
                 <div className="flex gap-4">
-                  {["FREE", "GROWTH", "PRIME"].map((tier) => (
+                  {["STARTER", "GROWTH", "ENTERPRISE"].map((tier) => (
                     <label key={tier} className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
+                       <input
                         type="checkbox"
                         checked={applicablePlans.includes(tier)}
                         onChange={() => togglePlanSelection(tier)}

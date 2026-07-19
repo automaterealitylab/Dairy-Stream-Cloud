@@ -45,6 +45,15 @@ const SuperAdminDairies = () => {
   const [newPassword, setNewPassword] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
+  useEffect(() => {
+    if (selectedDairy) {
+      let currentPlan = selectedDairy.selected_plan || "STARTER";
+      if (currentPlan === "FREE") currentPlan = "STARTER";
+      if (currentPlan === "PRIME") currentPlan = "ENTERPRISE";
+      setNewPlan(currentPlan);
+    }
+  }, [selectedDairy]);
+
   const loadDairies = async () => {
     setLoading(true);
     try {
@@ -199,9 +208,9 @@ const SuperAdminDairies = () => {
               className="w-full md:w-44 px-3 py-2.5 rounded-xl bg-slate-950/40 border border-slate-850 text-slate-300 text-xs focus:border-cyan-500/80 outline-none transition-colors"
             >
               <option value="ALL">All Platform Plans</option>
-              <option value="FREE">Free Plan</option>
+              <option value="STARTER">Starter Plan</option>
               <option value="GROWTH">Growth Plan</option>
-              <option value="PRIME">Prime Plan</option>
+              <option value="ENTERPRISE">Enterprise Plan</option>
             </select>
           </div>
         </div>
@@ -257,13 +266,17 @@ const SuperAdminDairies = () => {
                     </td>
                     <td className="py-4 px-6">
                       <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase font-mono ${
-                        dairy.selected_plan === "PRIME"
+                        (dairy.selected_plan === "PRIME" || dairy.selected_plan === "ENTERPRISE")
                           ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
                           : dairy.selected_plan === "GROWTH"
                           ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/10"
-                          : "bg-slate-500/10 text-slate-400 border border-slate-500/10"
+                          : "bg-orange-500/10 text-orange-400 border border-orange-500/10"
                       }`}>
-                        {dairy.selected_plan || "Starter"}
+                        {(dairy.selected_plan === "PRIME" || dairy.selected_plan === "ENTERPRISE")
+                          ? "Enterprise"
+                          : dairy.selected_plan === "GROWTH"
+                          ? "Growth"
+                          : "Starter"}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-slate-300">
@@ -410,9 +423,9 @@ const SuperAdminDairies = () => {
                     onChange={(e) => setNewPlan(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-850 text-xs text-slate-300 outline-none"
                   >
-                    <option value="FREE">FREE Starter Plan (14 Days Trial)</option>
-                    <option value="GROWTH">GROWTH Premium Plan (₹999/mo)</option>
-                    <option value="PRIME">PRIME Platform Plan (₹2499/mo)</option>
+                    <option value="STARTER">Starter Plan (₹499/mo)</option>
+                    <option value="GROWTH">Growth Premium Plan (₹999/mo)</option>
+                    <option value="ENTERPRISE">Enterprise Platform Plan (₹2499/mo)</option>
                   </select>
                   <select
                     value={billingCycle}

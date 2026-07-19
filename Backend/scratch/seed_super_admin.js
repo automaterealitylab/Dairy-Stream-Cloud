@@ -24,15 +24,26 @@ async function seed() {
 
     console.log("Seeded Super Admin owner@dairystream.com successfully!");
 
+    // Clean up old/redundant platform plans
+    console.log("Cleaning up old plans...");
+    const { error: deleteErr } = await supabase
+      .from("platform_plans")
+      .delete()
+      .not("plan_key", "in", '("STARTER","GROWTH","ENTERPRISE")');
+
+    if (deleteErr) {
+      console.warn("Clean up warning (some plans might be in use):", deleteErr.message);
+    }
+
     // Seed default plans
     const { error: plansErr } = await supabase
       .from("platform_plans")
       .upsert([
         {
-          plan_key: "FREE",
-          name: "Free Starter Plan",
-          monthly_price: 0.00,
-          yearly_price: 0.00,
+          plan_key: "STARTER",
+          name: "Starter Plan",
+          monthly_price: 499.00,
+          yearly_price: 4990.00,
           gst_percent: 18.00,
           trial_period_days: 14,
           features: ["agents"],
@@ -49,8 +60,8 @@ async function seed() {
           status: "ACTIVE"
         },
         {
-          plan_key: "PRIME",
-          name: "Prime Platform Plan",
+          plan_key: "ENTERPRISE",
+          name: "Enterprise Platform Plan",
           monthly_price: 2499.00,
           yearly_price: 24990.00,
           gst_percent: 18.00,

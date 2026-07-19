@@ -18,13 +18,17 @@ const FEATURE_MIN_PLAN = {
 };
 
 export const normalizeAdminPlan = (plan) => {
-  const normalized = String(plan || "").trim();
+  const normalized = String(plan || "").trim().toUpperCase();
   const mapping = {
     STARTER: "Free",
+    FREE: "Free",
     GROWTH: "Growth",
     ENTERPRISE: "Prime",
+    PRIME: "Prime",
   };
   const mapped = mapping[normalized] || normalized;
+  const capitalizedMapped = mapped.charAt(0).toUpperCase() + mapped.slice(1).toLowerCase();
+  if (capitalizedMapped in PLAN_RANK) return capitalizedMapped;
   if (mapped in PLAN_RANK) return mapped;
   return "Free";
 };

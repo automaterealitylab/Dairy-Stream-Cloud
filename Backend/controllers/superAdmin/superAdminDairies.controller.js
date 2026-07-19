@@ -12,7 +12,13 @@ export const fetchDairies = async (req, res) => {
       query = query.eq("status", status);
     }
     if (plan && plan !== "ALL") {
-      query = query.eq("selected_plan", plan);
+      if (plan === "STARTER") {
+        query = query.in("selected_plan", ["STARTER", "FREE"]);
+      } else if (plan === "ENTERPRISE") {
+        query = query.in("selected_plan", ["ENTERPRISE", "PRIME"]);
+      } else {
+        query = query.eq("selected_plan", plan);
+      }
     }
     if (city) {
       query = query.ilike("city", `%${city}%`);
@@ -144,8 +150,8 @@ export const upgradeDairySubscription = async (req, res) => {
       dairy_id: id,
       plan_key: plan,
       billing_cycle: billingCycle,
-      amount: plan === "PRIME" ? 2499 : plan === "GROWTH" ? 999 : 0,
-      payable_amount: plan === "PRIME" ? 2499 : plan === "GROWTH" ? 999 : 0,
+      amount: (plan === "PRIME" || plan === "ENTERPRISE") ? 2499 : plan === "GROWTH" ? 999 : (plan === "STARTER" ? 499 : 0),
+      payable_amount: (plan === "PRIME" || plan === "ENTERPRISE") ? 2499 : plan === "GROWTH" ? 999 : (plan === "STARTER" ? 499 : 0),
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString(),
       status: "ACTIVE",

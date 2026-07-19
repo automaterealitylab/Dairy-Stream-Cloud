@@ -62,9 +62,12 @@ const RegisterDairyPage = () => {
     subscription_payment_method: "DIRECT_UPI",
 
     selected_plan: "GROWTH",
+    couponCode: "",
 
     products: {},
   });
+
+  const [couponApplied, setCouponApplied] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -289,6 +292,10 @@ async (pos) => {
             setPlan={(plan) =>
               setFormData((prev) => ({ ...prev, selected_plan: plan }))
             }
+            formData={formData}
+            setFormData={setFormData}
+            couponApplied={couponApplied}
+            setCouponApplied={setCouponApplied}
           />
         )}
 
