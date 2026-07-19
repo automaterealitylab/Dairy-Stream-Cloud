@@ -696,15 +696,44 @@ const PLATFORM_PLAN_PRICES = {
   Prime: { monthly: 2499, yearly: 24990 },
 };
 
-export const createFarmPlanOrder = async ({ dairyId, plan, cycle }) => {
+export const createFarmPlanOrder = async ({ dairyId, plan, cycle, couponCode }) => {
   const prices = PLATFORM_PLAN_PRICES[plan];
   if (!prices) {
     throw new Error(`Invalid plan selected: ${plan}`);
   }
 
-  const amount = cycle === "yearly" ? prices.yearly : prices.monthly;
+  let amount = cycle === "yearly" ? prices.yearly : prices.monthly;
   if (!amount) {
     throw new Error(`Invalid billing cycle: ${cycle}`);
+  }
+
+  // Validate coupon on backend if provided
+  let discountApplied = 0;
+  if (couponCode) {
+    const { data: coupon } = await supabase
+      .from("coupons")
+      .select("*")
+      .eq("code", String(couponCode).toUpperCase().trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (coupon && coupon.status === "ACTIVE") {
+      const now = new Date();
+      const withinDates = now >= new Date(coupon.start_date) && now <= new Date(coupon.end_date);
+      const underUsageLimit = coupon.current_uses < coupon.max_uses;
+      const minAmountMet = Number(amount) >= Number(coupon.min_purchase_amount);
+
+      if (withinDates && underUsageLimit && minAmountMet) {
+        if (coupon.discount_type === "PERCENTAGE") {
+          discountApplied = (amount * coupon.discount_value) / 100;
+        } else if (coupon.discount_type === "FLAT") {
+          discountApplied = coupon.discount_value;
+        } else if (coupon.discount_type === "FIRST_MONTH_FREE") {
+          discountApplied = amount;
+        }
+        amount = Math.max(0, amount - discountApplied);
+      }
+    }
   }
 
   const { keyId, keySecret } = getRazorpayConfig();
@@ -714,7 +743,7 @@ export const createFarmPlanOrder = async ({ dairyId, plan, cycle }) => {
   });
 
   const orderPayload = {
-    amount: Math.round(amount * 100),
+    amount: Math.round(amount * 100), // in paise
     currency: "INR",
     receipt: `dairy_${dairyId}_plan_${plan}_${Date.now()}`.slice(0, 40),
     partial_payment: false,
@@ -722,6 +751,8 @@ export const createFarmPlanOrder = async ({ dairyId, plan, cycle }) => {
       dairy_id: String(dairyId),
       plan,
       cycle,
+      coupon_code: couponCode || "",
+      discount_applied: String(discountApplied),
       payment_type: "saas_subscription",
     },
   };
@@ -740,6 +771,7 @@ export const verifyFarmPlanPayment = async ({
   razorpayOrderId,
   razorpayPaymentId,
   razorpaySignature,
+  couponCode,
 }) => {
   if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
     throw new Error("Missing Razorpay verification fields");
@@ -753,6 +785,47 @@ export const verifyFarmPlanPayment = async ({
 
   if (generatedSignature !== razorpaySignature) {
     throw new Error("Payment signature verification failed");
+  }
+
+  // Increment coupon usage and log coupon redemption on successful payment verification
+  if (couponCode) {
+    try {
+      const { data: coupon } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", String(couponCode).toUpperCase().trim())
+        .limit(1)
+        .maybeSingle();
+
+      if (coupon) {
+        // Increment use count
+        await supabase
+          .from("coupons")
+          .update({ current_uses: coupon.current_uses + 1 })
+          .eq("id", coupon.id);
+
+        const prices = PLATFORM_PLAN_PRICES[plan];
+        const originalAmount = cycle === "yearly" ? prices.yearly : prices.monthly;
+        let discountApplied = 0;
+        if (coupon.discount_type === "PERCENTAGE") {
+          discountApplied = (originalAmount * coupon.discount_value) / 100;
+        } else if (coupon.discount_type === "FLAT") {
+          discountApplied = coupon.discount_value;
+        } else if (coupon.discount_type === "FIRST_MONTH_FREE") {
+          discountApplied = originalAmount;
+        }
+
+        // Insert log in coupon_redemptions
+        await supabase.from("coupon_redemptions").insert({
+          coupon_id: coupon.id,
+          coupon_code: coupon.code,
+          dairy_id: dairyId,
+          discount_applied: Math.min(discountApplied, originalAmount),
+        });
+      }
+    } catch (couponErr) {
+      console.error("Redemption logging failed during checkout verification:", couponErr.message);
+    }
   }
 
   // Update the dairy's plan to the selected plan

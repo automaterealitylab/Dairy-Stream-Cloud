@@ -125,7 +125,7 @@ export const rejectPaymentVerification = async (req, res) => {
 
 export const createFarmPlanOrder = async (req, res) => {
   try {
-    const { plan, cycle } = req.body;
+    const { plan, cycle, couponCode } = req.body;
     const dairyId = req.admin.dairyId;
     if (!dairyId) {
       return res.status(400).json({ error: "Dairy context is required" });
@@ -135,6 +135,7 @@ export const createFarmPlanOrder = async (req, res) => {
       dairyId,
       plan,
       cycle,
+      couponCode,
     });
 
     res.json(orderData);
@@ -145,7 +146,7 @@ export const createFarmPlanOrder = async (req, res) => {
 
 export const verifyFarmPlanPayment = async (req, res) => {
   try {
-    const { plan, cycle, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    const { plan, cycle, razorpayOrderId, razorpayPaymentId, razorpaySignature, couponCode } = req.body;
     const dairyId = req.admin.dairyId;
     if (!dairyId) {
       return res.status(400).json({ error: "Dairy context is required" });
@@ -158,6 +159,7 @@ export const verifyFarmPlanPayment = async (req, res) => {
       razorpayOrderId,
       razorpayPaymentId,
       razorpaySignature,
+      couponCode,
     });
 
     res.json({ success: true, dairy: updated });

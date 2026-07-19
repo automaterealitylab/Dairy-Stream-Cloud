@@ -474,8 +474,8 @@ export const markAllAdminNotificationsRead = async () => {
   return data;
 };
 
-export const createAdminFarmPlanOrder = async ({ plan, cycle }) => {
-  const { data } = await client.post("/admin/farm-plan/order", { plan, cycle });
+export const createAdminFarmPlanOrder = async ({ plan, cycle, couponCode }) => {
+  const { data } = await client.post("/admin/farm-plan/order", { plan, cycle, couponCode });
   return data;
 };
 
@@ -499,5 +499,10 @@ export const verifyAdminFarmPlanSubscriptionPayment = async (payload) => {
     ...current,
     selectedPlan: data?.selected_plan || payload.plan,
   }));
+  return data;
+};
+
+export const validateCouponCode = async ({ code, dairyId, planKey, purchaseAmount }) => {
+  const { data } = await client.post("/super-admin/coupons/validate", { code, dairyId, planKey, purchaseAmount });
   return data;
 };

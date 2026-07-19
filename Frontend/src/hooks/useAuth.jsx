@@ -49,6 +49,7 @@ export const AuthProvider = ({ children }) => {
           const token = parsedUser?.token || 
             (normalizedRole === "ADMIN" ? localStorage.getItem("adminToken") :
              (normalizedRole === "AGENT" || normalizedRole === "STAFF") ? localStorage.getItem("agentToken") :
+             ["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(normalizedRole) ? localStorage.getItem("superAdminToken") :
              localStorage.getItem("token"));
 
           if (isTokenExpired(token)) {
@@ -58,6 +59,7 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem("token");
             localStorage.removeItem("adminToken");
             localStorage.removeItem("agentToken");
+            localStorage.removeItem("superAdminToken");
             setLoading(false);
             return;
           }
@@ -137,6 +139,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem("adminToken", userData.token);
       } else if (normalizedRole === "AGENT" || normalizedRole === "STAFF") {
         localStorage.setItem("agentToken", userData.token);
+      } else if (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(normalizedRole)) {
+        localStorage.setItem("superAdminToken", userData.token);
       } else if (normalizedRole === "CUSTOMER") {
         localStorage.setItem("token", userData.token);
       }

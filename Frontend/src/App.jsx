@@ -38,6 +38,18 @@ const AgentProfile = lazy(() => import("./pages/agent/AgentProfile.jsx"));
 const AgentWorkingPage = lazy(() => import("./pages/agent/AgentWorkingPage.jsx"));
 const AgentBuildingTasksPage = lazy(() => import("./pages/agent/AgentBuildingTasksPage.jsx"));
 
+// --- SUPER ADMIN LAZY IMPORTS ---
+const SuperAdminLogin = lazy(() => import("./pages/super-admin/SuperAdminLogin.jsx"));
+const SuperAdminDashboard = lazy(() => import("./pages/super-admin/SuperAdminDashboard.jsx"));
+const SuperAdminDairies = lazy(() => import("./pages/super-admin/SuperAdminDairies.jsx"));
+const SuperAdminLocationAnalytics = lazy(() => import("./pages/super-admin/SuperAdminLocationAnalytics.jsx"));
+const SuperAdminPlans = lazy(() => import("./pages/super-admin/SuperAdminPlans.jsx"));
+const SuperAdminCoupons = lazy(() => import("./pages/super-admin/SuperAdminCoupons.jsx"));
+const SuperAdminAnnouncements = lazy(() => import("./pages/super-admin/SuperAdminAnnouncements.jsx"));
+const SuperAdminSupport = lazy(() => import("./pages/super-admin/SuperAdminSupport.jsx"));
+const SuperAdminMonitoring = lazy(() => import("./pages/super-admin/SuperAdminMonitoring.jsx"));
+const SuperAdminSettings = lazy(() => import("./pages/super-admin/SuperAdminSettings.jsx"));
+
 
 const RouteFallback = () => (
   <LoadingIndicator fullScreen message="Loading page..." />
@@ -48,6 +60,7 @@ const getRoleHomePath = (role) => {
   if (normalizedRole === "ADMIN") return "/admin/AdminDashboard";
   if (normalizedRole === "AGENT" || normalizedRole === "STAFF") return "/agent/dashboard";
   if (normalizedRole === "CUSTOMER") return "/customer/dashboard";
+  if (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(normalizedRole)) return "/super-admin/dashboard";
   return null;
 };
 
@@ -296,6 +309,80 @@ function App() {
           }
         />
 
+        {/* --- SUPER ADMIN PATHS --- */}
+        <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+        <Route
+          path="/super-admin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/dairies"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminDairies />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/location"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminLocationAnalytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/plans"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminPlans />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/coupons"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminCoupons />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/announcements"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminAnnouncements />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/support"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminSupport />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/monitoring"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminMonitoring />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/settings"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"]}>
+              <SuperAdminSettings />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

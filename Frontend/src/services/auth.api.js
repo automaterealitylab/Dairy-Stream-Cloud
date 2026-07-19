@@ -47,6 +47,8 @@ export const validateTokenApi = async (roleHint) => {
     token =
       localStorage.getItem("agentToken") ||
       ((normalizedRole === "AGENT" || normalizedRole === "STAFF") ? fallbackToken : null);
+  } else if (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(normalizedRole)) {
+    token = localStorage.getItem("superAdminToken") || (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(normalizedRole) ? fallbackToken : null);
   } else if (normalizedRole === "CUSTOMER") {
     token = localStorage.getItem("token") || (normalizedRole === "CUSTOMER" ? fallbackToken : null);
   }

@@ -1,11 +1,17 @@
 import axios from "axios";
 
-const normalizeBaseUrl = (value) => {
+const getDynamicBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:4000";
+    }
+  }
   return "https://dairy-stream-cloud-backend.onrender.com";
 };
 
-export const BASE_URL = "https://dairy-stream-cloud-backend.onrender.com";
-console.log("🚀 API BASE_URL (Hardcoded Render):", BASE_URL);
+export const BASE_URL = getDynamicBaseUrl();
+console.log("🚀 API BASE_URL resolved:", BASE_URL);
 export const API_BASE_URL = `${BASE_URL}/api`;
 
 const client = axios.create({
@@ -44,6 +50,7 @@ client.interceptors.request.use((config) => {
   const adminToken = localStorage.getItem("adminToken");
   const customerToken = localStorage.getItem("token");
   const agentToken = localStorage.getItem("agentToken");
+  const superAdminToken = localStorage.getItem("superAdminToken");
   const storedUserRaw = localStorage.getItem("user");
   let storedUser = null;
   try {
@@ -55,21 +62,25 @@ client.interceptors.request.use((config) => {
   const fallbackToken = storedUser?.token || null;
 
   let token = null;
-  if (requestPath.startsWith("/customer")) {
+  if (requestPath.startsWith("/super-admin")) {
+    token = superAdminToken || (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(fallbackRole) ? fallbackToken : null);
+  } else if (requestPath.startsWith("/customer")) {
     token = customerToken || (fallbackRole === "CUSTOMER" ? fallbackToken : null);
   } else if (requestPath.startsWith("/admin")) {
     token = adminToken || (fallbackRole === "ADMIN" ? fallbackToken : null);
   } else if (requestPath.startsWith("/agent")) {
     token = agentToken || ((fallbackRole === "AGENT" || fallbackRole === "STAFF") ? fallbackToken : null);
   } else {
-    if (fallbackRole === "ADMIN") {
+    if (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(fallbackRole)) {
+      token = superAdminToken || fallbackToken;
+    } else if (fallbackRole === "ADMIN") {
       token = adminToken || fallbackToken || customerToken || agentToken;
     } else if (fallbackRole === "AGENT" || fallbackRole === "STAFF") {
       token = agentToken || fallbackToken || adminToken || customerToken;
     } else if (fallbackRole === "CUSTOMER") {
       token = customerToken || fallbackToken || adminToken || agentToken;
     } else {
-      token = adminToken || customerToken || agentToken || fallbackToken;
+      token = superAdminToken || adminToken || customerToken || agentToken || fallbackToken;
     }
   }
 

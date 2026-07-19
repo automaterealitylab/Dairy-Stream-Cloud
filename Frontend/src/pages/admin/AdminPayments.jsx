@@ -20,6 +20,7 @@ import {
   verifyAdminFarmPlanPayment,
   createAdminFarmPlanSubscription,
   verifyAdminFarmPlanSubscriptionPayment,
+  validateCouponCode,
 } from "../../api/admin.api.js";
 import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
@@ -67,6 +68,31 @@ export default function AdminPayments() {
   const [pendingAutopayPlan, setPendingAutopayPlan] = useState(null);
   const [autopaySaving, setAutopaySaving] = useState(false);
   const [expandedPaymentGroups, setExpandedPaymentGroups] = useState({});
+  const [couponCode, setCouponCode] = useState("");
+  const [couponApplied, setCouponApplied] = useState(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    setValidatingCoupon(true);
+    try {
+      const data = await validateCouponCode({
+        code: couponCode.toUpperCase().trim(),
+        dairyId: farmPlan?.id,
+        planKey: pendingAutopayPlan ? pendingAutopayPlan.toUpperCase() : "FREE",
+        purchaseAmount: activePlanPrice
+      });
+      if (data.success) {
+        setCouponApplied(data.coupon);
+        toast.success(`Coupon ${data.coupon.code} applied! Saved ₹${data.coupon.discountApplied}`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Invalid or expired coupon code");
+      setCouponApplied(null);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
 
   const getAutopayStorageKey = (dairyId) =>
     `${AUTOPAY_STORAGE_PREFIX}:${dairyId || "default"}`;
@@ -435,6 +461,8 @@ export default function AdminPayments() {
               setAutopayModalOpen(false);
               setPendingAutopayPlan(null);
               setSelectedAutopayMethod("");
+              setCouponCode("");
+              setCouponApplied(null);
             } catch (err) {
               toast.error(err?.response?.data?.error || err?.message || "Failed to verify AutoPay payment");
             } finally {
@@ -455,6 +483,7 @@ export default function AdminPayments() {
         const orderData = await createAdminFarmPlanOrder({
           plan: pendingAutopayPlan,
           cycle: billingCycle,
+          couponCode: couponApplied ? couponApplied.code : undefined,
         });
 
         const { keyId, order } = orderData;
@@ -483,6 +512,7 @@ export default function AdminPayments() {
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: response.razorpay_payment_id,
                 razorpaySignature: response.razorpay_signature,
+                couponCode: couponApplied ? couponApplied.code : undefined,
               });
 
               const updatedDairy = result?.dairy;
@@ -504,6 +534,8 @@ export default function AdminPayments() {
               setAutopayModalOpen(false);
               setPendingAutopayPlan(null);
               setSelectedAutopayMethod("");
+              setCouponCode("");
+              setCouponApplied(null);
             } catch (err) {
               toast.error(err?.response?.data?.error || err?.message || "Failed to verify payment");
             } finally {
@@ -530,6 +562,8 @@ export default function AdminPayments() {
     setAutopayModalOpen(false);
     setPendingAutopayPlan(null);
     setSelectedAutopayMethod("");
+    setCouponCode("");
+    setCouponApplied(null);
   };
 
   const planOptions = [
@@ -1225,7 +1259,14 @@ export default function AdminPayments() {
                       {pendingAutopayPlanLabel}
                     </h4>
                     <p className="mt-1 text-xs sm:text-sm text-[#7A644A]">
-                      Recurring amount: Rs. {activePlanPrice} {activePlanPeriod}
+                      Amount: {couponApplied ? (
+                        <span>
+                          <span className="line-through text-slate-400">Rs. {activePlanPrice}</span>
+                          <span className="text-emerald-600 font-bold ml-2">Rs. {Math.max(0, activePlanPrice - couponApplied.discountApplied)}</span>
+                        </span>
+                      ) : (
+                        <span>Rs. {activePlanPrice}</span>
+                      )} {activePlanPeriod}
                     </p>
                   </div>
                   <div className="rounded-[16px] bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-[#5C3D1E] shadow-sm">
@@ -1233,6 +1274,51 @@ export default function AdminPayments() {
                   </div>
                 </div>
               </div>
+
+              {/* Coupon Application Block */}
+              {selectedAutopayMethod === "ONETIME" && (
+                <div className="rounded-[20px] border border-[#EDE8DF] bg-white p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970]">
+                    Apply Promo Coupon
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      placeholder="ENTER COUPON CODE"
+                      className="flex-1 rounded-[14px] border border-[#EDE8DF] bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-wider outline-none focus:border-[#B8641A] dark:text-[#2c1a0e]"
+                      disabled={couponApplied || validatingCoupon}
+                    />
+                    {couponApplied ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouponApplied(null);
+                          setCouponCode("");
+                        }}
+                        className="rounded-[14px] bg-rose-50 px-4 text-xs font-semibold text-rose-600 border border-rose-200 cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={!couponCode || validatingCoupon}
+                        className="rounded-[14px] bg-[#B8641A] px-4 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#9F5414] disabled:opacity-50 cursor-pointer"
+                      >
+                        {validatingCoupon ? "Validating..." : "Apply"}
+                      </button>
+                    )}
+                  </div>
+                  {couponApplied && (
+                    <p className="mt-2 text-xs font-bold text-emerald-600">
+                      🎉 Coupon {couponApplied.code} applied! Saved ₹{couponApplied.discountApplied}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <p className="text-xs sm:text-sm font-bold uppercase tracking-[0.14em] text-[#B89970]">
