@@ -329,7 +329,8 @@ export const upsertSubscription = async (customerId, payload) => {
       const message = String(error?.message || "").toLowerCase();
       if (message.includes("invalid input syntax for type uuid")) {
         throw new Error(
-          "Database schema mismatch for subscriptions IDs. Run updated SUPABASE_MIGRATIONS.sql and ensure subscriptions.customer_id/dairy_id types match customers.id/dairies.id."
+          "Database schema mismatch for subscriptions IDs. Run updated SUPABASE_MIGRATIONS.sql and ensure subscriptions.customer_id/dairy_id types match customers.id/dairies.id.",
+          { cause: error }
         );
       }
       throw error;

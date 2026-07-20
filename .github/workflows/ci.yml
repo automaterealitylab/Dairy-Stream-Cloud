@@ -30,6 +30,9 @@ jobs:
       - name: Check Server Syntax
         run: node --check server.js
 
+      - name: Run ESLint
+        run: npm run lint
+
       - name: Run Backend Test Suite
         run: npm test
 

@@ -55,7 +55,7 @@ const sendViaResend = async ({ to, subject, html, from }) => {
       error?.name === "AbortError"
         ? `Resend API request timed out after ${EMAIL_HTTP_TIMEOUT_MS}ms`
         : error?.message || "Unknown Resend error";
-    throw new Error(`Email delivery failed via Resend: ${message}`);
+    throw new Error(`Email delivery failed via Resend: ${message}`, { cause: error });
   } finally {
     clear();
   }
@@ -110,7 +110,7 @@ const sendViaBrevo = async ({ to, subject, html, from }) => {
       error?.name === "AbortError"
         ? `Brevo API request timed out after ${EMAIL_HTTP_TIMEOUT_MS}ms`
         : error?.message || "Unknown Brevo error";
-    throw new Error(`Email delivery failed via Brevo: ${message}`);
+    throw new Error(`Email delivery failed via Brevo: ${message}`, { cause: error });
   } finally {
     clear();
   }
@@ -176,7 +176,7 @@ const sendViaSendGrid = async ({ to, subject, html, from }) => {
       error?.name === "AbortError"
         ? `SendGrid API request timed out after ${EMAIL_HTTP_TIMEOUT_MS}ms`
         : error?.message || "Unknown SendGrid error";
-    throw new Error(`Email delivery failed via SendGrid: ${message}`);
+    throw new Error(`Email delivery failed via SendGrid: ${message}`, { cause: error });
   } finally {
     clear();
   }

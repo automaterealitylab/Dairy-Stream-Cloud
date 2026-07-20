@@ -350,7 +350,7 @@ if (shouldRunInProcessJobs()) {
 // Handle "Port in use" errors gracefully (from your old app.js)
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use.`);
+    console.error(`❌ Port ${preferredPort} is already in use.`);
     console.error(`👉 Stop the other terminal or change PORT in .env`);
     process.exit(1);
   }

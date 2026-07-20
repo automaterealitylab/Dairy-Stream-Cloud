@@ -24,12 +24,16 @@
   "scripts": {
     "dev": "nodemon",
     "start": "node server.js",
+    "lint": "eslint .",
     "test": "node --test tests/**/*.test.js",
     "reconcile:marketplace": "node scripts/reconcile-marketplace.js",
     "verify:marketplace-order": "node scripts/verify-marketplace-order.js",
     "workers:marketplace": "node workers/marketplace.worker.js"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
     "nodemon": "^3.1.14"
   }
 }
