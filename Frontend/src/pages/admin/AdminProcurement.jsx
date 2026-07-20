@@ -111,7 +111,7 @@ export default function AdminProcurement() {
         toast.success("Log added successfully!");
       }
       await loadProcurementData(true);
-    } catch (err) {
+    } catch (_err) {
       toast.error(editingLogId ? "Failed to update entry" : "Failed to add log");
     }
   };

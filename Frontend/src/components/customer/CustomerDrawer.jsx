@@ -83,7 +83,7 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
       setData((prev) => ({ ...prev, customer: res.customer }));
       setIsEditing(false);
       if (onChanged) onChanged();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to update customer");
     } finally {
       setIsSaving(false);
@@ -99,7 +99,7 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
       await deleteAdminCustomer(customerId);
       if (onChanged) onChanged();
       onClose();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to delete customer");
     } finally {
       setIsDeleting(false);

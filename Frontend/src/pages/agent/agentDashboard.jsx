@@ -57,8 +57,6 @@ import {
   calculateDetailedDeliverySummary,
   formatQuantity,
   getProductLabel,
-  getQuantityValue,
-  isMilkProduct,
 } from "../../utils/agentTaskGrouping.js";
 
 const headingFont = { fontFamily: "'Lora', serif" };
@@ -362,7 +360,7 @@ const getTurnInstructionIcon = (instruction) => {
   return ArrowUp;
 };
 
-const getTurnInstructionDetail = (instruction, fallbackDelivery) => {
+const _getTurnInstructionDetail = (instruction, fallbackDelivery) => {
   const text = String(instruction?.text || "").trim();
   const towardMatch = text.match(/\b(?:onto|on|to)\s+(.+)$/i);
   if (towardMatch?.[1]) return towardMatch[1];
@@ -379,13 +377,13 @@ const getAutoZoomLevel = (distanceInMeters) => {
   return 14;
 };
 
-const formatDistanceLabel = (distanceInMeters) => {
+const _formatDistanceLabel = (distanceInMeters) => {
   if (!Number.isFinite(distanceInMeters)) return "Distance unavailable";
   if (distanceInMeters < 1000) return `${Math.round(distanceInMeters)} m`;
   return `${(distanceInMeters / 1000).toFixed(distanceInMeters >= 10000 ? 0 : 1)} km`;
 };
 
-const formatDurationLabel = (durationSeconds) => {
+const _formatDurationLabel = (durationSeconds) => {
   if (!Number.isFinite(durationSeconds)) return "ETA unavailable";
   const totalMinutes = Math.max(1, Math.round(durationSeconds / 60));
   if (totalMinutes < 60) return `${totalMinutes} min`;
@@ -712,7 +710,9 @@ const AgentDashboard = () => {
             getDairyCoordinates(parsed?.user?.dairy) ||
             prev.dairyCoordinates,
         }));
-      } catch (_err) { }
+      } catch {
+        /* ignore */
+      }
     }
 
     loadDashboard();
@@ -826,7 +826,7 @@ const AgentDashboard = () => {
       } else {
         localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
       }
-    } catch (_err) {
+    } catch {
       localStorage.removeItem(DELIVERY_RUN_STORAGE_KEY);
     }
   }, []);
@@ -893,7 +893,7 @@ const AgentDashboard = () => {
   const nextTask = isDeliveryRunActive
     ? todayOpenDeliveries[0] || null
     : startableDelivery || pendingUpcomingDeliveries[0] || null;
-  const nextTaskSchedule = useMemo(
+  const _nextTaskSchedule = useMemo(
     () => (nextTask ? getDeliveryScheduleState(nextTask, now) : null),
     [nextTask, now]
   );

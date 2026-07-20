@@ -237,7 +237,7 @@ const SuperAdminAnnouncements = () => {
                         {ann.target_value && (
                           <>
                             <span>•</span>
-                            <span>Scope: {ann.target_value.replace(/["'\[\]]/g, "")}</span>
+                            <span>Scope: {ann.target_value.replace(/["'[\]]/g, "")}</span>
                           </>
                         )}
                       </div>

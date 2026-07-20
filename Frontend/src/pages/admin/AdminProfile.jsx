@@ -385,7 +385,7 @@ export default function AdminProfile() {
           const revealedNumber = revealedProfile?.dairy?.bank_account_number || "";
           setRealBankAccount(revealedNumber);
           setShowBankAccount(true);
-        } catch (err) {
+        } catch (_err) {
           toast.error("Could not securely load bank account number");
         } finally {
           setLoadingRealBank(false);

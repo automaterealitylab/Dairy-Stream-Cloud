@@ -233,7 +233,7 @@ const CustomerRegister = () => {
     setError("");
 
     try {
-      const { data } = await client.post("/customer/addCustomer", formData);
+      await client.post("/customer/addCustomer", formData);
 
       toast.success("Account created successfully. Please login.");
       navigate("/", {

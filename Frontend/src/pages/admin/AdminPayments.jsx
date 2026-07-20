@@ -15,7 +15,6 @@ import {
   fetchAdminPayments,
   fetchAdminPaymentVerifications,
   rejectAdminPaymentVerification,
-  updateAdminFarmPlan,
   createAdminFarmPlanOrder,
   verifyAdminFarmPlanPayment,
   createAdminFarmPlanSubscription,

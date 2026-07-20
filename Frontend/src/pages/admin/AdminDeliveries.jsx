@@ -159,7 +159,7 @@ export default function AdminDeliveries() {
     { key: "tomorrow", label: "Tomorrow", value: getRelativeDateInput(1) },
   ];
 
-  const [activeTab, setActiveTab] = useState("bulk"); // 'bulk' | 'single'
+  const [_activeTab, _setActiveTab] = useState("bulk"); // 'bulk' | 'single'
   const [activeSection, setActiveSection] = useState("ALL");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -174,10 +174,10 @@ export default function AdminDeliveries() {
     deliveryDate: getTodayDateInput(),
     notes: "",
   });
-  const [singleSubmitting, setSingleSubmitting] = useState(false);
+  const [_singleSubmitting, setSingleSubmitting] = useState(false);
   const [approvingId, setApprovingId] = useState(null);
   const [assigningId, setAssigningId] = useState(null);
-  const [approvingAll, setApprovingAll] = useState(false);
+  const [_approvingAll, setApprovingAll] = useState(false);
   const [resolvingIssueId, setResolvingIssueId] = useState(null);
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [resolveTargetDelivery, setResolveTargetDelivery] = useState(null);
@@ -186,18 +186,18 @@ export default function AdminDeliveries() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignTargetDelivery, setAssignTargetDelivery] = useState(null);
   const [selectedAssignAgentId, setSelectedAssignAgentId] = useState("");
-  const [singleFeedback, setSingleFeedback] = useState({ type: "", message: "" });
+  const [_singleFeedback, setSingleFeedback] = useState({ type: "", message: "" });
 
-  const [bulkForm, setBulkForm] = useState({
+  const [bulkForm, _setBulkForm] = useState({
     deliveryDate: getTodayDateInput(),
     agentId: "",
     slot: "ALL",
     route: "ALL",
     notes: "",
   });
-  const [bulkSubmitting, setBulkSubmitting] = useState(false);
-  const [bulkFeedback, setBulkFeedback] = useState({ type: "", message: "" });
-  const [bulkSummary, setBulkSummary] = useState(null);
+  const [_bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [_bulkFeedback, setBulkFeedback] = useState({ type: "", message: "" });
+  const [_bulkSummary, setBulkSummary] = useState(null);
 
   // Filters State
   const [search, setSearch] = useState("");
@@ -251,15 +251,15 @@ export default function AdminDeliveries() {
   }, [dateFilter]);
 
   // --- Memos ---
-  const selectedScheduleCustomer = useMemo(() => {
+  const _selectedScheduleCustomer = useMemo(() => {
     return scheduleOptions.customers.find((c) => String(c.id) === String(singleForm.customerId)) || null;
   }, [singleForm.customerId, scheduleOptions.customers]);
 
-  const bulkRoutes = useMemo(() => {
+  const _bulkRoutes = useMemo(() => {
     return [...new Set(scheduleOptions.customers.map((item) => item.route).filter(Boolean))].sort();
   }, [scheduleOptions.customers]);
 
-  const bulkPreviewCount = useMemo(() => {
+  const _bulkPreviewCount = useMemo(() => {
     return scheduleOptions.customers.filter((item) => {
       const matchesSlot = bulkForm.slot === "ALL" || String(item.slot || "").toUpperCase() === bulkForm.slot;
       const matchesRoute = bulkForm.route === "ALL" || String(item.route || "").toLowerCase() === bulkForm.route.toLowerCase();
@@ -347,7 +347,7 @@ export default function AdminDeliveries() {
   }, [paginatedDeliveries]);
 
   // --- Handlers ---
-  const handleScheduleSingle = async (e) => {
+  const _handleScheduleSingle = async (e) => {
     e.preventDefault();
     setSingleFeedback({ type: "", message: "" });
     setSingleSubmitting(true);
@@ -366,7 +366,7 @@ export default function AdminDeliveries() {
     } finally { setSingleSubmitting(false); }
   };
 
-  const handleScheduleBulk = async (e) => {
+  const _handleScheduleBulk = async (e) => {
     e.preventDefault();
     setBulkFeedback({ type: "", message: "" });
     setBulkSubmitting(true);
@@ -406,7 +406,7 @@ export default function AdminDeliveries() {
     }
   };
 
-  const handleApproveAll = async () => {
+  const _handleApproveAll = async () => {
     setBulkFeedback({ type: "", message: "" });
     setApprovingAll(true);
     try {

@@ -43,7 +43,7 @@ const getCombinedDeliveryTypeLabel = (delivery = {}, mergedDeliveries = []) => {
   return unique.join(" + ") || "Regular";
 };
 
-const getDeliveryMilkTypeLabel = (delivery = {}) => {
+const _getDeliveryMilkTypeLabel = (delivery = {}) => {
   const mergedDeliveries = Array.isArray(delivery?.mergedDeliveries) ? delivery.mergedDeliveries : [];
   if (mergedDeliveries.length > 1) {
     const uniqueLabels = [...new Set(mergedDeliveries.map((item) => getItemLabel(item)).filter(Boolean))];
@@ -90,9 +90,9 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
   }, 0);
   const amountDue = resolvedAmountDue;
   const isPending = ['PENDING', 'OUT_FOR_DELIVERY'].includes(actionStatus);
-  const [isTracking, setIsTracking] = useState(false);
-  const [trackingError, setTrackingError] = useState('');
-  const [lastCoordinates, setLastCoordinates] = useState(null);
+  const [_isTracking, setIsTracking] = useState(false);
+  const [_trackingError, setTrackingError] = useState('');
+  const [_lastCoordinates, setLastCoordinates] = useState(null);
   const watchIdRef = useRef(null);
   const activeOrderIdRef = useRef(null);
   const customerPhone = String(
@@ -131,7 +131,7 @@ const DeliveryDetailsModal = ({ delivery, onClose, onCompleteRequest, onMarkFail
     setIsTracking(false);
   };
 
-  const startTracking = async () => {
+  const _startTracking = async () => {
     const orderId = String(delivery?.id || '').trim();
     if (!orderId) return;
 

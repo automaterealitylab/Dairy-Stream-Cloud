@@ -416,7 +416,7 @@ const AdminPerformance = () => {
       try {
         const d = new Date(rawDate);
         formattedDate = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-      } catch (e) {
+      } catch (_e) {
         // ignore format failure
       }
 

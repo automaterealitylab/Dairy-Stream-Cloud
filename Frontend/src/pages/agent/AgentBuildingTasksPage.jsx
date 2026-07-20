@@ -224,7 +224,7 @@ const AgentBuildingTasksPage = () => {
       try {
         const payload = await fetchAssignedAgentDeliveries({ today: true });
         setDeliveries(payload || []);
-      } catch (_err) {
+      } catch {
         setDeliveries([]);
       }
     };
@@ -239,7 +239,9 @@ const AgentBuildingTasksPage = () => {
       try {
         const payload = await fetchAssignedAgentDeliveries({ today: true });
         setDeliveries(payload || []);
-      } catch (_err) { }
+      } catch {
+        /* ignore */
+      }
     };
 
     const handleOffline = () => {
@@ -429,7 +431,9 @@ const AgentBuildingTasksPage = () => {
           })
         )
       );
-    } catch (_err) { }
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleFailClick = (delivery) => setFailedDelivery(delivery);
@@ -445,7 +449,9 @@ const AgentBuildingTasksPage = () => {
 
     try {
       await updateAssignedAgentDeliveryStatus({ deliveryId, status: "FAILED", reason });
-    } catch (_err) { }
+    } catch {
+      /* ignore */
+    }
   };
 
   return (

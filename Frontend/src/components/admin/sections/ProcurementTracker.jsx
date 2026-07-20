@@ -32,7 +32,7 @@ const formatDateLabel = (value) => {
   });
 };
 
-const formatDateInputLabel = (value) => {
+const _formatDateInputLabel = (value) => {
   if (!value) return "No date selected";
   return new Date(value).toLocaleDateString([], {
     day: "2-digit",
@@ -72,7 +72,7 @@ const ProcurementTracker = ({
 
   const supplierList = useMemo(() => (Array.isArray(suppliers) ? suppliers : []), [suppliers]);
   const procurementLogs = useMemo(() => (Array.isArray(logs) ? logs : []), [logs]);
-  const selectedDayLogs = useMemo(
+  const _selectedDayLogs = useMemo(
     () => procurementLogs.filter((entry) => getLocalDateKey(entry.created_at) === selectedDate),
     [procurementLogs, selectedDate]
   );

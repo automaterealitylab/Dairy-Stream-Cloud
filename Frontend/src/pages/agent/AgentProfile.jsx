@@ -82,14 +82,18 @@ const AgentProfile = () => {
           name: user?.name || "",
           email: user?.email || "",
         }));
-      } catch (_err) { }
+      } catch {
+        /* ignore */
+      }
     }
 
     const loadProfile = async () => {
       try {
         const payload = await fetchAgentProfile();
         if (payload) setProfile(payload);
-      } catch (_err) { }
+      } catch {
+        /* ignore */
+      }
     };
     loadProfile();
   }, []);

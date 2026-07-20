@@ -65,7 +65,7 @@ const SuperAdminSupport = () => {
           setSelectedTicket(prev => ({ ...prev, status: nextStatus, priority: nextPriority }));
         }
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to update support ticket parameters");
     } finally {
       setActionLoading(false);

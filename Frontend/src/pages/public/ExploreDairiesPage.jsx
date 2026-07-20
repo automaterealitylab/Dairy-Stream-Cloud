@@ -20,7 +20,6 @@ import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 import {
   GEO_ERROR,
-  getLocationPermissionState,
   requestDeviceLocation,
 } from "../../utils/locationPermission.js";
 

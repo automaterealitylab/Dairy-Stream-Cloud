@@ -210,7 +210,7 @@ export const parsePacketInfo = (delivery = {}) => {
   let productName = rawProduct;
   let sizeLabel = "";
 
-  const sizeInNameMatch = rawProduct.match(/^(.*?)\s*[\(\[]?\s*(\d+(?:\.\d+)?\s*(?:ml|l|liter|liters|kg|g|gm|gms|pack|packet|bottle))\s*[\)\]]?$/i);
+  const sizeInNameMatch = rawProduct.match(/^(.*?)\s*[(\\[]?\s*(\d+(?:\.\d+)?\s*(?:ml|l|liter|liters|kg|g|gm|gms|pack|packet|bottle))\s*[)\\]]?$/i);
   if (sizeInNameMatch) {
     productName = sizeInNameMatch[1].trim();
     sizeLabel = sizeInNameMatch[2].trim();

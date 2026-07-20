@@ -168,7 +168,7 @@ const DairyDetailsPage = () => {
         } else {
           setExistingSubscription(null);
         }
-      } catch (err) {
+      } catch (_err) {
         toast.error("Error loading dairy details");
       } finally {
         setLoading(false);

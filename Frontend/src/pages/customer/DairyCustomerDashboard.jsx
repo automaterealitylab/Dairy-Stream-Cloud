@@ -712,8 +712,8 @@ export default function DairyCustomerDashboard() {
       ? normalizeAddExtraPaymentOption(subscription?.paymentMethod)
       : "PAY_NOW_ONLINE";
     const preferredSlot = normalizeAddExtraSlot(subscription?.slot || tomorrow?.slot || "Morning");
-    const preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
-    const preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
+    const _preferredProductName = getPreferredExtraProductName({ subscription, tomorrow, today });
+    const _preferredQuantity = getPreferredExtraQuantity({ subscription, tomorrow, today });
 
     setAddExtraStep(1);
     setAddExtraError("");

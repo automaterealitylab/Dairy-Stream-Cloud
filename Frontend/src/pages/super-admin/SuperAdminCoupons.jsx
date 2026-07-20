@@ -103,7 +103,7 @@ const SuperAdminCoupons = () => {
         toast.success("Coupon deleted.");
         setCoupons(prev => prev.filter(c => c.id !== id));
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to delete coupon");
     }
   };

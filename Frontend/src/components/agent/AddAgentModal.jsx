@@ -41,7 +41,7 @@ export default function AddAgentModal({ open, onClose, onCreated }) {
       const newId = response?.data?.agentId;
       if (!newId) throw new Error("No agentId returned by server");
       setAgent((prev) => ({ ...prev, agentId: newId }));
-    } catch (error) {
+    } catch (_error) {
       const randomNum = Math.floor(100000 + Math.random() * 900000);
       setAgent((prev) => ({ ...prev, agentId: `STF${randomNum}` }));
     }

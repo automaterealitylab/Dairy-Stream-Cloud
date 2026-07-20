@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { Settings, Save, ShieldAlert, Key, Link2, Mail, Store } from "lucide-react";
 
 const SuperAdminSettings = () => {
-  const [settings, setSettings] = useState(null);
+  const [_settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -68,7 +68,7 @@ const SuperAdminSettings = () => {
       if (response.success) {
         toast.success("Platform settings updated successfully!");
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to save changes");
     } finally {
       setSaving(false);

@@ -1,10 +1,10 @@
 import React from "react";
 
 const LoadingIndicator = ({
-  message = "Loading...",
+  _message = "Loading...",
   fullScreen = false,
   className = "",
-  size = 28, // backward compatibility
+  _size = 28, // backward compatibility
 }) => {
   if (fullScreen) {
     return (

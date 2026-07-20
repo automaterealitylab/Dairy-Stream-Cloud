@@ -39,7 +39,7 @@ export default function AdminCustomers() {
     background: isDark ? "#121829" : "rgba(255, 255, 255, 0.95)",
     borderColor: isDark ? "#1E293B" : "#F2EDE4",
   };
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [_searchParams, _setSearchParams] = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -67,7 +67,7 @@ export default function AdminCustomers() {
   const [agents, setAgents] = useState([]);
 
   // Action States
-  const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
+  const [_rowActionLoadingId, setRowActionLoadingId] = useState(null);
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -131,7 +131,7 @@ export default function AdminCustomers() {
     }
   };
 
-  const handleGenerateBill = async (customer) => {
+  const _handleGenerateBill = async (customer) => {
     try {
       const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
         import("jspdf"),

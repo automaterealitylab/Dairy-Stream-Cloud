@@ -130,7 +130,7 @@ const SuperAdminPlans = () => {
         toast.success(`Plan ${nextStatus === "ACTIVE" ? "resumed" : "paused"} successfully.`);
         setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: nextStatus } : p));
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to update status");
     }
   };
@@ -144,7 +144,7 @@ const SuperAdminPlans = () => {
         toast.success("Plan deleted.");
         setPlans(prev => prev.filter(p => p.id !== id));
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to delete plan");
     }
   };

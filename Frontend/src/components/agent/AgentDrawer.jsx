@@ -52,7 +52,7 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
       setData({ agent: res.agent });
       setIsEditing(false);
       if (onChanged) onChanged();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to update agent");
     } finally {
       setIsSaving(false);
@@ -68,7 +68,7 @@ export default function AgentDrawer({ agentId, onClose, onChanged }) {
       await deleteAdminAgent(agentId);
       if (onChanged) onChanged();
       onClose();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to delete agent");
     } finally {
       setIsDeleting(false);

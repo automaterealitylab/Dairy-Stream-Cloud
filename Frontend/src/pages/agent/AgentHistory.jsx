@@ -45,7 +45,7 @@ const AgentHistory = () => {
         const payload = await fetchAgentDeliveryHistory();
         setHistory(payload || []);
         if (payload?.[0]?.date) setExpandedDates([payload[0].date]);
-      } catch (_err) {
+      } catch {
         setHistory([]);
       }
     };

@@ -73,7 +73,7 @@ const AgentWorkingPage = () => {
       try {
         const payload = await fetchAssignedAgentDeliveries({ today: true });
         setDeliveries(payload || []);
-      } catch (_err) {
+      } catch {
         setDeliveries([]);
       }
     };
@@ -88,7 +88,9 @@ const AgentWorkingPage = () => {
       try {
         const payload = await fetchAssignedAgentDeliveries({ today: true });
         setDeliveries(payload || []);
-      } catch (_err) { }
+      } catch {
+        /* ignore */
+      }
     };
 
     const handleOffline = () => {
