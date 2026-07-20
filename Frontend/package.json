@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "sync:android": "cap sync android",
+    "build:android": "npm run build && cap sync android",
     "test": "vitest run",
     "test:watch": "vitest"
   },
