@@ -94,8 +94,22 @@ jobs:
       - name: Build Web App & Sync Capacitor Android
         run: npm run build:android
 
-      - name: Build Android Debug APK with Gradle
+      - name: Verify Capacitor Android Web Assets
+        run: test -f android/app/src/main/assets/public/index.html
+
+      - name: Run Android Gradle Unit Tests & Lint
         run: |
           cd android
           chmod +x gradlew
+          ./gradlew testDebugUnitTest lintDebug --no-daemon
+
+      - name: Build Android Debug APK with Gradle
+        run: |
+          cd android
           ./gradlew assembleDebug --no-daemon
+
+      - name: Upload Android Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dairyvision-android-apk
+          path: Frontend/android/app/build/outputs/apk/debug/*.apk
