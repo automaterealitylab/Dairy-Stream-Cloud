@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth.jsx";
 import {
@@ -13,7 +13,6 @@ import {
 import {
   fetchNearbyDairies,
   fetchSearchDairies,
-  fetchCityDairies,
   fetchSearchSuggestions,
 } from "../../api/public.api.js";
 import { fetchCustomerSubscription } from "../../api/customer/customer.api.js";
@@ -23,9 +22,51 @@ import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js"
 const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 const headingFont = { fontFamily: "'Lora', serif" };
 
+const GEO_ERROR = {
+  UNSUPPORTED: "UNSUPPORTED",
+  INSECURE_CONTEXT: "INSECURE_CONTEXT",
+  PERMISSION_REQUIRED: "PERMISSION_REQUIRED",
+  PERMISSION_BLOCKED: "PERMISSION_BLOCKED",
+  GPS_OFF: "GPS_OFF",
+  TIMEOUT: "TIMEOUT",
+  UNAVAILABLE: "UNAVAILABLE",
+};
+
+const getLocationPermissionState = async () => {
+  if (!navigator.permissions?.query) return "unknown";
+
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
+  } catch {
+    return "unknown";
+  }
+};
+
+const isSecureGeolocationContext = () =>
+  window.isSecureContext ||
+  ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+
+const isLocationServiceDisabledError = (error) =>
+  error?.code === 2 ||
+  /location service|location provider|gps|position unavailable/i.test(error?.message || "");
+
+const getGeoErrorState = ({ error, permissionStateBeforeRequest }) => {
+  if (error?.code === 1) {
+    return permissionStateBeforeRequest === "denied"
+      ? GEO_ERROR.PERMISSION_BLOCKED
+      : GEO_ERROR.PERMISSION_REQUIRED;
+  }
+
+  if (error?.code === 3) return GEO_ERROR.TIMEOUT;
+  if (isLocationServiceDisabledError(error)) return GEO_ERROR.GPS_OFF;
+  return GEO_ERROR.UNAVAILABLE;
+};
+
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const searchInputRef = useRef(null);
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -44,21 +85,46 @@ const ExploreDairiesPage = () => {
   const [detectedLocation, setDetectedLocation] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [locationDialog, setLocationDialog] = useState(null);
+  const [requestingLocation, setRequestingLocation] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // ---------- GPS HELPER (Promisified) ----------
-  const getLiveLocation = useCallback(() => {
+  const getLiveLocation = useCallback(async ({ requestPermission = true } = {}) => {
+    if (!navigator.geolocation) {
+      throw { code: 0, state: GEO_ERROR.UNSUPPORTED, message: "Geolocation is not supported by this browser." };
+    }
+
+    if (!isSecureGeolocationContext()) {
+      throw {
+        code: 0,
+        state: GEO_ERROR.INSECURE_CONTEXT,
+        message: "Geolocation requires HTTPS, except on localhost.",
+      };
+    }
+
+    const permissionStateBeforeRequest = await getLocationPermissionState();
+    if (!requestPermission && permissionStateBeforeRequest !== "granted") {
+      throw {
+        code: 1,
+        state: GEO_ERROR.PERMISSION_REQUIRED,
+        message: "Location permission has not been granted yet.",
+      };
+    }
+
     return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) reject({ code: 0, message: "Not supported" });
-      
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => reject(err),
-        { 
-          enableHighAccuracy: true, 
+        (err) =>
+          reject({
+            ...err,
+            state: getGeoErrorState({ error: err, permissionStateBeforeRequest }),
+          }),
+        {
+          enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 0 
+          maximumAge: 0,
         }
       );
     });
@@ -103,42 +169,119 @@ const ExploreDairiesPage = () => {
   );
 
   // ---------- INITIAL LOAD HANDLER ----------
-  const handleInitLocation = useCallback(async () => {
+  const handleInitLocation = useCallback(async ({ requestPermission = true } = {}) => {
     setLoading(true);
     setLoadError("");
+    setLocationDialog(null);
+    setRequestingLocation(requestPermission);
     try {
-      const coords = await getLiveLocation();
+      const coords = await getLiveLocation({ requestPermission });
       setCurrentLat(coords.lat);
       setCurrentLng(coords.lng);
+      setSelectedCity("");
 
       // Reverse Geocoding for UI display
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.lat}&lon=${coords.lng}`
+          "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" + coords.lat + "&lon=" + coords.lng
         );
         const data = await response.json();
         const cityName = data.address.city || data.address.town || data.address.village || "Nearby";
         setDetectedLocation(cityName);
-      } catch (geoErr) {
+      } catch {
         setDetectedLocation("Nearby");
       }
 
       await loadNearby({ lat: coords.lat, lng: coords.lng, page: 0 });
     } catch (err) {
-      // err.code 1 = Permission Denied
-      setLoadError("LOCATION_OFF");
+      const errorState = err?.state || GEO_ERROR.UNAVAILABLE;
+      setLoadError(errorState);
+      if (requestPermission) {
+        setLocationDialog(errorState);
+      }
       setLoading(false);
+    } finally {
+      setRequestingLocation(false);
     }
   }, [getLiveLocation, loadNearby]);
 
   useEffect(() => {
-    handleInitLocation();
+    handleInitLocation({ requestPermission: false });
   }, [handleInitLocation]);
 
   useGeolocationAutoRetry({
-    enabled: loadError === "LOCATION_OFF",
-    onRetry: handleInitLocation,
+    enabled: loadError === GEO_ERROR.PERMISSION_REQUIRED || loadError === GEO_ERROR.PERMISSION_BLOCKED,
+    onRetry: () => handleInitLocation({ requestPermission: false }),
   });
+
+  const handleManualSearch = () => {
+    setLocationDialog(null);
+    setLoading(false);
+    setLoadError("");
+    searchInputRef.current?.focus();
+  };
+
+  const handleOpenSettings = () => {
+    setLocationDialog(null);
+    if (window.Capacitor?.isNativePlatform?.()) {
+      window.open("app-settings:", "_blank");
+      return;
+    }
+    window.open("chrome://settings/content/location", "_blank");
+  };
+
+  const getLocationDialogContent = () => {
+    switch (locationDialog) {
+      case GEO_ERROR.PERMISSION_BLOCKED:
+        return {
+          title: "Location permission has been blocked.",
+          message: "Please enable it from: Settings > Apps > DairyVision > Permissions > Location",
+          actions: [
+            { label: "Open Settings", onClick: handleOpenSettings, primary: true },
+            { label: "Search Manually", onClick: handleManualSearch },
+          ],
+        };
+      case GEO_ERROR.GPS_OFF:
+        return {
+          title: "Your device location services are turned off.",
+          message: "Please enable GPS to continue.",
+          actions: [
+            { label: "Enable GPS", onClick: () => handleInitLocation({ requestPermission: true }), primary: true },
+            { label: "Search Manually", onClick: handleManualSearch },
+          ],
+        };
+      case GEO_ERROR.INSECURE_CONTEXT:
+        return {
+          title: "Secure connection required",
+          message: "Location permission works only on HTTPS, except localhost during development.",
+          actions: [{ label: "Search Manually", onClick: handleManualSearch, primary: true }],
+        };
+      case GEO_ERROR.TIMEOUT:
+        return {
+          title: "Location request timed out",
+          message: "We could not get your GPS coordinates in time. Please try again or search manually.",
+          actions: [
+            { label: "Try Again", onClick: () => handleInitLocation({ requestPermission: true }), primary: true },
+            { label: "Search Manually", onClick: handleManualSearch },
+          ],
+        };
+      case GEO_ERROR.UNSUPPORTED:
+        return {
+          title: "Location is not supported",
+          message: "This browser does not support device location. Please search for your area manually.",
+          actions: [{ label: "Search Manually", onClick: handleManualSearch, primary: true }],
+        };
+      default:
+        return {
+          title: "Location Permission Required",
+          message: "DairyVision needs your location to show nearby dairies and delivery availability.",
+          actions: [
+            { label: "Try Again", onClick: () => handleInitLocation({ requestPermission: true }), primary: true },
+            { label: "Search Manually", onClick: handleManualSearch },
+          ],
+        };
+    }
+  };
 
   // ---------- INFINITE SCROLL ----------
   useEffect(() => {
@@ -162,7 +305,7 @@ const ExploreDairiesPage = () => {
       const res = await fetchSearchDairies({ q });
       setDairies(res?.dairies || []);
       setLoadError("");
-    } catch (err) {
+    } catch {
       setDairies([]);
       setLoadError("FETCH_ERROR");
     } finally {
@@ -179,7 +322,7 @@ const ExploreDairiesPage = () => {
       try {
         const res = await fetchSearchSuggestions(searchTerm);
         setSuggestions(res?.suggestions || []);
-      } catch (err) {
+      } catch {
         setSuggestions([]);
       }
     }, 300);
@@ -232,6 +375,8 @@ const ExploreDairiesPage = () => {
     navigate("/", { replace: true });
   };
 
+  const isLocationError = Object.values(GEO_ERROR).includes(loadError);
+
   return (
     <div className="min-h-screen bg-[#F7F2EA]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <header className="sticky top-0 z-10 border-b border-[#EDE8DF] bg-[#FFFDF8]/95 shadow-sm backdrop-blur">
@@ -263,6 +408,7 @@ const ExploreDairiesPage = () => {
             <div className="relative max-w-2xl flex-1 w-full">
               <Search className="absolute left-4 top-2.5 md:top-3.5 text-[#C4A882] w-[18px] h-[18px] md:w-[20px] md:h-[20px]" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Search dairies, area, pincode..."
                 value={searchTerm}
@@ -306,17 +452,22 @@ const ExploreDairiesPage = () => {
       <main className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
         {loading ? (
           <LoadingIndicator className="py-20" />
-        ) : loadError === "LOCATION_OFF" && !searchTerm && !selectedCity ? (
+        ) : isLocationError && !searchTerm && !selectedCity ? (
           <div className="rounded-[26px] border border-dashed border-[#D7C4AE] bg-[#FFFDF8] py-20 text-center shadow-sm px-6">
             <MapPin size={48} className="mx-auto mb-4 text-[#D7C4AE]" />
-            <h2 className="text-xl font-bold text-[#2C1A0E]" style={headingFont}>Location is turned off</h2>
-            <p className="mt-2 text-[#8B7355] max-w-md mx-auto"> We need your location to show dairies near you. Please enable GPS or search manually above. </p>
+            <h2 className="text-xl font-bold text-[#2C1A0E]" style={headingFont}>
+              {loadError === GEO_ERROR.PERMISSION_REQUIRED ? "Location Permission Required" : "Location is unavailable"}
+            </h2>
+            <p className="mt-2 text-[#8B7355] max-w-md mx-auto">
+              We need your location to show dairies near you. Please enable location access or search manually above.
+            </p>
             <button 
-              onClick={handleInitLocation}
-              className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-[#B8641A] text-white rounded-full font-bold shadow-lg hover:bg-[#965215] transition-all active:scale-95"
+              onClick={() => handleInitLocation({ requestPermission: true })}
+              disabled={requestingLocation}
+              className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-[#B8641A] text-white rounded-full font-bold shadow-lg hover:bg-[#965215] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <RefreshCw size={18} />
-              Enable Location
+              <RefreshCw size={18} className={requestingLocation ? "animate-spin" : ""} />
+              {requestingLocation ? "Requesting..." : "Enable Location"}
             </button>
           </div>
         ) : mappedDairies.length === 0 ? (
@@ -361,8 +512,38 @@ const ExploreDairiesPage = () => {
         )}
         {loadingMore && <div className="py-10 text-center text-[#A88763]">Loading more dairies...</div>}
       </main>
+      {locationDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2C1A0E]/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF8] p-6 text-center shadow-[0_24px_70px_rgba(44,26,14,0.22)]">
+            <MapPin size={36} className="mx-auto mb-4 text-[#B8641A]" />
+            <h3 className="text-lg font-bold text-[#2C1A0E]" style={headingFont}>
+              {getLocationDialogContent().title}
+            </h3>
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#6B5B3E]">
+              {getLocationDialogContent().message}
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              {getLocationDialogContent().actions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={action.onClick}
+                  className={
+                    action.primary
+                      ? "rounded-full bg-[#B8641A] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#965215]"
+                      : "rounded-full border border-[#EDE8DF] bg-white px-5 py-3 text-sm font-bold text-[#6B5B3E] transition hover:bg-[#FBF7F0]"
+                  }
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default ExploreDairiesPage;
+

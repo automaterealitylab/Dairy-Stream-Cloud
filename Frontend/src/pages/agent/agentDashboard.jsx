@@ -54,6 +54,7 @@ import {
 import { startDelivery, updateAgentLocation } from "../../api/agent/location.js";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 import {
+  calculateDetailedDeliverySummary,
   formatQuantity,
   getProductLabel,
   getQuantityValue,
@@ -906,44 +907,9 @@ const AgentDashboard = () => {
     [todayDeliveries]
   );
   const carrySummary = useMemo(() => {
-    const sourceDeliveries = todayOpenDeliveries;
-    const milkTotals = new Map();
-    const extraTotals = new Map();
-    let totalMilkLiters = 0;
-
-    sourceDeliveries.forEach((delivery) => {
-      const productLabel = getProductLabel(delivery);
-      const quantityValue = getQuantityValue(delivery?.quantity);
-
-      if (isMilkProduct(delivery)) {
-        const liters = quantityValue > 0 ? quantityValue : 0;
-        totalMilkLiters += liters;
-        milkTotals.set(productLabel, (milkTotals.get(productLabel) || 0) + liters);
-      } else {
-        const units = quantityValue > 0 ? quantityValue : 1;
-        extraTotals.set(productLabel, (extraTotals.get(productLabel) || 0) + units);
-      }
-    });
-
-    return {
-      deliveryCount: sourceDeliveries.length,
-      totalMilkLiters,
-      milkTypes: [...milkTotals.entries()]
-        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-        .map(([name, quantity]) => ({
-          name,
-          quantity,
-          label: `${name}: ${formatQuantity(quantity)} L`,
-        })),
-      extraProducts: [...extraTotals.entries()]
-        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-        .map(([name, quantity]) => ({
-          name,
-          quantity,
-          label: `${name}: ${formatQuantity(quantity)} unit${quantity === 1 ? "" : "s"}`,
-        })),
-    };
-  }, [todayOpenDeliveries]);
+    const sourceDeliveries = todayDeliveries.length > 0 ? todayDeliveries : todayOpenDeliveries;
+    return calculateDetailedDeliverySummary(sourceDeliveries);
+  }, [todayDeliveries, todayOpenDeliveries]);
 
   useEffect(() => {
     setStats(statsForToday);
@@ -2016,45 +1982,85 @@ const AgentDashboard = () => {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-[#E7DAC6] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Today's Delivery Quantity</p>
+            <section className="rounded-[28px] border border-[#E7DAC6] bg-white p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Today's Delivery Quantity</p>
+                  <p className="text-xs font-bold text-[#6B5B3E] mt-0.5">Aggregated items to carry today</p>
+                </div>
+                {carrySummary.totalItemsToCarry > 0 ? (
+                  <span className="rounded-full border border-[#DDE8D1] bg-[#EEF5E7] px-3 py-1 text-xs font-black text-[#4A7C2F] shadow-sm">
+                    {carrySummary.totalItemsToCarry} Total Packets / Units
+                  </span>
+                ) : null}
               </div>
 
-              <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Subscription Delivery Milk</p>
+              <div className="mt-3.5 space-y-3">
+                {/* Subscription Delivery Milk */}
+                <div className="rounded-[20px] border border-[#EDE8DF] bg-[#FFF8EF] p-3.5">
+                  <div className="flex items-center justify-between border-b border-[#F0E6D8] pb-2">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
+                      Subscription Delivery Milk
+                    </p>
+                    {carrySummary.totalMilkLiters > 0 ? (
+                      <span className="text-xs font-extrabold text-[#8B5E34]">
+                        {formatQuantity(carrySummary.totalMilkLiters)} L ({carrySummary.totalMilkPackets} Packets)
+                      </span>
+                    ) : null}
+                  </div>
+
                   {carrySummary.milkTypes.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap gap-0">
+                    <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                       {carrySummary.milkTypes.map((item) => (
-                        <p
+                        <div
                           key={item.name}
-                          className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
+                          className="rounded-[16px] border border-[#E7DAC6] bg-white p-3 shadow-sm"
                         >
-                          {item.label}
-                        </p>
+                          <p className="text-sm font-black text-[#2C1A0E]">{item.name}</p>
+                          <div className="mt-2 space-y-1">
+                            {item.breakdown.map((b, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5 text-xs font-bold text-[#5F4426]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#B8641A] shrink-0" />
+                                <span>{b.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2.5 border-t border-[#F5EFE6] pt-2">
+                            <p className="text-xs font-black text-[#B8641A]">{item.formattedTotal}</p>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No milk items</p>
+                    <p className="mt-2 text-xs font-semibold text-[#8B7355]">No milk items scheduled for today</p>
                   )}
                 </div>
 
-                <div className="rounded-[16px] border border-[#EDE8DF] bg-[#FFF8EF] px-3 py-2.5">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">Extra Products</p>
+                {/* Extra Products */}
+                <div className="rounded-[20px] border border-[#EDE8DF] bg-[#FFF8EF] p-3.5">
+                  <div className="border-b border-[#F0E6D8] pb-2 flex items-center justify-between">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
+                      Extra Products
+                    </p>
+                    {carrySummary.totalExtraPackets > 0 ? (
+                      <span className="text-xs font-extrabold text-[#8B5E34]">
+                        {carrySummary.totalExtraPackets} Unit{carrySummary.totalExtraPackets === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
+                  </div>
                   {carrySummary.extraProducts.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap gap-0">
-                      {carrySummary.extraProducts.map((item) => (
-                        <p
-                          key={item.name}
-                          className="rounded-full border border-[#E7DAC6] bg-white px-2.5 py-1 text-xs font-semibold text-[#2C1A0E]"
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      {carrySummary.extraProducts.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-full border border-[#E7DAC6] bg-white px-3 py-1.5 text-xs font-extrabold text-[#2C1A0E] shadow-sm"
                         >
                           {item.label}
-                        </p>
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">No extra products</p>
+                    <p className="mt-2 text-xs font-semibold text-[#8B7355]">No extra products scheduled for today</p>
                   )}
                 </div>
               </div>
