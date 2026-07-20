@@ -113,3 +113,4 @@ jobs:
         with:
           name: dairyvision-android-apk
           path: Frontend/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
