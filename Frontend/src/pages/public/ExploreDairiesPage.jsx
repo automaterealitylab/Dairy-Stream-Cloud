@@ -18,60 +18,36 @@ import {
 import { fetchCustomerSubscription } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
+import {
+  GEO_ERROR,
+  getLocationPermissionState,
+  requestDeviceLocation,
+} from "../../utils/locationPermission.js";
 
 const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
 const headingFont = { fontFamily: "'Lora', serif" };
 
-const GEO_ERROR = {
-  UNSUPPORTED: "UNSUPPORTED",
-  INSECURE_CONTEXT: "INSECURE_CONTEXT",
-  PERMISSION_REQUIRED: "PERMISSION_REQUIRED",
-  PERMISSION_BLOCKED: "PERMISSION_BLOCKED",
-  GPS_OFF: "GPS_OFF",
-  TIMEOUT: "TIMEOUT",
-  UNAVAILABLE: "UNAVAILABLE",
-};
+const getPlatformUserAgent = () =>
+  typeof navigator === "undefined" ? "" : navigator.userAgent || "";
 
-const getLocationPermissionState = async () => {
-  if (!navigator.permissions?.query) return "unknown";
+const isAndroidRuntime = () =>
+  /Android/i.test(getPlatformUserAgent()) || window.Capacitor?.getPlatform?.() === "android";
 
-  try {
-    const status = await navigator.permissions.query({ name: "geolocation" });
-    return status.state;
-  } catch {
-    return "unknown";
-  }
-};
+const openAndroidIntent = (intentUrl) => {
+  if (!isAndroidRuntime()) return false;
 
-const isSecureGeolocationContext = () =>
-  window.isSecureContext ||
-  ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-
-const isLocationServiceDisabledError = (error) =>
-  error?.code === 2 ||
-  /location service|location provider|gps|position unavailable/i.test(error?.message || "");
-
-const getGeoErrorState = ({ error, permissionStateBeforeRequest }) => {
-  if (error?.code === 1) {
-    return permissionStateBeforeRequest === "denied"
-      ? GEO_ERROR.PERMISSION_BLOCKED
-      : GEO_ERROR.PERMISSION_REQUIRED;
-  }
-
-  if (error?.code === 3) return GEO_ERROR.TIMEOUT;
-  if (isLocationServiceDisabledError(error)) return GEO_ERROR.GPS_OFF;
-  return GEO_ERROR.UNAVAILABLE;
+  window.location.href = intentUrl;
+  return true;
 };
 
 const ExploreDairiesPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const searchInputRef = useRef(null);
-
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-
+  
   const [currentLat, setCurrentLat] = useState(null);
   const [currentLng, setCurrentLng] = useState(null);
 
@@ -89,46 +65,6 @@ const ExploreDairiesPage = () => {
   const [requestingLocation, setRequestingLocation] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // ---------- GPS HELPER (Promisified) ----------
-  const getLiveLocation = useCallback(async ({ requestPermission = true } = {}) => {
-    if (!navigator.geolocation) {
-      throw { code: 0, state: GEO_ERROR.UNSUPPORTED, message: "Geolocation is not supported by this browser." };
-    }
-
-    if (!isSecureGeolocationContext()) {
-      throw {
-        code: 0,
-        state: GEO_ERROR.INSECURE_CONTEXT,
-        message: "Geolocation requires HTTPS, except on localhost.",
-      };
-    }
-
-    const permissionStateBeforeRequest = await getLocationPermissionState();
-    if (!requestPermission && permissionStateBeforeRequest !== "granted") {
-      throw {
-        code: 1,
-        state: GEO_ERROR.PERMISSION_REQUIRED,
-        message: "Location permission has not been granted yet.",
-      };
-    }
-
-    return new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) =>
-          reject({
-            ...err,
-            state: getGeoErrorState({ error: err, permissionStateBeforeRequest }),
-          }),
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
-    });
-  }, []);
 
   // ---------- CENTRAL FETCH LOGIC ----------
   const loadNearby = useCallback(
@@ -175,7 +111,7 @@ const ExploreDairiesPage = () => {
     setLocationDialog(null);
     setRequestingLocation(requestPermission);
     try {
-      const coords = await getLiveLocation({ requestPermission });
+      const coords = await requestDeviceLocation({ userInitiated: requestPermission });
       setCurrentLat(coords.lat);
       setCurrentLng(coords.lng);
       setSelectedCity("");
@@ -186,7 +122,7 @@ const ExploreDairiesPage = () => {
           "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" + coords.lat + "&lon=" + coords.lng
         );
         const data = await response.json();
-        const cityName = data.address.city || data.address.town || data.address.village || "Nearby";
+        const cityName = data?.address?.city || data?.address?.town || data?.address?.village || data?.address?.suburb || "Nearby";
         setDetectedLocation(cityName);
       } catch {
         setDetectedLocation("Nearby");
@@ -196,14 +132,14 @@ const ExploreDairiesPage = () => {
     } catch (err) {
       const errorState = err?.state || GEO_ERROR.UNAVAILABLE;
       setLoadError(errorState);
-      if (requestPermission) {
+      if (requestPermission || errorState === GEO_ERROR.PERMISSION_BLOCKED || errorState === GEO_ERROR.GPS_OFF) {
         setLocationDialog(errorState);
       }
       setLoading(false);
     } finally {
       setRequestingLocation(false);
     }
-  }, [getLiveLocation, loadNearby]);
+  }, [loadNearby]);
 
   useEffect(() => {
     handleInitLocation({ requestPermission: false });
@@ -223,11 +159,18 @@ const ExploreDairiesPage = () => {
 
   const handleOpenSettings = () => {
     setLocationDialog(null);
-    if (window.Capacitor?.isNativePlatform?.()) {
-      window.open("app-settings:", "_blank");
+    if (openAndroidIntent("intent://settings#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;scheme=package;S.android.provider.extra.APP_PACKAGE=com.dairystream.app;end")) {
       return;
     }
     window.open("chrome://settings/content/location", "_blank");
+  };
+
+  const handleOpenLocationServices = () => {
+    setLocationDialog(null);
+    if (openAndroidIntent("intent://settings#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end")) {
+      return;
+    }
+    handleInitLocation({ requestPermission: true });
   };
 
   const getLocationDialogContent = () => {
@@ -246,7 +189,7 @@ const ExploreDairiesPage = () => {
           title: "Your device location services are turned off.",
           message: "Please enable GPS to continue.",
           actions: [
-            { label: "Enable GPS", onClick: () => handleInitLocation({ requestPermission: true }), primary: true },
+            { label: "Enable GPS", onClick: handleOpenLocationServices, primary: true },
             { label: "Search Manually", onClick: handleManualSearch },
           ],
         };

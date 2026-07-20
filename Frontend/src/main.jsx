@@ -9,6 +9,11 @@ import { initTheme } from "./components/admin/adminTheme.js";
 
 // Initialize Theme
 initTheme();
+const fallbackEl = document.getElementById("offline-fallback");
+if (fallbackEl) {
+  fallbackEl.style.display = "none";
+  fallbackEl.remove();
+}
 
 if (import.meta.env.DEV) {
   import("./utils/adminDebug.js").then(({ default: debugAdmin }) => {

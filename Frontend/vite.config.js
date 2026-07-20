@@ -52,8 +52,9 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:4000",
+        target: process.env.VITE_API_URL || "https://dairy-stream-cloud-backend.onrender.com",
         changeOrigin: true,
+        secure: false,
       },
     },
   },

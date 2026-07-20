@@ -1,11 +1,12 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import React, { Component, Suspense, lazy, useState, useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
 import LoadingIndicator from "./components/common/LoadingIndicator.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
 import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
 import AppSplash from "./components/common/AppSplash.jsx";
+import NetworkErrorScreen, { useNetworkStatus } from "./components/common/NetworkErrorScreen.jsx";
 import { useAuth } from "./hooks/useAuth.jsx";
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
@@ -55,6 +56,34 @@ const RouteFallback = () => (
   <LoadingIndicator fullScreen message="Loading page..." />
 );
 
+class RouteErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(previousProps) {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+
+    return this.props.children;
+  }
+}
+
+const isAgentOfflineCapablePath = (pathname) =>
+  /^\/agent\/(dashboard|working)(\/|$)/.test(pathname);
+
 const getRoleHomePath = (role) => {
   const normalizedRole = String(role || "").toUpperCase();
   if (normalizedRole === "ADMIN") return "/admin/AdminDashboard";
@@ -83,6 +112,9 @@ const AuthLandingRoute = () => {
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const { isOnline, verifyConnection } = useNetworkStatus();
+  const location = useLocation();
+  const canRenderOffline = isAgentOfflineCapablePath(location.pathname);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -91,136 +123,141 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  if (!isOnline && !canRenderOffline) {
+    return <NetworkErrorScreen onRetry={verifyConnection} />;
+  }
+
   return (
     <>
       <AnimatePresence mode="wait">
         {isLoading && <AppSplash />}
       </AnimatePresence>
 
-      <Suspense fallback={<RouteFallback />}>
+      <RouteErrorBoundary resetKey={`${location.pathname}:${isOnline ? "online" : "offline"}`} fallback={<NetworkErrorScreen onRetry={verifyConnection} />}>
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
-        <Route path="/" element={<AuthLandingRoute />} />
-        <Route path="/explore" element={<ExploreDairiesPage />} />
-        <Route path="/join/:id" element={<DairyDetailsPage />} />
-        <Route path="/buy-once/:id" element={<BuyOncePage />} />
-        <Route path="/customer/register" element={<RegisterNewuserPage />} />
-        <Route path="/register-dairy" element={<RegisterDairyPage />} />
+          <Route path="/" element={<AuthLandingRoute />} />
+          <Route path="/explore" element={<ExploreDairiesPage />} />
+          <Route path="/join/:id" element={<DairyDetailsPage />} />
+          <Route path="/buy-once/:id" element={<BuyOncePage />} />
+          <Route path="/customer/register" element={<RegisterNewuserPage />} />
+          <Route path="/register-dairy" element={<RegisterDairyPage />} />
 
-        <Route
-          path="/customer/dashboard"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <DairyCustomerDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customer/dashboard/deliveries"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <Deliveries />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customer/dashboard/subscriptions"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <Subscription />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customer/dashboard/payments"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <Payments />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customer/dashboard/track/agent"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <TrackAgent />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customer/track/:orderId"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <TrackAgent />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customer/dashboard/profile"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <Profile />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/customer/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <DairyCustomerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customer/dashboard/deliveries"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <Deliveries />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customer/dashboard/subscriptions"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <Subscription />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customer/dashboard/payments"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <Payments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customer/dashboard/track/agent"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <TrackAgent />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customer/track/:orderId"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <TrackAgent />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customer/dashboard/profile"
+            element={
+              <ProtectedRoute allowedRoles={["CUSTOMER"]}>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/admin/AdminDashboard"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/customers"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminCustomers />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/addCustomer"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <Navigate to="/admin/customers?addCustomer=1" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/agents"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminPlanRoute feature="agents">
-                <AdminAgents />
-              </AdminPlanRoute>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/addagent"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <Navigate to="/admin/agents?addAgent=1" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/deliveries"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminDeliveries />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/payments"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminPayments />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/admin/AdminDashboard"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/customers"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <AdminCustomers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/addCustomer"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <Navigate to="/admin/customers?addCustomer=1" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/agents"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <AdminPlanRoute feature="agents">
+                  <AdminAgents />
+                </AdminPlanRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/addagent"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <Navigate to="/admin/agents?addAgent=1" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/deliveries"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <AdminDeliveries />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/payments"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <AdminPayments />
+              </ProtectedRoute>
+            }
+          />
         <Route
           path="/admin/products"
           element={
@@ -385,8 +422,9 @@ function App() {
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+        </Suspense>
+      </RouteErrorBoundary>
     </>
   );
 }

@@ -1,13 +1,40 @@
 import axios from "axios";
 
+const RENDER_BACKEND_URL = "https://dairy-stream-cloud-backend.onrender.com";
+
 const getDynamicBaseUrl = () => {
+  const envUrl =
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    import.meta.env.VITE_API_BASE_URL;
+
+  if (envUrl) {
+    return envUrl.replace(/\/api\/?$/, "");
+  }
+
   if (typeof window !== "undefined") {
-    const { hostname } = window.location;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
+    const hostname = window.location?.hostname || "";
+    const protocol = window.location?.protocol || "";
+    const userAgent = typeof navigator !== "undefined" ? navigator?.userAgent || "" : "";
+
+    const isMobileDevice =
+      protocol === "file:" ||
+      protocol === "capacitor:" ||
+      protocol === "ionic:" ||
+      Boolean(window.Capacitor) ||
+      Boolean(window.cordova) ||
+      /Mobile|Android|iPhone|iPad|iPod|wv/i.test(userAgent);
+
+    if (isMobileDevice) {
+      return RENDER_BACKEND_URL;
+    }
+
+    if ((hostname === "localhost" || hostname === "127.0.0.1") && import.meta.env.VITE_USE_LOCAL_BACKEND === "true") {
       return "http://localhost:4000";
     }
   }
-  return "https://dairy-stream-cloud-backend.onrender.com";
+
+  return RENDER_BACKEND_URL;
 };
 
 export const BASE_URL = getDynamicBaseUrl();
