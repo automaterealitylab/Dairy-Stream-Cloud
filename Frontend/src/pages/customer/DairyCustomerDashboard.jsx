@@ -667,18 +667,18 @@ export default function DairyCustomerDashboard() {
     response?.order?.payment?.id ||
     null;
 
-  const rollbackCancelledExtraOrder = async ({ orderId, paymentId }) => {
-    if (!orderId || !paymentId) return false;
+  const rollbackCancelledExtraOrder = async ({ orderId, orderIds, paymentId }) => {
+    if (!orderId && (!Array.isArray(orderIds) || !orderIds.length) && !paymentId) return false;
 
     try {
-      await cancelCustomerOneTimeOrder({ orderId, paymentId, removeFromHistory: true });
+      await cancelCustomerOneTimeOrder({ orderId, orderIds, paymentId, removeFromHistory: true });
       return true;
     } catch {
       return false;
     }
   };
 
-  const startExtraUpiPayment = async (paymentId) => {
+  const startExtraUpiPayment = async (paymentId, extraMeta = {}) => {
     if (!paymentId) {
       throw new Error("Payment reference missing for UPI payment");
     }
@@ -687,8 +687,29 @@ export default function DairyCustomerDashboard() {
     setAddExtraUpiIntent({
       ...intentPayload,
       paymentId,
+      orderId: extraMeta.orderId || null,
+      orderIds: extraMeta.orderIds || [],
     });
     setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+  };
+
+  const cancelExtraUpiPayment = async () => {
+    if (addExtraUpiSubmitting) return;
+
+    const intent = addExtraUpiIntent;
+    setAddExtraUpiIntent(null);
+    setAddExtraError("Payment cancelled. Extra order was not placed.");
+    setShowAddExtraModal(true);
+
+    if (intent) {
+      const orderIds = Array.isArray(intent.orderIds) ? intent.orderIds : [];
+      const orderId = intent.orderId || orderIds[0] || null;
+      const paymentId = intent.paymentId || intent.payment?.id || null;
+
+      await rollbackCancelledExtraOrder({ orderId, orderIds, paymentId });
+      showToast("Payment cancelled. Extra order was not placed.", "warning");
+      refreshDashboard().catch(() => {});
+    }
   };
 
   const closeAddExtraModal = () => {
@@ -838,19 +859,31 @@ export default function DairyCustomerDashboard() {
         });
 
         const paymentId = getExtraOrderPaymentId(response);
-        if (!paymentId) {
-          const orderIds = response?.orderIds || response?.orders?.map((order) => order.id) || [];
+        const orderIds = Array.isArray(response?.orderIds) ? response.orderIds : [];
+        const orderId = response?.order?.id || orderIds[0] || null;
+
+        if (!paymentId || (!orderId && !orderIds.length)) {
           await rollbackCancelledExtraOrder({
-            orderId: response?.order?.id || orderIds[0] || null,
+            orderId,
+            orderIds,
             paymentId,
           });
-          setAddExtraError("Could not start UPI payment. The extra order was not placed.");
+          setAddExtraError("Could not start payment. The extra order was not placed.");
           return;
         }
 
-        await startExtraUpiPayment(paymentId);
-        setShowAddExtraModal(false);
-        refreshDashboard().catch(() => { });
+        try {
+          await startExtraUpiPayment(paymentId, { orderId, orderIds });
+          setShowAddExtraModal(true);
+        } catch (upiErr) {
+          await rollbackCancelledExtraOrder({
+            orderId,
+            orderIds,
+            paymentId,
+          });
+          setAddExtraError(upiErr?.message || "Could not start UPI payment. The extra order was not placed.");
+          setShowAddExtraModal(true);
+        }
         return;
       }
 
@@ -915,6 +948,7 @@ export default function DairyCustomerDashboard() {
         screenshotFile: addExtraUpiForm.screenshotFile,
       });
       setAddExtraUpiIntent(null);
+      setShowAddExtraModal(false);
       setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
       showToast("UPI payment submitted for dairy verification.", "success");
       refreshDashboard().catch(() => { });
@@ -1896,11 +1930,7 @@ export default function DairyCustomerDashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (addExtraUpiSubmitting) return;
-                    setAddExtraUpiIntent(null);
-                    setAddExtraError("");
-                  }}
+                  onClick={cancelExtraUpiPayment}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8] disabled:opacity-50"
                   disabled={addExtraUpiSubmitting}
                   aria-label="Close UPI payment"

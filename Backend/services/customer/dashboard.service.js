@@ -137,6 +137,7 @@ const getRecentOneTimeOrders = async (customerId) => {
     .from("deliveries")
     .select("id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, created_at")
     .eq("customer_id", customerId)
+    .neq("approval_status", "PENDING_PAYMENT")
     .ilike("notes", "%[ONE_TIME_ORDER]%")
     .order("created_at", { ascending: false })
     .limit(5);
@@ -164,6 +165,7 @@ const getTomorrowOneTimeOrders = async (customerId) => {
     .select("id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, created_at")
     .eq("customer_id", customerId)
     .eq("delivery_date", tomorrowIso)
+    .neq("approval_status", "PENDING_PAYMENT")
     .ilike("notes", "%[ONE_TIME_ORDER]%")
     .order("created_at", { ascending: false })
     .limit(20);

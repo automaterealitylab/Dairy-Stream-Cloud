@@ -30,8 +30,11 @@ const toFiniteNumber = (value, fallback = NaN) => {
 };
 
 const toPositiveId = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  if (Number.isFinite(num) && num > 0) return num;
+  const extracted = Number(String(value).replace(/\D+/g, ""));
+  return Number.isFinite(extracted) && extracted > 0 ? extracted : null;
 };
 
 const buildCustomerAddress = (customer = {}) => {
@@ -611,6 +614,7 @@ const tryFetchFromTable = async (table, customerId) => {
     .from(table)
     .select("*")
     .eq("customer_id", customerId)
+    .neq("approval_status", "PENDING_PAYMENT")
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -765,7 +769,7 @@ const findLinkedOneTimePayment = async ({
     .from("payments")
     .select("id, customer_id, dairy_id, amount, status, description, created_at")
     .eq("customer_id", customerId)
-    .ilike("description", `%delivery_id=${orderId}%`)
+    .or(`description.ilike.%delivery_id=${orderId}%,description.ilike.%delivery_ids=%${orderId}%`)
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -929,10 +933,13 @@ export const getCustomerDeliveries = async (customerId) => {
   const { rows, todayDelivery, dairyNamesMap } = await getTodayDeliverySnapshot(customerId, {
     subscription,
   });
-  const mappedRows = rows.map((row, index) =>
+  const filteredRows = (rows || []).filter(
+    (row) => String(row?.approval_status || "").toUpperCase() !== "PENDING_PAYMENT"
+  );
+  const mappedRows = filteredRows.map((row, index) =>
     mapDeliveryRow(row, index, null, null, dairyNamesMap || {})
   );
-  const insights = buildDeliveryInsights(rows);
+  const insights = buildDeliveryInsights(filteredRows);
 
   return {
     deliveries: mappedRows,
@@ -1032,6 +1039,15 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
       throw new Error(`Invalid product rate for ${item.milkType}. Ask dairy admin to update product price.`);
     }
 
+    await supabase
+      .from("deliveries")
+      .delete()
+      .eq("customer_id", customerId)
+      .eq("dairy_id", dairyId)
+      .eq("delivery_date", deliveryDate)
+      .eq("milk_type", item.milkType)
+      .eq("approval_status", "PENDING_PAYMENT");
+
     const { data: duplicate, error: duplicateError } = await supabase
       .from("deliveries")
       .select("id")
@@ -1040,6 +1056,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
       .eq("delivery_date", deliveryDate)
       .eq("milk_type", item.milkType)
       .in("status", ["PENDING", "DELIVERED"])
+      .neq("approval_status", "PENDING_PAYMENT")
       .limit(1)
       .maybeSingle();
 
@@ -1206,7 +1223,9 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
   }
 
   for (const delivery of deliveries) {
-    if (!String(delivery?.notes || "").includes("[ONE_TIME_ORDER]")) {
+    const notesStr = String(delivery?.notes || "");
+    const isOneTime = notesStr.includes("[ONE_TIME_ORDER]") || notesStr.includes("payment=") || notesStr.includes("slot=") || !notesStr;
+    if (!isOneTime) {
       throw new Error("Only one-time orders can be cancelled");
     }
 
@@ -1234,7 +1253,7 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     if (approvalStatus === "CANCELLED" || approvalStatus === "CANCELED") {
       throw new Error("This order has already been cancelled");
     }
-    if (approvalStatus !== "PENDING") {
+    if (approvalStatus !== "PENDING" && approvalStatus !== "PENDING_PAYMENT") {
       throw new Error("Only approval-pending one-time orders can be cancelled");
     }
   }
@@ -1248,7 +1267,8 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     dairyId: primaryDelivery?.dairy_id ?? null,
   });
   const requiresStandalonePayment = isStandaloneOneTimePaymentMethod(paymentMethod);
-  if (!payment && requiresStandalonePayment) {
+  const primaryApprovalStatus = String(primaryDelivery?.approval_status || "").toUpperCase();
+  if (!payment && requiresStandalonePayment && !removeFromHistory && primaryApprovalStatus !== "PENDING_PAYMENT") {
     throw new Error("Payment record not found");
   }
 

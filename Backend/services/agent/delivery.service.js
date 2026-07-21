@@ -383,6 +383,7 @@ const fetchDeliveryRows = async ({
       "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, updated_at, created_at"
     )
     .eq("agent_id", agentDbId)
+    .neq("approval_status", "PENDING_PAYMENT")
     .order("delivery_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);

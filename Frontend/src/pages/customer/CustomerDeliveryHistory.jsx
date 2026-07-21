@@ -210,11 +210,21 @@ function getDeliveryTypeLabel(delivery = {}) {
 }
 
 function canCancelPendingOneTimeOrder(delivery = {}) {
-  return (
-    Boolean(delivery?.id) &&
-    Boolean(delivery?.isOneTimeOrder) &&
-    String(delivery?.status || '').toUpperCase() === 'PENDING_APPROVAL'
-  );
+  if (!delivery?.id || !delivery?.isOneTimeOrder) return false;
+  const status = String(delivery?.status || '').toUpperCase();
+  const approvalStatus = String(delivery?.approvalStatus || '').toUpperCase();
+
+  if (
+    ['DELIVERED', 'COMPLETED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'CANCELLED', 'CANCELED', 'FAILED'].includes(status)
+  ) {
+    return false;
+  }
+
+  if (['APPROVED', 'CANCELLED', 'CANCELED'].includes(approvalStatus)) {
+    return false;
+  }
+
+  return status === 'PENDING_APPROVAL' || status === 'PENDING' || approvalStatus === 'PENDING';
 }
 
 function isDeliveryOutForTracking(status) {
@@ -320,7 +330,17 @@ function DeliveryRow({ item, muted = false, onCancel, onTrack, isCancelling = fa
 }
 
 function DayDeliveryCard({ day, onCancel, onTrack, cancellingOrderId }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const hasPendingOrder = useMemo(
+    () => (day?.items || []).some((item) => canCancelPendingOneTimeOrder(item)),
+    [day?.items]
+  );
+  const [isExpanded, setIsExpanded] = useState(() => hasPendingOrder);
+
+  useEffect(() => {
+    if (hasPendingOrder) {
+      setIsExpanded(true);
+    }
+  }, [hasPendingOrder]);
 
   return (
     <div className="overflow-hidden rounded-[18px] border border-[#EFE7DA] bg-white">
@@ -568,7 +588,13 @@ export default function Deliveries() {
     setNotice(null);
 
     try {
-      const response = await cancelCustomerOneTimeOrder({ orderId: target.id });
+      const rawIdStr = String(target.rawId || target.id || '').trim();
+      const extractedNum = Number(rawIdStr.replace(/\D+/g, ''));
+      const cleanId = Number.isFinite(extractedNum) && extractedNum > 0 ? extractedNum : target.id;
+      const response = await cancelCustomerOneTimeOrder({
+        orderId: cleanId,
+        orderIds: [cleanId],
+      });
       setCancelTarget(null);
       setNotice({
         type: 'success',
