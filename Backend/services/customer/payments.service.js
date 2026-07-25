@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supabase.js";
+﻿import { supabase } from "../../config/supabase.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { getRazorpayConfig } from "../../config/razorpay.js";
@@ -605,6 +605,35 @@ const getRazorpayOrderContext = async ({ dairyId, amountInRupees, notes = {} }) 
 const getRazorpayVerificationSecret = async (dairyId) => {
   return getRazorpayConfig().keySecret;
 };
+const isRazorpayMockAllowed = () =>
+  process.env.RAZORPAY_MOCK === "true" &&
+  String(process.env.NODE_ENV || "development").toLowerCase() !== "production";
+
+const assertRazorpayPaymentCaptured = async ({
+  razorpayOrderId,
+  razorpayPaymentId,
+  expectedAmount = null,
+}) => {
+  if (String(razorpayOrderId).startsWith("order_mock_")) {
+    if (isRazorpayMockAllowed()) return;
+    throw new Error("Mock Razorpay orders are not allowed");
+  }
+
+  const razorpay = getRazorpayClient();
+  const payment = await razorpay.payments.fetch(razorpayPaymentId);
+  if (!payment || String(payment.status || "").toLowerCase() !== "captured") {
+    throw new Error("Payment is not captured");
+  }
+  if (String(payment.order_id || "") !== String(razorpayOrderId)) {
+    throw new Error("Payment order mismatch");
+  }
+  if (expectedAmount !== null) {
+    const expectedPaise = Math.round(Number(expectedAmount || 0) * 100);
+    if (Number(payment.amount || 0) !== expectedPaise) {
+      throw new Error("Payment amount mismatch");
+    }
+  }
+};
 
 const getDairyPayoutDetails = async (dairyId) => {
   if (!dairyId) return null;
@@ -1086,6 +1115,9 @@ export const verifyCustomerPayment = async ({
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   const keySecret = await getRazorpayVerificationSecret(resolvedDairyId);
   const isMockOrder = String(razorpayOrderId).startsWith("order_mock_");
+  if (isMockOrder && !isRazorpayMockAllowed()) {
+    throw new Error("Mock Razorpay orders are not allowed");
+  }
   const generatedSignature = isMockOrder
     ? razorpaySignature
     : crypto
@@ -1096,6 +1128,8 @@ export const verifyCustomerPayment = async ({
   if (generatedSignature !== razorpaySignature) {
     throw new Error("Payment signature verification failed");
   }
+
+  await assertRazorpayPaymentCaptured({ razorpayOrderId, razorpayPaymentId });
 
   const paidAtIso = new Date().toISOString();
   const payloadVariants = buildPaidUpdatePayloadVariants({
@@ -1324,6 +1358,9 @@ export const verifyCustomerWalletTopup = async ({
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   const keySecret = await getRazorpayVerificationSecret(resolvedDairyId);
   const isMockOrder = String(razorpayOrderId).startsWith("order_mock_");
+  if (isMockOrder && !isRazorpayMockAllowed()) {
+    throw new Error("Mock Razorpay orders are not allowed");
+  }
   const generatedSignature = isMockOrder
     ? razorpaySignature
     : crypto
@@ -1334,6 +1371,12 @@ export const verifyCustomerWalletTopup = async ({
   if (generatedSignature !== razorpaySignature) {
     throw new Error("Payment signature verification failed");
   }
+
+  await assertRazorpayPaymentCaptured({
+    razorpayOrderId,
+    razorpayPaymentId,
+    expectedAmount: amountInRupees,
+  });
 
   const { data: existingTopup, error: existingTopupError } = await supabase
     .from("payments")
@@ -1987,4 +2030,6 @@ export const payCustomerBillWithWallet = async ({
     walletBalance: walletUpdate.walletBalance,
   };
 };
+
+
 

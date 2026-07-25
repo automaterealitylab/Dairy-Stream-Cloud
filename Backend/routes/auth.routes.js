@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 
 // ✅ 1. DETECT USER (The Gateway)
 import { detectUser } from "../controllers/authentication/detectUser.controller.js";
@@ -27,6 +27,12 @@ import {
 
 // Middleware
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { logout } from "../controllers/authentication/logout.controller.js";
+import {
+  loginRateLimit,
+  otpRateLimit,
+  passwordResetRateLimit,
+} from "../middleware/security.middleware.js";
 
 const router = express.Router();
 
@@ -36,20 +42,23 @@ const router = express.Router();
 router.post("/detect", detectUser);
 
 // 2. Specialized Logins
-router.post("/admin/login", adminLogin);
-router.post("/admin/forgot-password/request-otp", requestAdminResetOtp);
-router.post("/admin/forgot-password/reset", resetAdminPasswordWithOtp);
-router.post("/agent/login", agentLogin);
-router.post("/agent/forgot-password/request-otp", requestAgentResetOtp);
-router.post("/agent/forgot-password/reset", resetAgentPasswordWithOtp);
+router.post("/admin/login", loginRateLimit, adminLogin);
+router.post("/admin/forgot-password/request-otp", passwordResetRateLimit, requestAdminResetOtp);
+router.post("/admin/forgot-password/reset", passwordResetRateLimit, resetAdminPasswordWithOtp);
+router.post("/agent/login", loginRateLimit, agentLogin);
+router.post("/agent/forgot-password/request-otp", passwordResetRateLimit, requestAgentResetOtp);
+router.post("/agent/forgot-password/reset", passwordResetRateLimit, resetAgentPasswordWithOtp);
 
 // 3. Customer/Shared Login Methods
 // These are often called by the generic login page
 // router.post("/login/password", loginCustomerAuth); // Handles Customer Password Login
-router.post("/login/otp", requestOtpAuth); // Request OTP
-router.post("/login/otp/verify", verifyOtpLoginAuth); // Verify OTP
+router.post("/login/otp", otpRateLimit, requestOtpAuth); // Request OTP
+router.post("/login/otp/verify", loginRateLimit, verifyOtpLoginAuth); // Verify OTP
 
 // 4. Token Validation (For Persistent Login)
 router.get("/me", verifyToken, validateTokenAuth);
+router.post("/logout", verifyToken, logout);
 
 export default router;
+
+

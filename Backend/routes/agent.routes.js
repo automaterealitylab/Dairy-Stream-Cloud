@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 // We import from 'shared' because both Admins and Agents need this list
 import { getUniqueBuildings } from '../controllers/shared/building.controller.js';
 import { verifyAgent } from "../middleware/agent.middleware.js";
@@ -25,7 +25,7 @@ const router = express.Router();
 // ==========================================
 
 // Endpoint: GET http://localhost:4000/api/agent/buildings
-router.get('/buildings', getUniqueBuildings);
+router.get('/buildings', verifyAgent, getUniqueBuildings);
 
 router.get("/dashboard", verifyAgent, fetchAgentDashboard);
 router.get("/deliveries/assigned", verifyAgent, fetchAssignedDeliveries);
@@ -52,3 +52,4 @@ router.post("/deliveries/start", verifyAgent, startDelivery);
 
 
 export default router;
+

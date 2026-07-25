@@ -17,7 +17,7 @@ export const createEmailVerificationToken = async (customer) => {
     ])
     .select();
 
-  console.log("🧪 EMAIL TOKEN INSERT RESULT:", data, error);
+
 
   if (error) {
     throw error;
@@ -47,7 +47,7 @@ export const verifyEmailToken = async (token) => {
     .gt("expires_at", new Date().toISOString())
     .single();
 
-  console.log("🧪 VERIFY TOKEN RECORD:", record, tokenError);
+
 
   if (tokenError || !record) {
     throw new Error("Invalid or expired verification token");
@@ -61,7 +61,6 @@ export const verifyEmailToken = async (token) => {
     .select()
     .single();
 
-  console.log("🧪 CUSTOMER UPDATE RESULT:", updatedCustomer, updateError);
 
   if (updateError) {
     throw updateError;

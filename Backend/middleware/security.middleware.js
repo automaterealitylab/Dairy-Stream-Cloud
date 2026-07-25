@@ -12,6 +12,9 @@ const parseCsv = (value) =>
 
 const DEFAULT_CORS_ORIGINS = [
   "https://dairy-stream-cloud-fronten.onrender.com",
+];
+
+const DEVELOPMENT_CORS_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
@@ -19,7 +22,6 @@ const DEFAULT_CORS_ORIGINS = [
   "https://localhost",
   "capacitor://localhost",
 ];
-
 const isLocalDevOrigin = (origin) => {
   if (String(process.env.NODE_ENV || "development").toLowerCase() === "production") {
     return false;
@@ -45,7 +47,11 @@ export const getAllowedCorsOrigins = () => {
     ...parseCsv(process.env.FRONTEND_ORIGIN),
     ...parseCsv(process.env.FRONTEND_URL),
   ];
-  return [...new Set([...DEFAULT_CORS_ORIGINS, ...configured])];
+  const defaults =
+    String(process.env.NODE_ENV || "development").toLowerCase() === "production"
+      ? DEFAULT_CORS_ORIGINS
+      : [...DEFAULT_CORS_ORIGINS, ...DEVELOPMENT_CORS_ORIGINS];
+  return [...new Set([...defaults, ...configured])];
 };
 
 export const secureHeaders = (req, res, next) => {
@@ -54,7 +60,7 @@ export const secureHeaders = (req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
   res.setHeader("Cross-Origin-Resource-Policy", "same-site");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; base-uri 'self'");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'");
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 };
@@ -63,6 +69,19 @@ const getIp = (req) =>
   req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
   req.socket?.remoteAddress ||
   "unknown";
+
+const logRateLimitExceeded = (req, { keyPrefix, limit, windowMs, count }) => {
+  logger.warn("rate_limit_exceeded", {
+    keyPrefix,
+    limit,
+    windowMs,
+    count,
+    method: req.method,
+    path: req.originalUrl,
+    correlationId: req.correlationId || null,
+    fingerprint: req.requestFingerprint || null,
+  });
+};
 
 export const requestFingerprinting = async (req, res, next) => {
   const fingerprintSource = [
@@ -181,6 +200,7 @@ function createBotProtection() {
         const count = await redis.incr(redisKey);
         if (count === 1) await redis.pexpire(redisKey, 60_000);
         if (count > limit) {
+          logRateLimitExceeded(req, { keyPrefix: "bot", limit, windowMs: 60_000, count });
           return res.status(429).json({ success: false, error: "Request volume is temporarily restricted" });
         }
         return next();
@@ -197,6 +217,7 @@ function createBotProtection() {
     bucket.count += 1;
     seen.set(key, bucket);
     if (bucket.count > limit) {
+      logRateLimitExceeded(req, { keyPrefix: "bot", limit, windowMs: 60_000, count: bucket.count });
       return res.status(429).json({ success: false, error: "Request volume is temporarily restricted" });
     }
     next();
@@ -247,6 +268,7 @@ export const createRateLimiter = ({
         if (ttlMs > 0) res.setHeader("X-RateLimit-Reset", String(Math.ceil(ttlMs / 1000)));
 
         if (count > cachedMax) {
+          logRateLimitExceeded(req, { keyPrefix, limit: cachedMax, windowMs, count });
           res.setHeader("Retry-After", String(Math.max(1, Math.ceil(ttlMs / 1000))));
           return res.status(429).json({
             success: false,
@@ -271,6 +293,7 @@ export const createRateLimiter = ({
 
     current.count += 1;
     if (current.count > cachedMax) {
+      logRateLimitExceeded(req, { keyPrefix, limit: cachedMax, windowMs, count: current.count });
       res.setHeader("Retry-After", Math.ceil((current.resetAt - now) / 1000));
       return res.status(429).json({
         success: false,
@@ -296,6 +319,21 @@ export const authRateLimit = createRateLimiter({
   settingKey: "AUTH_RATE_LIMIT_PER_MINUTE",
 });
 
+export const loginRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: Number(process.env.LOGIN_RATE_LIMIT_PER_MINUTE || 5),
+  keyPrefix: "auth-login",
+});
+export const otpRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: Number(process.env.OTP_RATE_LIMIT_PER_MINUTE || 5),
+  keyPrefix: "auth-otp",
+});
+export const passwordResetRateLimit = createRateLimiter({
+  windowMs: 60 * 60_000,
+  max: Number(process.env.PASSWORD_RESET_RATE_LIMIT_PER_HOUR || 3),
+  keyPrefix: "auth-password-reset",
+});
 export const marketplaceRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: Number(process.env.MARKETPLACE_RATE_LIMIT_PER_MINUTE || 60),
@@ -309,3 +347,7 @@ export const webhookRateLimit = createRateLimiter({
   keyPrefix: "webhook",
   settingKey: "WEBHOOK_RATE_LIMIT_PER_MINUTE",
 });
+
+
+
+

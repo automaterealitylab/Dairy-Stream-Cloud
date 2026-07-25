@@ -1,4 +1,4 @@
-import { verifyAccessToken } from "../utils/jwt.js";
+﻿import { verifyAccessToken } from "../utils/jwt.js";
 
 export const verifyToken = async (req, res, next) => {
   try {
@@ -27,6 +27,10 @@ export const verifyToken = async (req, res, next) => {
       email: decoded.email,
       role: decoded.role,
       dairyId: decoded.dairyId ?? null,
+      agentId: decoded.agentId ?? null,
+      jti: decoded.jti ?? null,
+      exp: decoded.exp ?? null,
+      sid: decoded.sid ?? null,
     };
 
     // Also set role-specific properties for backward compatibility
@@ -50,3 +54,4 @@ export const verifyToken = async (req, res, next) => {
     });
   }
 };
+

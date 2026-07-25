@@ -1,4 +1,4 @@
-import {
+﻿import {
   getAdminAgents,
   getAgentDetails,
   updateAgentById,
@@ -50,7 +50,8 @@ export const fetchAdminAgentById = async (req, res) => {
 export const updateAdminAgentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await updateAgentById(id, req.body);
+    const dairyId = req.admin?.dairyId ?? null;
+    const updated = await updateAgentById(id, req.body, { dairyId });
     res.json({ success: true, agent: updated });
   } catch (err) {
     console.error("ADMIN AGENT UPDATE ERROR:", err.message);
@@ -61,10 +62,13 @@ export const updateAdminAgentById = async (req, res) => {
 export const deleteAdminAgentById = async (req, res) => {
   try {
     const { id } = req.params;
-    await deleteAgentById(id);
+    const dairyId = req.admin?.dairyId ?? null;
+    await deleteAgentById(id, { dairyId });
     res.json({ success: true });
   } catch (err) {
     console.error("ADMIN AGENT DELETE ERROR:", err.message);
     res.status(500).json({ message: "Failed to delete agent" });
   }
 };
+
+

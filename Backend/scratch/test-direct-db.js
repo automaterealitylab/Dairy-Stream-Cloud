@@ -4,7 +4,7 @@ import "../config/loadEnv.js";
 const { Client } = pg;
 
 async function run() {
-  const projectRef = process.env.SUPABASE_PROJECT_REF || "drncjxojfmepvsupjaut";
+  const projectRef = process.env.SUPABASE_PROJECT_REF || "";
   const password = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   const connectionStrings = [

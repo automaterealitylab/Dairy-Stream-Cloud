@@ -54,7 +54,12 @@ import {
   fetchDeliveryETA,
 } from "../controllers/customer/notification.controller.js";
 import { uploadSingleImage } from "../middleware/upload.middleware.js";
-import { createRateLimiter } from "../middleware/security.middleware.js";
+import {
+  createRateLimiter,
+  loginRateLimit,
+  otpRateLimit,
+  passwordResetRateLimit,
+} from "../middleware/security.middleware.js";
 
 // Middleware
 import { authenticate } from "../middleware/cutomerAuthChecker.middleware.js";
@@ -70,11 +75,11 @@ const paymentVerificationRateLimit = createRateLimiter({
 // ==========================================
 // 🔐 PUBLIC ROUTES (Registration & specific auth)
 // ==========================================
-router.post("/addCustomer", addCustomerAuth);
+router.post("/addCustomer", loginRateLimit, addCustomerAuth);
 
 // OTP Auth Flow
-router.post("/login/otp", requestOtpAuth);
-router.post("/login/otp/verify", verifyOtpLoginAuth);
+router.post("/login/otp", otpRateLimit, requestOtpAuth);
+router.post("/login/otp/verify", loginRateLimit, verifyOtpLoginAuth);
 
 // Email verification
 router.get("/verify-email", verifyEmail);
@@ -126,5 +131,8 @@ router.delete("/subscription", authenticate, clearSubscription);
 // ==========================================
 router.post("/notifications/subscribe", authenticate, subscribeToNotifications);
 router.get("/deliveries/:id/eta", authenticate, fetchDeliveryETA);
+
+router.post("/forgot-password", passwordResetRateLimit, forgotPassword);
+router.post("/reset-password", passwordResetRateLimit, resetPassword);
 
 export default router;

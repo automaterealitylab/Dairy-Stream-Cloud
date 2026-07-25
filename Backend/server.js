@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import { createServer } from "http";
 import cors from "cors";
 import { Server as SocketIOServer } from "socket.io";
@@ -25,6 +25,7 @@ import {
   correlationMiddleware,
   globalErrorHandler,
   notFoundHandler,
+  sanitizeErrorResponses,
 } from "./middleware/observability.middleware.js";
 import {
   autoFailPendingSubscriptionDeliveriesForDate,
@@ -85,6 +86,7 @@ const httpServer = createServer(app);
 // ======================
 app.use(secureHeaders);
 app.use(correlationMiddleware);
+app.use(sanitizeErrorResponses);
 app.use(
   cors({
     origin(origin, callback) {
@@ -122,27 +124,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Database connection check
-app.get("/supabase-health", async (req, res) => {
-  try {
-    // Query a known table so the health check reflects real connectivity.
-    const { data, error } = await supabase.from("customers").select("id").limit(1);
-    
-    if (error) throw error;
-    
-    res.json({ 
-        status: "connected", 
-        message: "✅ Supabase connection successful" 
-    });
-  } catch (err) {
-    console.error("Supabase exception:", err.message);
-    res.status(500).json({ 
-        status: "error", 
-        message: "❌ Database connection failed", 
-        error: err.message 
-    });
-  }
-});
+// Database readiness is exposed through /readyz without database details.
 
 const shutdown = async () => {
   logger.info("server_shutdown_started");
@@ -167,9 +149,13 @@ app.get("/readyz", async (req, res) => {
   try {
     const { error } = await supabase.from("customers").select("id").limit(1);
     if (error) throw error;
-    res.json({ status: "ready", timestamp: new Date().toISOString() });
+    res.json({ status: "ready" });
   } catch (err) {
-    res.status(503).json({ status: "not_ready", error: err.message });
+    logger.error("readiness_check_failed", {
+      correlationId: req.correlationId,
+      error: err.message,
+    });
+    res.status(503).json({ status: "not_ready", correlationId: req.correlationId });
   }
 });
 
@@ -183,35 +169,15 @@ app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 // ======================
-// ⚠️ Global Error Handler
-// ======================
-app.use((err, req, res, next) => {
-  console.error("❌ Global Server Error:", err.stack);
-
-  if (err?.type === "entity.too.large" || err?.status === 413) {
-    return res.status(413).json({
-      success: false,
-      message: "Request payload is too large",
-      error: err.message,
-    });
-  }
-
-  res.status(500).json({
-    success: false,
-    message: "Internal Server Error",
-    error: err.message,
-  });
-});
-
-// ======================
 // 🚀 Start Server
 // ======================
 const preferredPort = Number(process.env.PORT || 4000);
 
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: "*",
+    origin: (origin, callback) => callback(null, isAllowedCorsOrigin(origin)),
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
@@ -220,7 +186,7 @@ registerLocationSocketHandlers(io);
 const startServer = async () => {
   const port = await getAvailablePort(preferredPort);
   const server = httpServer.listen(port, '0.0.0.0', () => {
-    console.log(`✅ Server running on http://0.0.0.0:${port}`);
+    logger.info("server_started", { host: "0.0.0.0", port });
   });
 
   return server;
@@ -253,11 +219,9 @@ const runSubscriptionAutomation = async () => {
       task: runDailySubscriptionAutomationForAllCustomers,
     });
     if (!result) return;
-    console.log(
-      `[AUTO_SUBSCRIPTION] date=${result.date} created=${result.createdCount} skipped=${result.skippedCount}`
-    );
+    logger.info("auto_subscription_completed", result);
   } catch (err) {
-    console.error("AUTO_SUBSCRIPTION ERROR:", err?.message || err);
+    logger.error("auto_subscription_failed", { error: err?.message || String(err) });
   }
 };
 
@@ -285,11 +249,9 @@ const runSubscriptionAutoFail = async () => {
       task: () => autoFailPendingSubscriptionDeliveriesForDate({ targetDate }),
     });
     if (!result) return;
-    console.log(
-      `[AUTO_FAIL_SUBSCRIPTION] date=${result.date} failed=${result.failedCount}`
-    );
+    logger.info("auto_fail_subscription_completed", result);
   } catch (err) {
-    console.error("AUTO_FAIL_SUBSCRIPTION ERROR:", err?.message || err);
+    logger.error("auto_fail_subscription_failed", { error: err?.message || String(err) });
   }
 };
 
@@ -302,11 +264,9 @@ const runMonthEndSubscriptionBilling = async () => {
       task: runMonthEndSubscriptionBillingForAllCustomers,
     });
     if (!result) return;
-    console.log(
-      `[MONTH_END_BILLING] date=${result.date} customers=${result.customers} bills=${result.bills}`
-    );
+    logger.info("month_end_billing_completed", result);
   } catch (err) {
-    console.error("MONTH_END_BILLING ERROR:", err?.message || err);
+    logger.error("month_end_billing_failed", { error: err?.message || String(err) });
   }
 };
 
@@ -321,7 +281,7 @@ const runWhatsAppNotificationQueue = async () => {
   try {
     await processQueuedWhatsAppNotifications({ limit: 25 });
   } catch (err) {
-    console.error("WHATSAPP_QUEUE ERROR:", err?.message || err);
+    logger.error("whatsapp_queue_failed", { error: err?.message || String(err) });
   } finally {
     await lock.release();
   }
@@ -350,8 +310,9 @@ if (shouldRunInProcessJobs()) {
 // Handle "Port in use" errors gracefully (from your old app.js)
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${preferredPort} is already in use.`);
-    console.error(`👉 Stop the other terminal or change PORT in .env`);
+    logger.error("server_port_in_use", { port: preferredPort });
     process.exit(1);
   }
 });
+
+

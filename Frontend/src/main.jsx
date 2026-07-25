@@ -15,12 +15,6 @@ if (fallbackEl) {
   fallbackEl.remove();
 }
 
-if (import.meta.env.DEV) {
-  import("./utils/adminDebug.js").then(({ default: debugAdmin }) => {
-    window.__debugAdmin = debugAdmin;
-  });
-}
-
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>

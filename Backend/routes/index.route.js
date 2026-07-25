@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import publicRoutes from './public.routes.js';
 import adminRoutes from './admin.routes.js';
 import authRoutes from './auth.routes.js';
@@ -7,6 +7,7 @@ import agentRoutes from './agent.routes.js';
 import locationRoutes from './location.js';
 import superAdminRoutes from './superAdmin.routes.js';
 import { authRateLimit } from '../middleware/security.middleware.js';
+import { verifyToken } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -20,7 +21,7 @@ router.use('/customer', customerRoutes);
 router.use('/admin', adminRoutes);  // add addagent route in admin routes cause admin create the agent
 //agent routes (/api/agent)
 router.use('/agent', agentRoutes);
-router.use('/location', locationRoutes);
+router.use('/location', verifyToken, locationRoutes);
 
 // 4. Super Admin Routes (Base: /api/super-admin)
 router.use('/super-admin', superAdminRoutes);
@@ -31,3 +32,4 @@ router.use('/auth', authRateLimit, authRoutes);
 
 
 export default router;
+

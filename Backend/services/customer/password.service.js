@@ -1,17 +1,26 @@
-import bcrypt from "bcryptjs";
+﻿import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { supabase } from "../../config/supabase.js";
 
+const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+const hashResetToken = (token) =>
+  crypto.createHash("sha256").update(String(token || "")).digest("hex");
+
 export const createResetToken = async (customerId) => {
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+  await supabase
+    .from("password_reset_tokens")
+    .delete()
+    .eq("customer_id", customerId);
 
   const { error } = await supabase
     .from("password_reset_tokens")
     .insert([
       {
         customer_id: customerId,
-        token,
+        token: hashResetToken(token),
         expires_at: expiresAt,
       },
     ]);
@@ -27,7 +36,7 @@ export const resetPasswordService = async (token, newPassword) => {
   const { data: record, error } = await supabase
     .from("password_reset_tokens")
     .select("*")
-    .eq("token", token)
+    .eq("token", hashResetToken(token))
     .gt("expires_at", new Date().toISOString())
     .single();
 
@@ -46,7 +55,6 @@ export const resetPasswordService = async (token, newPassword) => {
     throw new Error("Failed to reset password");
   }
 
-  // 🔐 Important: delete token after use
   await supabase
     .from("password_reset_tokens")
     .delete()

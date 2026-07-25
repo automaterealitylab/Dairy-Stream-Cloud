@@ -1,6 +1,14 @@
 import { supabase } from "../../config/supabase.js";
 import { sendEmail } from "../../utils/email.js";
 
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 // Fetch platform announcements
 export const fetchAnnouncements = async (req, res) => {
   try {
@@ -62,16 +70,16 @@ export const createAnnouncement = async (req, res) => {
         try {
           await sendEmail({
             to: dairy.dairy_email,
-            subject: `[DairyStream Cloud] ${title}`,
+            subject: `[DairyStream Cloud] ${String(title).slice(0, 160)}`,
             html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                <h2 style="color: #2563eb;">Platform Update: ${title}</h2>
-                <p>Hello ${dairy.owner_name || "Dairy Owner"},</p>
+                <h2 style="color: #2563eb;">Platform Update: ${escapeHtml(title)}</h2>
+                <p>Hello ${escapeHtml(dairy.owner_name || "Dairy Owner")},</p>
                 <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 15px 0; font-size: 15px; color: #1f2937;">
-                  ${message.replace(/\n/g, "<br/>")}
+                  ${escapeHtml(message).replace(/\n/g, "<br/>")}
                 </div>
                 <p style="font-size: 12px; color: #6b7280; margin-top: 25px;">
-                  You received this email because your dairy <strong>${dairy.dairy_name}</strong> is registered on DairyStream Cloud.
+                  You received this email because your dairy <strong>${escapeHtml(dairy.dairy_name)}</strong> is registered on DairyStream Cloud.
                 </p>
               </div>
             `,
@@ -97,3 +105,5 @@ export const createAnnouncement = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+

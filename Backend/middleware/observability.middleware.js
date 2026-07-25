@@ -2,7 +2,6 @@ import crypto from "crypto";
 import { logger, logError } from "../utils/logger.js";
 import { metrics } from "../utils/metrics.js";
 import { captureException } from "../services/shared/errorTracking.service.js";
-
 export const correlationMiddleware = (req, res, next) => {
   const incoming =
     req.headers["x-correlation-id"] ||
@@ -10,7 +9,6 @@ export const correlationMiddleware = (req, res, next) => {
     crypto.randomUUID();
   req.correlationId = String(incoming).slice(0, 128);
   res.setHeader("X-Correlation-Id", req.correlationId);
-
   const started = process.hrtime.bigint();
   res.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - started) / 1_000_000;
@@ -29,15 +27,31 @@ export const correlationMiddleware = (req, res, next) => {
       ip: req.ip,
     });
   });
-
   next();
 };
-
 export const notFoundHandler = (req, res) => {
   res.status(404).json({ success: false, error: "Route not found", correlationId: req.correlationId });
 };
-
-export const globalErrorHandler = (err, req, res, next) => {
+const genericClientMessage = (status) => {
+  if (status === 404) return "Resource not found";
+  if (status === 429) return "Too many requests. Please retry later.";
+  return "Request failed";
+};
+export const sanitizeErrorResponses = (req, res, next) => {
+  const originalJson = res.json;
+  res.json = function (body) {
+    if (res.statusCode >= 400) {
+      return originalJson.call(this, {
+        success: false,
+        message: genericClientMessage(res.statusCode),
+        correlationId: req.correlationId,
+      });
+    }
+    return originalJson.call(this, body);
+  };
+  next();
+};
+export const globalErrorHandler = (err, req, res, _next) => {
   logError("global_error", err, {
     correlationId: req?.correlationId,
     method: req?.method,
@@ -49,21 +63,12 @@ export const globalErrorHandler = (err, req, res, next) => {
     path: req?.originalUrl,
     statusCode: err?.statusCode || err?.status || 500,
   }).catch(() => null);
-
-  if (err?.type === "entity.too.large" || err?.status === 413) {
-    return res.status(413).json({
-      success: false,
-      message: "Request payload is too large",
-      error: err.message,
-      correlationId: req.correlationId,
-    });
-  }
-
-  const status = err.statusCode || err.status || 500;
+  const status = err?.type === "entity.too.large" || err?.status === 413
+    ? 413
+    : err.statusCode || err.status || 500;
   res.status(status).json({
     success: false,
-    message: status >= 500 ? "Internal Server Error" : err.message,
-    error: process.env.NODE_ENV === "production" && status >= 500 ? undefined : err.message,
+    message: status >= 500 ? "Internal Server Error" : genericClientMessage(status),
     correlationId: req.correlationId,
   });
 };

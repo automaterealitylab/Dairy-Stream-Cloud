@@ -1,18 +1,10 @@
 import { detectUserService } from "../../services/authentication/detectUser.service.js";
 import { verifyAccessToken } from "../../utils/jwt.js";
 
-const shouldLogAuthDebug = () => process.env.DEBUG_AUTH_LOGS === "true";
-
-const logDetectDebug = (message, details = {}) => {
-  if (shouldLogAuthDebug()) {
-    console.log("[AUTH DETECT]", message, details);
-  }
-};
+const logDetectDebug = () => {};
 
 export const detectUser = async (req, res) => {
   const authHeader = req.headers.authorization;
-  let token = null;
-
   try {
     if (authHeader) {
       if (!authHeader.startsWith("Bearer ")) {
@@ -23,7 +15,7 @@ export const detectUser = async (req, res) => {
         });
       }
 
-      token = authHeader.split(" ")[1];
+      const token = authHeader.split(" ")[1];
 
       if (!token) {
         logDetectDebug("empty bearer token");

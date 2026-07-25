@@ -49,8 +49,6 @@ const loadDashboard = useCallback(async (force = false) => {
   try {
     const res = await fetchAdminDashboard({ forceRefresh: force });
     
-    // Debugging: Check your browser console to see what the server actually sent
-    console.log("Full Dashboard Response:", res);
 
     setData({
       dairyName: res.dairyName,
@@ -116,7 +114,7 @@ const loadDashboard = useCallback(async (force = false) => {
                   exceptions={data?.exceptions}
                   selectedIds={selectedDeliveries}
                   onToggleSelect={toggleDeliverySelection}
-                  onReschedule={(id) => console.log("Rescheduling", id)} 
+                  onReschedule={() => {}} 
                 />
                 <AdminActivity activities={data.recentActivity} />
               </div>

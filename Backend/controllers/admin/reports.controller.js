@@ -1,8 +1,8 @@
-import { getDairyAccountingReport } from "../../services/admin/reports.service.js";
+﻿import { getDairyAccountingReport } from "../../services/admin/reports.service.js";
 
 export const fetchDairyAccountingReport = async (req, res) => {
   try {
-    const dairyId = req.admin?.dairyId || req.query?.dairyId || null;
+    const dairyId = req.admin?.dairyId || null;
     if (!dairyId) {
       return res.status(400).json({ error: "Dairy context is required" });
     }
@@ -18,3 +18,4 @@ export const fetchDairyAccountingReport = async (req, res) => {
     res.status(500).json({ error: err.message || "Failed to build accounting report" });
   }
 };
+

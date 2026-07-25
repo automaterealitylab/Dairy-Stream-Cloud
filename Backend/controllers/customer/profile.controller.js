@@ -12,6 +12,7 @@ const uploadFromBuffer = (fileBuffer) =>
       {
         folder: "customers/profile",
         resource_type: "image",
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
       },
       (error, result) => {
         if (result) resolve(result);
@@ -181,3 +182,5 @@ export const updateProfile = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+

@@ -1,7 +1,8 @@
-import express from "express";
+﻿import express from "express";
 const router = express.Router();
 
 import { verifySuperAdmin } from "../middleware/superAdmin.middleware.js";
+import { createRateLimiter, loginRateLimit } from "../middleware/security.middleware.js";
 
 // --- CONTROLLER IMPORTS ---
 import {
@@ -62,9 +63,9 @@ import {
 // ==========================================
 // 1. PUBLIC PLATFORM ENDPOINTS
 // ==========================================
-router.post("/auth/login", superAdminLogin);
-router.post("/analytics/pageview", logPageview);
-router.post("/coupons/validate", validateCoupon); // Accessible by dairy checkout
+router.post("/auth/login", loginRateLimit, superAdminLogin);
+router.post("/analytics/pageview", createRateLimiter({ windowMs: 60_000, max: 120, keyPrefix: "superadmin-pageview" }), logPageview);
+router.post("/coupons/validate", createRateLimiter({ windowMs: 60_000, max: 20, keyPrefix: "coupon-validate" }), validateCoupon); // Accessible by dairy checkout
 
 // ==========================================
 // 2. SECURED SUPER ADMIN ENDPOINTS (REQUIRED JWT & RBAC)
@@ -115,3 +116,4 @@ router.get("/monitoring/health", getHealth);
 router.get("/monitoring/logs", getErrorLogs);
 
 export default router;
+

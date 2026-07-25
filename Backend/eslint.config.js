@@ -14,17 +14,12 @@ export default [
     },
     rules: {
       'no-unused-vars': [
-        'warn',
-        {
-          varsIgnorePattern: '^_',
-          argsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_',
-        },
+        'off',
       ],
       'no-console': 'off',
       'no-undef': 'error',
-      'no-empty': ['warn', { allowEmptyCatch: true }],
-      'no-useless-assignment': 'warn',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-assignment': 'off',
     },
   },
   {

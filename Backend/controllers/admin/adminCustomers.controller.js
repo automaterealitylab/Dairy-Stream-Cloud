@@ -1,4 +1,4 @@
-import {
+﻿import {
   getAdminCustomers,
   getCustomerBillDetails,
   getCustomerDetails,
@@ -30,8 +30,8 @@ export const fetchAdminCustomers = async (req, res) => {
 export const fetchAdminCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    const data = await getCustomerDetails(id);
+    const dairyId = req.admin?.dairyId ?? null;
+    const data = await getCustomerDetails(id, { dairyId });
 
     res.json(data);
   } catch (err) {
@@ -59,7 +59,8 @@ export const fetchAdminCustomerBillDetails = async (req, res) => {
 export const updateAdminCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await updateCustomerById(id, req.body);
+    const dairyId = req.admin?.dairyId ?? null;
+    const updated = await updateCustomerById(id, req.body, { dairyId });
     res.json({ success: true, customer: updated });
   } catch (err) {
     console.error("ADMIN CUSTOMER UPDATE ERROR:", err.message);
@@ -70,7 +71,8 @@ export const updateAdminCustomerById = async (req, res) => {
 export const deleteAdminCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
-    await deleteCustomerById(id);
+    const dairyId = req.admin?.dairyId ?? null;
+    await deleteCustomerById(id, { dairyId });
     res.json({ success: true });
   } catch (err) {
     console.error("ADMIN CUSTOMER DELETE ERROR:", err.message);
@@ -147,3 +149,4 @@ export const assignAdminCustomerPermanentPartner = async (req, res) => {
     });
   }
 };
+

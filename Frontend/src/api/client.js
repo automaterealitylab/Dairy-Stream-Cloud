@@ -38,7 +38,6 @@ const getDynamicBaseUrl = () => {
 };
 
 export const BASE_URL = getDynamicBaseUrl();
-console.log("🚀 API BASE_URL resolved:", BASE_URL);
 export const API_BASE_URL = `${BASE_URL}/api`;
 
 const client = axios.create({

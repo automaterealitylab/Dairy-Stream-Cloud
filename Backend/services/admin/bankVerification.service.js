@@ -209,7 +209,7 @@ export const buildVerificationDecision = ({
       if (providerVerified || (providerResult.provider === "local" && process.env.NODE_ENV !== "production")) {
         const upperPan = String(pan).trim().toUpperCase();
         // In production, assume the PAN belongs to the dairy owner.
-        // In development/test mock mode, simulate mismatch if first letter is not M or V
+        // In non-production mock mode, simulate mismatch if first letter is not M or V
         const isOwnerPan = process.env.NODE_ENV === "production" || upperPan === "MJIPK2475G" || upperPan.startsWith("M") || upperPan.startsWith("V");
         panHolderName = isOwnerPan ? (detectedName || ownerName || submittedAccountHolderName) : "John Doe";
 
@@ -458,7 +458,7 @@ const verifyWithConfiguredProvider = async ({ accountNumber, ifsc, accountHolder
     };
   }
 
-  // If provider is local, simulate successful local verification in development/testing
+  // If provider is local, simulate successful local verification outside production
   const hasUpi = Boolean(upiId && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(String(upiId).trim()));
   return {
     configured: true,

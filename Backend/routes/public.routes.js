@@ -1,4 +1,5 @@
-import express from "express";
+﻿import express from "express";
+import { createRateLimiter } from "../middleware/security.middleware.js";
 
 import {
   getNearbyDairiesController,
@@ -9,14 +10,15 @@ import {
 } from "../controllers/public/dairies.controller.js";
 
 const router = express.Router();
+const publicSearchRateLimit = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "public-dairy-search" });
 
 // Public Dairy Listings
-router.get("/dairies/search", getSearchDairiesController);
-router.get("/dairies/suggestions", getSearchSuggestionsController);
+router.get("/dairies/search", publicSearchRateLimit, getSearchDairiesController);
+router.get("/dairies/suggestions", publicSearchRateLimit, getSearchSuggestionsController);
 
-router.get("/dairies/nearby", getNearbyDairiesController);
+router.get("/dairies/nearby", publicSearchRateLimit, getNearbyDairiesController);
 
-router.get("/dairies/city", getCityDairiesController);
+router.get("/dairies/city", publicSearchRateLimit, getCityDairiesController);
 router.get("/dairies/:id", getPublicDairy);
 
 

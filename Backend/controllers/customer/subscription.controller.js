@@ -1,4 +1,4 @@
-import {
+﻿import {
   getSubscriptionByCustomerId,
   upsertSubscription,
   clearSubscriptionByCustomerId,
@@ -25,30 +25,28 @@ export const saveSubscription = async (req, res) => {
       address,
       paymentMethod,
       deliveryDays,
-      status,
-      approvalStatus,
-      assignedAgentId,
     } = req.body;
 
     if (!dairyId) {
       return res.status(400).json({ message: "dairyId is required" });
     }
 
+    const parsedQuantity = Number(quantity);
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0 || parsedQuantity > 100) {
+      return res.status(400).json({ message: "Quantity must be between 0 and 100" });
+    }
+
     const subscription = await upsertSubscription(req.customer.id, {
       dairy_id: dairyId,
       milk_type: milkType,
-      quantity_liters: Number(quantity),
+      quantity_liters: parsedQuantity,
       delivery_slot: slot,
       start_date: startDate,
       address,
       payment_method: paymentMethod,
       delivery_days: deliveryDays,
-      status,
-      approval_status: approvalStatus,
-      assigned_agent_id:
-        assignedAgentId === undefined || assignedAgentId === null || assignedAgentId === ""
-          ? undefined
-          : Number(assignedAgentId),
+      status: "ACTIVE",
+      approval_status: "PENDING",
     });
 
     res.json({ subscription });
@@ -76,3 +74,4 @@ export const clearSubscription = async (req, res) => {
     });
   }
 };
+

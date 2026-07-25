@@ -1,4 +1,4 @@
-import client from "./client";
+﻿import client from "./client";
 
 /* =========================
    ADMIN LOGIN
@@ -502,7 +502,9 @@ export const verifyAdminFarmPlanSubscriptionPayment = async (payload) => {
   return data;
 };
 
-export const validateCouponCode = async ({ code, dairyId, planKey, purchaseAmount }) => {
-  const { data } = await client.post("/super-admin/coupons/validate", { code, dairyId, planKey, purchaseAmount });
+export const validateCouponCode = async ({ code, dairyId, planKey, billingCycle }) => {
+  const { data } = await client.post("/super-admin/coupons/validate", { code, dairyId, planKey, billingCycle });
   return data;
 };
+
+

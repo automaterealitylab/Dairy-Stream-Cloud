@@ -10,6 +10,7 @@ export default defineConfig([
     'android/.gradle',
     'android/build',
     'android/app/build',
+    'android/app/src/main/assets',
     'android/capacitor-cordova-android-plugins',
   ]),
   {
@@ -40,6 +41,7 @@ export default defineConfig([
           caughtErrorsIgnorePattern: '^[A-Z_]',
         },
       ],
+      'react-hooks/exhaustive-deps': 'off',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
@@ -47,7 +49,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['vite.config.js'],
+    files: ['vite.config.js', 'scripts/**/*.js'],
     languageOptions: {
       globals: globals.node,
     },

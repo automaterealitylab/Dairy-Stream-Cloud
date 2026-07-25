@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Check } from "lucide-react";
 import { validateCouponCode } from "../../api/admin.api.js";
 import { toast } from "react-hot-toast";
@@ -54,13 +54,10 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
     if (!couponCodeInput.trim()) return;
     setValidating(true);
     try {
-      const activePlan = plans.find(p => p.id === selected_plan);
-      const purchaseVal = billingCycle === "MONTHLY" ? activePlan.monthlyPrice : activePlan.yearlyPrice;
-
       const result = await validateCouponCode({
         code: couponCodeInput.trim().toUpperCase(),
-        purchaseAmount: purchaseVal,
         planKey: selected_plan,
+        billingCycle: billingCycle === "YEARLY" ? "yearly" : "monthly",
         dairyId: 0, // 0 for unregistered signups
       });
 
@@ -123,12 +120,6 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
           const originalPrice = billingCycle === "MONTHLY" ? plan.monthlyPrice : plan.yearlyPrice;
           let discount = 0;
           if (couponApplied) {
-            console.log("Checking plan compatibility for card:", {
-              cardPlan: plan.id,
-              applicablePlans: couponApplied.applicablePlans,
-              discountType: couponApplied.discountType,
-              discountValue: couponApplied.discountValue
-            });
 
             const isPlanApplicable = !couponApplied.applicablePlans || 
               couponApplied.applicablePlans.length === 0 || 
@@ -150,7 +141,6 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
                 discount = originalPrice;
               }
             }
-            console.log("Calculated discount for card:", plan.id, "Discount:", discount);
           }
           const hasDiscount = discount > 0;
           const finalPrice = Math.max(0, originalPrice - discount);
@@ -287,3 +277,5 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
 };
 
 export default PlanStep;
+
+

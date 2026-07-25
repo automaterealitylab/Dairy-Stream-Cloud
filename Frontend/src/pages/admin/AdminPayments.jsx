@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
@@ -79,7 +79,7 @@ export default function AdminPayments() {
         code: couponCode.toUpperCase().trim(),
         dairyId: farmPlan?.id,
         planKey: pendingAutopayPlan ? pendingAutopayPlan.toUpperCase() : "FREE",
-        purchaseAmount: activePlanPrice
+        billingCycle: billingCycle === "yearly" ? "yearly" : "monthly"
       });
       if (data.success) {
         setCouponApplied(data.coupon);
@@ -1394,4 +1394,6 @@ export default function AdminPayments() {
     </div>
   );
 }
+
+
 

@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supabase.js";
+﻿import { supabase } from "../../config/supabase.js";
 import { upsertSubscription } from "../customer/subscription.service.js";
 import {
   ONE_TIME_ORDER_MARKER,
@@ -390,7 +390,23 @@ export const getAdminCustomers = async ({
   };
 };
 
-export const getCustomerDetails = async (customerId) => {
+
+const assertCustomerBelongsToDairy = async (customerId, dairyId) => {
+  if (!dairyId) return;
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("customer_id", customerId)
+    .eq("dairy_id", dairyId)
+    .neq("status", "CLOSED")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error("Customer not found");
+};
+export const getCustomerDetails = async (customerId, { dairyId = null } = {}) => {
+  await assertCustomerBelongsToDairy(customerId, dairyId);
   // Customer
   const { data: customer, error: customerError } = await supabase
     .from("customers")
@@ -432,10 +448,14 @@ export const getCustomerDetails = async (customerId) => {
   let subscription = null;
   let assignedAgent = null;
 
-  const { data: subscriptionRow, error: subscriptionError } = await supabase
+  let subscriptionQuery = supabase
     .from("subscriptions")
     .select("*")
-    .eq("customer_id", customerId)
+    .eq("customer_id", customerId);
+
+  if (dairyId) subscriptionQuery = subscriptionQuery.eq("dairy_id", dairyId);
+
+  const { data: subscriptionRow, error: subscriptionError } = await subscriptionQuery
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1)
@@ -444,13 +464,13 @@ export const getCustomerDetails = async (customerId) => {
   if (subscriptionError) throw subscriptionError;
   subscription = subscriptionRow ?? null;
 
-  const dairyId = subscription?.dairy_id || membership?.dairy_id || null;
+  const effectiveDairyId = subscription?.dairy_id || membership?.dairy_id || null;
 
   if (dairyId) {
     const { data } = await supabase
       .from("dairies")
       .select("*")
-      .eq("id", dairyId)
+      .eq("id", effectiveDairyId)
       .single();
     if (data) {
       data.dairy_phone = decryptDeterministic(data.dairy_phone);
@@ -610,7 +630,8 @@ export const getCustomerBillDetails = async ({ customerId, dairyId = null }) => 
   };
 };
 
-export const updateCustomerById = async (customerId, updates) => {
+export const updateCustomerById = async (customerId, updates, { dairyId = null } = {}) => {
+  await assertCustomerBelongsToDairy(customerId, dairyId);
   const allowed = [
     "customer_name",
     "phone_number",
@@ -647,7 +668,8 @@ export const updateCustomerById = async (customerId, updates) => {
   return data;
 };
 
-export const deleteCustomerById = async (customerId) => {
+export const deleteCustomerById = async (customerId, { dairyId = null } = {}) => {
+  await assertCustomerBelongsToDairy(customerId, dairyId);
   const { error } = await supabase.from("customers").delete().eq("id", customerId);
   if (error) throw error;
   return { success: true };
@@ -757,3 +779,8 @@ export const assignPermanentDeliveryPartnerByCustomerId = async ({
   if (!updated) throw new Error("Subscription not found for this customer");
   return updated;
 };
+
+
+
+
+

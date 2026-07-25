@@ -97,7 +97,6 @@ export const sendDeliveryCompletionNotification = async (deliveryId) => {
 
     const subscription = await getCustomerSubscription(delivery.customer_id);
     if (!subscription) {
-      console.log("No subscription for customer:", delivery.customer_id);
       return;
     }
 
@@ -127,7 +126,6 @@ export const sendDeliveryCompletionNotification = async (deliveryId) => {
     };
 
     await sendNotification(subscription, payload);
-    console.log("Delivery completion notification sent to customer:", delivery.customer_id);
   } catch (error) {
     console.error("Error sending delivery completion notification:", error);
   }
@@ -147,7 +145,6 @@ export const sendETAUpdateNotification = async (deliveryId, etaMinutes) => {
 
     const subscription = await getCustomerSubscription(delivery.customer_id);
     if (!subscription) {
-      console.log("No subscription for customer:", delivery.customer_id);
       return;
     }
 
@@ -169,7 +166,6 @@ export const sendETAUpdateNotification = async (deliveryId, etaMinutes) => {
     };
 
     await sendNotification(subscription, payload);
-    console.log("ETA notification sent to customer:", delivery.customer_id);
   } catch (error) {
     console.error("Error sending ETA notification:", error);
   }
@@ -189,7 +185,6 @@ export const sendDeliveryStartedNotification = async (deliveryId) => {
 
     const subscription = await getCustomerSubscription(delivery.customer_id);
     if (!subscription) {
-      console.log("No subscription for customer:", delivery.customer_id);
       return;
     }
 
@@ -209,7 +204,6 @@ export const sendDeliveryStartedNotification = async (deliveryId) => {
     };
 
     await sendNotification(subscription, payload);
-    console.log("Delivery started notification sent to customer:", delivery.customer_id);
   } catch (error) {
     console.error("Error sending delivery started notification:", error);
   }

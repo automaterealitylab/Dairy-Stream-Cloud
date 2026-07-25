@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supabase.js"; // Adjust path to match your customer service import
+﻿import { supabase } from "../../config/supabase.js"; // Adjust path to match your customer service import
 import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const parseDateSafe = (value) => {
@@ -151,7 +151,7 @@ export const getAgentDetails = async (agentId, { dairyId = null } = {}) => {
   };
 };
 
-export const updateAgentById = async (agentId, updates) => {
+export const updateAgentById = async (agentId, updates, { dairyId = null } = {}) => {
   const allowed = [
     "agent_name",
     "phone_number",
@@ -174,10 +174,14 @@ export const updateAgentById = async (agentId, updates) => {
     }
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("agents")
     .update(payload)
-    .eq("id", agentId)
+    .eq("id", agentId);
+
+  if (dairyId) query = query.eq("dairy_id", dairyId);
+
+  const { data, error } = await query
     .select("*")
     .single();
 
@@ -186,8 +190,12 @@ export const updateAgentById = async (agentId, updates) => {
   return mapAgentForAdmin(data);
 };
 
-export const deleteAgentById = async (agentId) => {
-  const { error } = await supabase.from("agents").delete().eq("id", agentId);
+export const deleteAgentById = async (agentId, { dairyId = null } = {}) => {
+  let query = supabase.from("agents").delete().eq("id", agentId);
+  if (dairyId) query = query.eq("dairy_id", dairyId);
+  const { error } = await query;
   if (error) throw error;
   return { success: true };
 };
+
+

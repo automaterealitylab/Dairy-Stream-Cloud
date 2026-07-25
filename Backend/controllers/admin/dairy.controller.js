@@ -10,7 +10,7 @@ import streamifier from "streamifier";
 const uploadFromBuffer = (fileBuffer) => {
   return new Promise((resolve, reject) => {
     const cld_upload_stream = cloudinary.uploader.upload_stream(
-      { folder: "dairies" },
+      { folder: "dairies", resource_type: "image", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
       (error, result) => {
         if (result) resolve(result);
         else reject(error);
@@ -121,3 +121,4 @@ export const updateAdminDairyProfile = async (req, res) => {
     });
   }
 };
+

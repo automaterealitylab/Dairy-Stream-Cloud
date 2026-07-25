@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { getRedisConnection } from "../config/redis.js";
 import { supabase } from "../config/supabase.js";
 
-const DEFAULT_ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "30d";
+const DEFAULT_ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
 const DEFAULT_REFRESH_TOKEN_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 30);
 
 const getJwtSecret = () => {
@@ -202,11 +202,11 @@ export const issueLoginTokens = async ({
       dairyId,
       agentId,
       sessionVersion,
-      expiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || "30d",
+      expiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || DEFAULT_ACCESS_TOKEN_TTL,
     }),
     refreshToken: null,
     sessionId: null,
-    accessTokenExpiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || "30d",
+    accessTokenExpiresIn: process.env.LEGACY_ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL || DEFAULT_ACCESS_TOKEN_TTL,
     refreshTokenExpiresAt: null,
   };
 };
@@ -230,3 +230,25 @@ export const revokeAccessJti = async ({ jti, expiresAt, actorType, actorId, reas
     { onConflict: "token_jti" }
   );
 };
+export const revokeAuthSession = async ({ sessionId, actorType, actorId, reason = "LOGOUT" } = {}) => {
+  if (!sessionId) return;
+
+  let query = supabase
+    .from("auth_sessions")
+    .update({
+      revoked_at: new Date().toISOString(),
+      revoked_reason: reason,
+    })
+    .eq("id", sessionId);
+
+  if (actorType) query = query.eq("actor_type", String(actorType).toUpperCase());
+  if (actorId) query = query.eq("actor_id", actorId);
+
+  const { error } = await query;
+  if (error) {
+    const message = String(error.message || "").toLowerCase();
+    if (message.includes("auth_sessions") || message.includes("relation")) return;
+    throw error;
+  }
+};
+

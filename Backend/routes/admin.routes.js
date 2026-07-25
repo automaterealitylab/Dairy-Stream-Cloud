@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 const router = express.Router();
 
 // --- CONTROLLER IMPORTS ---
@@ -94,13 +94,13 @@ import {
   lookupAdminBankIfsc,
   verifyAdminBankAccount,
 } from "../controllers/admin/bankVerification.controller.js";
-import { createRateLimiter } from "../middleware/security.middleware.js";
+import { createRateLimiter, loginRateLimit } from "../middleware/security.middleware.js";
 
 // ==========================================
 // 1. AUTHENTICATION & INITIAL SETUP
 // ==========================================
-router.post("/", adminLogin); // Admin login route
-router.post("/register-dairy", uploadSingleImage, registerDairy); // Initial dairy registration with logo upload
+router.post("/", loginRateLimit, adminLogin); // Admin login route
+router.post("/register-dairy", createRateLimiter({ windowMs: 60 * 60_000, max: 5, keyPrefix: "admin-register-dairy" }), uploadSingleImage, registerDairy); // Initial dairy registration with logo upload
 router.get("/profile", verifyAdmin, getAdminDairyProfile);
 router.patch("/profile", verifyAdmin, updateAdminDairyProfile);
 router.get(
@@ -125,8 +125,8 @@ router.patch("/notifications/:id/read", verifyAdmin, markNotificationAsRead); //
 router.post("/notifications/read-all", verifyAdmin, markAllNotificationsAsRead); // Mark all notifications as read
 router.get("/monitoring/operations", verifyAdmin, fetchOperationalMonitoring);
 router.post("/monitoring/whatsapp/process", verifyAdmin, processWhatsAppQueue);
-router.get("/health", (req, res) => {
-  res.json({ status: "ok", time: new Date() });
+router.get("/health", verifyAdmin, (req, res) => {
+  res.json({ status: "ok" });
 });
 
 // ==========================================
@@ -223,3 +223,4 @@ router.put("/suppliers/:id", verifyAdmin, updateSupplier); // Edit supplier deta
 router.delete("/suppliers/:id", verifyAdmin, deactivateSupplier); // Deactivate supplier from active use
 
 export default router;
+

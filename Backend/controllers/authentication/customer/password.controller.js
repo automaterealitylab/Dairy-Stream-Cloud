@@ -1,4 +1,4 @@
-import {
+﻿import {
   createResetToken,
   resetPasswordService,
 } from "../../../services/customer/password.service.js";
@@ -6,31 +6,31 @@ import { sendResetPasswordEmail } from "../../../services/customer/email.service
 import { supabase } from "../../../config/supabase.js";
 import { encryptDeterministic, decryptDeterministic } from "../../../utils/crypto.js";
 
+const RESET_RESPONSE = { message: "If the account exists, a password reset email will be sent" };
+
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const normalizedEmail = String(email || "").trim().toLowerCase();
-    const encryptedEmail = encryptDeterministic(normalizedEmail);
+    if (!normalizedEmail) return res.json(RESET_RESPONSE);
 
+    const encryptedEmail = encryptDeterministic(normalizedEmail);
     const { data: customer } = await supabase
       .from("customers")
       .select("*")
-      .or(`email.eq.${encryptedEmail},email.eq.${normalizedEmail}`)
+      .in("email", [encryptedEmail, normalizedEmail])
       .limit(1)
       .maybeSingle();
 
-    if (!customer) {
-      return res.status(404).json({ message: "Customer not found" });
+    if (customer) {
+      customer.email = decryptDeterministic(customer.email);
+      const token = await createResetToken(customer.id);
+      await sendResetPasswordEmail(customer.email, token);
     }
 
-    customer.email = decryptDeterministic(customer.email);
-
-    const token = await createResetToken(customer.id);
-    await sendResetPasswordEmail(customer.email, token);
-
-    res.json({ message: "Password reset email sent" });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.json(RESET_RESPONSE);
+  } catch {
+    res.json(RESET_RESPONSE);
   }
 };
 
@@ -41,7 +41,7 @@ export const resetPassword = async (req, res) => {
     await resetPasswordService(token, password);
 
     res.json({ message: "Password reset successful" });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
+  } catch {
+    res.status(400).json({ message: "Invalid or expired reset token" });
   }
 };

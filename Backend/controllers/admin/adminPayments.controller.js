@@ -1,4 +1,4 @@
-import * as paymentService from "../../services/admin/adminPayments.service.js";
+﻿import * as paymentService from "../../services/admin/adminPayments.service.js";
 
 export const fetchPageData = async (req, res) => {
   try {
@@ -39,8 +39,11 @@ export const updateStatus = async (req, res) => {
 
 export const changeFarmPlan = async (req, res) => {
   try {
-    const { dairyId: bodyDairyId, plan } = req.body;
-    const dairyId = req.admin.dairyId || bodyDairyId;
+    const { plan } = req.body;
+    const dairyId = req.admin.dairyId || null;
+    if (!dairyId) {
+      return res.status(400).json({ error: "Dairy context is required" });
+    }
     const updated = await paymentService.updateFarmPlan(dairyId, plan);
     res.json(updated);
   } catch (err) {
@@ -210,3 +213,5 @@ export const verifyFarmPlanSubscriptionPayment = async (req, res) => {
     res.status(400).json({ error: err.message || "Failed to verify farm plan subscription payment" });
   }
 };
+
+

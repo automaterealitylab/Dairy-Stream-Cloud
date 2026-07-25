@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/build.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "sync:android": "cap sync android",

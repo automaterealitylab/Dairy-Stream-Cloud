@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supabase.js";
+﻿import { supabase } from "../../config/supabase.js";
 
 // Fetch all coupons with aggregates
 export const fetchCoupons = async (req, res) => {
@@ -108,25 +108,53 @@ export const deleteCoupon = async (req, res) => {
   }
 };
 
+const PLATFORM_PLAN_PRICES = {
+  FREE: { monthly: 499, yearly: 4990 },
+  STARTER: { monthly: 499, yearly: 4990 },
+  GROWTH: { monthly: 999, yearly: 9990 },
+  PRIME: { monthly: 2499, yearly: 24990 },
+  ENTERPRISE: { monthly: 2499, yearly: 24990 },
+};
+
+const normalizePlanKey = (planKey) => {
+  const normalized = String(planKey || "").toUpperCase().trim();
+  if (normalized === "PRIME ENTERPRISE") return "ENTERPRISE";
+  return normalized;
+};
+
+const resolveServerPurchaseAmount = ({ planKey, billingCycle }) => {
+  const normalizedPlan = normalizePlanKey(planKey);
+  const prices = PLATFORM_PLAN_PRICES[normalizedPlan];
+  if (!prices) return null;
+
+  const cycle = String(billingCycle || "monthly").toLowerCase() === "yearly" ? "yearly" : "monthly";
+  return {
+    plan: normalizedPlan,
+    cycle,
+    amount: prices[cycle],
+  };
+};
+
 // Validate Coupon (Public/Platform endpoint used during dairy checkout)
 export const validateCoupon = async (req, res) => {
   try {
-    const { code, dairyId, planKey, purchaseAmount } = req.body || {};
+    const { code, dairyId, planKey, billingCycle, cycle } = req.body || {};
+    const resolvedPurchase = resolveServerPurchaseAmount({
+      planKey,
+      billingCycle: billingCycle || cycle,
+    });
 
-    if (!code || dairyId === undefined || !planKey || purchaseAmount === undefined) {
+    if (!code || dairyId === undefined || !planKey || !resolvedPurchase) {
       return res.status(400).json({ success: false, error: "Missing validation parameters" });
     }
 
-    console.log("🔍 Checking coupon validation request:", { code, dairyId, planKey, purchaseAmount });
-
+    const purchaseAmount = resolvedPurchase.amount;
     const { data: coupon, error } = await supabase
       .from("coupons")
       .select("*")
       .eq("code", String(code).toUpperCase().trim())
       .limit(1)
       .maybeSingle();
-
-    console.log("📊 Database coupon result:", { coupon, error });
 
     if (error) throw error;
     if (!coupon) {
@@ -142,24 +170,24 @@ export const validateCoupon = async (req, res) => {
       return res.status(400).json({ success: false, error: "This coupon has expired or is not yet active" });
     }
 
-    if (coupon.current_uses >= coupon.max_uses) {
+    if (Number(coupon.current_uses) >= Number(coupon.max_uses)) {
       return res.status(400).json({ success: false, error: "This coupon usage limit has been exceeded" });
     }
 
-    if (Number(purchaseAmount) < Number(coupon.min_purchase_amount)) {
+    if (purchaseAmount < Number(coupon.min_purchase_amount)) {
       return res.status(400).json({
         success: false,
-        error: `Minimum purchase of ₹${coupon.min_purchase_amount} required to apply this coupon`,
+        error: `Minimum purchase of INR ${coupon.min_purchase_amount} required to apply this coupon`,
       });
     }
 
     if (coupon.applicable_plans && coupon.applicable_plans.length > 0) {
-      if (!coupon.applicable_plans.includes(String(planKey).toUpperCase())) {
+      const applicablePlans = coupon.applicable_plans.map((plan) => normalizePlanKey(plan));
+      if (!applicablePlans.includes(resolvedPurchase.plan)) {
         return res.status(400).json({ success: false, error: "This coupon is not applicable for the selected plan" });
       }
     }
 
-    // Check if one_time_per_dairy constraint is violated
     if (coupon.one_time_per_dairy && Number(dairyId) > 0) {
       const { data: previousRedemption, error: prErr } = await supabase
         .from("coupon_redemptions")
@@ -175,17 +203,15 @@ export const validateCoupon = async (req, res) => {
       }
     }
 
-    // Calculate discount amount
     let discountApplied = 0;
     if (coupon.discount_type === "PERCENTAGE") {
-      discountApplied = Number(((purchaseAmount * coupon.discount_value) / 100).toFixed(2));
+      discountApplied = Number(((purchaseAmount * Number(coupon.discount_value || 0)) / 100).toFixed(2));
     } else if (coupon.discount_type === "FLAT") {
-      discountApplied = Number(coupon.discount_value);
+      discountApplied = Number(coupon.discount_value || 0);
     } else if (coupon.discount_type === "FIRST_MONTH_FREE") {
-      discountApplied = Number(purchaseAmount); // 100% discount
+      discountApplied = purchaseAmount;
     }
 
-    // Discount cannot exceed original amount
     discountApplied = Math.min(discountApplied, purchaseAmount);
 
     res.json({
@@ -197,6 +223,8 @@ export const validateCoupon = async (req, res) => {
         discountValue: Number(coupon.discount_value),
         trialExtensionDays: Number(coupon.trial_extension_days || 0),
         applicablePlans: coupon.applicable_plans || [],
+        originalAmount: purchaseAmount,
+        billingCycle: resolvedPurchase.cycle,
         discountApplied,
         payableAmount: Number((purchaseAmount - discountApplied).toFixed(2)),
       },
@@ -206,7 +234,6 @@ export const validateCoupon = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
-
 // Fetch coupon redemption logs
 export const fetchRedemptions = async (req, res) => {
   try {
@@ -233,3 +260,4 @@ export const fetchRedemptions = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+

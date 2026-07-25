@@ -1,14 +1,6 @@
 import { updateDeliveryETA } from "../../services/shared/eta.service.js";
 import { supabase } from "../../config/supabase.js";
 
-const isMissingTableError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return (
-    (message.includes("table") && message.includes("could not find")) ||
-    (message.includes("relation") && message.includes("does not exist")) ||
-    message.includes("schema cache")
-  );
-};
 
 const isTransientFetchError = (error) => {
   const message = String(error?.message || "").toLowerCase();
@@ -65,7 +57,7 @@ export const updateAgentLocation = async (req, res) => {
 
     // Save location to agent_locations table for analytics.
     // This insert is optional, so we log and continue if the table/schema is missing.
-    const { error: locationTrackError } = await supabase.from("agent_locations").insert({
+    await supabase.from("agent_locations").insert({
       agent_id: agentId,
       delivery_id: deliveryId,
       latitude,
@@ -73,9 +65,6 @@ export const updateAgentLocation = async (req, res) => {
       recorded_at: new Date().toISOString(),
     });
 
-    if (locationTrackError && !isMissingTableError(locationTrackError)) {
-      console.log("Could not save location track:", locationTrackError.message || locationTrackError);
-    }
 
     return res.json({
       success: true,
