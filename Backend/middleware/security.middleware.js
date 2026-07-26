@@ -11,16 +11,17 @@ const parseCsv = (value) =>
     .filter(Boolean);
 
 const DEFAULT_CORS_ORIGINS = [
+  "https://dairy-stream-cloud-frontend.onrender.com",
   "https://dairy-stream-cloud-fronten.onrender.com",
+  "http://localhost",
+  "https://localhost",
+  "capacitor://localhost",
 ];
 
 const DEVELOPMENT_CORS_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "http://localhost",
-  "https://localhost",
-  "capacitor://localhost",
 ];
 const isLocalDevOrigin = (origin) => {
   if (String(process.env.NODE_ENV || "development").toLowerCase() === "production") {
