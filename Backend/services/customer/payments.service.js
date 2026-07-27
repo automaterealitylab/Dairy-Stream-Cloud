@@ -64,6 +64,17 @@ const normalizeStatus = (status) => {
   return "PENDING";
 };
 
+const normalizePaymentDisplayStatus = (row = {}) => {
+  const rawStatus = normalizeStatus(row?.status);
+  const verificationStatus = String(row?.verification_status || "").toUpperCase();
+
+  if (rawStatus !== "PAID" && verificationStatus === "SUBMITTED") {
+    return "PAID";
+  }
+
+  return rawStatus;
+};
+
 const OVERDUE_PENALTY_RATE = 0.01;
 
 const isDeliveredStatus = (status) => {
@@ -266,7 +277,7 @@ const fetchPaymentsRows = async (customerId, dairyId = null) => {
         query = query.eq("dairy_id", dairyId);
       }
 
-      return query.limit(50);
+      return query.limit(2000);
     },
   });
 
@@ -312,7 +323,7 @@ const isVisibleCustomerPaymentRow = (row, deliveryStatusById) => {
   if (isWalletTopupPaymentRow(row)) return true;
   if (isOneTimePaymentRow(row)) {
     if (isCancelledOneTimePaymentRow(row, deliveryStatusById)) return false;
-    return normalizeStatus(row?.status) === "PAID";
+    return true;
   }
   if (isMonthlyBillPaymentRow(row)) return true;
   return false;
@@ -325,19 +336,21 @@ const isBillableCustomerPaymentRow = (row, deliveryStatusById) => {
   return false;
 };
 
-const isDirectCheckoutCustomerPaymentRow = (row, deliveryStatusById) => {
+const isOutstandingCustomerPaymentRow = (row, deliveryStatusById) => {
   if (isWalletTopupPaymentRow(row)) return false;
-  if (isOneTimePaymentRow(row)) {
-    if (isCancelledOneTimePaymentRow(row, deliveryStatusById)) return false;
-    const status = normalizeStatus(row?.status);
-    return status === "PENDING" || status === "OVERDUE";
-  }
-  return isBillableCustomerPaymentRow(row, deliveryStatusById);
+  if (isOneTimePaymentRow(row) && isCancelledOneTimePaymentRow(row, deliveryStatusById)) return false;
+
+  const status = normalizePaymentDisplayStatus(row);
+  return status === "PENDING" || status === "OVERDUE";
+};
+
+const isDirectCheckoutCustomerPaymentRow = (row, deliveryStatusById) => {
+  return isOutstandingCustomerPaymentRow(row, deliveryStatusById);
 };
 
 const mapPaymentRow = (row, index) => {
   const { baseAmount, overduePenaltyAmount, totalAmount } = getEffectivePaymentAmount(row);
-  const status = normalizeStatus(row.status);
+  const status = normalizePaymentDisplayStatus(row);
   const dateSource = row.payment_date || row.date || row.created_at || row.updated_at;
   const monthKey = getPaymentMonthKey(row);
   const monthMeta = parseMonthlyBillMeta(row.description);
@@ -856,7 +869,7 @@ const getEligiblePendingPaymentsForCustomer = async (customerId, dairyId = null)
   const { payments, customerColumn } = await getPendingPaymentsForCustomer(customerId, dairyId);
 
   const eligiblePayments = (payments || []).filter((row) =>
-    isBillableCustomerPaymentRow(row)
+    isOutstandingCustomerPaymentRow(row)
   );
 
   return {
@@ -1841,7 +1854,7 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     .filter((row) => isVisibleCustomerPaymentRow(row, deliveryStatusById))
     .map(mapPaymentRow);
   const pendingCandidates = paymentRows
-    .filter((row) => isBillableCustomerPaymentRow(row, deliveryStatusById))
+    .filter((row) => isOutstandingCustomerPaymentRow(row, deliveryStatusById))
     .map(mapPaymentRow)
     .filter(
     (item) => item.status === "PENDING" || item.status === "OVERDUE"

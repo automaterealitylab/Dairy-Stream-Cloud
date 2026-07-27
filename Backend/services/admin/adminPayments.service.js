@@ -5,6 +5,15 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { getRazorpayConfig } from "../../config/razorpay.js";
 
+const normalizePaymentDisplayStatus = (row = {}) => {
+  const rawStatus = String(row?.status || "PENDING").toUpperCase();
+  const verificationStatus = String(row?.verification_status || "").toUpperCase();
+  if (rawStatus !== "PAID" && verificationStatus === "SUBMITTED") {
+    return "PAID";
+  }
+  return rawStatus;
+};
+
 /* ================================
    1. FARM SUBSCRIPTION (Your Plan)
    ================================ */
@@ -62,7 +71,7 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
 
   let query = supabase
     .from("payments")
-    .select("id, customer_id, dairy_id, amount, status, method, paid_at, due_date, created_at", {
+    .select("id, customer_id, dairy_id, amount, status, verification_status, method, paid_at, due_date, created_at", {
       count: "exact",
     })
     .not("status", "in", '("CANCELLED","CANCELED")')
@@ -89,7 +98,7 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
 
   let pendingRowsQuery = supabase
     .from("payments")
-    .select("customer_id, amount")
+    .select("customer_id, amount, verification_status")
     .in("status", ["PENDING", "OVERDUE"]);
 
   if (dairyId) {
@@ -138,7 +147,8 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
       phone: customer.phone_number || "",
       plan: membership.plan_name || "Standard Plan",
       amount: Number(row.amount || 0),
-      status: row.status || "PENDING",
+      status: normalizePaymentDisplayStatus(row),
+      verificationStatus: row.verification_status || "NOT_SUBMITTED",
       date: row.paid_at || row.created_at || row.due_date || null,
       method: row.method || "-",
     };
@@ -148,13 +158,15 @@ export const getCustomerPayments = async ({ page, limit, status, dairyId }) => {
     (sum, row) => sum + Number(row.amount || 0),
     0
   );
-  const pendingAmount = (pendingRowsResp.data || []).reduce(
+  const pendingRows = (pendingRowsResp.data || []).filter(
+    (row) => String(row.verification_status || "").toUpperCase() !== "SUBMITTED"
+  );
+
+  const pendingAmount = pendingRows.reduce(
     (sum, row) => sum + Number(row.amount || 0),
     0
   );
-  const pendingCustomerCount = new Set(
-    (pendingRowsResp.data || []).map((row) => row.customer_id).filter(Boolean)
-  ).size;
+  const pendingCustomerCount = new Set(pendingRows.map((row) => row.customer_id).filter(Boolean)).size;
 
   return {
     payments: normalizedPayments,

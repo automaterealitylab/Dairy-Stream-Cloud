@@ -373,7 +373,7 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     isOneTimeOrder: parsedNotes.isOneTimeOrder,
   });
   const uiStatus =
-    parsedNotes.isOneTimeOrder && approvalStatus === "PENDING"
+    parsedNotes.isOneTimeOrder && (approvalStatus === "PENDING" || approvalStatus === "PENDING_PAYMENT")
       ? "PENDING_APPROVAL"
       : normalizedStatus;
   const deliveryType = getDeliveryTypeLabel(parsedNotes.isOneTimeOrder);
@@ -614,7 +614,6 @@ const tryFetchFromTable = async (table, customerId) => {
     .from(table)
     .select("*")
     .eq("customer_id", customerId)
-    .neq("approval_status", "PENDING_PAYMENT")
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -933,9 +932,7 @@ export const getCustomerDeliveries = async (customerId) => {
   const { rows, todayDelivery, dairyNamesMap } = await getTodayDeliverySnapshot(customerId, {
     subscription,
   });
-  const filteredRows = (rows || []).filter(
-    (row) => String(row?.approval_status || "").toUpperCase() !== "PENDING_PAYMENT"
-  );
+  const filteredRows = rows || [];
   const mappedRows = filteredRows.map((row, index) =>
     mapDeliveryRow(row, index, null, null, dairyNamesMap || {})
   );

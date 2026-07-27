@@ -712,6 +712,11 @@ export default function AdminPayments() {
                       <div>
                         <div className="font-bold text-gray-900 dark:text-white">{pay.customer}</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">Payment ID: {pay.id}</div>
+                        {String(pay.verificationStatus || "").toUpperCase() === "SUBMITTED" ? (
+                          <div className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-300">
+                            Paid, pending verification
+                          </div>
+                        ) : null}
                       </div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">{formatPaymentDate(pay.date)}</div>
                       <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(pay.amount)}</div>
@@ -819,13 +824,18 @@ export default function AdminPayments() {
                   key={pay.id}
                   className="border-b border-[#F8F2E8] pb-3 last:border-b-0 last:pb-0 dark:border-[#222B40]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-bold text-[#2C1A0E] dark:text-white">{formatCurrency(pay.amount)}</p>
-                      <p className="mt-1 text-xs text-[#8B7355] dark:text-slate-400">
-                        {formatPaymentDate(pay.date)} · Payment ID: {pay.id}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-[#2C1A0E] dark:text-white">{formatCurrency(pay.amount)}</p>
+                    <p className="mt-1 text-xs text-[#8B7355] dark:text-slate-400">
+                      {formatPaymentDate(pay.date)} · Payment ID: {pay.id}
+                    </p>
+                    {String(pay.verificationStatus || "").toUpperCase() === "SUBMITTED" ? (
+                      <p className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-300">
+                        Paid, pending verification
                       </p>
-                    </div>
+                    ) : null}
+                  </div>
                     {renderStatusBadge(pay.status)}
                   </div>
                   {isCollectibleStatus(pay.status) && (
