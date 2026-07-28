@@ -4,6 +4,20 @@ import {
   getCustomerDeliveries,
   reportCustomerDeliveryIssue,
 } from "../../services/customer/deliveries.service.js";
+import cloudinary from "../../config/cloudinary.js";
+import streamifier from "streamifier";
+
+const uploadFromBuffer = (fileBuffer) =>
+  new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: "one-time-order-proof", resource_type: "image" },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
+  });
 
 export const getDeliveries = async (req, res) => {
   try {
@@ -19,11 +33,25 @@ export const getDeliveries = async (req, res) => {
 
 export const createOneTimeOrder = async (req, res) => {
   try {
-    const payload = await createOneTimeDeliveryOrder(req.customer.id, req.body || {});
+    let screenshotUrl = null;
+    if (req.file) {
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+      if (!allowedTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ message: "Upload a JPG, PNG, or WebP screenshot" });
+      }
+
+      const uploaded = await uploadFromBuffer(req.file.buffer);
+      screenshotUrl = uploaded.secure_url;
+    }
+
+    const payload = await createOneTimeDeliveryOrder(req.customer.id, {
+      ...(req.body || {}),
+      screenshotUrl,
+    });
     res.status(201).json(payload);
   } catch (err) {
     const message = err?.message || "Failed to place one-time order";
-    const isValidationError = /required|must|cannot|not found|already exists|past date|slot|address|subscription|stock|available/i.test(
+    const isValidationError = /required|must|cannot|not found|already exists|past date|slot|address|subscription|stock|available|utr|verification/i.test(
       message
     );
     const status = isValidationError ? 400 : 500;

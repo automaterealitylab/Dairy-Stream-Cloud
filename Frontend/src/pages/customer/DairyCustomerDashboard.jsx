@@ -5,13 +5,10 @@ import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
 import {
-  cancelCustomerOneTimeOrder,
   createCustomerOneTimeOrder,
-  createCustomerUpiPaymentIntent,
   fetchCustomerDashboard,
   reportCustomerDeliveryIssue,
   saveCustomerSubscription,
-  submitCustomerUpiPaymentVerification,
 } from "../../api/customer/customer.api.js";
 import { fetchPublicDairyById } from "../../api/public.api.js";
 import {
@@ -198,6 +195,21 @@ const getStoredCustomerAddress = () => {
   }
 };
 
+const buildUpiPaymentLink = ({ upiId, amount, name, note }) => {
+  if (!upiId) return "";
+
+  const params = new URLSearchParams();
+  params.set("pa", String(upiId).trim());
+  if (name) params.set("pn", String(name).trim());
+  if (Number.isFinite(Number(amount)) && Number(amount) > 0) {
+    params.set("am", Number(amount).toFixed(2));
+  }
+  params.set("cu", "INR");
+  if (note) params.set("tn", String(note).trim());
+
+  return `upi://pay?${params.toString()}`;
+};
+
 const normalizeAddExtraPaymentOption = (value) => {
   const normalized = String(value || "").trim().toUpperCase();
   if (["SUBSCRIPTION", "ADD_TO_SUBSCRIPTION", "MONTHLY_BILL"].includes(normalized)) {
@@ -239,7 +251,7 @@ const normalizeAddExtraSlot = (value) => {
 
 const formatTomorrowExtraStatus = (status) => {
   const normalized = String(status || "").trim().toUpperCase();
-  if (normalized === "PENDING_APPROVAL") return "Approval Pending";
+  if (normalized === "PENDING_APPROVAL" || normalized === "PENDING_VERIFICATION") return "Approval Pending";
   if (normalized === "PENDING") return "Scheduled";
   if (normalized === "DELIVERED") return "Delivered";
   if (normalized === "FAILED") return "Failed";
@@ -254,7 +266,7 @@ const getTomorrowExtraStatusClasses = (status) => {
   if (normalized === "FAILED" || normalized === "CANCELLED") {
     return "bg-[#FDECEA] text-[#C0392B]";
   }
-  if (normalized === "PENDING_APPROVAL") return "bg-[#FFF1E4] text-[#C86A2B]";
+  if (normalized === "PENDING_APPROVAL" || normalized === "PENDING_VERIFICATION") return "bg-[#FFF1E4] text-[#C86A2B]";
   return "bg-[#FFF4E2] text-[#B8641A]";
 };
 
@@ -270,7 +282,7 @@ const getTodayDeliveryMeta = (delivery = {}) => {
     };
   }
 
-  if (status === "PENDING_APPROVAL") {
+  if (status === "PENDING_APPROVAL" || status === "PENDING_VERIFICATION") {
     return {
       title: "Approval Pending",
       tone: "approval",
@@ -659,64 +671,36 @@ export default function DairyCustomerDashboard() {
     setDashboardData(fresh);
   };
 
-  const getExtraOrderPaymentId = (response) =>
-    response?.payment?.id ||
-    response?.paymentId ||
-    response?.order?.payment_id ||
-    response?.order?.paymentId ||
-    response?.order?.payment?.id ||
-    null;
-
-  const rollbackCancelledExtraOrder = async ({ orderId, orderIds, paymentId }) => {
-    if (!orderId && (!Array.isArray(orderIds) || !orderIds.length) && !paymentId) return false;
-
-    try {
-      await cancelCustomerOneTimeOrder({ orderId, orderIds, paymentId, removeFromHistory: true });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const startExtraUpiPayment = async (paymentId, extraMeta = {}) => {
-    if (!paymentId) {
-      throw new Error("Payment reference missing for UPI payment");
-    }
-
-    const intentPayload = await createCustomerUpiPaymentIntent({ paymentId });
-    setAddExtraUpiIntent({
-      ...intentPayload,
-      paymentId,
-      orderId: extraMeta.orderId || null,
-      orderIds: extraMeta.orderIds || [],
-    });
-    setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
-  };
-
-  const cancelExtraUpiPayment = async () => {
-    if (addExtraUpiSubmitting) return;
-
-    const intent = addExtraUpiIntent;
+  const resetAddExtraFlowState = () => {
+    setAddExtraError("");
+    setShowDuplicateExtraConfirm(false);
+    setAddExtraSubmitting(false);
+    setAddExtraUpiSubmitting(false);
     setAddExtraUpiIntent(null);
-    setAddExtraError("Payment cancelled. Extra order was not placed.");
-    setShowAddExtraModal(true);
-
-    if (intent) {
-      const orderIds = Array.isArray(intent.orderIds) ? intent.orderIds : [];
-      const orderId = intent.orderId || orderIds[0] || null;
-      const paymentId = intent.paymentId || intent.payment?.id || null;
-
-      await rollbackCancelledExtraOrder({ orderId, orderIds, paymentId });
-      showToast("Payment cancelled. Extra order was not placed.", "warning");
-      refreshDashboard().catch(() => {});
-    }
+    setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+    setAddExtraForm({
+      selectedProducts: [],
+      quantities: {},
+      paymentMethod: "PAY_NOW_ONLINE",
+      address: "",
+      slot: "Morning",
+    });
+    setAddExtraStep(1);
+    setAddExtraDairy(null);
+    setAddExtraProducts([]);
   };
 
   const closeAddExtraModal = () => {
     if (addExtraSubmitting) return;
     setShowAddExtraModal(false);
-    setAddExtraError("");
-    setShowDuplicateExtraConfirm(false);
+    resetAddExtraFlowState();
+  };
+
+  const cancelExtraUpiPayment = () => {
+    if (addExtraUpiSubmitting) return;
+    setShowAddExtraModal(false);
+    resetAddExtraFlowState();
+    showToast("Payment details were discarded.", "warning");
   };
 
   const handleAddExtra = async () => {
@@ -768,6 +752,7 @@ export default function DairyCustomerDashboard() {
       const resolvedDairy = {
         id: dairy?.id || linkedExtraDairyId,
         name: dairy?.dairy_name || dairy?.name || linkedExtraDairyName || "Dairy",
+        upiId: dairy?.upi_id || dairy?.upiId || null,
       };
 
       setAddExtraDairy(resolvedDairy);
@@ -844,7 +829,7 @@ export default function DairyCustomerDashboard() {
       setShowDuplicateExtraConfirm(false);
 
       if (addExtraForm.paymentMethod === "PAY_NOW_ONLINE") {
-        const response = await createCustomerOneTimeOrder({
+        setAddExtraUpiIntent({
           dairyId: linkedExtraDairyId,
           items: selectedAddExtraOrderLines.map((line) => ({
             milkType: line.product.name,
@@ -856,34 +841,22 @@ export default function DairyCustomerDashboard() {
           address: addExtraForm.address.trim(),
           isExtraOrder: true,
           allowDuplicate,
+          amount: addExtraTotal,
+          dairyName: addExtraDairy?.name || linkedExtraDairyName || "Dairy",
+          upiId: addExtraDairy?.upiId || null,
+          beneficiary: {
+            dairyName: addExtraDairy?.name || linkedExtraDairyName || "Dairy",
+            upiId: addExtraDairy?.upiId || null,
+          },
+          upiLink: buildUpiPaymentLink({
+            upiId: addExtraDairy?.upiId || null,
+            amount: addExtraTotal,
+            name: addExtraDairy?.name || linkedExtraDairyName || "Dairy",
+            note: `DairyStream one-time order ${nextExtraDeliveryLabel}`,
+          }),
         });
-
-        const paymentId = getExtraOrderPaymentId(response);
-        const orderIds = Array.isArray(response?.orderIds) ? response.orderIds : [];
-        const orderId = response?.order?.id || orderIds[0] || null;
-
-        if (!paymentId || (!orderId && !orderIds.length)) {
-          await rollbackCancelledExtraOrder({
-            orderId,
-            orderIds,
-            paymentId,
-          });
-          setAddExtraError("Could not start payment. The extra order was not placed.");
-          return;
-        }
-
-        try {
-          await startExtraUpiPayment(paymentId, { orderId, orderIds });
-          setShowAddExtraModal(true);
-        } catch (upiErr) {
-          await rollbackCancelledExtraOrder({
-            orderId,
-            orderIds,
-            paymentId,
-          });
-          setAddExtraError(upiErr?.message || "Could not start UPI payment. The extra order was not placed.");
-          setShowAddExtraModal(true);
-        }
+        setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
+        setShowAddExtraModal(true);
         return;
       }
 
@@ -940,16 +913,14 @@ export default function DairyCustomerDashboard() {
     setAddExtraError("");
 
     try {
-      await submitCustomerUpiPaymentVerification({
-        paymentId: addExtraUpiIntent.paymentId || addExtraUpiIntent.payment?.id || "",
-        amount: addExtraUpiIntent.amount,
+      await createCustomerOneTimeOrder({
+        ...addExtraUpiIntent,
         utrNumber,
         payerUpiId: addExtraUpiForm.payerUpiId,
         screenshotFile: addExtraUpiForm.screenshotFile,
       });
-      setAddExtraUpiIntent(null);
+      resetAddExtraFlowState();
       setShowAddExtraModal(false);
-      setAddExtraUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
       showToast("UPI payment submitted for dairy verification.", "success");
       refreshDashboard().catch(() => { });
     } catch (err) {
@@ -1262,7 +1233,7 @@ export default function DairyCustomerDashboard() {
                     }}
                     disabled={
                       !today?.canTrackAgent ||
-                      ["NOT_SUBSCRIBED", "NOT_SCHEDULED", "PENDING_APPROVAL", "FAILED", "CANCELLED"].includes(
+                      ["NOT_SUBSCRIBED", "NOT_SCHEDULED", "PENDING_APPROVAL", "PENDING_VERIFICATION", "FAILED", "CANCELLED"].includes(
                         String(today?.status || "").toUpperCase()
                       )
                     }
@@ -1913,7 +1884,14 @@ export default function DairyCustomerDashboard() {
         )}
 
         {addExtraUpiIntent && (
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6">
+          <div
+            className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(20,10,4,0.58)] px-0 py-0 sm:items-center sm:px-4 sm:py-6"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                cancelExtraUpiPayment();
+              }
+            }}
+          >
             <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(30,16,8,0.24)] sm:rounded-[24px]">
               <div className="flex items-start justify-between gap-4 border-b border-[#F2EAE0] px-5 py-5 sm:px-6">
                 <div>
@@ -1921,11 +1899,10 @@ export default function DairyCustomerDashboard() {
                     Direct UPI Payment
                   </p>
                   <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
-                    Pay {formatCurrency(addExtraUpiIntent.amount)} to{" "}
-                    {addExtraUpiIntent.beneficiary?.dairyName || "Dairy"}
+                    Submit payment details for {formatCurrency(addExtraUpiIntent.amount)}
                   </h3>
                   <p className="mt-1 text-sm text-[#8B7355]">
-                    Complete payment in your UPI app, then submit the UTR/reference number for dairy verification.
+                    Complete the transfer in your UPI app, then submit the UTR/reference number for dairy verification.
                   </p>
                 </div>
                 <button
@@ -1941,13 +1918,24 @@ export default function DairyCustomerDashboard() {
 
               <div className="grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)]">
                 <div className="rounded-2xl border border-[#EDE8DF] bg-[#FFFDF8] p-4 text-center">
-                  <div className="mx-auto inline-flex rounded-xl bg-white p-3 shadow-sm">
-                    <QRCodeSVG value={addExtraUpiIntent.upiLink || ""} size={196} includeMargin />
-                  </div>
-                  <p className="mt-3 break-words text-xs font-semibold text-[#7B6247]">
-                    {addExtraUpiIntent.beneficiary?.upiId}
-                  </p>
-                  <p className="mt-1 text-[11px] text-[#B89970]">Scan with any UPI app</p>
+                  {addExtraUpiIntent.upiLink ? (
+                    <>
+                      <div className="mx-auto inline-flex rounded-xl bg-white p-3 shadow-sm">
+                        <QRCodeSVG value={addExtraUpiIntent.upiLink} size={196} includeMargin />
+                      </div>
+                      <p className="mt-3 break-words text-xs font-semibold text-[#7B6247]">
+                        {addExtraUpiIntent.beneficiary?.upiId}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#B89970]">Scan with any UPI app</p>
+                    </>
+                  ) : (
+                    <div className="flex min-h-[264px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#E7DAC6] bg-white px-4 py-6">
+                      <p className="text-sm font-bold text-[#5C3D1E]">Payment details ready</p>
+                      <p className="text-xs text-[#8B7355]">
+                        Enter the UTR/reference number after completing the transfer.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -2028,7 +2016,7 @@ export default function DairyCustomerDashboard() {
                   <button
                     type="button"
                     onClick={submitExtraUpiVerification}
-                    disabled={addExtraUpiSubmitting}
+                    disabled={addExtraUpiSubmitting || !String(addExtraUpiForm.utrNumber || "").trim()}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2C1A0E] px-5 py-3 text-sm font-black text-white transition hover:bg-[#B8641A] disabled:bg-[#D8C8B2]"
                   >
                     {addExtraUpiSubmitting ? (
@@ -2036,7 +2024,7 @@ export default function DairyCustomerDashboard() {
                     ) : (
                       <CreditCard size={15} />
                     )}
-                    Submit For Verification
+                    Submit Order
                   </button>
                 </div>
               </div>

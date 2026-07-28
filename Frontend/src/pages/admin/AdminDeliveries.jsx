@@ -290,14 +290,14 @@ export default function AdminDeliveries() {
     total: baseFilteredDeliveries.length,
     pending: baseFilteredDeliveries.filter((d) => d.status === "PENDING" && d.approvalStatus !== "PENDING").length,
     delivered: baseFilteredDeliveries.filter((d) => d.status === "DELIVERED" || d.status === "COMPLETED").length,
-    pendingApproval: baseFilteredDeliveries.filter((d) => d.approvalStatus === "PENDING").length,
+    pendingApproval: baseFilteredDeliveries.filter((d) => d.approvalStatus === "PENDING" || d.approvalStatus === "PENDING_VERIFICATION").length,
   }), [baseFilteredDeliveries]);
 
   const filteredAndSortedDeliveries = useMemo(() => {
     const filtered = baseFilteredDeliveries.filter((d) => {
       if (activeSection === "PENDING") return d.status === "PENDING" && d.approvalStatus !== "PENDING";
       if (activeSection === "DELIVERED") return d.status === "DELIVERED" || d.status === "COMPLETED";
-      if (activeSection === "APPROVAL_PENDING") return d.approvalStatus === "PENDING";
+      if (activeSection === "APPROVAL_PENDING") return d.approvalStatus === "PENDING" || d.approvalStatus === "PENDING_VERIFICATION";
       return true;
     });
 
@@ -687,6 +687,21 @@ export default function AdminDeliveries() {
                                 Action taken: {d.issueAdminAction}
                               </p>
                             ) : null}
+                            {d.paymentUtrNumber ? (
+                              <p className="mt-1 text-[11px] font-semibold text-[#5C3D1E]">
+                                UTR: <span className="font-black text-[#2C1A0E]">{d.paymentUtrNumber}</span>
+                              </p>
+                            ) : null}
+                            {d.paymentScreenshotUrl ? (
+                              <a
+                                href={d.paymentScreenshotUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 inline-flex text-[11px] font-bold text-[#B8641A] hover:underline"
+                              >
+                                View payment screenshot
+                              </a>
+                            ) : null}
                           </div>
 
                           <div className="min-w-0">
@@ -706,11 +721,13 @@ export default function AdminDeliveries() {
                             <div>
                               <p className="mb-1 text-[8px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Approval</p>
                               <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                              d.approvalStatus === "PENDING"
-                                ? "bg-indigo-100 text-indigo-700 border-indigo-200"
-                                : "bg-green-100 text-green-700 border-green-200"
-                            }`}>
-                              {d.approvalStatus || "APPROVED"}
+                                d.approvalStatus === "PENDING" || d.approvalStatus === "PENDING_VERIFICATION"
+                                  ? "bg-amber-100 text-amber-700 border-amber-200"
+                                  : "bg-green-100 text-green-700 border-green-200"
+                              }`}>
+                                {d.approvalStatus === "PENDING_VERIFICATION"
+                                  ? "PENDING VERIFICATION"
+                                  : d.approvalStatus || "APPROVED"}
                               </span>
                             </div>
                             <div>

@@ -81,6 +81,7 @@ const normalizeApprovalStatus = (value, { isOneTimeOrder = false } = {}) => {
   if (normalized === "APPROVED") return "APPROVED";
   if (normalized === "REJECTED") return "REJECTED";
   if (normalized === "PENDING") return "PENDING";
+  if (normalized === "PENDING_VERIFICATION") return "PENDING_VERIFICATION";
   return isOneTimeOrder ? "PENDING" : "APPROVED";
 };
 
@@ -531,6 +532,8 @@ const mapDeliveries = ({
     const wingOrFloor = customer.wing || "";
     const roomNo = customer.room_no || "";
     const slot = subscription.delivery_slot || parseNotesField(notes, "slot") || "-";
+    const paymentUtrNumber = parseNotesField(notes, "utr");
+    const paymentScreenshotUrl = parseNotesField(notes, "screenshot_url");
     const deliveryId = row?.projectionKey || row?.id || null;
     const projectedAgentId = row?.projectedAgentId || subscription?.assigned_agent_id || null;
     const resolvedAgent = agentsById.get(projectedAgentId) || agent;
@@ -571,9 +574,11 @@ const mapDeliveries = ({
         ? "BUY ONCE"
         : "SUBSCRIPTION",
       approvalStatus,
-      needsApproval: approvalStatus === "PENDING",
+      needsApproval: approvalStatus === "PENDING" || approvalStatus === "PENDING_VERIFICATION",
       isAssigned: isProjected ? projectedAgentId != null : row.agent_id != null,
       isProjected,
+      paymentUtrNumber,
+      paymentScreenshotUrl,
       hasOpenIssue: issueMeta.hasOpenIssue,
       customerIssue: issueMeta.customerIssue,
       issueStatus: issueMeta.issueStatus,
@@ -1315,7 +1320,7 @@ export const approveAllPendingDeliveryOrders = async ({ dairyId = null } = {}) =
     .select("id, customer_id, dairy_id, agent_id, delivery_date")
     .eq("dairy_id", dairyId)
     .ilike("notes", "%[ONE_TIME_ORDER]%")
-    .eq("approval_status", "PENDING");
+    .in("approval_status", ["PENDING", "PENDING_VERIFICATION"]);
 
   if (pendingError) throw pendingError;
   const pendingIds = (pendingRows || []).map((row) => row.id).filter(Boolean);

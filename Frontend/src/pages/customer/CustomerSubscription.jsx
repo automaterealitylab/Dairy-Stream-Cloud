@@ -18,6 +18,7 @@ import {
   previewCustomerPaymentScreenshotOcr,
 } from '../../api/customer/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
+import { loadRazorpayCheckout } from '../../utils/loadRazorpay.js';
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const fmtCurrency = (amount) => `Rs.${Number(amount || 0).toFixed(2)}`;

@@ -231,6 +231,28 @@ export const reportCustomerDeliveryIssue = async ({ deliveryId, issue }) => {
 };
 
 export const createCustomerOneTimeOrder = async (payload) => {
+  const hasScreenshot = Boolean(payload?.screenshotFile);
+
+  if (hasScreenshot) {
+    const formData = new FormData();
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || key === "screenshotFile") return;
+      if (Array.isArray(value) || typeof value === "object") {
+        formData.append(key, JSON.stringify(value));
+      } else {
+        formData.append(key, value);
+      }
+    });
+    formData.append("image", payload.screenshotFile);
+
+    const { data } = await client.post("/customer/orders/one-time", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    invalidateCustomerDashboardCache();
+    invalidateCustomerReadCache("deliveries", "payments");
+    return data;
+  }
+
   const { data } = await client.post("/customer/orders/one-time", payload);
   invalidateCustomerDashboardCache();
   invalidateCustomerReadCache("deliveries", "payments");

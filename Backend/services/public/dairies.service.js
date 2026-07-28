@@ -99,7 +99,7 @@ export const getCityDairies = async (city) => {
 
 export const getPublicDairyById = async (id) => {
   const PUBLIC_DAIRY_FIELDS =
-    "id, dairy_name, category, address, city, state, pincode, image_url, latitude, longitude, service_type, service_pincodes, service_radius, selected_plan, status, created_at";
+    "id, dairy_name, category, address, city, state, pincode, image_url, latitude, longitude, service_type, service_pincodes, service_radius, selected_plan, status, upi_id, created_at";
 
   const { data, error } = await supabase
     .from("dairies")

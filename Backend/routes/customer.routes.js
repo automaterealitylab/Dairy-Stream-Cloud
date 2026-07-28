@@ -94,7 +94,7 @@ router.put("/profile", authenticate, uploadSingleImage, updateProfile);
 router.get("/dashboard", authenticate, getDashboard);
 router.get("/deliveries", authenticate, getDeliveries);
 router.post("/deliveries/:id/issue", authenticate, reportIssue);
-router.post("/orders/one-time", authenticate, createOneTimeOrder);
+router.post("/orders/one-time", authenticate, uploadSingleImage, createOneTimeOrder);
 router.post("/orders/one-time/cancel", authenticate, cancelOneTimeOrder);
 router.get("/payments", authenticate, getPayments);
 router.post("/payments/upi-intent", authenticate, paymentVerificationRateLimit, createUpiPaymentIntent);

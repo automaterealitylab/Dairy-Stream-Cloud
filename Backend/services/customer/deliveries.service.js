@@ -133,12 +133,16 @@ const parseOneTimeNotes = (notesValue) => {
       slotKey: null,
       paymentMethod: null,
       address: null,
+      utrNumber: null,
+      screenshotUrl: null,
     };
   }
 
   const slotMatch = notes.match(/slot=([^;]+)/i);
   const paymentMatch = notes.match(/payment=([^;]+)/i);
   const addressMatch = notes.match(/address=(.*)$/i);
+  const utrMatch = notes.match(/utr=([^;]+)/i);
+  const screenshotMatch = notes.match(/screenshot_url=([^;]+)/i);
   const parsedSlot = normalizeOneTimeSlot(slotMatch?.[1] || "");
   const slotKey = VALID_ONE_TIME_SLOTS.has(parsedSlot) ? parsedSlot : null;
 
@@ -147,6 +151,8 @@ const parseOneTimeNotes = (notesValue) => {
     slotKey,
     paymentMethod: paymentMatch?.[1]?.trim()?.toUpperCase() || null,
     address: addressMatch?.[1]?.trim() || null,
+    utrNumber: utrMatch?.[1]?.trim() || null,
+    screenshotUrl: screenshotMatch?.[1]?.trim() || null,
   };
 };
 
@@ -157,6 +163,21 @@ const parseNotesField = (notesValue, fieldName) => {
 
   const match = notes.match(new RegExp(`(?:^|[;\\n]\\s*)${field}=([^;\\n]+)`, "i"));
   return match?.[1]?.trim() || null;
+};
+
+const normalizeUtrNumber = (value) => String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+
+const appendOneTimeOrderPaymentMeta = (notesValue, { utrNumber, screenshotUrl, payerUpiId } = {}) => {
+  const notes = String(notesValue || "").trim();
+  const extras = [];
+
+  const normalizedUtr = normalizeUtrNumber(utrNumber);
+  if (normalizedUtr) extras.push(`utr=${normalizedUtr}`);
+  if (screenshotUrl) extras.push(`screenshot_url=${String(screenshotUrl).trim()}`);
+  if (payerUpiId) extras.push(`payer_upi_id=${String(payerUpiId).trim()}`);
+
+  if (!extras.length) return notes;
+  return notes ? `${notes}; ${extras.join("; ")}` : extras.join("; ");
 };
 
 const parseLatestCustomerIssueFromNotes = (notesValue) => {
@@ -232,6 +253,7 @@ const toApprovalStatus = (approvalStatus, { isOneTimeOrder = false } = {}) => {
   if (normalized === "REJECTED") return "REJECTED";
   if (normalized === "PENDING") return "PENDING";
   if (normalized === "PENDING_PAYMENT") return "PENDING_PAYMENT";
+  if (normalized === "PENDING_VERIFICATION") return "PENDING_VERIFICATION";
   if (normalized === "CANCELLED" || normalized === "CANCELED") return "CANCELLED";
   return isOneTimeOrder ? "PENDING" : "APPROVED";
 };
@@ -373,7 +395,7 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     isOneTimeOrder: parsedNotes.isOneTimeOrder,
   });
   const uiStatus =
-    parsedNotes.isOneTimeOrder && (approvalStatus === "PENDING" || approvalStatus === "PENDING_PAYMENT")
+    parsedNotes.isOneTimeOrder && (approvalStatus === "PENDING" || approvalStatus === "PENDING_PAYMENT" || approvalStatus === "PENDING_VERIFICATION")
       ? "PENDING_APPROVAL"
       : normalizedStatus;
   const deliveryType = getDeliveryTypeLabel(parsedNotes.isOneTimeOrder);
@@ -394,6 +416,8 @@ const mapDeliveryRow = (row, index, fallbackProduct, fallbackQty, dairyNamesMap 
     slotWindow,
     paymentMethod: paymentMethod || "-",
     address: parsedNotes.address || null,
+    paymentUtrNumber: parsedNotes.utrNumber || parseNotesField(row?.notes, "utr") || null,
+    paymentScreenshotUrl: parsedNotes.screenshotUrl || parseNotesField(row?.notes, "screenshot_url") || null,
     isOneTimeOrder: parsedNotes.isOneTimeOrder,
     deliveryType,
     customerIssue: parsedIssue.issue,
@@ -788,7 +812,7 @@ const findLinkedOneTimePayment = async ({
 };
 
 const isStandaloneOneTimePaymentMethod = (paymentMethod) =>
-  normalizeOneTimePaymentMethod(paymentMethod) !== "MONTHLY_BILL";
+  normalizeOneTimePaymentMethod(paymentMethod) === "PAY_NOW";
 
 const appendCustomerCancellationNote = (existingNotes, reason = "customer_cancelled") => {
   const previous = String(existingNotes || "").trim();
@@ -842,7 +866,19 @@ const getSavedCustomerAddress = async (customerId) => {
 };
 
 const normalizeOneTimeOrderItems = (payload = {}) => {
-  const explicitItems = Array.isArray(payload?.items) ? payload.items : [];
+  const rawItems = payload?.items;
+  const explicitItems = Array.isArray(rawItems)
+    ? rawItems
+    : typeof rawItems === "string"
+      ? (() => {
+          try {
+            const parsed = JSON.parse(rawItems);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
   if (explicitItems.length > 0) {
     return explicitItems
       .map((item) => ({
@@ -957,6 +993,9 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   const slot = normalizeOneTimeSlot(payload?.slot);
   const pricePerLiterInput = toFiniteNumber(payload?.pricePerLiter ?? payload?.unitPrice);
   const allowedPaymentMethods = new Set(["PAY_NOW", "COD", "MONTHLY_BILL"]);
+  const utrNumber = normalizeUtrNumber(payload?.utrNumber);
+  const screenshotUrl = String(payload?.screenshotUrl || "").trim();
+  const payerUpiId = String(payload?.payerUpiId || "").trim();
 
   if (!Number.isFinite(dairyId) || dairyId <= 0) {
     throw new Error("Valid dairyId is required");
@@ -972,6 +1011,9 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
   }
   if (!allowedPaymentMethods.has(paymentMethod)) {
     throw new Error("Payment method must be online, cash on delivery, or subscription bill");
+  }
+  if (paymentMethod === "PAY_NOW" && !utrNumber) {
+    throw new Error("UTR/reference number is required for online payment orders");
   }
   if (!resolvedAddress || resolvedAddress.length < 10) {
     throw new Error("Detailed delivery address is required");
@@ -1083,13 +1125,22 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
     }
 
     for (const item of preparedItems) {
-      const deliveryNotes = appendDeliveryBillingMeta(
+      const baseNotes = appendDeliveryBillingMeta(
         `[ONE_TIME_ORDER] slot=${slot}; payment=${paymentMethod}; address=${resolvedAddress}`,
         {
           paymentMethod,
           unitPrice: item.unitPrice,
         }
-      ).slice(0, 500);
+      );
+      const deliveryNotes = appendOneTimeOrderPaymentMeta(baseNotes, {
+        utrNumber: paymentMethod === "PAY_NOW" ? utrNumber : null,
+        screenshotUrl: paymentMethod === "PAY_NOW" ? screenshotUrl : null,
+        payerUpiId: paymentMethod === "PAY_NOW" ? payerUpiId : null,
+      }).slice(0, 500);
+      const approvalStatus =
+        paymentMethod === "PAY_NOW"
+          ? (utrNumber ? "PENDING_VERIFICATION" : "PENDING_PAYMENT")
+          : "PENDING";
 
       const { data: createdDelivery, error: createDeliveryError } = await supabase
         .from("deliveries")
@@ -1100,7 +1151,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
           milk_type: item.milkType,
           quantity_liters: item.quantity,
           status: "PENDING",
-          approval_status: paymentMethod === "PAY_NOW" ? "PENDING_PAYMENT" : "PENDING",
+          approval_status: approvalStatus,
           notes: deliveryNotes,
         })
         .select("id, customer_id, dairy_id, delivery_date, milk_type, quantity_liters, status, approval_status, created_at")
@@ -1127,7 +1178,7 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
     preparedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2)
   );
   let createdPayment = null;
-  if (isStandaloneOneTimePaymentMethod(paymentMethod)) {
+  if (paymentMethod === "PAY_NOW" && !utrNumber) {
     const deliveryIds = createdDeliveries.map((item) => item.id).join(",");
     const summaryLabel = preparedItems
       .map((item) => `${item.milkType} ${item.quantity}L`)
@@ -1250,7 +1301,7 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
     if (approvalStatus === "CANCELLED" || approvalStatus === "CANCELED") {
       throw new Error("This order has already been cancelled");
     }
-    if (approvalStatus !== "PENDING" && approvalStatus !== "PENDING_PAYMENT") {
+    if (approvalStatus !== "PENDING" && approvalStatus !== "PENDING_PAYMENT" && approvalStatus !== "PENDING_VERIFICATION") {
       throw new Error("Only approval-pending one-time orders can be cancelled");
     }
   }
@@ -1265,7 +1316,13 @@ export const cancelPendingOneTimeDeliveryOrder = async (customerId, payload = {}
   });
   const requiresStandalonePayment = isStandaloneOneTimePaymentMethod(paymentMethod);
   const primaryApprovalStatus = String(primaryDelivery?.approval_status || "").toUpperCase();
-  if (!payment && requiresStandalonePayment && !removeFromHistory && primaryApprovalStatus !== "PENDING_PAYMENT") {
+  if (
+    !payment &&
+    requiresStandalonePayment &&
+    !removeFromHistory &&
+    primaryApprovalStatus !== "PENDING_PAYMENT" &&
+    primaryApprovalStatus !== "PENDING_VERIFICATION"
+  ) {
     throw new Error("Payment record not found");
   }
 

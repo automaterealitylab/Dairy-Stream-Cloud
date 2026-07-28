@@ -37,7 +37,9 @@ const hasOpenSubscriptionStatus = (status) => {
 
 const normalizeOneTimeStatus = (status, approvalStatus) => {
   const normalizedApproval = String(approvalStatus || "").toUpperCase();
-  if (normalizedApproval === "PENDING") return "PENDING_APPROVAL";
+  if (normalizedApproval === "PENDING" || normalizedApproval === "PENDING_PAYMENT" || normalizedApproval === "PENDING_VERIFICATION") {
+    return "PENDING_APPROVAL";
+  }
   if (normalizedApproval === "CANCELLED" || normalizedApproval === "CANCELED") {
     return "CANCELLED";
   }

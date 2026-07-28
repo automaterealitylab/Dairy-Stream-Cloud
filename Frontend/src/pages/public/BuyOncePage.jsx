@@ -13,6 +13,7 @@ import {
 } from "../../api/customer/customer.api.js";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { buildCustomerAddress } from "../../utils/customerAddress.js";
+import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
 
 const toDateInput = (dateValue = new Date()) => {
   const date = new Date(dateValue);
