@@ -1014,8 +1014,10 @@ export default function Payments() {
                     const typeCfg = paymentTypeCfg(payment.title);
                     const { Icon } = typeCfg;
                     const normalizedStatus = String(payment.status || "").toUpperCase();
+                    const verificationStatus = String(payment.verificationStatus || "").toUpperCase();
                     const isUnpaid = ["PENDING", "OVERDUE"].includes(normalizedStatus);
                     const isPaid = normalizedStatus === "PAID";
+                    const isPendingVerification = isPaid && verificationStatus === "SUBMITTED";
                     const { title, subtitle } = parseTitle(payment.title || "");
                     const paymentDateLabel = formatDateLabel(payment.date) || payment.date || "-";
                     const paymentMethodLabel = formatPaymentMethodLabel(payment.method);
@@ -1032,9 +1034,9 @@ export default function Payments() {
                             )
                           )
                         : "Due date not set"
-                      : paymentMethodLabel
-                      ? `${paymentMethodLabel} payment`
-                      : "Recorded payment";
+                      : `${paymentMethodLabel ? `${paymentMethodLabel} payment` : "Recorded payment"}${
+                          isPendingVerification ? " - Pending verification" : ""
+                        }`;
                     const mobileMeta = [
                       !subtitleHasPaymentDate && paymentDateLabel !== "-" ? paymentDateLabel : "",
                       !isPaid ? paymentMethodLabel : "",
