@@ -18,7 +18,7 @@
     "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@capacitor/geolocation": "^8.2.0",
-    "axios": "^1.12.2",
+    "axios": "^1.18.1",
     "dairy-stream-cloud": "file:..",
     "framer-motion": "^12.35.2",
     "html2canvas": "^1.4.1",
@@ -31,7 +31,8 @@
     "react-dom": "^19.1.1",
     "react-hot-toast": "^2.6.0",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.9.3",
+    "react-router": "^6.30.4",
+    "react-router-dom": "^6.30.4",
     "recharts": "^3.8.0",
     "socket.io-client": "^4.8.3",
     "zod": "^4.3.6"

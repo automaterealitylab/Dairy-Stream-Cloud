@@ -40,13 +40,17 @@ const genericClientMessage = (status) => {
 export const sanitizeErrorResponses = (req, res, next) => {
   const originalJson = res.json;
   res.json = function (body) {
-    if (res.statusCode >= 400) {
+    const isAuthRoute = String(req.originalUrl || "").startsWith("/api/auth/");
+    const hasStructuredErrorBody = body && typeof body === "object" && "success" in body && "message" in body;
+
+    if (res.statusCode >= 400 && !isAuthRoute && !hasStructuredErrorBody) {
       return originalJson.call(this, {
         success: false,
         message: genericClientMessage(res.statusCode),
         correlationId: req.correlationId,
       });
     }
+
     return originalJson.call(this, body);
   };
   next();

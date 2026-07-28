@@ -83,6 +83,61 @@ const logRateLimitExceeded = (req, { keyPrefix, limit, windowMs, count }) => {
   });
 };
 
+const authFailureBuckets = new Map();
+const requestVolumeBuckets = new Map();
+
+export const securityAuditMiddleware = (req, res, next) => {
+  const now = Date.now();
+  const ip = getIp(req);
+  const volumeBucket = requestVolumeBuckets.get(ip) || { count: 0, resetAt: now + 60_000 };
+
+  if (volumeBucket.resetAt <= now) {
+    volumeBucket.count = 0;
+    volumeBucket.resetAt = now + 60_000;
+  }
+
+  volumeBucket.count += 1;
+  requestVolumeBuckets.set(ip, volumeBucket);
+
+  if (volumeBucket.count > Number(process.env.SUSPICIOUS_REQUEST_RATE_PER_MINUTE || 400)) {
+    logger.warn("suspicious_request_volume", {
+      ip,
+      count: volumeBucket.count,
+      path: req.originalUrl,
+      method: req.method,
+    });
+  }
+
+  res.once("finish", () => {
+    const isAuthFailure = [401, 403, 429].includes(res.statusCode);
+    const isAuthPath = /\/auth\/|login|forgot-password|otp/i.test(req.originalUrl || "");
+
+    if (!isAuthFailure || !isAuthPath) return;
+
+    const key = `${ip}:${req.originalUrl}`;
+    const bucket = authFailureBuckets.get(key) || { count: 0, resetAt: now + 15 * 60_000 };
+
+    if (bucket.resetAt <= now) {
+      bucket.count = 0;
+      bucket.resetAt = now + 15 * 60_000;
+    }
+
+    bucket.count += 1;
+    authFailureBuckets.set(key, bucket);
+
+    if (bucket.count >= Number(process.env.AUTH_FAILURE_ALERT_THRESHOLD || 5)) {
+      logger.warn("repeated_auth_failures", {
+        ip,
+        count: bucket.count,
+        path: req.originalUrl,
+        method: req.method,
+      });
+    }
+  });
+
+  next();
+};
+
 export const requestFingerprinting = async (req, res, next) => {
   const fingerprintSource = [
     getIp(req),
@@ -130,6 +185,17 @@ export const validateApiSignature = (req, res, next) => {
     return res.status(401).json({ success: false, error: "Invalid request signature" });
   }
   return next();
+};
+
+export const issueCsrfToken = (req, res) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  res.cookie("csrf_token", token, {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: String(process.env.NODE_ENV || "development").toLowerCase() === "production",
+    path: "/",
+  });
+  return res.json({ success: true, csrfToken: token });
 };
 
 export const csrfProtection = (req, res, next) => {

@@ -18,6 +18,7 @@ import {
   isAllowedCorsOrigin,
   requestFingerprinting,
   secureHeaders,
+  securityAuditMiddleware,
   ssrfGuard,
   validateApiSignature,
 } from "./middleware/security.middleware.js";
@@ -95,6 +96,13 @@ app.use(
     credentials: true,
   })
 );
+app.use((req, res, next) => {
+  const declaredLength = Number(req.headers["content-length"] || 0);
+  if (declaredLength > 10 * 1024 * 1024) {
+    return res.status(413).json({ success: false, error: "Request body exceeds the 10MB limit" });
+  }
+  next();
+});
 app.use(
   express.json({
     limit: "10mb",
@@ -106,7 +114,19 @@ app.use(
   })
 ); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use((err, req, res, next) => {
+  if (err && (err.type === "entity.parse.failed" || err instanceof SyntaxError)) {
+    const correlationId = req.correlationId || null;
+    return res.status(400).json({
+      success: false,
+      message: "Invalid JSON payload",
+      correlationId,
+    });
+  }
+  next(err);
+});
 app.use(requestFingerprinting);
+app.use(securityAuditMiddleware);
 app.use(botProtection);
 app.use(ssrfGuard);
 app.use(validateApiSignature);

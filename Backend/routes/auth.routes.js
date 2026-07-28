@@ -28,7 +28,9 @@ import {
 // Middleware
 import { verifyToken } from "../middleware/auth.middleware.js";
 import { logout } from "../controllers/authentication/logout.controller.js";
+import { refreshAuth } from "../controllers/authentication/refresh.controller.js";
 import {
+  issueCsrfToken,
   loginRateLimit,
   otpRateLimit,
   passwordResetRateLimit,
@@ -39,6 +41,7 @@ const router = express.Router();
 // ================= AUTH ROUTES =================
 
 // 1. Who are you?
+router.get("/csrf", issueCsrfToken);
 router.post("/detect", detectUser);
 
 // 2. Specialized Logins
@@ -57,6 +60,7 @@ router.post("/login/otp/verify", loginRateLimit, verifyOtpLoginAuth); // Verify 
 
 // 4. Token Validation (For Persistent Login)
 router.get("/me", verifyToken, validateTokenAuth);
+router.post("/refresh", refreshAuth);
 router.post("/logout", verifyToken, logout);
 
 export default router;

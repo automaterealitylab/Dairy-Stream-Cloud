@@ -230,6 +230,66 @@ export const revokeAccessJti = async ({ jti, expiresAt, actorType, actorId, reas
     { onConflict: "token_jti" }
   );
 };
+export const refreshAuthSession = async ({
+  sessionId,
+  refreshToken,
+  id,
+  email,
+  role,
+  dairyId = null,
+  agentId = null,
+  ipAddress = null,
+  userAgent = null,
+} = {}) => {
+  if (!sessionId || !refreshToken) throw new Error("Session and refresh token are required");
+
+  const refreshTokenHash = hashToken(refreshToken);
+  const expiresAt = new Date();
+  const newRefreshToken = generateRefreshToken();
+  const newRefreshExpiresAt = new Date(expiresAt.getTime() + DEFAULT_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+
+  const { data: session, error } = await supabase
+    .from("auth_sessions")
+    .select("id, actor_id, dairy_id")
+    .eq("id", sessionId)
+    .eq("refresh_token_hash", refreshTokenHash)
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!session) throw new Error("Invalid or expired refresh token");
+
+  const { error: updateError } = await supabase
+    .from("auth_sessions")
+    .update({
+      refresh_token_hash: hashToken(newRefreshToken),
+      expires_at: newRefreshExpiresAt.toISOString(),
+      last_seen_at: new Date().toISOString(),
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    })
+    .eq("id", session.id);
+
+  if (updateError) throw updateError;
+
+  return {
+    accessToken: generateToken({
+      id: id ?? session.actor_id,
+      email,
+      role,
+      dairyId: dairyId ?? session.dairy_id ?? null,
+      agentId,
+      sessionId: session.id,
+      sessionVersion: 1,
+    }),
+    refreshToken: newRefreshToken,
+    sessionId: session.id,
+    accessTokenExpiresIn: DEFAULT_ACCESS_TOKEN_TTL,
+    refreshTokenExpiresAt: newRefreshExpiresAt.toISOString(),
+  };
+};
+
 export const revokeAuthSession = async ({ sessionId, actorType, actorId, reason = "LOGOUT" } = {}) => {
   if (!sessionId) return;
 
@@ -238,6 +298,7 @@ export const revokeAuthSession = async ({ sessionId, actorType, actorId, reason 
     .update({
       revoked_at: new Date().toISOString(),
       revoked_reason: reason,
+      refresh_token_hash: null,
     })
     .eq("id", sessionId);
 

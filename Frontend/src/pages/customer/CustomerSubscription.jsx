@@ -382,23 +382,7 @@ const Subscribe = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const loadRazorpay = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) return resolve(true);
-
-      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-      if (existingScript) {
-        existingScript.addEventListener('load', () => resolve(true), { once: true });
-        existingScript.addEventListener('error', () => resolve(false), { once: true });
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
+  const loadRazorpay = () => loadRazorpayCheckout();
 
   const refreshPaymentsSummary = async () => {
     const data = await fetchCustomerPayments({ force: true });

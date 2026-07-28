@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
-    "axios": "^1.13.5",
+    "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.65.0",
     "cloudinary": "^2.9.0",

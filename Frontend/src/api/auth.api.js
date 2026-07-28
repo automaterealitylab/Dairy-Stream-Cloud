@@ -20,6 +20,8 @@ export const adminLoginApi = async (payload) => {
     localStorage.setItem("adminToken", data.token);
     localStorage.setItem("userRole", "ADMIN");
   }
+  if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+  if (data.sessionId) localStorage.setItem("sessionId", data.sessionId);
   return data;
 };
 
@@ -44,6 +46,8 @@ export const agentLoginApi = async (payload) => {
     localStorage.setItem("agentToken", data.token);
     localStorage.setItem("userRole", "AGENT");
   }
+  if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+  if (data.sessionId) localStorage.setItem("sessionId", data.sessionId);
   return data;
 };
 
@@ -74,5 +78,7 @@ export const verifyOtpApi = async (payload) => {
     localStorage.setItem("token", data.token); // Generic token for customers
     localStorage.setItem("userRole", "CUSTOMER");
   }
+  if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+  if (data.sessionId) localStorage.setItem("sessionId", data.sessionId);
   return data;
 };
