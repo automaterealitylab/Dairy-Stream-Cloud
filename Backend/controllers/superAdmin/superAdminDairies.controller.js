@@ -1,5 +1,14 @@
 import { supabase } from "../../config/supabase.js";
 import bcrypt from "bcryptjs";
+import { decryptDeterministic } from "../../utils/crypto.js";
+
+const decryptDairyRow = (d) => ({
+  ...d,
+  dairy_email: decryptDeterministic(d.dairy_email),
+  dairy_phone: decryptDeterministic(d.dairy_phone),
+  phone: decryptDeterministic(d.phone),
+  email: decryptDeterministic(d.email),
+});
 
 // Fetch all dairies with aggregates (customers, orders, revenue) and filtering
 export const fetchDairies = async (req, res) => {
@@ -27,7 +36,13 @@ export const fetchDairies = async (req, res) => {
       query = query.ilike("state", `%${state}%`);
     }
     if (search) {
-      query = query.or(`dairy_name.ilike.%${search}%,owner_name.ilike.%${search}%,dairy_email.ilike.%${search}%`);
+      // dairy_email is deterministically encrypted — search by name/owner as ilike,
+      // and attempt an exact encrypted match for dairy_email
+      const { encryptDeterministic } = await import("../../utils/crypto.js");
+      const encryptedSearch = encryptDeterministic(search.trim().toLowerCase());
+      query = query.or(
+        `dairy_name.ilike.%${search}%,owner_name.ilike.%${search}%,dairy_email.eq.${encryptedSearch}`
+      );
     }
 
     const { data: dairies, error } = await query.order("created_at", { ascending: false });
@@ -63,9 +78,9 @@ export const fetchDairies = async (req, res) => {
       revenueMap[p.dairy_id] = (revenueMap[p.dairy_id] || 0) + Number(p.amount || 0);
     });
 
-    // Merge aggregates into dairy object
+    // Merge aggregates into dairy object and decrypt PII
     const enrichedDairies = dairies.map(d => ({
-      ...d,
+      ...decryptDairyRow(d),
       totalCustomers: customerMap[d.id] || 0,
       totalOrders: orderMap[d.id] || 0,
       totalRevenue: Number((revenueMap[d.id] || 0).toFixed(2)),
@@ -106,7 +121,7 @@ export const updateDairyStatus = async (req, res) => {
       details: { dairy_name: updated.dairy_name },
     });
 
-    res.json({ success: true, dairy: updated });
+    res.json({ success: true, dairy: decryptDairyRow(updated) });
   } catch (err) {
     console.error("Update Dairy Status Error:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -210,7 +225,7 @@ export const resetOwnerPassword = async (req, res) => {
       action: "RESET_DAIRY_OWNER_PASSWORD",
       entity_type: "admin",
       entity_id: String(adminUser.id),
-      details: { email: adminUser.email },
+      details: { email: decryptDeterministic(adminUser.email) },
     });
 
     res.json({ success: true, message: "Owner password updated successfully" });

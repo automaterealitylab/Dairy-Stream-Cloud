@@ -29,6 +29,16 @@ const AddCustomerModal = lazy(() => import("../../components/customer/AddCustome
 const AddCustomerSubscriptionModal = lazy(() => import("../../components/customer/AddCustomerSubscriptionModal.jsx"));
 const ManualPaymentModal = lazy(() => import("../../components/admin/sections/ManualPaymentModal"));
 const InvoicePreviewModal = lazy(() => import("../../components/admin/sections/InvoicePreviewModal.jsx"));
+const ENCRYPTED_VALUE_PREFIX = "ENC_DET:aes-256-gcm:";
+
+const isEncryptedValue = (value) =>
+  typeof value === "string" && value.startsWith(ENCRYPTED_VALUE_PREFIX);
+
+const getDisplayPhone = (customer) => {
+  const phone = customer?.phone || customer?.phone_number || "";
+  return phone && !isEncryptedValue(phone) ? phone : "-";
+};
+
 export default function AdminCustomers() {
   const { isDark } = useTheme();
   const customerPanelStyle = {
@@ -271,7 +281,7 @@ export default function AdminCustomers() {
                       {c.customer_name}
                     </h4>
                     <p className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase">
-                      {c.phone_number}
+                      {getDisplayPhone(c)}
                     </p>
                     {c.assignedSubscriptionAgentName && (
                       <p className="mt-1 text-[10px] font-black uppercase text-[#B8641A] dark:text-[#d97706]">
@@ -394,7 +404,7 @@ export default function AdminCustomers() {
                         {c.customer_name}
                       </h4>
                       <p className="text-[12px] text-gray-500 dark:text-slate-400 mt-0.5 leading-snug">
-                        {c.phone_number}
+                        {getDisplayPhone(c)}
                       </p>
                       {c.assignedSubscriptionAgentName && (
                         <p className="mt-1 text-[11px] font-extrabold uppercase text-[#B8641A] dark:text-[#d97706] leading-snug">

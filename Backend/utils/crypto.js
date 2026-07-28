@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import "../config/loadEnv.js";
 
 const getEncryptionKey = () => {
   const secret = String(
