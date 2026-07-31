@@ -1,5 +1,6 @@
 import { supabase } from "../../config/supabase.js";
 import { sendEmail } from "../../utils/email.js";
+import { decryptDeterministic } from "../../utils/crypto.js";
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -66,10 +67,12 @@ export const createAnnouncement = async (req, res) => {
     if (targetedDairies && targetedDairies.length > 0) {
       // Fire-and-forget background email broadcasts to prevent request block
       targetedDairies.forEach(async (dairy) => {
-        if (!dairy.dairy_email) return;
+        // Decrypt the stored email before using it as a mail recipient
+        const recipientEmail = decryptDeterministic(dairy.dairy_email);
+        if (!recipientEmail || recipientEmail.startsWith("ENC_DET:")) return;
         try {
           await sendEmail({
-            to: dairy.dairy_email,
+            to: recipientEmail,
             subject: `[DairyStream Cloud] ${String(title).slice(0, 160)}`,
             html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
@@ -85,7 +88,7 @@ export const createAnnouncement = async (req, res) => {
             `,
           });
         } catch (emailErr) {
-          console.error(`Announcement email failed for ${dairy.dairy_email}:`, emailErr.message);
+          console.error(`Announcement email failed for ${recipientEmail}:`, emailErr.message);
         }
       });
     }

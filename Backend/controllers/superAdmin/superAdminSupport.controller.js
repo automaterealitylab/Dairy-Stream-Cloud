@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase.js";
+import { decryptDeterministic } from "../../utils/crypto.js";
 
 // Fetch all support tickets
 export const fetchTickets = async (req, res) => {
@@ -38,7 +39,19 @@ export const fetchTickets = async (req, res) => {
     const { data: tickets, error } = await query.order("created_at", { ascending: false });
     if (error) throw error;
 
-    res.json({ success: true, tickets });
+    // Decrypt encrypted PII in joined dairy rows
+    const decryptedTickets = (tickets || []).map(ticket => ({
+      ...ticket,
+      dairies: ticket.dairies
+        ? {
+            ...ticket.dairies,
+            dairy_email: decryptDeterministic(ticket.dairies.dairy_email),
+            dairy_phone: decryptDeterministic(ticket.dairies.dairy_phone),
+          }
+        : ticket.dairies,
+    }));
+
+    res.json({ success: true, tickets: decryptedTickets });
   } catch (err) {
     console.error("Fetch Tickets Error:", err);
     res.status(500).json({ success: false, error: err.message });

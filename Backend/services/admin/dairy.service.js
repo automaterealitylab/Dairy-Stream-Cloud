@@ -429,7 +429,7 @@ export const getAdminDairyProfileService = async ({ adminId, dairyId, revealBank
       .maybeSingle(),
     supabase
       .from("admins")
-      .select("id, name, email, phone, role, status")
+      .select("id, name, email, phone, phone_number, role, status")
       .eq("id", adminId)
       .limit(1)
       .maybeSingle(),
@@ -449,7 +449,7 @@ export const getAdminDairyProfileService = async ({ adminId, dairyId, revealBank
 
   if (adminResponse.data) {
     adminResponse.data.email = decryptDeterministic(adminResponse.data.email);
-    adminResponse.data.phone = decryptDeterministic(adminResponse.data.phone);
+    adminResponse.data.phone = decryptDeterministic(adminResponse.data.phone || adminResponse.data.phone_number);
   }
 
   const dairy = serializeDairyBankFields(decryptDairyFields(dairyResponse.data), {

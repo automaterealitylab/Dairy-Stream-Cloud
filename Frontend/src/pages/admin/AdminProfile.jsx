@@ -31,25 +31,54 @@ import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
 
+const isCiphertext = (val) =>
+  typeof val === "string" && val.startsWith("ENC_DET:aes-256-gcm:");
+
+const sanitizeEncryptedValues = (value) => {
+  if (typeof value === "string") {
+    return isCiphertext(value) ? "" : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeEncryptedValues);
+  }
+  if (value && typeof value === "object") {
+    const sanitized = {};
+    for (const key of Object.keys(value)) {
+      sanitized[key] = sanitizeEncryptedValues(value[key]);
+    }
+    return sanitized;
+  }
+  return value;
+};
+
+/**
+ * Reads the cached admin object from localStorage but strips any field values
+ * that are still raw ciphertext. This prevents showing encrypted strings in
+ * the UI during the brief window before the live API response arrives.
+ */
 const readStoredAdmin = () => {
+  let parsed = null;
   try {
     const directAdmin = localStorage.getItem("adminUser");
-    if (directAdmin) return JSON.parse(directAdmin);
+    if (directAdmin) parsed = JSON.parse(directAdmin);
   } catch {
-    // Ignore malformed local storage.
+    // ignore
   }
 
-  try {
-    const user = localStorage.getItem("user");
-    if (user) {
-      const parsed = JSON.parse(user);
-      if (String(parsed?.role || "").toUpperCase() === "ADMIN") return parsed;
+  if (!parsed) {
+    try {
+      const user = localStorage.getItem("user");
+      if (user) {
+        const p = JSON.parse(user);
+        if (String(p?.role || "").toUpperCase() === "ADMIN") parsed = p;
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // Ignore malformed local storage.
   }
 
-  return null;
+  if (!parsed) return null;
+  return sanitizeEncryptedValues(parsed);
 };
 
 const emptyDairyProfile = {
@@ -107,7 +136,7 @@ const buildFormFromProfile = (dairy = {}, admin = {}) => ({
   pincode: dairy?.pincode || "",
   owner_name: dairy?.owner_name || admin?.name || "",
   admin_email: admin?.email || "",
-  admin_phone: admin?.phone || "",
+  admin_phone: admin?.phone || admin?.phone_number || "",
   bank_account_holder_name: dairy?.bank_account_holder_name || "",
   bank_account_number: dairy?.bank_account_number || "",
   masked_account_number: dairy?.masked_account_number || dairy?.bank_account_number || "",
@@ -286,7 +315,7 @@ export default function AdminProfile() {
 
   const adminName = admin?.name || dairyProfile.owner_name || "Admin";
   const adminEmail = admin?.email || "-";
-  const adminPhone = admin?.phone || "-";
+  const adminPhone = admin?.phone || admin?.phone_number || "-";
   const adminRole = String(admin?.role || "ADMIN").toUpperCase();
   const dairyName = dairyProfile.dairy_name || dashboard?.dairyName || admin?.dairyName || "My Dairy";
   const dairyAddress = [dairyProfile.address, dairyProfile.city, dairyProfile.state, dairyProfile.pincode]
