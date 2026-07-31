@@ -10,7 +10,9 @@ const parseCsv = (value) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+// ✅ Added your custom domain to default production origins
 const DEFAULT_CORS_ORIGINS = [
+  "https://dairyvision.automaterealitylabs.in",
   "https://dairy-stream-cloud-frontend.onrender.com",
   "https://dairy-stream-cloud-fronten.onrender.com",
   "http://localhost",
@@ -23,6 +25,18 @@ const DEVELOPMENT_CORS_ORIGINS = [
   "http://localhost:5174",
   "http://localhost:3000",
 ];
+
+// Helper to normalize origins (strips trailing slashes, converts to lowercase)
+const normalizeOrigin = (origin) => {
+  if (!origin) return "";
+  try {
+    const url = new URL(origin);
+    return `${url.protocol}//${url.host}`.toLowerCase();
+  } catch {
+    return String(origin).trim().replace(/\/$/, "").toLowerCase();
+  }
+};
+
 const isLocalDevOrigin = (origin) => {
   if (String(process.env.NODE_ENV || "development").toLowerCase() === "production") {
     return false;
@@ -38,8 +52,13 @@ const isLocalDevOrigin = (origin) => {
 };
 
 export const isAllowedCorsOrigin = (origin) => {
+  // Allow requests without Origin header (curl, Postman, server-to-server)
   if (!origin) return true;
-  return getAllowedCorsOrigins().includes(origin) || isLocalDevOrigin(origin);
+
+  const cleanOrigin = normalizeOrigin(origin);
+  const allowedOrigins = getAllowedCorsOrigins().map(normalizeOrigin);
+
+  return allowedOrigins.includes(cleanOrigin) || isLocalDevOrigin(origin);
 };
 
 export const getAllowedCorsOrigins = () => {
@@ -48,10 +67,12 @@ export const getAllowedCorsOrigins = () => {
     ...parseCsv(process.env.FRONTEND_ORIGIN),
     ...parseCsv(process.env.FRONTEND_URL),
   ];
+
   const defaults =
     String(process.env.NODE_ENV || "development").toLowerCase() === "production"
       ? DEFAULT_CORS_ORIGINS
       : [...DEFAULT_CORS_ORIGINS, ...DEVELOPMENT_CORS_ORIGINS];
+
   return [...new Set([...defaults, ...configured])];
 };
 
@@ -61,7 +82,10 @@ export const secureHeaders = (req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
   res.setHeader("Cross-Origin-Resource-Policy", "same-site");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+  );
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 };
@@ -149,18 +173,21 @@ export const requestFingerprinting = async (req, res, next) => {
   res.setHeader("X-Request-Fingerprint", req.requestFingerprint.slice(0, 16));
 
   if (String(process.env.SECURITY_AUDIT_DB_ENABLED || "false").toLowerCase() === "true") {
-    supabase.from("security_events").insert({
-      event_type: "REQUEST_FINGERPRINTED",
-      severity: "INFO",
-      ip_address: getIp(req),
-      user_agent: req.headers["user-agent"] || null,
-      fingerprint: req.requestFingerprint,
-      path: req.originalUrl,
-      method: req.method,
-      correlation_id: req.correlationId || null,
-    }).then(({ error }) => {
-      if (error) logger.warn("security_audit_write_failed", { error: error.message });
-    });
+    supabase
+      .from("security_events")
+      .insert({
+        event_type: "REQUEST_FINGERPRINTED",
+        severity: "INFO",
+        ip_address: getIp(req),
+        user_agent: req.headers["user-agent"] || null,
+        fingerprint: req.requestFingerprint,
+        path: req.originalUrl,
+        method: req.method,
+        correlation_id: req.correlationId || null,
+      })
+      .then(({ error }) => {
+        if (error) logger.warn("security_audit_write_failed", { error: error.message });
+      });
   }
   next();
 };
@@ -178,7 +205,11 @@ export const validateApiSignature = (req, res, next) => {
   }
 
   const body = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body || {});
-  const expected = crypto.createHmac("sha256", secret).update(`${timestamp}.${req.method}.${req.originalUrl}.${body}`).digest("hex");
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(`${timestamp}.${req.method}.${req.originalUrl}.${body}`)
+    .digest("hex");
+
   if (
     expected.length !== signature.length ||
     !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
@@ -305,7 +336,6 @@ export const createRateLimiter = ({
   return async (req, res, next) => {
     let now = Date.now();
 
-    // Fetch dynamic limit from database if settingKey is provided
     if (settingKey) {
       if (now - lastSettingsFetchTime > SETTINGS_CACHE_INTERVAL) {
         try {
@@ -314,7 +344,6 @@ export const createRateLimiter = ({
           lastSettingsFetchTime = now;
         } catch (err) {
           logger.warn(`Failed to fetch rate limit setting ${settingKey}:`, err.message);
-          // Use cached value on error
         }
       }
     }
@@ -391,16 +420,19 @@ export const loginRateLimit = createRateLimiter({
   max: Number(process.env.LOGIN_RATE_LIMIT_PER_MINUTE || 5),
   keyPrefix: "auth-login",
 });
+
 export const otpRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: Number(process.env.OTP_RATE_LIMIT_PER_MINUTE || 5),
   keyPrefix: "auth-otp",
 });
+
 export const passwordResetRateLimit = createRateLimiter({
   windowMs: 60 * 60_000,
   max: Number(process.env.PASSWORD_RESET_RATE_LIMIT_PER_HOUR || 3),
   keyPrefix: "auth-password-reset",
 });
+
 export const marketplaceRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: Number(process.env.MARKETPLACE_RATE_LIMIT_PER_MINUTE || 60),
@@ -414,7 +446,3 @@ export const webhookRateLimit = createRateLimiter({
   keyPrefix: "webhook",
   settingKey: "WEBHOOK_RATE_LIMIT_PER_MINUTE",
 });
-
-
-
-
