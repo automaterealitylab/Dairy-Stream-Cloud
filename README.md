@@ -1,5 +1,35 @@
 # 🥛 Dairy Stream Cloud
 
+![Build Status](https://github.com/automaterealitylab/Dairy-Stream-Cloud/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/github/license/automaterealitylab/Dairy-Stream-Cloud)
+
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black)
+![Express](https://img.shields.io/badge/Express-000000?style=flat&logo=express&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white)
+![Socket.IO](https://img.shields.io/badge/Socket.IO-010101?style=flat&logo=socket.io&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white)
+![Capacitor](https://img.shields.io/badge/Capacitor-119EFF?style=flat&logo=capacitor&logoColor=white)
+![Cashfree](https://img.shields.io/badge/Cashfree-00D2A0?style=flat&logoColor=white)
+![Twilio](https://img.shields.io/badge/Twilio-F22F46?style=flat&logo=twilio&logoColor=white)
+![WhatsApp Cloud API](https://img.shields.io/badge/WhatsApp_Cloud_API-25D366?style=flat&logo=whatsapp&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)
+![Recharts](https://img.shields.io/badge/Recharts-22B5BF?style=flat&logoColor=white)
+![React Leaflet](https://img.shields.io/badge/React_Leaflet-199900?style=flat&logo=leaflet&logoColor=white)
+![BullMQ](https://img.shields.io/badge/BullMQ-DC382D?style=flat&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white)
+![Resend](https://img.shields.io/badge/Resend-000000?style=flat&logoColor=white)
+![ESLint](https://img.shields.io/badge/ESLint-4B32C3?style=flat&logo=eslint&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat&logo=vitest&logoColor=white)
+![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?style=flat&logo=android&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?style=flat&logo=render&logoColor=white)
+
+[![Website](https://img.shields.io/badge/🌐_Website-dairyvision.automaterealitylabs.in-brightgreen?style=flat)](https://dairyvision.automaterealitylabs.in/)
+[![Download APK](https://img.shields.io/badge/📱_Download_APK-v1.0.0-3DDC84?style=flat)](https://github.com/automaterealitylab/Dairy-Stream-Cloud/releases/download/v1.0.0/dairyvision.apk)
+
 **Dairy Stream Cloud** is a production-grade, full-stack SaaS platform for running a modern dairy delivery and billing business — from doorstep milk subscriptions and daily delivery tracking to procurement, agent logistics, payments, and multi-tenant super-admin oversight.
 
 Built as a monorepo with a **Node.js/Express** backend and a **React/Vite** frontend, it ships with real-time delivery tracking, subscription-based billing automation, UPI/Cashfree payment verification, WhatsApp/SMS notifications, Redis-backed background workers, and a Capacitor-wrapped Android app for delivery agents.
