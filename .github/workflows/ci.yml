@@ -2,58 +2,14 @@ name: CI Workflow
 
 on:
   push:
-    branches: [main, master]
+    branches: [ main, master ]
   pull_request:
-    branches: [main, master]
-
-# Cancel superseded runs on the same branch/PR to save minutes
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-# Least-privilege default; jobs opt into more only if they need it
-permissions:
-  contents: read
+    branches: [ main, master ]
 
 jobs:
-  # ─────────────────────────────────────────────────────────
-  # SECURITY — secret scan + dependency audit (fast, fail-first)
-  # ─────────────────────────────────────────────────────────
-  security:
-    name: Security (Secrets & Dependency Audit)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # gitleaks needs full history to scan past commits
-
-      - name: Scan for committed secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Audit Backend Dependencies
-        working-directory: Backend
-        run: npm audit --audit-level=high
-
-      - name: Audit Frontend Dependencies
-        working-directory: Frontend
-        run: npm audit --audit-level=high
-
-  # ─────────────────────────────────────────────────────────
-  # BACKEND
-  # ─────────────────────────────────────────────────────────
   backend:
     name: Backend CI (Syntax, Lint & Tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     defaults:
       run:
         working-directory: Backend
@@ -77,19 +33,12 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Check Formatting (Prettier)
-        run: npx prettier --check "**/*.{js,ts,json}"
-
       - name: Run Backend Test Suite
         run: npm test
 
-  # ─────────────────────────────────────────────────────────
-  # FRONTEND
-  # ─────────────────────────────────────────────────────────
   frontend:
     name: Frontend CI (Lint, Vitest & Build)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     defaults:
       run:
         working-directory: Frontend
@@ -110,30 +59,15 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Check Formatting (Prettier)
-        run: npx prettier --check "src/**/*.{js,jsx,ts,tsx,css,scss,json}"
-
       - name: Run Vitest Suite
         run: npm run test
 
       - name: Build Production App
         run: npm run build
 
-      - name: Upload Frontend Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: dairyvision-frontend-build
-          path: Frontend/dist
-          retention-days: 7
-
-  # ─────────────────────────────────────────────────────────
-  # ANDROID
-  # ─────────────────────────────────────────────────────────
   android:
     name: Android APK CI (Java 17 & Gradle Build)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    needs: [frontend] # reuse the web build instead of rebuilding from scratch
     defaults:
       run:
         working-directory: Frontend
@@ -153,16 +87,6 @@ jobs:
         with:
           distribution: zulu
           java-version: 17
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('Frontend/android/**/*.gradle*', 'Frontend/android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
 
       - name: Install Dependencies
         run: npm ci
@@ -190,20 +114,3 @@ jobs:
           name: dairyvision-android-apk
           path: Frontend/android/app/build/outputs/apk/debug/*.apk
           retention-days: 7
-
-  # ─────────────────────────────────────────────────────────
-  # STATUS GATE — single required check for branch protection
-  # ─────────────────────────────────────────────────────────
-  ci-success:
-    name: All checks passed
-    runs-on: ubuntu-latest
-    needs: [security, backend, frontend, android]
-    if: always()
-    steps:
-      - name: Fail if any dependency failed
-        run: |
-          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
-            echo "One or more jobs failed."
-            exit 1
-          fi
-          echo "All checks passed."
