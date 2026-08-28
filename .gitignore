@@ -1,3 +1,9 @@
 node_modules/
 .env
 otp.log
+*.log
+Backend/backend.log
+.artifacts/
+Frontend/android/.artifacts/
+strix/
+strix_runs/
