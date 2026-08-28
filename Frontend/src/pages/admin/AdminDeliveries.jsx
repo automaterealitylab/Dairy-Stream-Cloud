@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Building2,
   CalendarDays,
@@ -14,8 +14,6 @@ import {
   assignAdminDeliveryPartner,
   approveAdminDelivery,
   approveAllAdminDeliveries,
-  fetchAdminDeliveries,
-  fetchAdminDeliverySchedulingOptions,
   resolveAdminDeliveryIssue,
   scheduleAdminDelivery,
   scheduleAdminDeliveriesBulk,
@@ -25,109 +23,17 @@ import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
-
-// --- Utilities & Constants ---
-const statusStyles = {
-  DELIVERED: "bg-green-100 text-green-700 border-green-200",
-  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
-  FAILED: "bg-red-100 text-red-700 border-red-200",
-};
-
-const toQuantityValue = (value) => {
-  const parsed = Number.parseFloat(String(value || "").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const toDateTimestamp = (value) => {
-  if (!value) return 0;
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-").map(Number);
-    return new Date(year, month - 1, day).getTime();
-  }
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
-
-const formatDate = (value) => {
-  const timestamp = toDateTimestamp(value);
-  if (!timestamp) return "-";
-  return new Date(timestamp).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
-const cleanMetaText = (value) =>
-  String(value || "")
-    .replace(/\s*[\uFFFD\u00B7\u2022]+\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const buildDeliveryMeta = (delivery) => {
-  const parts = [];
-
-  if (delivery?.wingOrFloor) {
-    parts.push(`Wing ${cleanMetaText(delivery.wingOrFloor)}`);
-  }
-
-  const quantity = cleanMetaText(delivery?.quantity);
-  if (quantity && quantity !== "-") {
-    parts.push(quantity);
-  }
-
-  const slot = cleanMetaText(delivery?.slot);
-  if (slot && slot !== "-") {
-    parts.push(slot);
-  }
-
-  const date = formatDate(delivery?.date);
-  if (date && date !== "-") {
-    parts.push(date);
-  }
-
-  return parts;
-};
-
-const getTodayDateInput = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-const getRelativeDateInput = (dayOffset = 0) => {
-  const now = new Date();
-  now.setDate(now.getDate() + dayOffset);
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-const naturalCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
-
-const compareLocationPart = (left, right) =>
-  naturalCollator.compare(String(left || "").trim(), String(right || "").trim());
-
-// --- Sub-components ---
-function StatusPill({ status }) {
-  return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${statusStyles[status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
-      {status}
-    </span>
-  );
-}
-
-const FeedbackBanner = ({ feedback }) => {
-  if (!feedback?.message) return null;
-  const isSuccess = feedback.type === "success";
-  return (
-    <div className={`mt-4 rounded-lg border p-3 text-sm font-medium ${isSuccess ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"}`}>
-      {isSuccess ? "OK " : "X "} {feedback.message}
-    </div>
-  );
-};
+import { useAdminDeliveries } from "../../hooks/useAdminDeliveries.js";
+import {
+  compareLocationPart,
+  getRelativeDateInput,
+  getTodayDateInput,
+  toDateTimestamp,
+  toQuantityValue,
+} from "../../utils/adminDeliveries.js";
+import { RESOLVE_ACTION_OPTIONS, DELIVERY_SECTIONS } from "../../constants/adminDeliveries.js";
+import { FeedbackBanner } from "../../components/admin/deliveries/FeedbackBanner.jsx";
+import { BuildingDeliveryGroup } from "../../components/admin/deliveries/BuildingDeliveryGroup.jsx";
 
 // --- Main Component ---
 export default function AdminDeliveries() {
@@ -141,19 +47,6 @@ export default function AdminDeliveries() {
   } catch {
     adminName = "Admin";
   }
-  const RESOLVE_ACTION_OPTIONS = [
-    "Replacement milk sent",
-    "Refund initiated",
-    "Delivery partner warned",
-    "Quality issue escalated to dairy team",
-    "Customer contacted and issue clarified",
-  ];
-  const DELIVERY_SECTIONS = [
-    { key: "ALL", label: "All Deliveries" },
-    { key: "PENDING", label: "Delivery Pending" },
-    { key: "DELIVERED", label: "Delivered" },
-    { key: "APPROVAL_PENDING", label: "Approval Pending" },
-  ];
   const quickDateOptions = [
     { key: "today", label: "Today", value: getRelativeDateInput(0) },
     { key: "tomorrow", label: "Tomorrow", value: getRelativeDateInput(1) },
@@ -162,12 +55,7 @@ export default function AdminDeliveries() {
   const [_activeTab, _setActiveTab] = useState("bulk"); // 'bulk' | 'single'
   const [activeSection, setActiveSection] = useState("ALL");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [deliveries, setDeliveries] = useState([]);
-
-  const [scheduleOptions, setScheduleOptions] = useState({ customers: [], agents: [] });
-
+  const [dateFilter, setDateFilter] = useState(getTodayDateInput());
   const [singleForm, setSingleForm] = useState({
     customerId: "",
     agentId: "",
@@ -201,7 +89,6 @@ export default function AdminDeliveries() {
 
   // Filters State
   const [search, setSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState(getTodayDateInput());
   const [agentFilter, setAgentFilter] = useState("ALL");
   const [routeFilter, setRouteFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("date");
@@ -209,46 +96,7 @@ export default function AdminDeliveries() {
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
-  const loadDeliveries = async () => {
-    const response = await fetchAdminDeliveries({ date: dateFilter });
-    setDeliveries(Array.isArray(response?.deliveries) ? response.deliveries : []);
-  };
-
-  const loadSchedulingOptions = async () => {
-    const response = await fetchAdminDeliverySchedulingOptions();
-    setScheduleOptions({
-      customers: Array.isArray(response?.customers) ? response.customers : [],
-      agents: Array.isArray(response?.agents) ? response.agents : [],
-    });
-  };
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [deliveryData, optionsData] = await Promise.all([
-          fetchAdminDeliveries({ date: dateFilter }),
-          fetchAdminDeliverySchedulingOptions(),
-        ]);
-        if (!active) return;
-        setDeliveries(Array.isArray(deliveryData?.deliveries) ? deliveryData.deliveries : []);
-        setScheduleOptions({
-          customers: Array.isArray(optionsData?.customers) ? optionsData.customers : [],
-          agents: Array.isArray(optionsData?.agents) ? optionsData.agents : [],
-        });
-      } catch (err) {
-        if (!active) return;
-        setLoadError(err?.message || "Failed to load data.");
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-    load();
-    return () => { active = false; };
-  }, [dateFilter]);
+  const { loading, loadError, deliveries, scheduleOptions, loadDeliveries, loadSchedulingOptions } = useAdminDeliveries(dateFilter);
 
   // --- Memos ---
   const _selectedScheduleCustomer = useMemo(() => {
@@ -645,135 +493,16 @@ export default function AdminDeliveries() {
             ) : (
               <div className="mt-5 space-y-4">
                 {groupedTodayDeliveries.map((group) => (
-                  <section key={group.buildingName} className="overflow-hidden rounded-lg border border-[#E5D9C7] bg-white shadow-[0_8px_24px_rgba(92,61,30,0.06)] dark:border-slate-800 dark:bg-[#121829]">
-                    <div className="flex items-center justify-between gap-3 border-b border-[#EDE8DF] bg-[#FFF9F1] px-5 py-3 dark:border-slate-800 dark:bg-slate-900/60">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#B8641A] shadow-sm dark:bg-slate-800 dark:text-[#00C896]">
-                          <Building2 size={17} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#B89970]">Building</p>
-                          <h3 className="truncate text-sm font-extrabold text-[#2C1A0E] dark:text-white">{group.buildingName}</h3>
-                        </div>
-                      </div>
-                      <div className="shrink-0 rounded-full border border-[#E5D9C7] bg-white px-3 py-1 text-[10px] font-bold text-[#8B7355] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        {group.deliveries.length} {group.deliveries.length === 1 ? "stop" : "stops"}
-                      </div>
-                    </div>
-
-                    <div className="divide-y divide-[#F3EEE5]">
-                      {group.deliveries.map((d) => (
-                        <article key={d.id} className="grid grid-cols-1 items-start gap-4 px-5 py-4 transition-colors hover:bg-[#FFFCF7] dark:hover:bg-slate-900/40 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_0.9fr_1.05fr_auto] lg:items-center">
-                          <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                            <div className="flex items-center gap-2">
-                              <MapPin size={14} className="shrink-0 text-[#B8641A] dark:text-[#00C896]" />
-                              <p className="truncate text-[13px] font-extrabold uppercase tracking-[0.1em] text-[#2C1A0E] dark:text-white">Flat {d.roomNo || "-"}</p>
-                            </div>
-                            <p className="mt-1 truncate pl-[22px] text-[11px] text-[#8B7355] dark:text-slate-400">
-                              {buildDeliveryMeta(d).join(" | ")}
-                            </p>
-                            {d.isProjected ? (
-                              <p className="mt-1 truncate text-[11px] font-semibold text-[#B8641A]">
-                                Projected from active subscription for this date
-                              </p>
-                            ) : null}
-                            {d.hasOpenIssue ? (
-                              <p className="mt-1 truncate text-[11px] font-semibold text-rose-700">
-                                Issue: {d.customerIssue || "Reported by customer"}
-                              </p>
-                            ) : null}
-                            {!d.hasOpenIssue && d.issueStatus === "RESOLVED" && d.issueAdminAction ? (
-                              <p className="mt-1 truncate text-[11px] font-semibold text-emerald-700">
-                                Action taken: {d.issueAdminAction}
-                              </p>
-                            ) : null}
-                            {d.paymentUtrNumber ? (
-                              <p className="mt-1 text-[11px] font-semibold text-[#5C3D1E]">
-                                UTR: <span className="font-black text-[#2C1A0E]">{d.paymentUtrNumber}</span>
-                              </p>
-                            ) : null}
-                            {d.paymentScreenshotUrl ? (
-                              <a
-                                href={d.paymentScreenshotUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-1 inline-flex text-[11px] font-bold text-[#B8641A] hover:underline"
-                              >
-                                View payment screenshot
-                              </a>
-                            ) : null}
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-[#B89970]"><Package size={12} /> Product</p>
-                            <p className="mt-1 truncate text-sm font-bold text-[#2C1A0E] dark:text-white">
-                              {d.productType || "Milk"}
-                            </p>
-                            <p className="mt-0.5 text-[11px] font-semibold text-[#8B7355] dark:text-slate-400">{d.quantity}</p>
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-[#B89970]"><UserRound size={12} /> Agent</p>
-                            <p className="mt-1 truncate text-sm font-bold text-[#2C1A0E] dark:text-white">{d.agentName || "Unassigned"}</p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div>
-                              <p className="mb-1 text-[8px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Approval</p>
-                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                                d.approvalStatus === "PENDING" || d.approvalStatus === "PENDING_VERIFICATION"
-                                  ? "bg-amber-100 text-amber-700 border-amber-200"
-                                  : "bg-green-100 text-green-700 border-green-200"
-                              }`}>
-                                {d.approvalStatus === "PENDING_VERIFICATION"
-                                  ? "PENDING VERIFICATION"
-                                  : d.approvalStatus || "APPROVED"}
-                              </span>
-                            </div>
-                            <div>
-                              <p className="mb-1 text-[8px] font-bold uppercase tracking-[0.12em] text-[#B89970]">Delivery</p>
-                              <StatusPill status={d.status} />
-                            </div>
-                          </div>
-
-                          <div className="flex justify-start lg:justify-end">
-                            {d.isProjected ? (
-                              <span className="text-[10px] font-medium text-[#B8641A]">Projected</span>
-                            ) : d.hasOpenIssue ? (
-                              <button
-                                type="button"
-                                onClick={() => openResolveIssueModal(d)}
-                                disabled={resolvingIssueId === d.rawId}
-                                className="rounded bg-rose-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-rose-700 disabled:bg-rose-300"
-                              >
-                                {resolvingIssueId === d.rawId ? "Resolving..." : "Resolve Issue"}
-                              </button>
-                            ) : d.needsApproval ? (
-                              <button
-                                type="button"
-                                onClick={() => handleApproveOne(d)}
-                                disabled={approvingId === d.rawId}
-                                className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-indigo-700 disabled:bg-indigo-300"
-                              >
-                                {approvingId === d.rawId ? "Approving..." : "Approve"}
-                              </button>
-                            ) : !d.isAssigned ? (
-                              <button
-                                type="button"
-                                onClick={() => handleAssignPartner(d)}
-                                disabled={assigningId === d.rawId}
-                                className="rounded bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-700 disabled:bg-blue-300"
-                              >
-                                {assigningId === d.rawId ? "Assigning..." : "Assign Partner"}
-                              </button>
-                            ) : (
-                              <span className="text-[10px] font-medium text-slate-400">Ready</span>
-                            )}
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
+                  <BuildingDeliveryGroup
+                    key={group.buildingName}
+                    group={group}
+                    approvingId={approvingId}
+                    assigningId={assigningId}
+                    resolvingIssueId={resolvingIssueId}
+                    onApprove={handleApproveOne}
+                    onAssignPartner={handleAssignPartner}
+                    onResolveIssue={openResolveIssueModal}
+                  />
                 ))}
               </div>
             )}
