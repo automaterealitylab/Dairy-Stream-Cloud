@@ -264,13 +264,17 @@ const setCustomerOtpRecord = async ({ identifier, dairyId, otp, expiresAt }) => 
   };
 
   if (redis) {
-    await redis.set(
-      buildRedisOtpKey(identifier, dairyId),
-      JSON.stringify(record),
-      "EX",
-      CUSTOMER_OTP_TTL_SECONDS
-    );
-    return;
+    try {
+      await redis.set(
+        buildRedisOtpKey(identifier, dairyId),
+        JSON.stringify(record),
+        "EX",
+        CUSTOMER_OTP_TTL_SECONDS
+      );
+      return;
+    } catch (err) {
+      logger.warn("redis_set_otp_failed_using_memory_fallback", { error: err.message });
+    }
   }
 
   otpStore.set(buildOtpKey(identifier, dairyId), record);
@@ -281,9 +285,13 @@ const getCustomerOtpRecord = async ({ identifier, dairyId }) => {
   const key = buildOtpKey(identifier, dairyId);
 
   if (redis) {
-    const value = await redis.get(buildRedisOtpKey(identifier, dairyId));
-    if (!value) return null;
-    return { key, redisKey: buildRedisOtpKey(identifier, dairyId), ...JSON.parse(value) };
+    try {
+      const value = await redis.get(buildRedisOtpKey(identifier, dairyId));
+      if (!value) return null;
+      return { key, redisKey: buildRedisOtpKey(identifier, dairyId), ...JSON.parse(value) };
+    } catch (err) {
+      logger.warn("redis_get_otp_failed_using_memory_fallback", { error: err.message });
+    }
   }
 
   const value = otpStore.get(key);
@@ -293,8 +301,12 @@ const getCustomerOtpRecord = async ({ identifier, dairyId }) => {
 const deleteCustomerOtpRecord = async ({ identifier, dairyId, key, redisKey }) => {
   const redis = getRedisConnection();
   if (redis) {
-    await redis.del(redisKey || buildRedisOtpKey(identifier, dairyId));
-    return;
+    try {
+      await redis.del(redisKey || buildRedisOtpKey(identifier, dairyId));
+      return;
+    } catch (err) {
+      logger.warn("redis_del_otp_failed_using_memory_fallback", { error: err.message });
+    }
   }
   otpStore.delete(key || buildOtpKey(identifier, dairyId));
 };

@@ -1,4 +1,5 @@
-﻿import { supabase } from "../../config/supabase.js";
+import { supabase } from "../../config/supabase.js";
+import { getPlatformPlan } from "../../services/common/platformPlan.service.js";
 
 // Fetch all coupons with aggregates
 export const fetchCoupons = async (req, res) => {
@@ -108,30 +109,21 @@ export const deleteCoupon = async (req, res) => {
   }
 };
 
-const PLATFORM_PLAN_PRICES = {
-  FREE: { monthly: 499, yearly: 4990 },
-  STARTER: { monthly: 499, yearly: 4990 },
-  GROWTH: { monthly: 999, yearly: 9990 },
-  PRIME: { monthly: 2499, yearly: 24990 },
-  ENTERPRISE: { monthly: 2499, yearly: 24990 },
-};
-
 const normalizePlanKey = (planKey) => {
-  const normalized = String(planKey || "").toUpperCase().trim();
-  if (normalized === "PRIME ENTERPRISE") return "ENTERPRISE";
-  return normalized;
+  return String(planKey || "").toUpperCase().trim();
 };
 
-const resolveServerPurchaseAmount = ({ planKey, billingCycle }) => {
+const resolveServerPurchaseAmount = async ({ planKey, billingCycle }) => {
   const normalizedPlan = normalizePlanKey(planKey);
-  const prices = PLATFORM_PLAN_PRICES[normalizedPlan];
-  if (!prices) return null;
+  const planDetails = await getPlatformPlan(normalizedPlan);
+  if (!planDetails) return null;
 
   const cycle = String(billingCycle || "monthly").toLowerCase() === "yearly" ? "yearly" : "monthly";
+  const amount = cycle === "yearly" ? planDetails.yearly_price : planDetails.monthly_price;
   return {
     plan: normalizedPlan,
     cycle,
-    amount: prices[cycle],
+    amount,
   };
 };
 
@@ -139,7 +131,7 @@ const resolveServerPurchaseAmount = ({ planKey, billingCycle }) => {
 export const validateCoupon = async (req, res) => {
   try {
     const { code, dairyId, planKey, billingCycle, cycle } = req.body || {};
-    const resolvedPurchase = resolveServerPurchaseAmount({
+    const resolvedPurchase = await resolveServerPurchaseAmount({
       planKey,
       billingCycle: billingCycle || cycle,
     });

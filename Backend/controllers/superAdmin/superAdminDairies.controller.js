@@ -1,6 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import bcrypt from "bcryptjs";
 import { decryptDeterministic } from "../../utils/crypto.js";
+import { getPlatformPlan } from "../../services/common/platformPlan.service.js";
 
 const decryptDairyRow = (d) => ({
   ...d,
@@ -21,13 +22,7 @@ export const fetchDairies = async (req, res) => {
       query = query.eq("status", status);
     }
     if (plan && plan !== "ALL") {
-      if (plan === "STARTER") {
-        query = query.in("selected_plan", ["STARTER", "FREE"]);
-      } else if (plan === "ENTERPRISE") {
-        query = query.in("selected_plan", ["ENTERPRISE", "PRIME"]);
-      } else {
-        query = query.eq("selected_plan", plan);
-      }
+      query = query.eq("selected_plan", plan);
     }
     if (city) {
       query = query.ilike("city", `%${city}%`);
@@ -133,9 +128,10 @@ export const upgradeDairySubscription = async (req, res) => {
   try {
     const { id } = req.params;
     const { plan, billingCycle } = req.body || {};
+    const sanitizedPlan = String(plan || "").toUpperCase().trim();
 
-    if (!plan || !billingCycle) {
-      return res.status(400).json({ success: false, error: "Plan and billingCycle are required" });
+    if (!sanitizedPlan || !["STARTER", "GROWTH", "PREMIUM"].includes(sanitizedPlan) || !billingCycle) {
+      return res.status(400).json({ success: false, error: "Valid plan (STARTER, GROWTH, PREMIUM) and billingCycle are required" });
     }
 
     const { data: dairy, error: getErr } = await supabase
@@ -148,7 +144,7 @@ export const upgradeDairySubscription = async (req, res) => {
     // Update selected_plan
     const { error: updErr } = await supabase
       .from("dairies")
-      .update({ selected_plan: plan, updated_at: new Date().toISOString() })
+      .update({ selected_plan: sanitizedPlan, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (updErr) throw updErr;
 
@@ -161,12 +157,20 @@ export const upgradeDairySubscription = async (req, res) => {
       endDate.setMonth(endDate.getMonth() + 1);
     }
 
+    const planDetails = await getPlatformPlan(sanitizedPlan);
+    if (!planDetails) {
+      return res.status(400).json({ success: false, error: `Invalid plan: ${plan}` });
+    }
+
+    const price = billingCycle === "yearly" ? planDetails.yearly_price : planDetails.monthly_price;
+
     await supabase.from("platform_subscriptions").insert({
       dairy_id: id,
-      plan_key: plan,
+      plan_id: planDetails.id || null,
+      plan_key: sanitizedPlan,
       billing_cycle: billingCycle,
-      amount: (plan === "PRIME" || plan === "ENTERPRISE") ? 2499 : plan === "GROWTH" ? 999 : (plan === "STARTER" ? 499 : 0),
-      payable_amount: (plan === "PRIME" || plan === "ENTERPRISE") ? 2499 : plan === "GROWTH" ? 999 : (plan === "STARTER" ? 499 : 0),
+      amount: price || 0,
+      payable_amount: price || 0,
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString(),
       status: "ACTIVE",

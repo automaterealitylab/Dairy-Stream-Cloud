@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { supabase } from "../../config/supabase.js";
 import { issueLoginTokens } from "../../utils/jwt.js";
 import { sendEmail } from "../../utils/email.js";
+import { isMissingColumnError } from "../../utils/dbErrors.js";
 import { getSetting } from "../shared/appSettings.service.js";
 import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
@@ -37,11 +38,6 @@ const getAdminAuthSettings = async () => {
 };
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
-
-const isMissingColumnError = (error) => {
-  const msg = String(error?.message || "").toLowerCase();
-  return msg.includes("column") && msg.includes("does not exist");
-};
 
 export const findAdminByIdentifier = async (identifier) => {
   const normalizedIdentifier = normalizeIdentifier(identifier);

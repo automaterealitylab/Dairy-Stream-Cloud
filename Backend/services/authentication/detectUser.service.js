@@ -1,6 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import { generateCustomerOtp } from "./customerAuth.service.js";
 import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
+import { isMissingColumnError } from "../../utils/dbErrors.js";
 
 const normalizeIdentifier = (value) => String(value ?? "").trim();
 const slowDetectThresholdMs = Number(process.env.AUTH_DETECT_SLOW_LOG_MS || 500);
@@ -29,11 +30,6 @@ const normalizeCustomerLoginIdentifier = (value) => {
   return normalized.includes("@")
     ? normalized.toLowerCase()
     : normalized.replace(/\D/g, "");
-};
-
-const isMissingColumnError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("column") && message.includes("does not exist");
 };
 
 const logLookupError = (lookup, error, meta = {}) => {

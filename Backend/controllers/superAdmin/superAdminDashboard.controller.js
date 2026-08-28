@@ -177,7 +177,7 @@ export const getDashboardCharts = async (req, res) => {
     // 7. Subscription Plans Pie Chart
     const planCounts = {};
     rawDairies.forEach(d => {
-      const p = String(d.selected_plan || "FREE").toUpperCase();
+      const p = String(d.selected_plan || "STARTER").toUpperCase();
       planCounts[p] = (planCounts[p] || 0) + 1;
     });
     const subscriptionPlans = Object.keys(planCounts).map(k => ({

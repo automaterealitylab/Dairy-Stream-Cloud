@@ -1,4 +1,6 @@
 import { supabase } from "../../config/supabase.js";
+import { clearPlanFeaturesCache } from "../../middleware/adminPlan.middleware.js";
+import { clearPlatformPlanCache } from "../../services/common/platformPlan.service.js";
 
 // Fetch all plans
 export const fetchPlans = async (req, res) => {
@@ -52,6 +54,8 @@ export const createPlan = async (req, res) => {
       details: { plan_key: plan.plan_key, name: plan.name },
     });
 
+    clearPlanFeaturesCache();
+    clearPlatformPlanCache();
     res.json({ success: true, plan });
   } catch (err) {
     console.error("Create Plan Error:", err);
@@ -92,6 +96,8 @@ export const updatePlan = async (req, res) => {
       details: { plan_key: plan.plan_key, name: plan.name },
     });
 
+    clearPlanFeaturesCache();
+    clearPlatformPlanCache();
     res.json({ success: true, plan });
   } catch (err) {
     console.error("Update Plan Error:", err);
@@ -125,6 +131,8 @@ export const deletePlan = async (req, res) => {
       details: { plan_key: plan.plan_key },
     });
 
+    clearPlanFeaturesCache();
+    clearPlatformPlanCache();
     res.json({ success: true, message: "Subscription plan deleted successfully" });
   } catch (err) {
     console.error("Delete Plan Error:", err);
