@@ -1,10 +1,7 @@
-import React, { useEffect, useState } from "react";
-import L from "leaflet";
-import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
-import { Mail, Phone, MapPin, Edit, Camera, Loader2, X, LocateFixed } from "lucide-react";
+import { Mail, Phone, MapPin, Edit, Camera, Loader2, X, LocateFixed, LogOut } from "lucide-react";
 import {
   fetchCustomerProfile,
   getCachedCustomerDashboard,
@@ -15,20 +12,39 @@ import { buildCustomerAddress } from "../../utils/customerAddress.js";
 import toast from "react-hot-toast";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 
+const LazyCustomerProfileMap = lazy(() => import("../../components/customer/LazyCustomerProfileMap.jsx"));
+
 const headingFont = { fontFamily: "'Lora', serif" };
 const DEFAULT_MAP_CENTER = [18.5204, 73.8567];
-const customerPinIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
 
 const formatMemberSince = (value) => {
   if (!value) return "Member since recently";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "Member since recently";
   return `Member since ${parsed.getFullYear()}`;
+};
+
+const formatPhoneNumber = (phone = "") => {
+  if (!phone) return "Not set";
+  const raw = String(phone).trim();
+  if (!raw) return "Not set";
+
+  if (/^\+91\s+\d{5}\s+\d{5}$/.test(raw)) return raw;
+
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  if (raw.startsWith("+91")) {
+    const after = raw.slice(3).trim();
+    if (after.length === 10) {
+      return `+91 ${after.slice(0, 5)} ${after.slice(5)}`;
+    }
+  }
+  return raw.startsWith("+") ? raw : `+91 ${raw}`;
 };
 
 const getInitials = (name = "") => {
@@ -442,7 +458,7 @@ const CustomerProfile = () => {
 
         <div className="grid gap-4 sm:gap-5 md:grid-cols-2">
           <InfoCard icon={<Mail />} label="Email" value={profile.email || "Not set"} />
-          <InfoCard icon={<Phone />} label="Phone" value={profile.phone || "Not set"} />
+          <InfoCard icon={<Phone />} label="Phone" value={formatPhoneNumber(profile.phone)} />
           <InfoCard
             icon={<MapPin />}
             label="Delivery Address"
@@ -453,133 +469,154 @@ const CustomerProfile = () => {
             full
           />
         </div>
+
+        <div className="mt-4 flex justify-end md:hidden">
+          <button
+            onClick={() => {
+              localStorage.clear();
+              sessionStorage.removeItem("customerDashboardVisited");
+              window.location.href = "/";
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-[#EDE8DF] bg-white px-4 py-2.5 text-xs font-semibold text-[#7A6855] transition hover:border-[#F5C6C4] hover:bg-[#FDECEA] hover:text-[#C0392B]"
+          >
+            <LogOut size={16} />
+            Logout of Account
+          </button>
+        </div>
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className={`flex h-[100svh] w-full flex-col overflow-hidden rounded-none border border-[#EDE8DF] bg-[#FFFDF7] shadow-[0_28px_80px_rgba(44,26,14,0.22)] animate-in zoom-in-95 sm:h-auto sm:max-h-[92vh] sm:rounded-[28px] ${isAddressOnlyEditor ? "max-w-3xl" : "max-w-4xl"}`}>
-            <div className="flex items-center justify-between border-b border-[#F2EDE4] bg-[#FBF7F0] px-4 py-3 sm:px-7 sm:py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+          <style>{`
+            .leaflet-control-attribution {
+              font-size: 9px !important;
+              color: #78716c !important;
+              opacity: 0.6 !important;
+              background: rgba(255, 255, 255, 0.75) !important;
+              border-radius: 4px;
+              padding: 0 4px !important;
+            }
+            .leaflet-control-zoom {
+              border: 1px solid #E8E2D9 !important;
+              border-radius: 10px !important;
+              overflow: hidden !important;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
+            }
+            .leaflet-control-zoom a {
+              background-color: #ffffff !important;
+              color: #5C3D1E !important;
+            }
+            .leaflet-control-zoom a:hover {
+              background-color: #FBF7F0 !important;
+            }
+          `}</style>
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#E8E2D9] bg-[#FAF7F2] shadow-2xl animate-in zoom-in-95">
+            {/* Header (Fixed Top) */}
+            <div className="flex shrink-0 items-center justify-between border-b border-[#E8E2D9] p-5 pb-3 sm:px-7 sm:pt-6 sm:pb-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-                  {isAddressOnlyEditor ? "Address Editor" : "Profile Editor"}
-                </p>
-                <h3 className="mt-1 text-[20px] font-semibold text-[#2C1A0E] sm:text-[22px]" style={headingFont}>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#9C8275]">
+                  {isAddressOnlyEditor ? "ADDRESS EDITOR" : "PROFILE EDITOR"}
+                </span>
+                <h2 className="font-serif text-2xl font-bold text-[#2D231E]">
                   {isAddressOnlyEditor ? "Edit Delivery Address" : "Edit Details"}
-                </h3>
+                </h2>
               </div>
               <button
+                type="button"
                 onClick={closeEditModal}
-                className="rounded-full border border-[#EDE8DF] bg-white p-2 text-[#5C3D1E] transition-colors hover:bg-[#FBF7F0]"
+                className="rounded-full p-2 text-stone-600 transition-colors hover:bg-stone-200"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="overflow-y-auto px-4 py-4 sm:px-7 sm:py-5">
-              <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-                <div className="space-y-4">
+            {/* Scrollable Content Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 sm:p-7">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-stretch">
+                {/* Left Column: Profile & Address Info */}
+                <div className="space-y-3.5">
                   {isAddressOnlyEditor ? (
-                    <>
-                      <div className="rounded-[18px] border border-[#E7DAC6] bg-[#FFF8F0] p-4 text-sm text-[#6E5232]">
-                        Update only your delivery address details here. Your name, phone, email, and photo will stay unchanged.
-                      </div>
-
-                      <div className="space-y-3">
-                        <Input
-                          label="Address Line 1"
-                          name="addressLine1"
-                          value={formData.addressLine1}
-                          onChange={handleFormChange}
-                          autoFocus
-                        />
-                        <Input
-                          label="Address Line 2 (Opt)"
-                          name="addressLine2"
-                          value={formData.addressLine2}
-                          onChange={handleFormChange}
-                        />
-                        <Input
-                          label="Building Name"
-                          name="buildingName"
-                          value={formData.buildingName}
-                          onChange={handleFormChange}
-                        />
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <Input label="Wing (Opt)" name="wing" value={formData.wing} onChange={handleFormChange} />
-                          <Input label="Room No" name="roomNo" value={formData.roomNo} onChange={handleFormChange} />
-                        </div>
-                      </div>
-                    </>
+                    <div className="rounded-xl border border-[#E8E2D9] bg-[#FFF9F2] p-3 text-xs text-[#6E5232]">
+                      Update your delivery address details below. Your personal profile info will remain unchanged.
+                    </div>
                   ) : (
                     <>
-                      <div className="flex flex-col items-center gap-2 py-0">
+                      <div className="flex flex-col items-center gap-1.5 pb-1">
                         <div className="relative group">
                           <img
-                            src={previewPhoto || profile.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || profile.name)}`}
-                            className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-md ring-2 ring-[#FDE9C9] sm:h-28 sm:w-28"
-                            alt="preview"
+                            src={
+                              previewPhoto ||
+                              profile.photo ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || profile.name)}`
+                            }
+                            className="h-20 w-20 rounded-full border-4 border-white object-cover shadow-md ring-2 ring-[#E8E2D9]"
+                            alt="Avatar Preview"
                           />
-                          <label className="absolute bottom-0 right-0 cursor-pointer rounded-full bg-[#B8641A] p-2 text-white shadow-lg transition hover:scale-110">
-                            <Camera size={14} />
+                          <label className="absolute bottom-0 right-0 cursor-pointer rounded-full bg-[#C86D3B] p-1.5 text-white shadow-lg transition hover:scale-110">
+                            <Camera size={13} />
                             <input type="file" accept="image/*" hidden onChange={handlePhotoChange} />
                           </label>
                         </div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-                          Change Profile Photo
-                        </p>
+                        <p className="text-[11px] font-semibold text-[#8B7355]">Change Photo</p>
                       </div>
 
-                      <div className="space-y-3">
-                        <Input
-                          label="Name"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleFormChange}
-                          autoFocus
-                        />
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <Input label="Phone" name="phone" value={formData.phone} onChange={handleFormChange} />
-                          <Input
-                            label="Email"
-                            type="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleFormChange}
-                          />
-                        </div>
-                        <Input
-                          label="Address Line 1"
-                          name="addressLine1"
-                          value={formData.addressLine1}
-                          onChange={handleFormChange}
-                        />
-                        <Input
-                          label="Address Line 2 (Opt)"
-                          name="addressLine2"
-                          value={formData.addressLine2}
-                          onChange={handleFormChange}
-                        />
-                        <Input
-                          label="Building Name"
-                          name="buildingName"
-                          value={formData.buildingName}
-                          onChange={handleFormChange}
-                        />
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <Input label="Wing (Opt)" name="wing" value={formData.wing} onChange={handleFormChange} />
-                          <Input label="Room No" name="roomNo" value={formData.roomNo} onChange={handleFormChange} />
-                        </div>
-                      </div>
+                      <Input
+                        label="Full Name"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleFormChange}
+                        placeholder="Enter full name"
+                        autoFocus
+                      />
+
+                      <Input
+                        label="Phone Number"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleFormChange}
+                        placeholder="Enter phone number"
+                      />
+
+                      <Input
+                        label="Email Address"
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleFormChange}
+                        placeholder="Enter email address"
+                      />
                     </>
                   )}
+
+                  <Input
+                    label="Flat / Unit / House No."
+                    name="addressLine1"
+                    value={formData.addressLine1}
+                    onChange={handleFormChange}
+                    placeholder="e.g. Flat 402, Wing B"
+                    autoFocus={isAddressOnlyEditor}
+                  />
+
+                  <Input
+                    label="Building / Society Name"
+                    name="buildingName"
+                    value={formData.buildingName}
+                    onChange={handleFormChange}
+                    placeholder="e.g. Green Meadows Apartments"
+                  />
+
+                  <Input
+                    label="Landmark / Area / Street"
+                    name="addressLine2"
+                    value={formData.addressLine2}
+                    onChange={handleFormChange}
+                    placeholder="e.g. Near City Park, MG Road"
+                  />
                 </div>
 
-                <div className="space-y-4">
-                  <div className="rounded-[18px] border border-[#E7DAC6] bg-[#FFF8F0] p-4 text-sm text-[#6E5232]">
-                    Use GPS to show your current location, then tap the map to move your exact delivery pin whenever your address changes.
-                  </div>
-
-                  <div className="flex flex-col gap-3 rounded-[16px] border border-[#E7DAC6] bg-white p-3 sm:flex-row sm:items-center sm:gap-4">
+                {/* Right Column: Location Pin & Map */}
+                <div className="flex flex-col h-full space-y-3">
+                  <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                     <button
                       type="button"
                       onClick={() =>
@@ -590,77 +627,59 @@ const CustomerProfile = () => {
                         })
                       }
                       disabled={locating}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#EFD7B3] bg-[#FFF4E2] py-2.5 text-sm font-bold text-[#B8641A] transition hover:bg-[#FCE8CB] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-4 sm:py-2 sm:text-xs"
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#E8E2D9] bg-white px-3.5 py-2 text-xs font-bold text-[#C86D3B] transition hover:bg-[#FFF8F0] active:scale-[0.98] disabled:opacity-60"
                     >
-                      {locating ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={16} />}
+                      {locating ? <Loader2 className="animate-spin" size={15} /> : <LocateFixed size={15} />}
                       {locating ? "Locating..." : "Use Current Location"}
                     </button>
 
-                    <div className="min-w-0 flex-1 text-center text-xs font-semibold text-[#5C3D1E] sm:text-left">
-                      {gpsLocation
-                        ? `GPS: ${gpsLocation.lat.toFixed(6)}, ${gpsLocation.lng.toFixed(6)}`
-                        : "GPS location not captured yet. Tap the button or place the pin manually."}
+                    <div className="flex min-w-0 flex-1 items-center justify-center sm:justify-end">
+                      <span className="truncate rounded-full border border-[#E8E2D9] bg-white px-3 py-1 text-[11px] font-semibold text-[#6E5232] shadow-xs">
+                        {gpsLocation
+                          ? `📍 GPS: ${gpsLocation.lat.toFixed(6)}, ${gpsLocation.lng.toFixed(6)}`
+                          : getCoordinatePair(formData.latitude, formData.longitude)
+                          ? `📍 Pin: ${Number(formData.latitude).toFixed(6)}, ${Number(formData.longitude).toFixed(6)}`
+                          : "No GPS coordinates set"}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-[20px] border border-[#E7DAC6]">
-                    <div className="relative w-full h-[220px sm:h-[320px]]">
-        <MapContainer 
-                      center={mapCenter} 
-                      zoom={17} 
-                      scrollWheelZoom 
-                      dragging={!L.Browser?.mobile}
-                      tap={!L.Browser?.mobile}
-                      className="h-full w-full"
+                  <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-[#E8E2D9] bg-[#E5E3DF] shadow-inner md:h-full md:flex-1 md:min-h-[360px]">
+                    <Suspense
+                      fallback={
+                        <div className="flex h-full w-full items-center justify-center bg-[#E5E3DF] text-xs font-semibold text-[#8B7355]">
+                          <Loader2 className="mr-2 animate-spin text-[#C86D3B]" size={18} /> Loading Map...
+                        </div>
+                      }
                     >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      <LazyCustomerProfileMap
+                        mapCenter={mapCenter}
+                        setPinnedLocation={setPinnedLocation}
+                        gpsLocation={gpsLocation}
+                        formDataLatitude={formData.latitude}
+                        formDataLongitude={formData.longitude}
+                        getCoordinatePair={getCoordinatePair}
                       />
-                      <MapViewUpdater center={mapCenter} />
-                      <MapPinSelector onSelect={setPinnedLocation} />
-
-                      {gpsLocation && (
-                        <CircleMarker
-                          center={[gpsLocation.lat, gpsLocation.lng]}
-                          radius={10}
-                          pathOptions={{
-                            color: "#2563EB",
-                            fillColor: "#60A5FA",
-                            fillOpacity: 0.6,
-                            weight: 2,
-                          }}
-                        />
-                      )}
-
-                      {getCoordinatePair(formData.latitude, formData.longitude) && (
-                        <Marker
-                          position={[Number(formData.latitude), Number(formData.longitude)]}
-                          icon={customerPinIcon}
-                        />
-                      )}
-                    </MapContainer>
-        <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
-          DairyVision Maps
-        </div>
-      </div>
-          
+                    </Suspense>
+                    <div className="pointer-events-none absolute bottom-2 right-2 z-[1000] select-none rounded border border-[#E8E2D9] bg-white/80 px-2 py-0.5 text-[9px] font-bold text-[#6E5232] backdrop-blur-xs">
+                      DairyVision Maps
+                    </div>
                   </div>
 
-                  <p className="text-xs font-medium text-[#8B7355]">
-                    {getCoordinatePair(formData.latitude, formData.longitude)
-                      ? "Tap anywhere on the map if your delivery point has changed."
-                      : "Tap anywhere on the map to set your exact delivery pin."}
+                  <p className="text-center text-xs font-medium text-[#8B7355] md:text-left">
+                    Tap or drag pin to update your precise delivery doorstep.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-[#F2EDE4] bg-[#FFFDF7] px-4 py-3 sm:px-7 sm:py-4">
+            {/* Footer Action (Fixed Bottom, Never Overlaps Content) */}
+            <div className="shrink-0 border-t border-[#E8E2D9] bg-[#FAF7F2] p-4 pt-2 sm:px-7 sm:pb-5">
               <button
+                type="button"
                 onClick={saveProfile}
                 disabled={saving}
-                className="w-full rounded-[16px] bg-[#B8641A] py-3 font-bold text-white shadow-xl shadow-[#F2D9B8] transition-all active:scale-[0.98] disabled:bg-[#CDB8A0]"
+                className="w-full rounded-2xl bg-[#C86D3B] py-3.5 font-semibold text-white shadow-sm transition-all hover:bg-[#B35F30] active:scale-[0.99] disabled:opacity-60"
               >
                 {saving ? "Saving Changes..." : isAddressOnlyEditor ? "Save Address" : "Save Profile"}
               </button>
@@ -703,11 +722,11 @@ const InfoCard = ({ icon, label, value, meta, actionLabel, onAction, full }) => 
 );
 
 const Input = ({ label, className = "", ...props }) => (
-  <div className="space-y-1">
-    <label className="ml-1 text-xs font-bold uppercase tracking-[0.16em] text-[#A88763]">{label}</label>
+  <div className="w-full space-y-1">
+    <label className="ml-1 text-xs font-bold uppercase tracking-[0.14em] text-[#A88763]">{label}</label>
     <input
       {...props}
-      className={`w-full rounded-[18px] border border-[#EDE8DF] bg-[#FBF7F0] px-4 py-3.5 outline-none focus:ring-2 focus:ring-[#D4B896] ${className}`}
+      className={`w-full rounded-xl border border-[#E8E2D9] bg-white px-3.5 py-2.5 text-sm text-[#2C1A0E] placeholder:text-[#B09E8C] outline-none focus:border-[#C86D3B] focus:ring-1 focus:ring-[#C86D3B] transition-colors ${className}`}
     />
   </div>
 );
