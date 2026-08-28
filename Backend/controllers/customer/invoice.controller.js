@@ -2,7 +2,7 @@ import {
   getCustomerInvoiceDetail,
   getCustomerInvoiceHistory,
 } from "../../services/customer/invoice.service.js";
-import { generateInvoicePdfBuffer } from "../../services/customer/pdfInvoice.service.js";
+import { generateInvoicePdfBuffer, getBillPdfFilename } from "../../services/customer/pdfInvoice.service.js";
 import { enqueueWhatsAppNotification } from "../../services/shared/whatsapp.service.js";
 
 export const fetchCustomerInvoices = async (req, res) => {
@@ -41,15 +41,15 @@ export const downloadCustomerInvoicePdf = async (req, res) => {
       invoiceId: Number(req.params.id),
     });
 
-    const pdf = generateInvoicePdfBuffer(invoice);
+    const pdfBuffer = await generateInvoicePdfBuffer(invoice);
+    const filename = getBillPdfFilename(invoice);
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${String(invoice.invoiceNumber || `invoice-${invoice.id}`).replace(/[^a-z0-9._-]/gi, "_")}.pdf"`
-    );
-    res.send(pdf);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
   } catch (err) {
-    res.status(err.statusCode || 500).json({ message: err.message || "Failed to generate invoice PDF" });
+    console.error("PDF GENERATION ERROR:", err);
+    res.status(err.statusCode || 500).json({ message: "Unable to generate the bill right now. Please try again." });
   }
 };
 

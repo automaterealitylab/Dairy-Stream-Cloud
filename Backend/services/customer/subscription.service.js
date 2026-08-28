@@ -1,5 +1,11 @@
 import { supabase } from "../../config/supabase.js";
 import {
+  getCurrentIstDateTime,
+  getInclusiveDaysDifference,
+  isDeliveryDateCutoffPassed,
+  MAX_CUSTOMER_PAUSE_DAYS,
+} from "../../utils/cutoff.js";
+import {
   ensureCustomerSubscriptionDeliveryForDate,
 } from "./subscription.automation.service.js";
 import {
@@ -422,4 +428,250 @@ export const clearSubscriptionByCustomerId = async (customerId) => {
 
   invalidateCustomerDashboardCache(customerId);
   return { deleted: deletedRows.length };
+};
+
+export const notifyDairyAdmin = async ({ dairyId, title, message, type = "SYSTEM" }) => {
+  if (!dairyId) return null;
+  const payload = {
+    dairy_id: Number(dairyId),
+    title,
+    message,
+    type,
+    is_read: false,
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from("admin_notifications")
+      .insert([payload])
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      const { data: fallback } = await supabase
+        .from("dairy_notifications")
+        .insert([payload])
+        .select("*")
+        .maybeSingle();
+      return fallback;
+    }
+    return data;
+  } catch (err) {
+    console.warn("Could not insert admin notification:", err.message);
+    return null;
+  }
+};
+
+export const pauseCustomerSubscription = async (customerId, { dairyId, durationType, startDate, endDate }) => {
+  if (!customerId) {
+    const err = new Error("customerId is required");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  let targetDairyId = dairyId;
+  const existingSub = await getSubscriptionByCustomerId(customerId);
+  if (!targetDairyId) {
+    targetDairyId = existingSub?.dairy_id || existingSub?.dairyId;
+  }
+  if (!targetDairyId) {
+    const err = new Error("dairyId is required to pause subscription");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const currentIst = getCurrentIstDateTime();
+  let resolvedStartDate = startDate;
+  let resolvedEndDate = endDate;
+
+  if (!resolvedStartDate || !resolvedEndDate) {
+    const tomorrowObj = new Date();
+    tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+    const tomorrowIso = tomorrowObj.toISOString().slice(0, 10);
+    resolvedStartDate = resolvedStartDate || tomorrowIso;
+
+    if (durationType === "2_DAYS") {
+      const endObj = new Date(tomorrowObj);
+      endObj.setDate(endObj.getDate() + 1);
+      resolvedEndDate = endObj.toISOString().slice(0, 10);
+    } else if (durationType === "1_WEEK") {
+      const endObj = new Date(tomorrowObj);
+      endObj.setDate(endObj.getDate() + 6);
+      resolvedEndDate = endObj.toISOString().slice(0, 10);
+    } else {
+      resolvedEndDate = resolvedEndDate || resolvedStartDate;
+    }
+  }
+
+  const pauseDays = getInclusiveDaysDifference(resolvedStartDate, resolvedEndDate);
+  if (pauseDays <= 0) {
+    const err = new Error("Please select a valid pause period.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (pauseDays > MAX_CUSTOMER_PAUSE_DAYS) {
+    const err = new Error(`Maximum pause duration from the customer portal is ${MAX_CUSTOMER_PAUSE_DAYS} days. For a pause longer than 15 days, please contact customer support.`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Enforce 10:00 PM IST previous day cutoff for start date
+  if (isDeliveryDateCutoffPassed(resolvedStartDate, currentIst)) {
+    const err = new Error("This delivery can no longer be changed because the 10:00 PM cutoff has passed.");
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const updateData = {
+    status: "PAUSED",
+    paused_from: resolvedStartDate,
+    paused_until: resolvedEndDate,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: updated, error } = await supabase
+    .from("subscriptions")
+    .update(updateData)
+    .eq("customer_id", customerId)
+    .eq("dairy_id", targetDairyId)
+    .neq("status", "CLOSED")
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw error;
+
+  // Reconcile deliveries in pause date range [resolvedStartDate, resolvedEndDate]
+  const [y1, m1, d1] = resolvedStartDate.split("-").map(Number);
+  const [y2, m2, d2] = resolvedEndDate.split("-").map(Number);
+  const startUtc = new Date(Date.UTC(y1, m1 - 1, d1));
+  const endUtc = new Date(Date.UTC(y2, m2 - 1, d2));
+
+  for (let dt = new Date(startUtc); dt <= endUtc; dt.setUTCDate(dt.getUTCDate() + 1)) {
+    const dateStr = dt.toISOString().slice(0, 10);
+    // Do not touch dates where cutoff has passed
+    if (isDeliveryDateCutoffPassed(dateStr, currentIst)) continue;
+
+    const { data: existingDelivery } = await supabase
+      .from("deliveries")
+      .select("id, status")
+      .eq("customer_id", customerId)
+      .eq("delivery_date", dateStr)
+      .maybeSingle();
+
+    if (existingDelivery?.id) {
+      const curStatus = String(existingDelivery.status || "").toUpperCase();
+      if (curStatus === "PENDING" || curStatus === "SCHEDULED") {
+        await supabase
+          .from("deliveries")
+          .update({ status: "PAUSED", updated_at: new Date().toISOString() })
+          .eq("id", existingDelivery.id);
+      }
+    } else {
+      await supabase.from("deliveries").insert({
+        customer_id: customerId,
+        dairy_id: targetDairyId,
+        delivery_date: dateStr,
+        milk_type: existingSub?.milk_type || "Milk",
+        quantity_liters: existingSub?.quantity_liters || 1,
+        status: "PAUSED",
+        approval_status: "APPROVED",
+        notes: `[SUBSCRIPTION_PAUSED] subscription_id=${existingSub?.id || ""}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  invalidateCustomerDashboardCache();
+
+  await notifyDairyAdmin({
+    dairyId: targetDairyId,
+    title: "Subscription Paused",
+    message: `Customer #${customerId} paused subscription from ${resolvedStartDate} to ${resolvedEndDate}.`,
+    type: "SUBSCRIPTION_PAUSED",
+  });
+
+  return updated || existingSub;
+};
+
+export const resumeCustomerSubscription = async (customerId, { dairyId }) => {
+  if (!customerId) {
+    const err = new Error("customerId is required");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  let targetDairyId = dairyId;
+  const existingSub = await getSubscriptionByCustomerId(customerId);
+  if (!targetDairyId) {
+    targetDairyId = existingSub?.dairy_id || existingSub?.dairyId;
+  }
+  if (!targetDairyId) {
+    const err = new Error("dairyId is required to resume subscription");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const currentIst = getCurrentIstDateTime();
+  const pausedFrom = existingSub?.paused_from;
+  const pausedUntil = existingSub?.paused_until;
+
+  if (pausedFrom && pausedUntil) {
+    const [y1, m1, d1] = pausedFrom.split("-").map(Number);
+    const [y2, m2, d2] = pausedUntil.split("-").map(Number);
+    const startUtc = new Date(Date.UTC(y1, m1 - 1, d1));
+    const endUtc = new Date(Date.UTC(y2, m2 - 1, d2));
+
+    for (let dt = new Date(startUtc); dt <= endUtc; dt.setUTCDate(dt.getUTCDate() + 1)) {
+      const dateStr = dt.toISOString().slice(0, 10);
+      // CRITICAL REQUIREMENT #10: DO NOT RESURRECT LOCKED DELIVERIES!
+      if (isDeliveryDateCutoffPassed(dateStr, currentIst)) continue;
+
+      const { data: existingDelivery } = await supabase
+        .from("deliveries")
+        .select("id, status")
+        .eq("customer_id", customerId)
+        .eq("delivery_date", dateStr)
+        .maybeSingle();
+
+      if (existingDelivery?.id) {
+        const curStatus = String(existingDelivery.status || "").toUpperCase();
+        if (curStatus === "PAUSED") {
+          await supabase
+            .from("deliveries")
+            .update({ status: "PENDING", updated_at: new Date().toISOString() })
+            .eq("id", existingDelivery.id);
+        }
+      }
+    }
+  }
+
+  const { data: updated, error } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "ACTIVE",
+      paused_from: null,
+      paused_until: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("customer_id", customerId)
+    .eq("dairy_id", targetDairyId)
+    .neq("status", "CLOSED")
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw error;
+
+  invalidateCustomerDashboardCache();
+
+  await notifyDairyAdmin({
+    dairyId: targetDairyId,
+    title: "Subscription Resumed",
+    message: `Customer #${customerId} resumed daily deliveries.`,
+    type: "SUBSCRIPTION_RESUMED",
+  });
+
+  return updated || existingSub;
 };

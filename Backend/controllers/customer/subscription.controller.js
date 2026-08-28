@@ -1,7 +1,9 @@
-﻿import {
+import {
   getSubscriptionByCustomerId,
   upsertSubscription,
   clearSubscriptionByCustomerId,
+  pauseCustomerSubscription,
+  resumeCustomerSubscription,
 } from "../../services/customer/subscription.service.js";
 
 export const getSubscription = async (req, res) => {
@@ -17,15 +19,35 @@ export const getSubscription = async (req, res) => {
 export const saveSubscription = async (req, res) => {
   try {
     const {
+      action,
       dairyId,
       milkType,
       quantity,
       slot,
       startDate,
+      endDate,
+      durationType,
       address,
       paymentMethod,
       deliveryDays,
     } = req.body;
+
+    if (action === "PAUSE") {
+      const subscription = await pauseCustomerSubscription(req.customer.id, {
+        dairyId,
+        durationType,
+        startDate,
+        endDate,
+      });
+      return res.json({ success: true, subscription });
+    }
+
+    if (action === "RESUME") {
+      const subscription = await resumeCustomerSubscription(req.customer.id, {
+        dairyId,
+      });
+      return res.json({ success: true, subscription });
+    }
 
     if (!dairyId) {
       return res.status(400).json({ message: "dairyId is required" });

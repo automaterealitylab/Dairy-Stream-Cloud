@@ -19,6 +19,7 @@ import {
   createOneTimeOrder,
   getDeliveries,
   reportIssue,
+  skipDelivery,
 } from "../controllers/customer/deliveries.controller.js";
 import {
   createPaymentOrder,
@@ -93,6 +94,8 @@ router.put("/profile", authenticate, uploadSingleImage, updateProfile);
 
 router.get("/dashboard", authenticate, getDashboard);
 router.get("/deliveries", authenticate, getDeliveries);
+router.post("/deliveries/:id/skip", authenticate, skipDelivery);
+router.post("/deliveries/skip", authenticate, skipDelivery);
 router.post("/deliveries/:id/issue", authenticate, reportIssue);
 router.post("/orders/one-time", authenticate, uploadSingleImage, createOneTimeOrder);
 router.post("/orders/one-time/cancel", authenticate, cancelOneTimeOrder);

@@ -1,4 +1,12 @@
 import { supabase } from "../../config/supabase.js";
+import {
+  isMissingColumnError,
+  isMissingTableError,
+  isUuidSyntaxError,
+} from "../../utils/dbErrors.js";
+import { getLocalTodayIso } from "../../utils/date.js";
+
+export { getLocalTodayIso };
 
 export const MONTHLY_BILL_MARKER = "[MONTHLY_BILL]";
 export const ONE_TIME_ORDER_MARKER = "[ONE_TIME_ORDER]";
@@ -7,21 +15,6 @@ const SUBSCRIPTION_DELIVERY_PAYMENT_MARKER = "[SUBSCRIPTION_DELIVERY_PAYMENT]";
 
 const normalizeDeliveryStatus = (status) => String(status || "").trim().toUpperCase();
 
-const isMissingColumnError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("column") && message.includes("does not exist");
-};
-
-const isMissingTableError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("relation") && message.includes("does not exist");
-};
-
-const isUuidSyntaxError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("invalid input syntax for type uuid");
-};
-
 const toNumber = (value, fallback = 0) => {
   const next = Number(value);
   return Number.isFinite(next) ? next : fallback;
@@ -29,14 +22,6 @@ const toNumber = (value, fallback = 0) => {
 
 const extractPaymentAmount = (row) =>
   toNumber(row?.amount ?? row?.total_amount ?? row?.total ?? row?.bill_amount ?? 0, 0);
-
-export const getLocalTodayIso = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
 
 const formatDateAsIso = (date) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
@@ -519,7 +504,7 @@ export const syncCustomerMonthlyBills = async (customerId) => {
   return { synced };
 };
 
-export const getCurrentMonthSuccessfulSubscriptionDue = async (customerId) => {
+export const getCurrentMonthSuccessfulSubscriptionDue = async (customerId, dairyId = null) => {
   if (!customerId) return { payableTillDate: 0 };
 
   const [deliveries, paymentRows] = await Promise.all([
@@ -538,11 +523,13 @@ export const getCurrentMonthSuccessfulSubscriptionDue = async (customerId) => {
     if (!meta.isMonthlyBill || meta.monthKey !== currentMonthKey || (status !== "PAID" && !isSubmitted)) {
       return sum;
     }
+    if (dairyId && String(row?.dairy_id) !== String(dairyId)) return sum;
     return sum + extractPaymentAmount(row);
   }, 0);
 
   let total = 0;
   for (const delivery of deliveries) {
+    if (dairyId && String(delivery?.dairy_id) !== String(dairyId)) continue;
     if (!shouldIncludeDeliveryInSubscriptionBill(delivery)) continue;
     if (!isDeliveredStatus(delivery?.status)) continue;
     if (getMonthKey(delivery?.delivery_date) !== currentMonthKey) continue;

@@ -1,4 +1,9 @@
 import { supabase } from "../../config/supabase.js";
+import {
+  isMissingColumnError,
+  isMissingTableError,
+  isUuidSyntaxError,
+} from "../../utils/dbErrors.js";
 import { getSubscriptionByCustomerId } from "./subscription.service.js";
 import { getTodayDeliverySnapshot } from "./deliveries.service.js";
 import { getCustomerPaymentsData } from "./payments.service.js";
@@ -6,21 +11,6 @@ import {
   getCachedCustomerDashboardPayload,
   setCachedCustomerDashboardPayload,
 } from "./dashboardCache.service.js";
-
-const isMissingColumnError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("column") && message.includes("does not exist");
-};
-
-const isMissingTableError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("relation") && message.includes("does not exist");
-};
-
-const isUuidSyntaxError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("invalid input syntax for type uuid");
-};
 
 const getLocalDateInput = (dateValue = new Date()) => {
   const date = new Date(dateValue);
@@ -312,18 +302,24 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
     ? `${subscription.quantity_liters} L`
     : "-";
   const [
-    { todayDelivery },
-    upcomingDeliveryAlert,
-    oneTimeOrders,
-    tomorrowExtraOrders,
-    paymentsData,
-  ] = await Promise.all([
+    todayDeliveryRes,
+    upcomingDeliveryRes,
+    oneTimeOrdersRes,
+    tomorrowExtraOrdersRes,
+    paymentsDataRes,
+  ] = await Promise.allSettled([
     getTodayDeliverySnapshot(customerId, { subscription }),
     getUpcomingScheduledDelivery(customerId),
     getRecentOneTimeOrders(customerId),
     getTomorrowOneTimeOrders(customerId),
     getCustomerPaymentsData(customerId, linkedDairyId),
   ]);
+
+  const todayDelivery = todayDeliveryRes.status === "fulfilled" ? todayDeliveryRes.value?.todayDelivery : null;
+  const upcomingDeliveryAlert = upcomingDeliveryRes.status === "fulfilled" ? upcomingDeliveryRes.value : null;
+  const oneTimeOrders = oneTimeOrdersRes.status === "fulfilled" ? (oneTimeOrdersRes.value || []) : [];
+  const tomorrowExtraOrders = tomorrowExtraOrdersRes.status === "fulfilled" ? (tomorrowExtraOrdersRes.value || []) : [];
+  const paymentsData = paymentsDataRes.status === "fulfilled" ? paymentsDataRes.value : null;
 
   const legacyDairyName =
     customer?.dairy_name ??
