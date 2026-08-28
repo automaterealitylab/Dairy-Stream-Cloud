@@ -76,6 +76,7 @@ export const createUpiPaymentIntent = async (req, res) => {
   } catch (err) {
     console.error("CREATE UPI PAYMENT INTENT ERROR:", err.message);
     res.status(err.statusCode || 400).json({
+      error: err.code || "INVALID_PAYMENT_REQUEST",
       message: err.message || "Failed to create UPI payment intent",
     });
   }
