@@ -1,96 +1,104 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
+  Calendar as CalendarIcon,
   CalendarCheck2,
   CalendarX2,
   CheckCircle,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   CirclePlus,
   Clock,
   Loader2,
   MapPin,
   RefreshCw,
+  X,
   XCircle,
-} from 'lucide-react';
+  AlertCircle,
+  Truck,
+} from "lucide-react";
 
-import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
+import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import {
   cancelCustomerOneTimeOrder,
   fetchCustomerDeliveries,
   getCachedCustomerDeliveries,
-} from '../../api/customer/customer.api';
+  reportCustomerDeliveryIssue,
+  skipCustomerDelivery,
+} from "../../api/customer/customer.api";
+import { isDeliveryDateCutoffPassed } from "../../utils/cutoff";
+import DeliveryDetailsModal from "../../components/customer/DeliveryDetailsModal";
+import { ReportIssueModal } from "../../components/customer/ReportIssueModal";
 
 const headingFont = { fontFamily: "'Lora', serif" };
-const EMPTY_INSIGHTS = {
-  monthLabel: '',
-  monthlyDeliveryCount: 0,
-  skippedDays: 0,
-  extraOrders: 0,
-};
 
 const STATUS_CFG = {
   DELIVERED: {
     icon: CheckCircle,
-    iconBg: 'bg-[#EEF5E7] text-[#4A7C2F]',
-    badge: 'bg-[#EEF5E7] text-[#4A7C2F]',
-    label: 'Delivered',
-    sub: (item) => (item.time ? `Dropped at ${item.time}` : 'Delivered'),
+    iconBg: "bg-emerald-50 text-emerald-700",
+    badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    label: "Delivered",
+    sub: (item) => (item.time ? `Dropped at ${item.time}` : "Delivered"),
   },
   SKIPPED: {
     icon: XCircle,
-    iconBg: 'bg-[#FDECEA] text-[#C0392B]',
-    badge: 'bg-[#FDECEA] text-[#C0392B]',
-    label: 'Skipped',
-    sub: () => 'Not delivered',
+    iconBg: "bg-stone-100 text-stone-600",
+    badge: "bg-stone-100 text-stone-600 border border-stone-200",
+    label: "Skipped",
+    sub: () => "Not delivered",
+  },
+  PAUSED: {
+    icon: XCircle,
+    iconBg: "bg-stone-100 text-stone-600",
+    badge: "bg-stone-100 text-stone-600 border border-stone-200",
+    label: "Paused",
+    sub: () => "Paused delivery",
   },
   FAILED: {
     icon: XCircle,
-    iconBg: 'bg-[#FDECEA] text-[#C0392B]',
-    badge: 'bg-[#FDECEA] text-[#C0392B]',
-    label: 'Failed',
-    sub: () => 'Auto-failed after scheduled day',
+    iconBg: "bg-rose-50 text-rose-700",
+    badge: "bg-rose-50 text-rose-700 border border-rose-200",
+    label: "Failed",
+    sub: () => "Auto-failed after scheduled day",
   },
   CANCELLED: {
     icon: XCircle,
-    iconBg: 'bg-[#FCE8E6] text-[#B42318]',
-    badge: 'bg-[#FCE8E6] text-[#B42318]',
-    label: 'Cancelled',
-    sub: () => 'Order cancelled by you',
+    iconBg: "bg-rose-50 text-rose-700",
+    badge: "bg-rose-50 text-rose-700 border border-rose-200",
+    label: "Cancelled",
+    sub: () => "Order cancelled by you",
   },
   PENDING: {
     icon: Clock,
-    iconBg: 'bg-[#FFF1E4] text-[#B8641A]',
-    badge: 'bg-[#FFF1E4] text-[#B8641A]',
-    label: 'Pending',
+    iconBg: "bg-amber-50 text-amber-700",
+    badge: "bg-amber-50 text-amber-700 border border-amber-200",
+    label: "Pending",
     sub: (item) =>
-      String(item?.deliveryType || '').toUpperCase() === 'SUBSCRIPTION'
-        ? 'Scheduled for delivery'
-        : 'Awaiting delivery',
+      String(item?.deliveryType || "").toUpperCase() === "SUBSCRIPTION"
+        ? "Scheduled for delivery"
+        : "Awaiting delivery",
   },
   PENDING_APPROVAL: {
     icon: Clock,
-    iconBg: 'bg-[#FFF1E4] text-[#B8641A]',
-    badge: 'bg-[#FFF1E4] text-[#B8641A]',
-    label: 'Approval Pending',
-    sub: () => 'Waiting for dairy approval',
+    iconBg: "bg-amber-50 text-amber-700",
+    badge: "bg-amber-50 text-amber-700 border border-amber-200",
+    label: "Approval Pending",
+    sub: () => "Waiting for dairy approval",
   },
 };
 
 function getCfg(status) {
-  return STATUS_CFG[String(status || '').toUpperCase()] || STATUS_CFG.PENDING;
+  return STATUS_CFG[String(status || "").toUpperCase()] || STATUS_CFG.PENDING;
 }
 
-function getMonthBucket(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-    const key = `m_${d.getFullYear()}_${d.getMonth()}`;
-    return { key, label };
-  } catch {
-    return { key: 'm_old', label: 'Earlier' };
-  }
-}
+const normalizeDateOnly = (val) => {
+  const d = val instanceof Date ? val : new Date(val);
+  if (Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 function getDeliveryDateValue(delivery = {}) {
   if (delivery?.deliveryDate) {
@@ -108,85 +116,9 @@ function getDeliveryDateValue(delivery = {}) {
 
 function getDayKey(delivery = {}) {
   if (delivery?.deliveryDate) return delivery.deliveryDate;
-
   const parsed = getDeliveryDateValue(delivery);
-  if (!parsed) return String(delivery?.date || 'unknown-date');
-
-  const year = parsed.getFullYear();
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function formatDayLabel(delivery = {}) {
-  const parsed = getDeliveryDateValue(delivery);
-  if (!parsed) return delivery?.date || 'Unknown date';
-
-  return parsed.toLocaleDateString('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-}
-
-function getDeliverySummary(items = []) {
-  const delivered = items.filter((item) => String(item.status).toUpperCase() === 'DELIVERED').length;
-  const skipped = items.filter((item) => String(item.status).toUpperCase() === 'SKIPPED').length;
-  const failed = items.filter((item) => String(item.status).toUpperCase() === 'FAILED').length;
-  const cancelled = items.filter((item) => String(item.status).toUpperCase() === 'CANCELLED').length;
-  const pending = items.filter((item) =>
-    ['PENDING', 'PENDING_APPROVAL'].includes(String(item.status).toUpperCase())
-  ).length;
-
-  return [
-    delivered ? `${delivered} delivered` : '',
-    skipped ? `${skipped} skipped` : '',
-    failed ? `${failed} failed` : '',
-    cancelled ? `${cancelled} cancelled` : '',
-    pending ? `${pending} pending` : '',
-  ]
-    .filter(Boolean)
-    .join(' | ');
-}
-
-function buildGroups(deliveries) {
-  const map = new Map();
-  deliveries.forEach((delivery) => {
-    const bucketDate = delivery?.deliveryDate || delivery?.date;
-    const bucket = getMonthBucket(bucketDate);
-    if (!map.has(bucket.key)) {
-      map.set(bucket.key, { key: bucket.key, label: bucket.label, items: [] });
-    }
-    map.get(bucket.key).items.push(delivery);
-  });
-
-  return Array.from(map.values()).map((group) => {
-    const dayMap = new Map();
-
-    group.items.forEach((delivery) => {
-      const dayKey = getDayKey(delivery);
-      if (!dayMap.has(dayKey)) {
-        dayMap.set(dayKey, {
-          key: dayKey,
-          label: formatDayLabel(delivery),
-          timestamp: getDeliveryDateValue(delivery)?.getTime() || 0,
-          items: [],
-        });
-      }
-
-      dayMap.get(dayKey).items.push(delivery);
-    });
-
-    return {
-      ...group,
-      days: Array.from(dayMap.values())
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .map((day) => ({
-          ...day,
-          summary: getDeliverySummary(day.items),
-        })),
-    };
-  });
+  if (!parsed) return String(delivery?.date || "unknown-date");
+  return normalizeDateOnly(parsed);
 }
 
 function toDeliveryViewState(data) {
@@ -194,7 +126,7 @@ function toDeliveryViewState(data) {
     deliveries: Array.isArray(data?.deliveries) ? data.deliveries : [],
     todayDelivery: data?.todayDelivery || null,
     insights: {
-      monthLabel: data?.insights?.monthLabel || '',
+      monthLabel: data?.insights?.monthLabel || "",
       monthlyDeliveryCount: Number(data?.insights?.monthlyDeliveryCount || 0),
       skippedDays: Number(data?.insights?.skippedDays || 0),
       extraOrders: Number(data?.insights?.extraOrders || 0),
@@ -203,211 +135,33 @@ function toDeliveryViewState(data) {
 }
 
 function getDeliveryTypeLabel(delivery = {}) {
-  const normalizedType = String(delivery?.deliveryType || '').toUpperCase();
-  if (normalizedType === 'ONE_TIME') return 'One-time';
-  if (normalizedType === 'SUBSCRIPTION') return 'Subscription';
-  return delivery?.isOneTimeOrder ? 'One-time' : 'Subscription';
+  const normalizedType = String(delivery?.deliveryType || "").toUpperCase();
+  if (normalizedType === "ONE_TIME") return "One-time";
+  if (normalizedType === "SUBSCRIPTION") return "Subscription";
+  return delivery?.isOneTimeOrder ? "One-time" : "Subscription";
 }
 
 function canCancelPendingOneTimeOrder(delivery = {}) {
   if (!delivery?.id || !delivery?.isOneTimeOrder) return false;
-  const status = String(delivery?.status || '').toUpperCase();
-  const approvalStatus = String(delivery?.approvalStatus || '').toUpperCase();
+  const status = String(delivery?.status || "").toUpperCase();
+  const approvalStatus = String(delivery?.approvalStatus || "").toUpperCase();
 
   if (
-    ['DELIVERED', 'COMPLETED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'CANCELLED', 'CANCELED', 'FAILED'].includes(status)
+    ["DELIVERED", "COMPLETED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "CANCELLED", "CANCELED", "FAILED"].includes(status)
   ) {
     return false;
   }
 
-  if (['APPROVED', 'CANCELLED', 'CANCELED'].includes(approvalStatus)) {
+  if (["APPROVED", "CANCELLED", "CANCELED"].includes(approvalStatus)) {
     return false;
   }
 
-  return status === 'PENDING_APPROVAL' || status === 'PENDING' || approvalStatus === 'PENDING';
+  return status === "PENDING_APPROVAL" || status === "PENDING" || approvalStatus === "PENDING";
 }
 
 function isDeliveryOutForTracking(status) {
-  const normalizedStatus = String(status || '').toUpperCase();
-  return normalizedStatus === 'OUT_FOR_DELIVERY' || normalizedStatus === 'IN_TRANSIT';
-}
-
-function DeliveryRow({ item, muted = false, onCancel, onTrack, isCancelling = false }) {
-  const cfg = getCfg(item.status);
-  const Icon = cfg.icon;
-  const hasIssue = Boolean(String(item?.customerIssue || '').trim());
-  const hasAdminAction = Boolean(String(item?.issueAdminAction || '').trim());
-  const canCancel = canCancelPendingOneTimeOrder(item);
-  const canTrack = isDeliveryOutForTracking(item?.status);
-
-  return (
-    <div
-      className={`border-b border-[#F2EDE4] px-4 py-3 transition-colors hover:bg-[#FBF7F0] last:border-none sm:px-6 sm:py-3.5 ${
-        muted ? 'opacity-60' : ''
-      }`}
-    >
-      <div className="grid grid-cols-[auto_1fr] gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-4">
-        <div
-          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] sm:h-10 sm:w-10 sm:rounded-[12px] ${cfg.iconBg}`}
-        >
-          <Icon size={16} />
-        </div>
-
-        <div className="min-w-0">
-          <p className={`truncate font-semibold ${muted ? 'text-sm text-[#8B7355]' : 'text-sm text-[#2C1A0E]'}`}>
-            {getDeliveryTypeLabel(item)} • {item.qty} {item.product}
-          </p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-[#A88763]">
-            <span>{cfg.sub(item)}</span>
-            {hasIssue && <span className="mx-1 text-[#D8C8B2]">|</span>}
-            {hasIssue && (
-              <span className="font-medium text-[#C0392B]">
-                Reported Issue: {item.customerIssue}
-              </span>
-            )}
-            {hasAdminAction && <span className="mx-1 text-[#D8C8B2]">|</span>}
-            {hasAdminAction && (
-              <span className="font-medium text-[#4A7C2F]">
-                Resolution: {item.issueAdminAction}
-              </span>
-            )}
-          </p>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2 sm:hidden">
-            <span className="text-[11px] text-[#C4A882]">{item.date}</span>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${cfg.badge}`}>
-              {cfg.label}
-            </span>
-            {canCancel && (
-              <button
-                onClick={() => onCancel?.(item)}
-                disabled={isCancelling}
-                className="rounded-full border border-[#F2D0C8] bg-[#FDECEA] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#C0392B] transition hover:bg-[#F8DDD6] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCancelling ? 'Cancelling...' : 'Cancel Order'}
-              </button>
-            )}
-            {canTrack && (
-              <button
-                onClick={() => onTrack?.(item)}
-                className="rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FDE9C9]"
-              >
-                Track Agent
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="hidden flex-shrink-0 sm:block sm:text-right">
-          <p className="mb-1 text-xs text-[#C4A882]">{item.date}</p>
-          <div className="flex items-center justify-end gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${cfg.badge}`}>
-              {cfg.label}
-            </span>
-            {canCancel && (
-              <button
-                onClick={() => onCancel?.(item)}
-                disabled={isCancelling}
-                className="rounded-full border border-[#F2D0C8] bg-[#FDECEA] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#C0392B] transition hover:bg-[#F8DDD6] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCancelling ? 'Cancelling...' : 'Cancel Order'}
-              </button>
-            )}
-            {canTrack && (
-              <button
-                onClick={() => onTrack?.(item)}
-                className="rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8641A] transition hover:bg-[#FDE9C9]"
-              >
-                Track Agent
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
-function DayDeliveryCard({ day, onCancel, onTrack, cancellingOrderId }) {
-  const hasPendingOrder = useMemo(
-    () => (day?.items || []).some((item) => canCancelPendingOneTimeOrder(item)),
-    [day?.items]
-  );
-  const [isExpanded, setIsExpanded] = useState(() => hasPendingOrder);
-
-  useEffect(() => {
-    if (hasPendingOrder) {
-      setIsExpanded(true);
-    }
-  }, [hasPendingOrder]);
-
-  return (
-    <div className="overflow-hidden rounded-[18px] border border-[#EFE7DA] bg-white">
-      <button
-        onClick={() => setIsExpanded((prev) => !prev)}
-        className="flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors hover:bg-[#FBF7F0] sm:flex-row sm:items-center sm:justify-between sm:px-5"
-      >
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[#2C1A0E]">{day.label}</span>
-            <span className="rounded-full bg-[#F7F1E7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#A88763]">
-              {day.items.length} {day.items.length === 1 ? 'delivery' : 'deliveries'}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-[#8B7355]">
-            {day.summary || `${day.items.length} ${day.items.length === 1 ? 'delivery' : 'deliveries'}`}
-          </p>
-        </div>
-
-        <span className="flex items-center gap-1 self-start text-xs font-semibold text-[#C4A882] sm:self-auto">
-          {isExpanded ? 'Hide products' : 'Show products'}
-          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </span>
-      </button>
-
-      {isExpanded && (
-        <div className="border-t border-[#F2EDE4]">
-          {day.items.map((item, index) => (
-            <DeliveryRow
-              key={item.id ?? `${day.key}-${index}`}
-              item={item}
-              onCancel={onCancel}
-              onTrack={onTrack}
-              isCancelling={String(cancellingOrderId) === String(item.id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GroupBlock({ group, onCancel, onTrack, cancellingOrderId }) {
-  const { label, items, days } = group;
-
-  return (
-    <div className="mb-4 overflow-hidden rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7]">
-      <div className="flex flex-col gap-1 border-b border-[#F2EDE4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-3.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-          {label}
-        </span>
-        <span className="text-[10px] text-[#C4A882]">{items.length} deliveries</span>
-      </div>
-
-      <div className="space-y-3 px-3 py-3 sm:px-4 sm:py-4">
-        {days.map((day) => (
-          <DayDeliveryCard
-            key={day.key}
-            day={day}
-            onCancel={onCancel}
-            onTrack={onTrack}
-            cancellingOrderId={cancellingOrderId}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  const normalizedStatus = String(status || "").toUpperCase();
+  return normalizedStatus === "OUT_FOR_DELIVERY" || normalizedStatus === "IN_TRANSIT";
 }
 
 export default function Deliveries() {
@@ -423,7 +177,76 @@ export default function Deliveries() {
   const [notice, setNotice] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedDayCell, setSelectedDayCell] = useState(null);
+  const [issueTarget, setIssueTarget] = useState(null);
+  const [issueText, setIssueText] = useState("");
+  const [reportingIssue, setReportingIssue] = useState(false);
+
+  const handleReportIssue = (item) => {
+    setIssueTarget(item);
+    setIssueText("");
+  };
+
+  const submitIssue = async () => {
+    if (!issueText || issueText.trim().length < 5) return;
+    setReportingIssue(true);
+    try {
+      await reportCustomerDeliveryIssue({
+        issueText,
+        deliveryId: issueTarget?.id,
+      });
+      setNotice("Delivery issue reported successfully.");
+      setIssueTarget(null);
+      setIssueText("");
+    } catch (err) {
+      setError(err?.message || "Failed to submit issue.");
+    } finally {
+      setReportingIssue(false);
+    }
+  };
+
+  const [skipTarget, setSkipTarget] = useState(null);
+  const [skippingDeliveryId, setSkippingDeliveryId] = useState(null);
+
+  const openSkipModal = (item) => {
+    setNotice(null);
+    setSkipTarget(item || null);
+  };
+
+  const confirmSkipDelivery = async () => {
+    const target = skipTarget;
+    if (!target) return;
+
+    const targetId = target?.id;
+    const targetDate = target?.deliveryDate || selectedDayCell?.dateStr;
+
+    setSkippingDeliveryId(targetId ? String(targetId) : targetDate);
+    setNotice(null);
+
+    try {
+      const response = await skipCustomerDelivery({
+        deliveryId: targetId,
+        deliveryDate: targetDate,
+      });
+      setSkipTarget(null);
+      setSelectedDayCell(null);
+      setNotice({
+        type: "success",
+        message: response?.message || "Delivery skipped successfully.",
+      });
+      await load({ force: true, showSpinner: false });
+    } catch (err) {
+      setNotice({
+        type: "error",
+        message: err?.response?.data?.message || err?.message || "Failed to skip delivery.",
+      });
+    } finally {
+      setSkippingDeliveryId(null);
+    }
+  };
+
+  // Month navigation state (defaults to active month)
+  const [activeDate, setActiveDate] = useState(() => new Date());
 
   const applyDeliveryState = (data) => {
     const nextState = toDeliveryViewState(data);
@@ -439,127 +262,129 @@ export default function Deliveries() {
     if (showSpinner) {
       setLoading(true);
     }
-
     setError(null);
 
     try {
       const data = await fetchCustomerDeliveries({ force });
       applyDeliveryState(data);
     } catch (err) {
-      setError(err?.message || 'Could not load deliveries.');
-
-      const hasVisibleDeliveryState = deliveries.length > 0 || Boolean(todayDelivery);
-      if (!hasVisibleDeliveryState) {
-        setDeliveries([]);
-        setToday(null);
-        setInsights(EMPTY_INSIGHTS);
-      }
+      setError(err?.message || "Could not load deliveries.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    load({ force: false });
   }, []);
 
-  const monthOptions = useMemo(() => {
-    const uniqueMonths = new Map();
-
-    deliveries.forEach((delivery) => {
-      const bucketDate = delivery?.deliveryDate || delivery?.date;
-      const bucket = getMonthBucket(bucketDate);
-      if (!uniqueMonths.has(bucket.key)) {
-        uniqueMonths.set(bucket.key, {
-          value: bucket.key,
-          label: bucket.label,
-          timestamp: getDeliveryDateValue(delivery)?.getTime() || 0,
-        });
-      } else if ((getDeliveryDateValue(delivery)?.getTime() || 0) > uniqueMonths.get(bucket.key).timestamp) {
-        uniqueMonths.get(bucket.key).timestamp = getDeliveryDateValue(delivery)?.getTime() || 0;
+  const deliveriesMap = useMemo(() => {
+    const map = new Map();
+    (deliveries || []).forEach((delivery) => {
+      const dateKey = getDayKey(delivery);
+      if (!map.has(dateKey)) {
+        map.set(dateKey, []);
       }
+      map.get(dateKey).push(delivery);
     });
-
-    return Array.from(uniqueMonths.values())
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .map(({ value, label }) => ({ value, label }));
+    return map;
   }, [deliveries]);
 
-  useEffect(() => {
-    if (!monthOptions.length) {
-      setSelectedMonth('');
-      return;
+  // Calendar Grid Matrix calculation (7 columns x 5 or 6 weeks)
+  const calendarGridDays = useMemo(() => {
+    const year = activeDate.getFullYear();
+    const month = activeDate.getMonth();
+
+    const firstDayObj = new Date(year, month, 1);
+    const startDayOfWeek = firstDayObj.getDay(); // 0 = Sun, 1 = Mon...
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+
+    const todayStr = normalizeDateOnly(new Date());
+    const grid = [];
+
+    // Preceding month padding
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      const dayNum = prevMonthLastDay - i;
+      const prevDate = new Date(year, month - 1, dayNum);
+      const dateStr = normalizeDateOnly(prevDate);
+      grid.push({
+        dateStr,
+        dayNumber: dayNum,
+        isCurrentMonth: false,
+        isToday: dateStr === todayStr,
+        items: deliveriesMap.get(dateStr) || [],
+      });
     }
 
-    setSelectedMonth((currentMonth) => {
-      if (monthOptions.some((option) => option.value === currentMonth)) {
-        return currentMonth;
-      }
-      return monthOptions[0].value;
-    });
-  }, [monthOptions]);
+    // Current month days
+    for (let d = 1; d <= daysInMonth; d++) {
+      const curDate = new Date(year, month, d);
+      const dateStr = normalizeDateOnly(curDate);
+      grid.push({
+        dateStr,
+        dayNumber: d,
+        isCurrentMonth: true,
+        isToday: dateStr === todayStr,
+        items: deliveriesMap.get(dateStr) || [],
+      });
+    }
 
-  const filteredDeliveries = useMemo(() => {
-    if (!selectedMonth) return deliveries;
-    return deliveries.filter((delivery) => getMonthBucket(delivery?.deliveryDate || delivery?.date).key === selectedMonth);
-  }, [deliveries, selectedMonth]);
+    // Trailing month padding
+    const totalCells = grid.length > 35 ? 42 : 35;
+    const remaining = totalCells - grid.length;
+    for (let d = 1; d <= remaining; d++) {
+      const nextDate = new Date(year, month + 1, d);
+      const dateStr = normalizeDateOnly(nextDate);
+      grid.push({
+        dateStr,
+        dayNumber: d,
+        isCurrentMonth: false,
+        isToday: dateStr === todayStr,
+        items: deliveriesMap.get(dateStr) || [],
+      });
+    }
 
-  const groups = useMemo(() => buildGroups(filteredDeliveries), [filteredDeliveries]);
+    return grid;
+  }, [activeDate, deliveriesMap]);
 
-  const todayStatus = String(todayDelivery?.status || 'PENDING').toUpperCase();
-  const todayCfg = getCfg(todayStatus);
-  const canTrack =
-    Boolean(todayDelivery?.canTrackAgent) || isDeliveryOutForTracking(todayDelivery?.status);
-  const todayHasIssue = Boolean(String(todayDelivery?.customerIssue || '').trim());
-  const todayIssueStatus = String(todayDelivery?.issueStatus || '').toUpperCase();
-  const todayHasAdminAction = Boolean(String(todayDelivery?.issueAdminAction || '').trim());
-  const canCancelTodayOrder = canCancelPendingOneTimeOrder(todayDelivery);
-  const todayTimingLabel =
-    todayStatus === 'DELIVERED'
-      ? todayDelivery?.time
-        ? `Delivered at ${todayDelivery.time}`
-        : 'Delivered'
-      : todayDelivery?.slotWindow
-      ? `Expected ${todayDelivery.slotWindow}`
-      : todayDelivery?.slot && todayDelivery.slot !== '-'
-      ? `${todayDelivery.slot} slot`
-      : 'Expected today';
+  const prevMonth = () => {
+    setActiveDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
 
-  const todayMetaParts = [
-    { label: todayTimingLabel },
-    { label: getDeliveryTypeLabel(todayDelivery) },
-    todayDelivery?.dairyName ? { label: todayDelivery.dairyName } : null,
-    todayHasIssue
-      ? { label: `Reported Issue: ${todayDelivery.customerIssue}`, className: 'bg-[#FDECEA] text-[#C0392B]' }
-      : null,
-    todayHasIssue && todayIssueStatus === 'OPEN'
-      ? { label: 'Pending resolution', className: 'bg-[#FFF1E4] text-[#B8641A]' }
-      : null,
-    todayHasAdminAction
-      ? { label: `Resolution: ${todayDelivery.issueAdminAction}`, className: 'bg-[#EEF5E7] text-[#4A7C2F]' }
-      : null,
-  ].filter(Boolean);
+  const nextMonth = () => {
+    setActiveDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const resetToToday = () => {
+    setActiveDate(new Date());
+  };
+
+  const currentMonthLabel = activeDate.toLocaleString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
 
   const insightCards = [
     {
-      label: insights.monthLabel ? `${insights.monthLabel} Deliveries` : 'Monthly',
+      label: "Delivered",
       value: insights.monthlyDeliveryCount,
-      color: 'text-[#4A7C2F]',
-      iconBg: 'bg-[#EEF5E7] text-[#4A7C2F]',
+      color: "text-[#4A7C2F]",
+      iconBg: "bg-[#EEF5E7] text-[#4A7C2F]",
       Icon: CalendarCheck2,
     },
     {
-      label: 'Skipped Days',
+      label: "Skipped / Paused",
       value: insights.skippedDays,
-      color: 'text-[#C0392B]',
-      iconBg: 'bg-[#FDECEA] text-[#C0392B]',
+      color: "text-[#8B7355]",
+      iconBg: "bg-[#FAF5EF] text-[#8B7355]",
       Icon: CalendarX2,
     },
     {
-      label: 'Extra Orders',
+      label: "Extra Orders",
       value: insights.extraOrders,
-      color: 'text-[#B8641A]',
-      iconBg: 'bg-[#FFF1E4] text-[#B8641A]',
+      color: "text-[#B8641A]",
+      iconBg: "bg-[#FFF1E4] text-[#B8641A]",
       Icon: CirclePlus,
     },
   ];
@@ -570,7 +395,7 @@ export default function Deliveries() {
   };
 
   const openLiveTrack = (delivery) => {
-    const orderId = String(delivery?.deliveryId || delivery?.id || '').trim();
+    const orderId = String(delivery?.deliveryId || delivery?.id || "").trim();
     if (!orderId) return;
     navigate(`/customer/track/${orderId}`, { state: { delivery } });
   };
@@ -588,8 +413,8 @@ export default function Deliveries() {
     setNotice(null);
 
     try {
-      const rawIdStr = String(target.rawId || target.id || '').trim();
-      const extractedNum = Number(rawIdStr.replace(/\D+/g, ''));
+      const rawIdStr = String(target.rawId || target.id || "").trim();
+      const extractedNum = Number(rawIdStr.replace(/\D+/g, ""));
       const cleanId = Number.isFinite(extractedNum) && extractedNum > 0 ? extractedNum : target.id;
       const response = await cancelCustomerOneTimeOrder({
         orderId: cleanId,
@@ -597,19 +422,14 @@ export default function Deliveries() {
       });
       setCancelTarget(null);
       setNotice({
-        type: 'success',
-        message:
-          response?.message ||
-          'Order cancelled successfully.',
+        type: "success",
+        message: response?.message || "Order cancelled successfully.",
       });
       await load({ force: true, showSpinner: false });
     } catch (err) {
       setNotice({
-        type: 'error',
-        message:
-          err?.response?.data?.message ||
-          err?.message ||
-          'Failed to cancel this order.',
+        type: "error",
+        message: err?.response?.data?.message || err?.message || "Failed to cancel this order.",
       });
     } finally {
       setCancellingOrderId(null);
@@ -618,74 +438,81 @@ export default function Deliveries() {
 
   return (
     <CustomerLayout>
-      <div className="space-y-4 sm:space-y-6 lg:space-y-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-        <div className="rounded-[24px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F7F1E8_0%,#FDF9F3_100%)] p-4 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px] sm:p-7 xl:p-9">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-5 sm:space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        {/* Header Overview Card */}
+        <div className="rounded-[24px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F7F1E8_0%,#FDF9F3_100%)] p-4 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px] sm:p-7 xl:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">
                 Delivery Overview
               </p>
               <h1
-                className="mt-2 text-[28px] font-semibold leading-tight text-[#2C1A0E] sm:text-[36px]"
+                className="mt-1 text-[26px] font-semibold leading-tight text-[#2C1A0E] sm:text-[34px]"
                 style={headingFont}
               >
-                Delivery <span className="text-[#B8641A]">History</span>
+                Delivery <span className="text-[#B8641A]">Calendar</span>
               </h1>
-              <p className="mt-2 text-sm text-[#8B7355]">
-                Review completed drops, skipped days, and today&apos;s delivery status.
+              <p className="mt-1.5 text-xs sm:text-sm text-[#8B7355]">
+                View your monthly delivery schedule, completed drops, and scheduled items.
               </p>
             </div>
 
-            <button
-              onClick={() => load({ force: true })}
-              disabled={loading}
-              className="inline-flex items-center gap-2 self-start rounded-[12px] border border-[#EDE8DF] bg-white px-3.5 py-2 text-xs font-semibold text-[#6B5B3E] transition hover:border-[#D97706] hover:text-[#B45309] disabled:opacity-40"
-            >
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </button>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                onClick={resetToToday}
+                className="rounded-xl border border-[#EDE8DF] bg-white px-3 py-2 text-xs font-bold text-[#6B5B3E] transition hover:border-[#B8641A] hover:text-[#B8641A]"
+              >
+                Today
+              </button>
+              <button
+                onClick={() => load({ force: true })}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#EDE8DF] bg-white px-3.5 py-2 text-xs font-semibold text-[#6B5B3E] transition hover:border-[#D97706] hover:text-[#B45309] disabled:opacity-40"
+              >
+                {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {loading ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {error && (
-            <div className="mt-5 rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3.5 text-sm text-[#C0392B]">
+            <div className="mt-4 rounded-[16px] border border-[#F2D0C8] bg-[#FDECEA] px-4 py-3 text-xs sm:text-sm text-[#C0392B]">
               {error}
             </div>
           )}
 
           {notice && (
             <div
-              className={`mt-5 rounded-[16px] px-4 py-3.5 text-sm ${
-                notice.type === 'success'
-                  ? 'border border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]'
-                  : 'border border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]'
+              className={`mt-4 rounded-[16px] px-4 py-3 text-xs sm:text-sm ${
+                notice.type === "success"
+                  ? "border border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
+                  : "border border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
               }`}
             >
               {notice.message}
             </div>
           )}
 
+          {/* Insights Summary Cards */}
           {!loading && (
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-4">
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4">
               {insightCards.map((card) => {
                 const InsightIcon = card.Icon;
-
                 return (
                   <div
                     key={card.label}
                     className="relative flex flex-col overflow-hidden rounded-[18px] border border-[#EDE8DF] bg-white p-3 transition-transform hover:-translate-y-0.5 sm:rounded-[20px] sm:p-4"
                   >
                     <div className="pr-9 sm:pr-10">
-                      <div>
-                        <p className="mb-1 max-w-[72px] text-[8px] font-bold uppercase leading-3.5 tracking-[0.14em] text-[#C4A882] sm:max-w-none sm:text-[10px] sm:leading-4 sm:tracking-[0.18em]">
-                          {card.label}
-                        </p>
-                        <p className={`text-[25px] font-extrabold leading-none tracking-tight sm:text-4xl ${card.color}`}>
-                          {card.value}
-                        </p>
-                      </div>
+                      <p className="mb-1 text-[8px] font-bold uppercase leading-3 tracking-[0.14em] text-[#C4A882] sm:text-[10px] sm:tracking-[0.18em]">
+                        {card.label}
+                      </p>
+                      <p className={`text-[22px] font-extrabold leading-none tracking-tight sm:text-3xl ${card.color}`}>
+                        {card.value}
+                      </p>
                     </div>
                     <div
-                      className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-[10px] sm:right-5 sm:top-5 sm:h-10 sm:w-10 sm:rounded-[12px] ${card.iconBg}`}
+                      className={`absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-lg sm:right-4 sm:top-4 sm:h-9 sm:w-9 sm:rounded-xl ${card.iconBg}`}
                     >
                       <InsightIcon size={14} className="sm:h-4 sm:w-4" />
                     </div>
@@ -696,164 +523,238 @@ export default function Deliveries() {
           )}
         </div>
 
-        {todayDelivery && (
-          <div className="relative overflow-hidden rounded-[22px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_62%,#6B4F2A_100%)] p-4 sm:rounded-[26px] sm:p-8">
-            <MapPin className="pointer-events-none absolute bottom-3 right-3 h-20 w-20 text-white/10 sm:bottom-0 sm:right-0 sm:h-[120px] sm:w-[120px]" />
+        {/* Calendar Control & Legend Bar */}
+        <div className="rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-xs space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Month Navigator */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 rounded-xl border border-[#EDE8DF] bg-white p-1">
+                <button
+                  type="button"
+                  onClick={prevMonth}
+                  className="rounded-lg p-1.5 text-[#6B5B3E] transition hover:bg-[#FAF5EF] hover:text-[#2C1A0E]"
+                  title="Previous Month"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span className="min-w-[130px] text-center text-sm font-bold text-[#2C1A0E]">
+                  {currentMonthLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={nextMonth}
+                  className="rounded-lg p-1.5 text-[#6B5B3E] transition hover:bg-[#FAF5EF] hover:text-[#2C1A0E]"
+                  title="Next Month"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
 
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#F3D4A6]">
-              Today&apos;s Delivery
-            </p>
+            {/* Visual Status Legend */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1 whitespace-nowrap sm:gap-2">
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Delivered
+              </span>
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 border border-amber-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Pending
+              </span>
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-600 border border-stone-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-stone-400" />
+                Skipped / Paused
+              </span>
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 border border-rose-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                Failed / Missed
+              </span>
+            </div>
+          </div>
 
-            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <h3 className="mb-3 text-[20px] font-semibold leading-tight text-white sm:text-[28px]" style={headingFont}>
-                  {todayDelivery.quantity} {todayDelivery.product}
-                </h3>
-
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${todayCfg.badge}`}>
-                    {todayCfg.label}
-                  </span>
-
-                  {todayDelivery.isOneTimeOrder && (
-                    <span className="rounded-full bg-[#F6F0FF] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#7C4DAB]">
-                      One-time
-                    </span>
-                  )}
-
-                  {todayDelivery.slot && todayDelivery.slot !== '-' && (
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold text-white/70">
-                      {todayDelivery.slot}
-                    </span>
-                  )}
-
-                  {todayDelivery.paymentMethod && todayDelivery.paymentMethod !== '-' && (
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold text-white/70">
-                      {todayDelivery.paymentMethod}
-                    </span>
-                  )}
-
-                  {canCancelTodayOrder && (
-                    <button
-                      onClick={() => openCancelModal(todayDelivery)}
-                      disabled={String(cancellingOrderId) === String(todayDelivery?.id)}
-                      className="rounded-full border border-[#F2D0C8] bg-[#FDECEA] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#C0392B] transition hover:bg-[#F8DDD6] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {String(cancellingOrderId) === String(todayDelivery?.id)
-                        ? 'Cancelling...'
-                        : 'Cancel Order'}
-                    </button>
-                  )}
+          {/* 7-Day Monthly Calendar Grid */}
+          <div className="overflow-hidden">
+            {/* Weekday Header */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2.5 mb-2 text-center">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
+                <div
+                  key={dayName}
+                  className={`py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
+                    idx === 0 || idx === 6 ? "text-[#B8641A]" : "text-[#A88763]"
+                  }`}
+                >
+                  {dayName}
                 </div>
+              ))}
+            </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {todayMetaParts.map((part, index) => (
-                    <span
-                      key={`${part.label}-${index}`}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium ${
-                        part.className || 'bg-white/10 text-white/80'
+            {/* Grid Cells */}
+            {loading ? (
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 animate-pulse">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="h-20 sm:h-24 rounded-xl border border-[#EDE8DF] bg-[#FAF7F2]" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+                {calendarGridDays.map((cell, idx) => {
+                  const { dateStr, dayNumber, isCurrentMonth, isToday, items } = cell;
+
+                  // Evaluate status for the cell
+                  let statusKey = "";
+                  if (items.length > 0) {
+                    const statuses = items.map((i) => String(i.status || "").toUpperCase());
+                    if (statuses.includes("DELIVERED")) statusKey = "DELIVERED";
+                    else if (statuses.some((s) => ["FAILED", "CANCELLED", "CANCELED"].includes(s))) statusKey = "FAILED";
+                    else if (statuses.some((s) => ["SKIPPED", "PAUSED"].includes(s))) statusKey = "SKIPPED";
+                    else statusKey = "PENDING";
+                  }
+
+                  const cfg = statusKey ? getCfg(statusKey) : null;
+
+                  // Full Product summary string for Desktop
+                  const productPreview = items.length > 0
+                    ? items.map((i) => {
+                        const qtyRaw = String(i.qty || i.quantity || "-").trim();
+                        const formattedQty = qtyRaw.toLowerCase().includes("l") ? qtyRaw : `${qtyRaw} L`;
+                        const formattedProd = String(i.product || "Milk").replace(/^(\d+)([a-zA-Z])/, "$1 $2");
+                        return `${formattedQty} · ${formattedProd}`;
+                      }).join(", ")
+                    : "";
+
+                  // Short volume string for Mobile (e.g. "1.5L")
+                  const shortVolumePreview = items.length > 0
+                    ? items.map((i) => {
+                        const qtyRaw = String(i.qty || i.quantity || "").trim();
+                        if (!qtyRaw) return "";
+                        const cleaned = qtyRaw.replace(/\s+/g, "").toUpperCase();
+                        return cleaned.includes("L") ? cleaned : `${cleaned}L`;
+                      }).filter(Boolean).join(", ")
+                    : "";
+
+                  return (
+                    <button
+                      key={`${dateStr}-${idx}`}
+                      type="button"
+                      onClick={() => isCurrentMonth && setSelectedDayCell(cell)}
+                      disabled={!isCurrentMonth}
+                      className={`relative flex flex-col items-center justify-between p-1.5 sm:p-2.5 min-h-[72px] sm:min-h-[96px] text-center sm:text-left rounded-xl sm:rounded-2xl border transition-all duration-150 ${
+                        !isCurrentMonth
+                          ? "bg-[#FAF8F5]/50 border-[#EDE8DF]/40 opacity-30 text-stone-400 cursor-default pointer-events-none"
+                          : isToday
+                            ? "bg-[#FFF9F2] border-[#B8641A] ring-2 ring-[#B8641A]/20 shadow-xs hover:bg-[#FFF4E2] active:scale-95"
+                            : items.length > 0
+                              ? "bg-white border-[#EDE8DF] hover:border-[#D4B896] hover:bg-[#F3EDE2] hover:shadow-xs active:scale-95"
+                              : "bg-[#FFFDF7] border-[#F2EDE4] hover:border-[#D4B896] hover:bg-[#F3EDE2] active:scale-95"
                       }`}
                     >
-                      {index === 0 && <Clock size={11} className="flex-shrink-0" />}
-                      {part.label}
-                    </span>
-                  ))}
-                </div>
+                      {/* Top: Date Number */}
+                      <div className="flex items-center justify-center sm:justify-between w-full">
+                        <span
+                          className={`text-xs sm:text-sm font-bold ${
+                            isToday
+                              ? "flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-[#B8641A] text-white"
+                              : isCurrentMonth
+                                ? "text-[#2C1A0E]"
+                                : "text-[#A88763]"
+                          }`}
+                        >
+                          {dayNumber}
+                        </span>
 
+                        {cfg && isCurrentMonth && (
+                          <span className={`hidden sm:inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${cfg.badge}`}>
+                            {cfg.label}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Middle: Volume / Item Preview */}
+                      {isCurrentMonth && items.length > 0 ? (
+                        <div className="my-0.5 sm:my-1 min-w-0 w-full text-center sm:text-left">
+                          {/* Short Volume for Mobile */}
+                          <p className="block sm:hidden text-[10px] font-bold text-stone-600 truncate">
+                            {shortVolumePreview}
+                          </p>
+                          {/* Full Product Preview for Desktop */}
+                          <p className="hidden sm:block text-xs font-semibold text-[#524134] truncate">
+                            {productPreview}
+                          </p>
+                          {items.length > 1 && (
+                            <span className="hidden sm:inline-block text-[9px] text-[#A88763] font-bold">
+                              +{items.length - 1} extra
+                            </span>
+                          )}
+                        </div>
+                      ) : isCurrentMonth ? (
+                        <div className="my-0.5 sm:my-1 text-[10px] text-[#C4A882]/60 font-medium text-center">
+                          —
+                        </div>
+                      ) : null}
+
+                      {/* Bottom: Centered Status Dot for Mobile */}
+                      {cfg && isCurrentMonth ? (
+                        <div className="w-full flex items-center justify-center sm:justify-end">
+                          <span
+                            className={`sm:hidden h-2 w-2 rounded-full ${
+                              statusKey === "DELIVERED"
+                                ? "bg-emerald-500"
+                                : statusKey === "FAILED"
+                                  ? "bg-rose-500"
+                                  : statusKey === "SKIPPED"
+                                    ? "bg-stone-400"
+                                    : "bg-amber-500"
+                            }`}
+                          />
+                        </div>
+                      ) : (
+                        <div className="sm:hidden h-2" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-
-              <div className="flex w-full flex-shrink-0 flex-col gap-2 sm:w-auto">
-                <button
-                  onClick={() => openLiveTrack(todayDelivery)}
-                  disabled={!canTrack}
-                  className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#FFF4E2] px-5 py-3 text-sm font-bold text-[#B8641A] transition hover:bg-[#FDE9C9] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 sm:w-auto"
-                >
-                  <MapPin size={16} />
-                  Track Agent
-                </button>
-
-              </div>
-            </div>
+            )}
           </div>
-        )}
-
-        {loading ? (
-          <div className="space-y-4 animate-pulse">
-            {/* 3 Insight Cards Skeletons */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-[74px] sm:h-[90px] rounded-[18px] sm:rounded-[20px] border border-[#EDE8DF] bg-white p-3 sm:p-4" />
-              ))}
-            </div>
-
-            {/* Today's Delivery Card Skeleton */}
-            <div className="h-32 sm:h-40 rounded-[22px] sm:rounded-[26px] bg-[#EDE8DF]/35 p-4 sm:p-8" />
-
-            {/* Recent Deliveries List Header Skeleton */}
-            <div className="h-4 w-32 rounded bg-[#E7DAC6] mt-6" />
-
-            {/* Recent Deliveries Items skeletons */}
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-2xl border border-[#EDE8DF] bg-white p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="h-4 w-28 rounded bg-[#E7DAC6]" />
-                    <div className="h-5 w-16 rounded-full bg-[#E7DAC6]" />
-                  </div>
-                  <div className="h-5 w-40 rounded-lg bg-[#E7DAC6]/50" />
-                  <div className="flex gap-2">
-                    <div className="h-4 w-12 rounded bg-[#E7DAC6]/30" />
-                    <div className="h-4 w-16 rounded bg-[#E7DAC6]/30" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : deliveries.length === 0 ? (
-          <div className="rounded-[22px] border border-dashed border-[#E7DAC6] bg-[#FFFDF7] py-16 text-center sm:rounded-[24px] sm:py-20">
-            <p className="text-sm text-[#8B7355]">No delivery records yet.</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C4A882]">
-                Recent Deliveries
-              </p>
-
-              <div className="relative w-full sm:w-auto">
-                <select
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  className="w-full appearance-none rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] px-4 py-2 pr-10 text-xs font-semibold text-[#2C2416] outline-none transition focus:border-[#D4B896] sm:min-w-[180px]"
-                >
-                  {monthOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={15}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#8B7355]"
-                />
-              </div>
-            </div>
-
-            <div>
-              {groups.map((group) => (
-                <GroupBlock
-                  key={group.key || group.label}
-                  group={group}
-                  onCancel={openCancelModal}
-                  onTrack={openLiveTrack}
-                  cancellingOrderId={cancellingOrderId}
-                />
-              ))}
-            </div>
-          </>
-        )}
+        </div>
       </div>
 
+      {/* Delivery Details Bottom Sheet Modal */}
+      {selectedDayCell && (
+        <DeliveryDetailsModal
+          cell={selectedDayCell}
+          onClose={() => setSelectedDayCell(null)}
+          onCancelOrder={openCancelModal}
+          onTrackAgent={openLiveTrack}
+          onReportIssue={handleReportIssue}
+          onSkipDelivery={openSkipModal}
+          cancellingOrderId={cancellingOrderId}
+          skippingDeliveryId={skippingDeliveryId}
+        />
+      )}
+
+      {/* Skip Delivery Modal */}
+      {skipTarget && (
+        <SkipDeliveryModal
+          delivery={skipTarget}
+          skipping={Boolean(skippingDeliveryId)}
+          onClose={() => setSkipTarget(null)}
+          onConfirm={confirmSkipDelivery}
+        />
+      )}
+
+      {/* Report Issue Modal */}
+      {issueTarget && (
+        <ReportIssueModal
+          issueText={issueText}
+          saving={reportingIssue}
+          onClose={() => setIssueTarget(null)}
+          onChange={setIssueText}
+          onSubmit={submitIssue}
+        />
+      )}
+
+      {/* Cancel Order Modal */}
       {cancelTarget && (
         <CancelOrderModal
           delivery={cancelTarget}
@@ -868,12 +769,12 @@ export default function Deliveries() {
 
 function CancelOrderModal({ delivery, cancelling = false, onClose, onConfirm }) {
   const deliveryDate = delivery?.deliveryDate
-    ? new Date(`${delivery.deliveryDate}T00:00:00`).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
+    ? new Date(`${delivery.deliveryDate}T00:00:00`).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
       })
-    : delivery?.date || '-';
+    : delivery?.date || "-";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C1A0E]/45 px-4 pb-4 sm:items-center sm:pb-0">
@@ -885,7 +786,7 @@ function CancelOrderModal({ delivery, cancelling = false, onClose, onConfirm }) 
           Cancel this approval-pending order?
         </h3>
         <p className="mt-2 text-sm leading-6 text-[#8B7355]">
-          {delivery?.qty || '-'} {delivery?.product || 'Milk'} for {deliveryDate} will be removed from your deliveries.
+          {delivery?.qty || "-"} {delivery?.product || "Milk"} for {deliveryDate} will be removed from your deliveries.
           If this order was already paid, the amount will be added back to your wallet.
         </p>
 
@@ -898,6 +799,7 @@ function CancelOrderModal({ delivery, cancelling = false, onClose, onConfirm }) 
 
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
+            type="button"
             onClick={onClose}
             disabled={cancelling}
             className="rounded-[14px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:cursor-not-allowed disabled:opacity-60"
@@ -905,11 +807,81 @@ function CancelOrderModal({ delivery, cancelling = false, onClose, onConfirm }) 
             Keep Order
           </button>
           <button
+            type="button"
             onClick={onConfirm}
             disabled={cancelling}
             className="rounded-[14px] bg-[#C0392B] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#A93226] disabled:cursor-not-allowed disabled:bg-[#D8C8B2]"
           >
-            {cancelling ? 'Cancelling...' : 'Yes, Cancel Order'}
+            {cancelling ? "Cancelling..." : "Yes, Cancel Order"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkipDeliveryModal({ delivery, skipping = false, onClose, onConfirm }) {
+  const deliveryDate = delivery?.deliveryDate
+    ? new Date(`${delivery.deliveryDate}T00:00:00`).toLocaleDateString("en-IN", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : delivery?.date || "-";
+
+  const formattedQty = String(delivery?.qty || delivery?.quantity || "1")
+    .toLowerCase()
+    .includes("l")
+    ? delivery?.qty || delivery?.quantity
+    : `${delivery?.qty || delivery?.quantity || "1"} L`;
+
+  const formattedProd = String(delivery?.product || "Milk").replace(/^(\d+)([a-zA-Z])/, "$1 $2");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C1A0E]/45 px-4 pb-4 sm:items-center sm:pb-0">
+      <div className="w-full max-w-md rounded-[24px] border border-[#E7DAC6] bg-[#FFFDF7] p-5 shadow-[0_24px_60px_rgba(44,26,14,0.28)] sm:p-6">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B8641A]">
+          Skip Delivery
+        </p>
+        <h3 className="mt-2 text-xl font-semibold text-[#2C1A0E]" style={headingFont}>
+          Skip this delivery?
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-[#8B7355]">
+          You are skipping your scheduled delivery for <span className="font-bold text-[#2C1A0E]">{deliveryDate}</span>. You will not be charged for this delivery.
+        </p>
+
+        <div className="mt-4 rounded-[18px] border border-[#EDE8DF] bg-white p-4 text-sm text-[#5C3D1E] space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-[#8B7355] font-semibold uppercase">Product</span>
+            <span className="font-bold text-[#2C1A0E]">{formattedQty} · {formattedProd}</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-[#F2EDE4]">
+            <span className="text-xs text-[#8B7355] font-semibold uppercase">Date</span>
+            <span className="font-semibold text-[#2C1A0E]">{deliveryDate}</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-[#F2EDE4]">
+            <span className="text-xs text-[#8B7355] font-semibold uppercase">Expected Charge</span>
+            <span className="font-extrabold text-emerald-700">₹0.00</span>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={skipping}
+            className="rounded-[14px] border border-[#EDE8DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={skipping}
+            className="rounded-[14px] bg-[#B8641A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#9A5213] disabled:opacity-60"
+          >
+            {skipping ? "Skipping..." : "Skip Delivery"}
           </button>
         </div>
       </div>

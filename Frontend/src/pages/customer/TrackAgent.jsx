@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
-import TrackAgentMap from "../../components/TrackAgentMap.jsx";
+
+const TrackAgentMap = lazy(() => import("../../components/TrackAgentMap.jsx"));
 import {
   fetchCustomerDeliveries,
   getCachedCustomerDeliveries,
@@ -212,8 +213,8 @@ const TrackAgent = () => {
   if (!hasTrackingContext) {
     return (
       <CustomerLayout>
-        <div className="rounded-[28px] border border-[#EDE8DF] bg-[#FFFDF7] px-6 py-12 text-center shadow-sm">
-          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FBF7F0] text-[#A88763]">
+        <div className="max-w-xl mx-auto my-12 p-10 text-center rounded-2xl border border-[#E8E2D9] bg-[#FAF7F2]">
+          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#F5EFE6] text-[#A88763]">
             <Truck size={24} />
           </div>
           <h3 className="mt-4 text-lg font-bold text-[#2C1A0E]">No live tracking available</h3>
@@ -423,14 +424,22 @@ const TrackAgent = () => {
                 {isRefreshingTracking ? "Refreshing..." : "Refresh"}
               </button>
             </div>
-            <TrackAgentMap
-              key={`track-map-${resolvedOrderId}-${mapRefreshKey}`}
-              orderId={resolvedOrderId}
-              agentId={agent?.id || delivery?.agentId || null}
-              initialPosition={delivery?.currentAgentLocation || null}
-              customerPosition={delivery?.customerLocation || null}
-              canTrack={canTrackLive}
-            />
+            <Suspense
+              fallback={
+                <div className="flex h-[380px] w-full items-center justify-center rounded-[24px] bg-[#E8E2D9] text-xs font-semibold text-[#8B7355]">
+                  <Loader2 className="mr-2 animate-spin text-[#B8641A]" size={20} /> Loading Live Tracking Map...
+                </div>
+              }
+            >
+              <TrackAgentMap
+                key={`track-map-${resolvedOrderId}-${mapRefreshKey}`}
+                orderId={resolvedOrderId}
+                agentId={agent?.id || delivery?.agentId || null}
+                initialPosition={delivery?.currentAgentLocation || null}
+                customerPosition={delivery?.customerLocation || null}
+                canTrack={canTrackLive}
+              />
+            </Suspense>
           </div>
         </div>
 
