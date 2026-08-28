@@ -53,8 +53,13 @@ const isRevokedInRedis = async (jti) => {
   if (!jti) return false;
   const redis = getRedisConnection();
   if (!redis) return false;
-  const value = await redis.get(`auth:revoked:jti:${jti}`);
-  return Boolean(value);
+  try {
+    const value = await redis.get(`auth:revoked:jti:${jti}`);
+    return Boolean(value);
+  } catch (err) {
+    logger.warn("redis_revocation_check_failed_using_fallback", { error: err.message });
+    return false;
+  }
 };
 
 const isRevokedInDatabase = async (jti) => {
