@@ -153,9 +153,9 @@ const SuperAdminAnnouncements = () => {
                         required
                       >
                         <option value="">Select Plan</option>
-                        <option value="FREE">Starter Plan</option>
+                        <option value="STARTER">Starter Plan</option>
                         <option value="GROWTH">Growth Plan</option>
-                        <option value="PRIME">Prime Plan</option>
+                        <option value="PREMIUM">Enterprise Plan</option>
                       </select>
                     ) : targetType === "AREA" ? (
                       <input

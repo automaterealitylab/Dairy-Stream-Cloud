@@ -48,8 +48,6 @@ const SuperAdminDairies = () => {
   useEffect(() => {
     if (selectedDairy) {
       let currentPlan = selectedDairy.selected_plan || "STARTER";
-      if (currentPlan === "FREE") currentPlan = "STARTER";
-      if (currentPlan === "PRIME") currentPlan = "ENTERPRISE";
       setNewPlan(currentPlan);
     }
   }, [selectedDairy]);
@@ -210,7 +208,7 @@ const SuperAdminDairies = () => {
               <option value="ALL">All Platform Plans</option>
               <option value="STARTER">Starter Plan</option>
               <option value="GROWTH">Growth Plan</option>
-              <option value="ENTERPRISE">Enterprise Plan</option>
+              <option value="PREMIUM">Enterprise Plan</option>
             </select>
           </div>
         </div>
@@ -266,13 +264,13 @@ const SuperAdminDairies = () => {
                     </td>
                     <td className="py-4 px-6">
                       <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase font-mono ${
-                        (dairy.selected_plan === "PRIME" || dairy.selected_plan === "ENTERPRISE")
+                        dairy.selected_plan === "PREMIUM"
                           ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
                           : dairy.selected_plan === "GROWTH"
                           ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/10"
                           : "bg-orange-500/10 text-orange-400 border border-orange-500/10"
                       }`}>
-                        {(dairy.selected_plan === "PRIME" || dairy.selected_plan === "ENTERPRISE")
+                        {dairy.selected_plan === "PREMIUM"
                           ? "Enterprise"
                           : dairy.selected_plan === "GROWTH"
                           ? "Growth"
@@ -424,8 +422,8 @@ const SuperAdminDairies = () => {
                     className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-850 text-xs text-slate-300 outline-none"
                   >
                     <option value="STARTER">Starter Plan (₹499/mo)</option>
-                    <option value="GROWTH">Growth Premium Plan (₹999/mo)</option>
-                    <option value="ENTERPRISE">Enterprise Platform Plan (₹2499/mo)</option>
+                    <option value="GROWTH">Growth Plan (₹1,499/mo)</option>
+                    <option value="PREMIUM">Enterprise Plan (₹2,499/mo)</option>
                   </select>
                   <select
                     value={billingCycle}
