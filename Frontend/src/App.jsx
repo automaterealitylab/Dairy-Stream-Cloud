@@ -1,4 +1,4 @@
-import React, { Component, Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
@@ -7,7 +7,9 @@ import ProtectedRoute from "./pages/ProtectedRoute.jsx";
 import AdminPlanRoute from "./pages/AdminPlanRoute.jsx";
 import AppSplash from "./components/common/AppSplash.jsx";
 import NetworkErrorScreen, { useNetworkStatus } from "./components/common/NetworkErrorScreen.jsx";
-import { useAuth } from "./hooks/useAuth.jsx";
+import RouteErrorBoundary from "./components/common/RouteErrorBoundary.jsx";
+import AuthLandingRoute from "./components/common/AuthLandingRoute.jsx";
+import useBackButtonHandler from "./hooks/useBackButtonHandler.js";
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
 const RegisterDairyPage = lazy(() => import("./pages/RegisterDairyPage.jsx"));
@@ -56,65 +58,17 @@ const RouteFallback = () => (
   <LoadingIndicator fullScreen message="Loading page..." />
 );
 
-class RouteErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidUpdate(previousProps) {
-    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
-      this.setState({ hasError: false });
-    }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-
-    return this.props.children;
-  }
-}
-
 const isAgentOfflineCapablePath = (pathname) =>
   /^\/agent\/(dashboard|working)(\/|$)/.test(pathname);
-
-const getRoleHomePath = (role) => {
-  const normalizedRole = String(role || "").toUpperCase();
-  if (normalizedRole === "ADMIN") return "/admin/AdminDashboard";
-  if (normalizedRole === "AGENT" || normalizedRole === "STAFF") return "/agent/dashboard";
-  if (normalizedRole === "CUSTOMER") return "/customer/dashboard";
-  if (["SUPER_ADMIN", "OWNER", "COMPANY_STAFF"].includes(normalizedRole)) return "/super-admin/dashboard";
-  return null;
-};
-
-const AuthLandingRoute = () => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingIndicator fullScreen message="Restoring session..." />;
-  }
-
-  const role = user?.role || localStorage.getItem("userRole");
-  const homePath = getRoleHomePath(role);
-
-  if (homePath) {
-    return <Navigate to={homePath} replace />;
-  }
-
-  return <LoginPage />;
-};
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const { isOnline, verifyConnection } = useNetworkStatus();
   const location = useLocation();
   const canRenderOffline = isAgentOfflineCapablePath(location.pathname);
+
+  // Initialize custom back button behavior
+  useBackButtonHandler();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -228,9 +182,7 @@ function App() {
             path="/admin/agents"
             element={
               <ProtectedRoute allowedRoles={["ADMIN"]}>
-                <AdminPlanRoute feature="agents">
-                  <AdminAgents />
-                </AdminPlanRoute>
+                <AdminAgents />
               </ProtectedRoute>
             }
           />
