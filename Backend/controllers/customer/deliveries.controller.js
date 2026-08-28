@@ -3,6 +3,7 @@ import {
   createOneTimeDeliveryOrder,
   getCustomerDeliveries,
   reportCustomerDeliveryIssue,
+  skipCustomerDelivery,
 } from "../../services/customer/deliveries.service.js";
 import cloudinary from "../../config/cloudinary.js";
 import streamifier from "streamifier";
@@ -28,6 +29,20 @@ export const getDeliveries = async (req, res) => {
     res.status(500).json({
       message: err?.message || "Failed to load deliveries",
     });
+  }
+};
+
+export const skipDelivery = async (req, res) => {
+  try {
+    const payload = await skipCustomerDelivery(req.customer.id, {
+      deliveryId: req.params?.id || req.body?.deliveryId,
+      deliveryDate: req.body?.deliveryDate || req.body?.date,
+    });
+    res.json(payload);
+  } catch (err) {
+    const message = err?.message || "Failed to skip delivery";
+    const statusCode = err?.statusCode || (/cutoff|passed|locked/i.test(message) ? 409 : 400);
+    res.status(statusCode).json({ message });
   }
 };
 
