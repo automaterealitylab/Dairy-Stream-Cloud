@@ -1,14 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../components/customer/layouts/CustomerLayout';
-import { Droplet, Clock, Edit, PauseCircle, PlayCircle, Store, X, CircleX, Loader2, Smartphone, CreditCard, Info } from 'lucide-react';
+import { Droplet, Clock, Edit, PauseCircle, PlayCircle, X, CircleX, Loader2, Smartphone, CreditCard, Info, CalendarCheck2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchPublicDairyById } from '../../api/public.api.js';
 import {
-  fetchCustomerSubscription,
-  getCachedCustomerSubscription,
-  fetchCustomerPayments,
-  getCachedCustomerPayments,
   createCustomerPaymentOrder,
   verifyCustomerPayment,
   saveCustomerSubscription,
@@ -16,143 +12,56 @@ import {
   createCustomerUpiPaymentIntent,
   submitCustomerUpiPaymentVerification,
   previewCustomerPaymentScreenshotOcr,
+  pauseCustomerSubscription,
+  resumeCustomerSubscription,
 } from '../../api/customer/customer.api.js';
 import LoadingIndicator from '../../components/common/LoadingIndicator.jsx';
 import { loadRazorpayCheckout } from '../../utils/loadRazorpay.js';
-
-const headingFont = { fontFamily: "'Lora', serif" };
-const fmtCurrency = (amount) => `Rs.${Number(amount || 0).toFixed(2)}`;
+import { useCustomerSubscription } from '../../hooks/useCustomerSubscription.js';
+import {
+  isDeliveryDateCutoffPassed,
+  getInclusiveDaysDifference,
+  MAX_CUSTOMER_PAUSE_DAYS,
+} from '../../utils/cutoff.js';
+import {
+  toUiSubscription,
+  toSavePayload,
+  normalizeSubscriptionProducts,
+  EMPTY_FORM,
+  DAY_OPTIONS,
+  headingFont,
+  fmtCurrency,
+} from '../../utils/customerSubscription.js';
+import {
+  StatCard,
+  ExploreOtherDairiesSection,
+  ModalWrapper,
+  ModalHeader,
+  ModalFooter,
+  InputBlock,
+} from '../../components/customer/subscription/index.jsx';
 
 /* ======================================================
-   HELPERS & CONSTANTS
+   HELPERS FOR ACCOUNT STAT CARDS
 ====================================================== */
-const EMPTY_FORM = {
-  dairyId: null,
-  product: 'Buffalo Milk',
-  quantity: 1,
-  slot: 'Morning',
-  timeRange: '6:00 - 9:00 AM',
-  status: 'ACTIVE',
-  approvalStatus: 'PENDING',
-  assignedAgentId: null,
-  startDate: '',
-  address: '',
-  paymentMethod: 'UPI',
-  deliveryDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'],
+const formatStartDateAndActiveDays = (startDateStr) => {
+  if (!startDateStr) return "N/A";
+  const start = new Date(startDateStr);
+  if (isNaN(start.getTime())) return startDateStr;
+  const formatted = start.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  const now = new Date();
+  const diffTime = Math.max(0, Math.floor((now - start) / (1000 * 60 * 60 * 24)));
+  return `${formatted} (${diffTime} ${diffTime === 1 ? 'Day' : 'Days'})`;
 };
 
-const DAY_OPTIONS = [
-  { key: 'MONDAY', label: 'Monday' },
-  { key: 'TUESDAY', label: 'Tuesday' },
-  { key: 'WEDNESDAY', label: 'Wednesday' },
-  { key: 'THURSDAY', label: 'Thursday' },
-  { key: 'FRIDAY', label: 'Friday' },
-  { key: 'SATURDAY', label: 'Saturday' },
-  { key: 'SUNDAY', label: 'Sunday' },
-];
-
-const isMilkLikeProduct = (item = {}) => {
-  const normalizedType = String(item.type || 'MILK').trim().toUpperCase();
-  const normalizedName = String(item.name || '').trim().toUpperCase();
-  return normalizedType.includes('MILK') || normalizedName.includes('MILK');
-};
-
-const normalizeSubscriptionProducts = (dairy = {}) => {
-  const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
-  if (explicitItems.length > 0) {
-    return explicitItems
-      .map((item) => ({
-        id: item.id || item.name,
-        name: String(item.name || '').trim(),
-        type: String(item.type || 'MILK').trim().toUpperCase(),
-        ratePerUnit: Number(item.ratePerUnit || 0),
-        stockQuantity: Number(item.stockQuantity || 0),
-      }))
-      .filter((item) => item.name && isMilkLikeProduct(item));
-  }
-
-  const legacyProducts = dairy?.products || {};
-  return Object.keys(legacyProducts).map((name) => ({
-    id: name,
-    name,
-    type: 'MILK',
-    ratePerUnit: Number(legacyProducts[name] || 0),
-    stockQuantity: Number.POSITIVE_INFINITY,
-  }));
-};
-
-const normalizeDeliveryDays = (value) => {
-  if (Array.isArray(value)) {
-    return [...new Set(
-      value
-        .map((day) => String(day || '').trim().toUpperCase())
-        .filter(Boolean)
-    )];
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return [...new Set(
-          parsed
-            .map((day) => String(day || '').trim().toUpperCase())
-            .filter(Boolean)
-        )];
-      }
-    } catch {
-      return [...new Set(
-        value
-          .split(',')
-          .map((day) => day.trim().toUpperCase())
-          .filter(Boolean)
-      )];
-    }
-  }
-
-  return [];
-};
-
-// ✅ UI Mapper
-const toUiSubscription = (record) => {
-  if (!record) return null;
-  const slot = record.delivery_slot || 'Morning';
-  const resolvedDeliveryDays = normalizeDeliveryDays(record.delivery_days);
-  return {
-    dairyId: record.dairy_id ?? null,
-    product: record.milk_type || 'Milk',
-    quantity: Number(record.quantity_liters || 0),
-    slot,
-    timeRange: slot === 'Evening' ? '5:00 - 8:00 PM' : '6:00 - 9:00 AM',
-    status: (record.status || 'ACTIVE').toUpperCase(),
-    approvalStatus: (record.approval_status || 'PENDING').toUpperCase(),
-    assignedAgentId: record.assigned_agent_id ?? null,
-    startDate: record.start_date || '',
-    address: record.address || '',
-    paymentMethod: record.payment_method || 'UPI',
-    deliveryDays:
-      resolvedDeliveryDays.length > 0
-        ? resolvedDeliveryDays
-        : DAY_OPTIONS.map((day) => day.key),
-  };
-};
-
-// ✅ Payload Mapper
-const toSavePayload = (model, overrides = {}) => {
-  const next = { ...model, ...overrides };
-  return {
-    dairyId: next.dairyId,
-    milkType: next.product,
-    quantity: Number(next.quantity),
-    slot: next.slot,
-    startDate: next.startDate || undefined,
-    address: next.address || '',
-    paymentMethod: next.paymentMethod || 'UPI',
-    deliveryDays: normalizeDeliveryDays(next.deliveryDays),
-    status: (next.status || 'ACTIVE').toUpperCase(),
-    approvalStatus: (next.approvalStatus || 'PENDING').toUpperCase(),
-    assignedAgentId: next.assignedAgentId ?? null,
-  };
+const formatRoutineText = (deliveryDays) => {
+  if (!Array.isArray(deliveryDays) || deliveryDays.length === 7 || deliveryDays.length === 0) return "Daily";
+  if (deliveryDays.length === 5 && !deliveryDays.includes("SATURDAY") && !deliveryDays.includes("SUNDAY")) return "Weekdays";
+  return `${deliveryDays.length} Days/wk`;
 };
 
 /* ======================================================
@@ -161,14 +70,15 @@ const toSavePayload = (model, overrides = {}) => {
 const Subscribe = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const cachedSubscriptionData = getCachedCustomerSubscription();
-  const cachedPaymentsData = getCachedCustomerPayments();
-  const initialSubscription = toUiSubscription(cachedSubscriptionData?.subscription);
-
-  const [subscription, setSubscription] = useState(initialSubscription);
-  const [formData, setFormData] = useState(initialSubscription || EMPTY_FORM);
-
-  const [loading, setLoading] = useState(() => !cachedSubscriptionData);
+  const {
+    subscription,
+    setSubscription,
+    formData,
+    setFormData,
+    loading,
+    paymentsSummary,
+    refreshPaymentsSummary,
+  } = useCustomerSubscription();
   const [saving, setSaving] = useState(false);
 
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -176,17 +86,6 @@ const Subscribe = () => {
   const [availableProducts, setAvailableProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
-  const [paymentsSummary, setPaymentsSummary] = useState({
-    monthlyDue: Number(cachedPaymentsData?.summary?.monthlyDue || 0),
-    payableTillDate: Number(cachedPaymentsData?.summary?.payableTillDate || 0),
-    billingSummaryAmount: Number(
-      cachedPaymentsData?.summary?.billingSummaryAmount ??
-        cachedPaymentsData?.summary?.monthlyDue ??
-        cachedPaymentsData?.summary?.payableTillDate ??
-        0
-    ),
-    beneficiary: cachedPaymentsData?.summary?.beneficiary || null,
-  });
 
   const [paymentSelectorOpen, setPaymentSelectorOpen] = useState(false);
   const [upiIntent, setUpiIntent] = useState(null);
@@ -202,6 +101,84 @@ const Subscribe = () => {
     open: false,
     message: '',
   });
+
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pauseDates, setPauseDates] = useState({ startDate: "", endDate: "" });
+  const [pausing, setPausing] = useState(false);
+  const [resuming, setResuming] = useState(false);
+
+  const handleOpenPauseModal = () => {
+    const tomorrowObj = new Date();
+    tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+    const tomorrowIso = tomorrowObj.toISOString().slice(0, 10);
+    setPauseDates({
+      startDate: tomorrowIso,
+      endDate: tomorrowIso,
+    });
+    setShowPauseModal(true);
+  };
+
+  const handleConfirmPause = async () => {
+    if (!pauseDates.startDate || !pauseDates.endDate) {
+      showToastMessage('error', 'Please select valid start and end dates.');
+      return;
+    }
+
+    const duration = getInclusiveDaysDifference(pauseDates.startDate, pauseDates.endDate);
+    if (duration <= 0) {
+      showToastMessage('error', 'Please select a valid pause period.');
+      return;
+    }
+
+    if (duration > MAX_CUSTOMER_PAUSE_DAYS) {
+      showToastMessage('error', 'Maximum pause duration is 15 days. For longer pauses, please contact customer support.');
+      return;
+    }
+
+    if (isDeliveryDateCutoffPassed(pauseDates.startDate)) {
+      showToastMessage('error', 'This delivery can no longer be changed because the 10:00 PM cutoff has passed.');
+      return;
+    }
+
+    setPausing(true);
+    try {
+      const response = await pauseCustomerSubscription({
+        startDate: pauseDates.startDate,
+        endDate: pauseDates.endDate,
+        dairyId: subscription?.dairyId || subscription?.dairy_id,
+      });
+
+      const mapped = toUiSubscription(response?.subscription);
+      setSubscription(mapped);
+      setFormData(mapped || EMPTY_FORM);
+      setShowPauseModal(false);
+      showToastMessage('success', `Subscription paused from ${pauseDates.startDate} to ${pauseDates.endDate}`);
+    } catch (err) {
+      showToastMessage('error', err?.response?.data?.message || err?.message || 'Failed to pause subscription');
+    } finally {
+      setPausing(false);
+    }
+  };
+
+  const handleConfirmResume = async () => {
+    setResuming(true);
+    try {
+      const response = await resumeCustomerSubscription({
+        dairyId: subscription?.dairyId || subscription?.dairy_id,
+      });
+
+      const mapped = toUiSubscription(response?.subscription);
+      setSubscription(mapped);
+      setFormData(mapped || EMPTY_FORM);
+      setShowResumeModal(false);
+      showToastMessage('success', 'Subscription resumed successfully.');
+    } catch (err) {
+      showToastMessage('error', err?.response?.data?.message || err?.message || 'Failed to resume subscription');
+    } finally {
+      setResuming(false);
+    }
+  };
 
   const locationGuestDairyId = location.state?.guestDairyId ?? null;
   const locationGuestDairyName = location.state?.guestDairyName ?? "";
@@ -236,79 +213,7 @@ const Subscribe = () => {
   const hasPendingCloseDue = closeSubscriptionDueAmount > 0;
 
   // -----------------------------------------
-  // 1. Initial Data Fetch
-  // -----------------------------------------
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchData = async () => {
-      try {
-        if (!getCachedCustomerSubscription()) {
-          setLoading(true);
-        }
-        // ✅ Token is handled by client.js Interceptor automatically
-        const data = await fetchCustomerSubscription();
-        const mapped = toUiSubscription(data?.subscription);
-
-        if (!cancelled) {
-          setSubscription(mapped);
-          setFormData(mapped || EMPTY_FORM);
-        }
-      } catch (error) {
-        console.error('Subscription fetch error:', error.message);
-        if (!cancelled) {
-          if (!subscription) {
-            setSubscription(null);
-            setFormData(EMPTY_FORM);
-          }
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchPayments = async () => {
-      try {
-        const data = await fetchCustomerPayments();
-        if (cancelled) return;
-
-        setPaymentsSummary({
-          monthlyDue: Number(data?.summary?.monthlyDue || 0),
-          payableTillDate: Number(data?.summary?.payableTillDate || 0),
-          billingSummaryAmount: Number(
-            data?.summary?.billingSummaryAmount ??
-              data?.summary?.monthlyDue ??
-              data?.summary?.payableTillDate ??
-              0
-          ),
-          beneficiary: data?.summary?.beneficiary || null,
-        });
-      } catch {
-        if (cancelled) return;
-      }
-    };
-
-    fetchPayments();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // -----------------------------------------
-  // 2. Dashboard Redirect Logic
+  // 1. Dashboard Redirect Logic
   // -----------------------------------------
   useEffect(() => {
     const shouldOpenUpdateFromDashboard =
@@ -385,28 +290,12 @@ const Subscribe = () => {
 
   const loadRazorpay = () => loadRazorpayCheckout();
 
-  const refreshPaymentsSummary = async () => {
-    const data = await fetchCustomerPayments({ force: true });
-    setPaymentsSummary({
-      monthlyDue: Number(data?.summary?.monthlyDue || 0),
-      payableTillDate: Number(data?.summary?.payableTillDate || 0),
-      billingSummaryAmount: Number(
-        data?.summary?.billingSummaryAmount ??
-          data?.summary?.monthlyDue ??
-          data?.summary?.payableTillDate ??
-          0
-      ),
-      beneficiary: data?.summary?.beneficiary || null,
-    });
-    return data;
-  };
-
   useEffect(() => {
     loadRazorpay().catch(() => false);
   }, []);
 
   // -----------------------------------------
-  // 3. Update Plan Logic
+  // 2. Update Plan Logic
   // -----------------------------------------
   const updatePlan = async () => {
     if (!subscription?.dairyId) {
@@ -440,7 +329,7 @@ const Subscribe = () => {
   };
 
   // -----------------------------------------
-  // 4. Pause / Resume Logic
+  // 3. Pause / Resume Logic
   // -----------------------------------------
   const updateStatus = async (status) => {
     if (!subscription?.dairyId) {
@@ -470,7 +359,7 @@ const Subscribe = () => {
   const resume = () => updateStatus('ACTIVE');
 
   // -----------------------------------------
-  // 5. Cancel Subscription Logic
+  // 4. Cancel Subscription Logic
   // -----------------------------------------
   const cancelSubscription = async () => {
     setClosing(true);
@@ -674,7 +563,7 @@ const Subscribe = () => {
 
   return (
     <CustomerLayout>
-      <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-4 sm:space-y-6 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div className="w-full pb-28 space-y-4 animate-in fade-in slide-in-from-bottom-4 sm:space-y-6 lg:space-y-10" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div className="rounded-[24px] border border-[#EDE8DF] bg-[#F5F0E8] p-4 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px] sm:p-7 xl:p-9">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
             Subscription Center
@@ -705,6 +594,8 @@ const Subscribe = () => {
               className={`mt-6 w-full rounded-[22px] border p-4 shadow-sm transition hover:shadow-md sm:mt-8 sm:rounded-[26px] sm:p-8 ${
                 !subscription
                   ? 'bg-[#FBF7F0] border-[#E7DAC6]'
+                  : isApprovalPending
+                  ? 'bg-[#FFF1E4] border-[#F0D1B2]'
                   : subscription.status === 'ACTIVE'
                   ? 'bg-[#EEF5E7] border-[#DDE8D1]'
                   : subscription.status === 'PAUSED'
@@ -714,11 +605,23 @@ const Subscribe = () => {
             >
               <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.18em] text-[#A88763]">
-                    {hasActivePlan ? `${subscription.status} PLAN` : 'NO ACTIVE PLAN'}
+                  <p className={`text-xs uppercase tracking-[0.18em] font-bold ${
+                    !hasActivePlan
+                      ? 'text-[#A88763]'
+                      : isApprovalPending
+                      ? 'text-[#B8641A]'
+                      : subscription.status === 'ACTIVE'
+                      ? 'text-[#4A7C2F]'
+                      : 'text-[#C86A2B]'
+                  }`}>
+                    {!hasActivePlan
+                      ? 'NO ACTIVE PLAN'
+                      : isApprovalPending
+                      ? 'PENDING APPROVAL'
+                      : `${subscription.status} PLAN`}
                   </p>
                   <h3 className="mt-1 break-words text-[22px] font-semibold leading-tight text-[#2C1A0E] sm:text-[30px]" style={headingFont}>
-                    {hasActivePlan ? `${subscription.quantity} Liters ${subscription.product}` : 'No subscription yet'}
+                    {hasActivePlan ? `${subscription.quantity} L · ${subscription.product}` : 'No subscription yet'}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-[#8B7355]">
                     {hasActivePlan
@@ -729,7 +632,7 @@ const Subscribe = () => {
                   </p>
                   {hasActivePlan && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {isApprovalPending && (
+                      {isApprovalPending && subscription.status !== 'ACTIVE' && (
                         <span className="rounded-full border border-[#F0D1B2] bg-[#FFF1E4] px-2.5 py-1 text-[11px] font-semibold text-[#B8641A]">
                           Subscription approval pending
                         </span>
@@ -744,39 +647,40 @@ const Subscribe = () => {
                 </div>
 
                 {hasActivePlan ? (
-                  <div className="grid gap-3 sm:flex sm:flex-row sm:flex-wrap">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
                     <button
                       disabled={saving}
                       onClick={() => setShowUpdateModal(true)}
-                      className="group flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#EFD7B3] bg-white px-5 py-2 text-sm font-bold text-[#B8641A] shadow-[0_10px_22px_rgba(74,124,47,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF4E2] hover:shadow-[0_14px_28px_rgba(184,100,26,0.22)] focus:outline-none focus:ring-2 focus:ring-[#FDE9C9] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#EFD7B3] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(74,124,47,0.08)] sm:w-auto"
+                      className="group flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] border border-[#EFD7B3] bg-white px-5 py-2 text-sm font-bold text-[#B8641A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#B8641A] hover:bg-[#FFF4E2] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Edit size={16} /> Update Plan
                     </button>
 
                     {subscription.status === 'ACTIVE' ? (
                       <button
-                        disabled={!canTogglePauseResume}
-                        onClick={pause}
-                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#F0D1B2] bg-white px-5 py-2 text-sm font-bold text-[#C86A2B] shadow-[0_10px_22px_rgba(200,106,43,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#C86A2B] hover:bg-[#FFF1E4] hover:shadow-[0_14px_28px_rgba(200,106,43,0.18)] focus:outline-none focus:ring-2 focus:ring-[#F8D8B6] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#F0D1B2] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(200,106,43,0.08)] sm:w-auto"
+                        disabled={saving || isApprovalPending || pausing}
+                        onClick={handleOpenPauseModal}
+                        title={isApprovalPending ? "Unapproved subscriptions cannot be paused" : "Pause subscription"}
+                        className="flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] border border-[#EDE8DF] bg-[#FFFDF7] px-5 py-2 text-sm font-bold text-[#5C3D1E] shadow-sm transition hover:border-[#D4B896] hover:bg-[#FAF5EF] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[#EDE8DF] disabled:hover:bg-[#FFFDF7]"
                       >
-                        <PauseCircle size={16} /> Pause
+                        <PauseCircle size={16} /> {pausing ? "Pausing..." : "Pause"}
                       </button>
                     ) : (
                       <button
-                        disabled={!canTogglePauseResume}
-                        onClick={resume}
-                        className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-white px-5 py-2 text-sm font-bold text-[#4A7C2F] shadow-[0_10px_22px_rgba(74,124,47,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#4A7C2F] hover:bg-[#EEF5E7] hover:shadow-[0_14px_28px_rgba(74,124,47,0.22)] focus:outline-none focus:ring-2 focus:ring-[#DDE8D1] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#DDE8D1] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(74,124,47,0.08)] sm:w-auto"
+                        disabled={saving || resuming}
+                        onClick={() => setShowResumeModal(true)}
+                        className="flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] border border-[#DDE8D1] bg-[#EEF5E7] px-5 py-2 text-sm font-bold text-[#4A7C2F] shadow-sm transition hover:border-[#4A7C2F] hover:bg-[#E2EFE0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <PlayCircle size={16} /> Resume
+                        <PlayCircle size={16} /> {resuming ? "Resuming..." : "Resume"}
                       </button>
                     )}
 
                     <button
+                      type="button"
                       disabled={saving}
                       onClick={() => setShowCancelModal(true)}
-                      className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#F2D0C8] bg-white px-5 py-2 text-sm font-bold text-[#C0392B] shadow-[0_10px_22px_rgba(192,57,43,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#C0392B] hover:bg-[#FDECEA] hover:shadow-[0_14px_28px_rgba(192,57,43,0.2)] focus:outline-none focus:ring-2 focus:ring-[#F2D0C8] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-[#F2D0C8] disabled:hover:bg-white disabled:hover:shadow-[0_10px_22px_rgba(192,57,43,0.08)] sm:w-auto"
+                      className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline transition px-2 py-1.5 disabled:opacity-50 sm:ml-1"
                     >
-                      <CircleX size={16} />
                       {isApprovedSubscription ? 'Close Subscription' : 'Cancel Subscription'}
                     </button>
                   </div>
@@ -795,7 +699,7 @@ const Subscribe = () => {
                   ) : (
                     <button
                       onClick={() => navigate('/explore', { state: { from: 'customer-subscriptions' } })}
-                      className="min-h-[46px] w-full rounded-[14px] bg-[#B8641A] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#9F5313] sm:w-auto"
+                      className="min-h-[46px] w-full rounded-[14px] border border-[#2D231E] text-[#2D231E] bg-transparent hover:bg-stone-100 px-5 py-2 text-sm font-medium transition sm:w-auto"
                     >
                       See Other Dairies
                     </button>
@@ -807,12 +711,20 @@ const Subscribe = () => {
             {/* Stats Grid */}
             {hasActivePlan && (
               <div className="mt-6 grid gap-3 sm:mt-8 sm:gap-4 md:grid-cols-3 md:gap-7">
-                <StatCard icon={<Droplet size={24} />} label="Daily Quantity" value={`${subscription.quantity} Liters`} />
-                <StatCard icon={<Clock size={24} />} label="Delivery Slot" value={subscription.slot} />
                 <StatCard
-                  icon={subscription.status === 'ACTIVE' ? <PlayCircle size={24} /> : <PauseCircle size={24} />}
-                  label="Status"
-                  value={subscription.status}
+                  icon={<CalendarCheck2 size={24} />}
+                  label="Start Date & Active Days"
+                  value={formatStartDateAndActiveDays(subscription.startDate)}
+                />
+                <StatCard
+                  icon={<Clock size={24} />}
+                  label="Delivery Slot & Routine"
+                  value={`${subscription.slot || 'Morning'} · ${formatRoutineText(subscription.deliveryDays)}`}
+                />
+                <StatCard
+                  icon={<CreditCard size={24} />}
+                  label="Payment Cycle & Mode"
+                  value={`Monthly · ${subscription.paymentMethod || 'UPI'}`}
                 />
               </div>
             )}
@@ -1261,90 +1173,161 @@ const Subscribe = () => {
           </div>
         </div>
       )}
+
+      {/* Pause Subscription Modal */}
+      {showPauseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2C1A0E]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-[26px] border border-[#E7DAC6] bg-[#FFFDF7] p-6 shadow-[0_24px_60px_rgba(44,26,14,0.28)] space-y-5">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#B8641A]">
+                Subscription Management
+              </p>
+              <h3 className="mt-1 text-2xl font-bold text-[#2C1A0E]" style={headingFont}>
+                Pause Subscription
+              </h3>
+              <p className="mt-1.5 text-xs text-[#8B7355]">
+                Select the start and end dates to temporarily pause daily deliveries. Maximum pause duration is 15 days.
+              </p>
+            </div>
+
+            <div className="space-y-3.5 rounded-2xl border border-[#EDE8DF] bg-white p-4">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#A88763]">
+                    Pause From
+                  </span>
+                  <input
+                    type="date"
+                    value={pauseDates.startDate}
+                    min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                    onChange={(e) =>
+                      setPauseDates((prev) => ({
+                        ...prev,
+                        startDate: e.target.value,
+                        endDate: prev.endDate < e.target.value ? e.target.value : prev.endDate,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-[#EDE8DF] bg-[#FFFDF7] px-3 py-2 text-xs font-bold text-[#2C1A0E] outline-none focus:border-[#B8641A]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#A88763]">
+                    Pause Until
+                  </span>
+                  <input
+                    type="date"
+                    value={pauseDates.endDate}
+                    min={pauseDates.startDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                    onChange={(e) =>
+                      setPauseDates((prev) => ({ ...prev, endDate: e.target.value }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-[#EDE8DF] bg-[#FFFDF7] px-3 py-2 text-xs font-bold text-[#2C1A0E] outline-none focus:border-[#B8641A]"
+                  />
+                </label>
+              </div>
+
+              {/* Pause Duration summary & validation */}
+              {pauseDates.startDate && pauseDates.endDate && (
+                <div className="pt-2 border-t border-[#F2EDE4] space-y-1.5">
+                  {(() => {
+                    const days = getInclusiveDaysDifference(pauseDates.startDate, pauseDates.endDate);
+                    if (days > 15) {
+                      return (
+                        <div className="rounded-xl border border-[#F2D0C8] bg-[#FDECEA] p-2.5 text-xs text-[#C0392B] font-semibold">
+                          ⚠️ For a pause longer than 15 days, please contact customer support.
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-[#8B7355]">Pause Duration:</span>
+                        <span className="text-[#B8641A]">{days} {days === 1 ? 'day' : 'consecutive days'}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-[#EFD7B3] bg-[#FFF8F0] p-3.5 text-xs text-[#6B5135] leading-relaxed">
+              <p className="font-bold text-[#B8641A]">💡 Cutoff Rule Information</p>
+              <p className="mt-1">
+                Deliveries from <strong>{pauseDates.startDate || '—'}</strong> to <strong>{pauseDates.endDate || '—'}</strong> will be paused and not charged. Changes are allowed until <strong>10:00 PM on the previous day</strong> (Asia/Kolkata timezone).
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPauseModal(false)}
+                disabled={pausing}
+                className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2.5 text-xs font-bold text-[#8B7355] transition hover:bg-[#FAF5EF]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPause}
+                disabled={
+                  pausing ||
+                  !pauseDates.startDate ||
+                  !pauseDates.endDate ||
+                  getInclusiveDaysDifference(pauseDates.startDate, pauseDates.endDate) <= 0 ||
+                  getInclusiveDaysDifference(pauseDates.startDate, pauseDates.endDate) > 15
+                }
+                className="rounded-xl bg-[#B8641A] px-5 py-2.5 text-xs font-bold text-white transition hover:bg-[#9A5213] disabled:opacity-50"
+              >
+                {pausing ? "Pausing..." : "Confirm Pause"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resume Subscription Confirmation Modal */}
+      {showResumeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2C1A0E]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-[26px] border border-[#DDE8D1] bg-[#FFFDF7] p-6 shadow-[0_24px_60px_rgba(44,26,14,0.28)] space-y-5">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#4A7C2F]">
+                Resume Deliveries
+              </p>
+              <h3 className="mt-1 text-2xl font-bold text-[#2C1A0E]" style={headingFont}>
+                Resume Subscription?
+              </h3>
+              <p className="mt-2 text-xs leading-relaxed text-[#8B7355]">
+                This will resume your daily milk deliveries for all future eligible dates. Deliveries that have already passed the 10:00 PM IST previous-day cutoff will remain unchanged.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-[#DDE8D1] bg-[#EEF5E7] p-4 text-xs font-semibold text-[#3A6324]">
+              ✅ Future eligible deliveries will be restored automatically without duplicate charges.
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResumeModal(false)}
+                disabled={resuming}
+                className="rounded-xl border border-[#EDE8DF] bg-white px-4 py-2.5 text-xs font-bold text-[#8B7355] transition hover:bg-[#FAF5EF]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResume}
+                disabled={resuming}
+                className="rounded-xl bg-[#4A7C2F] px-5 py-2.5 text-xs font-bold text-white transition hover:bg-[#3B6325] disabled:opacity-50"
+              >
+                {resuming ? "Resuming..." : "Confirm Resume"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CustomerLayout>
   );
 };
 
 export default Subscribe;
-
-/* ======================================================
-   SUB-COMPONENTS (Styling & Layout)
-====================================================== */
-
-const StatCard = ({ icon, label, value }) => (
-  <div className="flex min-w-0 items-center gap-3 rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-sm transition hover:shadow-md sm:gap-4 sm:rounded-[22px] sm:p-7">
-    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF4E2] text-[#B8641A] sm:h-14 sm:w-14">
-      {icon}
-    </div>
-    <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-[#C4A882] sm:text-xs">{label}</p>
-      <p className="mt-1 break-words text-base font-semibold leading-snug text-[#2C1A0E] sm:text-lg">{value}</p>
-    </div>
-  </div>
-);
-
-const ExploreOtherDairiesSection = ({ onExplore }) => (
-  <section className="rounded-[22px] border border-[#EFD7B3] bg-[linear-gradient(135deg,#FFF8EC_0%,#FFF1E4_100%)] p-5 sm:rounded-[24px] sm:p-6 md:p-7">
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] border border-[#EFD7B3] bg-white text-[#B8641A]">
-          <Store size={22} />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-[24px] font-semibold leading-tight text-[#2C1A0E] sm:text-[28px]" style={headingFont}>Explore Other Dairies</h3>
-          <p className="mt-2 max-w-lg text-sm leading-6 text-[#8B7355]">
-            Compare dairies, check plans, and switch to a better option anytime.
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={onExplore}
-        className="min-h-[46px] w-full rounded-[14px] bg-[#2C2416] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4A3820] md:w-auto"
-      >
-        Browse Dairies
-      </button>
-    </div>
-  </section>
-);
-
-const ModalWrapper = ({ children, small }) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-6">
-    <div
-      className={`my-auto w-full max-h-[calc(100vh-1.5rem)] flex flex-col overflow-hidden animate-in zoom-in-95 border border-[#EDE8DF] bg-[#FFFDF7] shadow-2xl sm:max-h-[calc(100vh-3rem)] ${
-        small ? 'max-w-md rounded-[24px] sm:rounded-[28px]' : 'max-w-2xl rounded-[24px] sm:rounded-[28px]'
-      }`}
-    >
-      {children}
-    </div>
-  </div>
-);
-
-const ModalHeader = ({ title, subtitle, onClose }) => (
-  <div className="flex items-start justify-between gap-4 border-b border-[#F2EDE4] px-5 py-4 sm:px-8 sm:py-5">
-    <div>
-      <h3 className="text-2xl font-semibold text-[#2C1A0E]" style={headingFont}>{title}</h3>
-      <p className="mt-1 text-sm text-[#8B7355]">{subtitle}</p>
-    </div>
-    <button onClick={onClose} className="rounded-full p-2 transition hover:bg-[#FBF7F0]">
-      <X size={22} className="text-[#A88763]" />
-    </button>
-  </div>
-);
-
-const ModalFooter = ({ onCancel, onConfirm, confirmText }) => (
-  <div className="flex flex-col-reverse gap-3 border-t border-[#F2EDE4] px-5 py-4 sm:flex-row sm:justify-end sm:gap-4 sm:px-8 sm:py-5">
-    <button onClick={onCancel} className="rounded-[14px] border border-[#EDE8DF] px-6 py-2 transition hover:bg-[#FBF7F0]">
-      Cancel
-    </button>
-    <button onClick={onConfirm} className="rounded-[14px] bg-[#B8641A] px-8 py-2 text-white transition hover:bg-[#9F5313]">
-      {confirmText}
-    </button>
-  </div>
-);
-
-const InputBlock = ({ label, children }) => (
-  <div className="space-y-1">
-    <label className="text-sm font-medium text-[#8B7355]">{label}</label>
-    {children}
-  </div>
-);
