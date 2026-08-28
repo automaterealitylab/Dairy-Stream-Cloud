@@ -7,6 +7,7 @@ import {
   resolveDeliveryIssue,
   scheduleBulkDeliveriesForDate,
   scheduleDeliveryForSubscribedCustomer,
+  addAdminCustomerExtraDelivery,
 } from "../../services/admin/adminDeliveries.service.js";
 
 export const fetchAdminDeliveries = async (req, res) => {
@@ -174,3 +175,32 @@ export const resolveAdminDeliveryIssue = async (req, res) => {
     });
   }
 };
+
+export const addAdminExtraDelivery = async (req, res) => {
+  try {
+    const dairyId = req.admin?.dairyId || null;
+    const { id } = req.params; // customerId
+    const { deliveryDate, milkType, quantityLiters, notes } = req.body || {};
+
+    const created = await addAdminCustomerExtraDelivery({
+      dairyId,
+      customerId: id,
+      deliveryDate,
+      milkType,
+      quantityLiters,
+      notes,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Extra order created successfully",
+      delivery: created,
+    });
+  } catch (err) {
+    console.error("ADMIN EXTRA DELIVERY ERROR:", err.message);
+    res.status(err?.statusCode || 500).json({
+      message: err?.message || "Failed to add extra order",
+    });
+  }
+};
+
