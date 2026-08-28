@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, Download, Share2, Info, QrCode, ReceiptText, LoaderCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { fetchAdminCustomerBillDetails } from "../../../api/admin.api";
+import { fetchAdminCustomerBillDetails, downloadAdminCustomerBillPdfBlob } from "../../../api/admin.api";
 
 const formatCurrency = (value) =>
   `\u20B9${Number(value || 0).toLocaleString("en-IN", {
@@ -279,6 +279,14 @@ const InvoicePreviewModal = ({ customer, adminName, dairyName, onClose }) => {
   };
 
   const handleDownloadPDF = async () => {
+    try {
+      if (customer?.id) {
+        await downloadAdminCustomerBillPdfBlob(customer.id, resolvedBilling?.paymentId || null);
+        return;
+      }
+    } catch (err) {
+      console.error("Backend PDF download failed, falling back to canvas", err);
+    }
     const pdf = await generateStyledPDF();
     if (!pdf) return;
     const fileName = `${String(resolvedCustomer?.customer_name || "Customer").replace(/\s+/g, "_")}_${String(resolvedBilling?.billingPeriod || "Bill").replace(/\s+/g, "-")}_${resolvedBilling?.billNo || "invoice"}.pdf`;

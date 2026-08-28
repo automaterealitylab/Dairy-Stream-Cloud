@@ -1,10 +1,10 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
-import { 
+import {
   CreditCard, DollarSign, TrendingUp,
-  CheckCircle, Clock, ChevronDown, ChevronUp, Share2, ShieldCheck, X, Wallet, AlertTriangle
+  CheckCircle, ShieldCheck, X, Wallet, AlertTriangle, Loader2
 } from "lucide-react";
 import toast from "react-hot-toast";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
@@ -12,8 +12,6 @@ import ManualPaymentModal from "../../components/admin/sections/ManualPaymentMod
 import {
   approveAdminPaymentVerification,
   collectAdminOfflinePayment,
-  fetchAdminPayments,
-  fetchAdminPaymentVerifications,
   rejectAdminPaymentVerification,
   createAdminFarmPlanOrder,
   verifyAdminFarmPlanPayment,
@@ -23,18 +21,17 @@ import {
 } from "../../api/admin.api.js";
 import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
-
-const mapPlanName = (plan) => {
-  const normalized = String(plan || "").trim().toUpperCase();
-  const mapping = {
-    STARTER: "Free",
-    FREE: "Free",
-    GROWTH: "Growth",
-    ENTERPRISE: "Prime",
-    PRIME: "Prime",
-  };
-  return mapping[normalized] || plan || "Free";
-};
+import { useAdminPayments } from "../../hooks/useAdminPayments.js";
+import {
+  buildGroupedPayments,
+  buildWhatsAppBillUrl,
+  formatCurrency,
+  getPlanLabel,
+  planOptions,
+} from "../../utils/adminPayments.js";
+import { persistAutopay } from "../../utils/autopayStorage.js";
+import { GroupedPayments } from "../../components/admin/payments/GroupedPayments.jsx";
+import { MobilePaymentCards } from "../../components/admin/payments/MobilePaymentCards.jsx";
 
 export default function AdminPayments() {
   const adminName = React.useMemo(() => {
@@ -45,19 +42,22 @@ export default function AdminPayments() {
       return "Admin";
     }
   }, []);
-  const AUTOPAY_STORAGE_PREFIX = "adminFarmAutopayV1";
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  // Data States
-  const [farmPlan, setFarmPlan] = useState(null);
-  const [revenue, setRevenue] = useState(0);
-  const [pendingDuesSummary, setPendingDuesSummary] = useState({ amount: 0, customerCount: 0 });
-  const [payments, setPayments] = useState([]);
-  const [verifications, setVerifications] = useState([]);
-  
+  const {
+    loading,
+    farmPlan,
+    setFarmPlan,
+    revenue,
+    pendingDuesSummary,
+    payments,
+    verifications,
+    filter,
+    setFilter,
+    loadPayments,
+  } = useAdminPayments();
+
   // UI States
-  const [filter, setFilter] = useState("ALL"); 
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState("monthly");
   const [activePaymentModal, setActivePaymentModal] = useState(null);
@@ -70,6 +70,9 @@ export default function AdminPayments() {
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [rejectModal, setRejectModal] = useState({ open: false, id: null });
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -78,7 +81,7 @@ export default function AdminPayments() {
       const data = await validateCouponCode({
         code: couponCode.toUpperCase().trim(),
         dairyId: farmPlan?.id,
-        planKey: pendingAutopayPlan ? pendingAutopayPlan.toUpperCase() : "FREE",
+        planKey: pendingAutopayPlan ? pendingAutopayPlan.toUpperCase() : "STARTER",
         billingCycle: billingCycle === "yearly" ? "yearly" : "monthly"
       });
       if (data.success) {
@@ -86,227 +89,24 @@ export default function AdminPayments() {
         toast.success(`Coupon ${data.coupon.code} applied! Saved ₹${data.coupon.discountApplied}`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || "Invalid or expired coupon code");
+      toast.error(err?.response?.data?.error || "Invalid or expired coupon code");
       setCouponApplied(null);
     } finally {
       setValidatingCoupon(false);
     }
   };
 
-  const getAutopayStorageKey = (dairyId) =>
-    `${AUTOPAY_STORAGE_PREFIX}:${dairyId || "default"}`;
-
-  const readStoredAutopay = (dairyId) => {
-    if (typeof window === "undefined") return null;
-
-    try {
-      const raw = window.localStorage.getItem(getAutopayStorageKey(dairyId));
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
+  const openWhatsAppBillMessage = (payload) => {
+    window.open(buildWhatsAppBillUrl({ ...payload, dairyName: adminName }), "_blank");
   };
 
-  const persistAutopay = (dairyId, value) => {
-    if (typeof window === "undefined") return;
-
-    try {
-      if (!value) {
-        window.localStorage.removeItem(getAutopayStorageKey(dairyId));
-        return;
-      }
-
-      window.localStorage.setItem(
-        getAutopayStorageKey(dairyId),
-        JSON.stringify(value)
-      );
-    } catch {
-      // Ignore storage issues so billing UI keeps working.
-    }
-  };
-
-  const isCollectibleStatus = (status) => {
-    const normalized = String(status || "").toUpperCase();
-    return normalized === "PENDING" || normalized === "OVERDUE";
-  };
-
-  const getPaymentDayKey = (value) => {
-    if (!value) return "unknown-date";
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return String(value);
-
-    const year = parsed.getFullYear();
-    const month = String(parsed.getMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const formatPaymentDate = (value) => {
-    if (!value) return "-";
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value;
-
-    return parsed.toLocaleDateString("en-GB");
-  };
-
-  const formatCurrency = (value) =>
-    `\u20B9${Number(value || 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-
-  const getWhatsAppPhone = (phone) => {
-    const digits = String(phone || "").replace(/\D/g, "");
-    if (digits.length === 10) return `91${digits}`;
-    if (digits.startsWith("0") && digits.length === 11) return `91${digits.slice(1)}`;
-    return digits;
-  };
-
-  const openWhatsAppBillMessage = ({ phone, customer, amount, date, status, paymentCount }) => {
-    const normalizedStatus = String(status || "").toUpperCase();
-    const isDue = normalizedStatus === "PENDING" || normalizedStatus === "OVERDUE" || normalizedStatus === "MIXED";
-    const dairyName = adminName || "your dairy";
-    const messageLines = isDue
-      ? [
-          `Hello ${customer || "Customer"},`,
-          `This is a payment reminder from ${dairyName}.`,
-          "",
-          `Due amount: ${formatCurrency(amount)}`,
-          `Bill date: ${formatPaymentDate(date)}`,
-          paymentCount > 1 ? `Payments included: ${paymentCount}` : null,
-          "",
-          "Please clear this due bill at your earliest convenience.",
-          "Thank you.",
-        ]
-      : [
-          `Hello ${customer || "Customer"},`,
-          `This is a payment update from ${dairyName}.`,
-          "",
-          `Amount: ${formatCurrency(amount)}`,
-          `Date: ${formatPaymentDate(date)}`,
-          `Status: ${normalizedStatus || "PAID"}`,
-          "",
-          "Thank you.",
-        ];
-
-    const message = messageLines.filter(Boolean).join("\n");
-    const phoneNumber = getWhatsAppPhone(phone);
-    const url = phoneNumber
-      ? `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/?text=${encodeURIComponent(message)}`;
-
-    window.open(url, "_blank");
-  };
-
-  const getGroupStatus = (items) => {
-    const statuses = [...new Set(items.map((item) => String(item.status || "").toUpperCase()))];
-
-    if (statuses.length === 1) return statuses[0];
-    if (statuses.includes("OVERDUE")) return "OVERDUE";
-    if (statuses.includes("PENDING")) return "PENDING";
-    if (statuses.includes("PAID")) return "PAID";
-    return "MIXED";
-  };
-
-  const groupedPayments = payments
-    .reduce((groups, payment) => {
-      const dayKey = getPaymentDayKey(payment.date);
-      const groupKey = `${payment.customerId || payment.customer || "unknown"}-${dayKey}`;
-      const existingGroup = groups.find((group) => group.groupKey === groupKey);
-
-      if (existingGroup) {
-        existingGroup.items.push(payment);
-        existingGroup.totalAmount += Number(payment.amount || 0);
-        existingGroup.collectibleAmount += isCollectibleStatus(payment.status)
-          ? Number(payment.amount || 0)
-          : 0;
-        return groups;
-      }
-
-      groups.push({
-        groupKey,
-        customerId: payment.customerId,
-        customer: payment.customer,
-        phone: payment.phone,
-        date: payment.date,
-        items: [payment],
-        totalAmount: Number(payment.amount || 0),
-        collectibleAmount: isCollectibleStatus(payment.status) ? Number(payment.amount || 0) : 0,
-      });
-      return groups;
-    }, [])
-    .map((group) => ({
-      ...group,
-      items: [...group.items].sort(
-        (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
-      ),
-      status: getGroupStatus(group.items),
-      hasCollectibleItems: group.items.some((item) => isCollectibleStatus(item.status)),
-      displayAmount: group.items.some((item) => isCollectibleStatus(item.status))
-        ? group.collectibleAmount
-        : group.totalAmount,
-    }));
+  const groupedPayments = buildGroupedPayments(payments);
 
   const togglePaymentGroup = (groupKey) => {
     setExpandedPaymentGroups((prev) => ({
       ...prev,
       [groupKey]: !prev[groupKey],
     }));
-  };
-
-  const renderStatusBadge = (status) => (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border uppercase ${
-      status === "PAID"
-        ? "bg-green-50 text-green-700 border-green-200"
-        : status === "PENDING"
-          ? "bg-orange-50 text-orange-700 border-orange-200"
-          : "bg-red-50 text-red-700 border-red-200"
-    }`}>
-      {status === "PAID" ? <CheckCircle size={10} /> : <Clock size={10} />} {status}
-    </span>
-  );
-
-  const loadPayments = async () => {
-    try {
-      setLoading(true);
-      const [data, verificationRows] = await Promise.all([
-        fetchAdminPayments({ page: 1, status: filter }),
-        fetchAdminPaymentVerifications({ status: "PENDING", limit: 25 }),
-      ]);
-
-      const farm = data?.farm || null;
-      const storedAutopay = readStoredAutopay(farm?.id || null);
-      setFarmPlan({
-        id: farm?.id || null,
-        plan: mapPlanName(farm?.selected_plan),
-        status: farm?.status || "ACTIVE",
-        nextBilling: farm?.updated_at || null,
-        upiId: farm?.upi_id || "",
-        bankName: farm?.bank_name || "",
-        bankBranch: farm?.bank_branch || "",
-        bankAccountHolderName: farm?.bank_account_holder_name || "",
-        bankAccountNumber: farm?.bank_account_number || "",
-        bankIfscCode: farm?.bank_ifsc_code || "",
-        autopayEnabled: Boolean(storedAutopay?.enabled),
-        autopayMethod: storedAutopay?.method || "",
-        autopayConfiguredAt: storedAutopay?.configuredAt || null,
-      });
-
-      setRevenue(Number(data?.totalRevenue || 0));
-      setPendingDuesSummary({
-        amount: Number(data?.pendingDues?.amount || 0),
-        customerCount: Number(data?.pendingDues?.customerCount || 0),
-      });
-      setPayments(Array.isArray(data?.payments) ? data.payments : []);
-      setVerifications(Array.isArray(verificationRows) ? verificationRows : []);
-    } catch (err) {
-      toast.error(err?.response?.data?.error || "Failed to load payments");
-      setPayments([]);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleApproveVerification = async (id) => {
@@ -319,22 +119,27 @@ export default function AdminPayments() {
     }
   };
 
-  const handleRejectVerification = async (id) => {
-    const reason = window.prompt("Reason for rejection") || "";
-    if (!reason.trim()) return;
+  const handleRejectVerification = (id) => {
+    setRejectModal({ open: true, id });
+    setRejectReason("");
+  };
 
+  const handleConfirmRejection = async () => {
+    if (!rejectReason.trim() || !rejectModal.id) return;
+
+    setRejectSubmitting(true);
     try {
-      await rejectAdminPaymentVerification(id, reason);
+      await rejectAdminPaymentVerification(rejectModal.id, rejectReason.trim());
       toast.success("Verification rejected");
+      setRejectModal({ open: false, id: null });
+      setRejectReason("");
       await loadPayments();
     } catch (err) {
       toast.error(err?.response?.data?.error || "Failed to reject verification");
+    } finally {
+      setRejectSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    loadPayments();
-  }, [filter]);
 
   const handleOfflineCollect = async (payData) => {
     try {
@@ -565,53 +370,9 @@ export default function AdminPayments() {
     setCouponApplied(null);
   };
 
-  const planOptions = [
-    {
-      value: "Free",
-      label: "Starter",
-      monthlyPrice: 499,
-      yearlyPrice: 4990,
-      features: [
-        "Basic customer and product management",
-        "Manual delivery scheduling",
-        "Limited payment tracking dashboard",
-        "Single dairy admin access",
-      ],
-      popular: false,
-    },
-    {
-      value: "Growth",
-      label: "Growth",
-      monthlyPrice: 999,
-      yearlyPrice: 9990,
-      features: [
-        "Customer, agent, and subscription management",
-        "Delivery approvals and route assignment",
-        "UPI payment tracking and verification queue",
-        "Performance dashboard with delivery analytics",
-      ],
-      popular: true,
-    },
-    {
-      value: "Prime",
-      label: "Enterprise",
-      monthlyPrice: 2499,
-      yearlyPrice: 24990,
-      features: [
-        "Everything in Growth plan",
-        "Procurement and supplier management",
-        "Push notifications and ETA visibility",
-        "Offline-ready delivery operations support",
-      ],
-      popular: false,
-    },
-  ];
-
   const activePlanDetails =
     planOptions.find((option) => option.value === farmPlan?.plan) || planOptions[0];
   const activePlanLabel = activePlanDetails?.label || farmPlan?.plan || "Starter";
-  const getPlanLabel = (planValue) =>
-    planOptions.find((option) => option.value === planValue)?.label || planValue || "Starter";
   const pendingAutopayPlanLabel = getPlanLabel(pendingAutopayPlan || farmPlan?.plan);
   const activePlanPrice =
     billingCycle === "yearly"
@@ -625,243 +386,13 @@ export default function AdminPayments() {
       ? "No customer dues"
       : `${pendingDueCustomerCount} customer${pendingDueCustomerCount === 1 ? "" : "s"} with dues`;
 
-  const renderGroupedPayments = () =>
-    groupedPayments.map((group) => {
-      const isExpanded = Boolean(expandedPaymentGroups[group.groupKey]);
-
-      return (
-        <React.Fragment key={group.groupKey}>
-          <tr
-            className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-[#1C243A]"
-            onClick={() => togglePaymentGroup(group.groupKey)}
-          >
-            <td className="px-6 py-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A] dark:bg-[#0B0F19] dark:text-[#d97706]">
-                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </div>
-                <div>
-                  <div className="font-bold text-gray-900 dark:text-white">{group.customer}</div>
-                  <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
-                    {group.items.length} payment{group.items.length > 1 ? "s" : ""} on this day
-                  </div>
-                </div>
-              </div>
-            </td>
-            <td className="px-6 py-5 text-sm text-gray-500 dark:text-slate-400">{formatPaymentDate(group.date)}</td>
-            <td className="px-6 py-5">
-              <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(group.displayAmount)}</div>
-              {group.items.length > 1 && (
-                <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
-                  {group.hasCollectibleItems
-                    ? `Total activity: ${formatCurrency(group.totalAmount)}`
-                    : `Recorded total: ${formatCurrency(group.totalAmount)}`}
-                </div>
-              )}
-            </td>
-            <td className="px-6 py-5">{renderStatusBadge(group.status)}</td>
-            <td className="px-6 py-5 text-right">
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePaymentGroup(group.groupKey);
-                  }}
-                  className="flex h-9 items-center justify-center rounded-xl bg-[#FDF6EC] px-4 text-[11px] font-black uppercase text-[#B8641A] transition-all hover:bg-[#F7E8D3] dark:bg-[#0B0F19] dark:text-[#d97706] dark:hover:bg-[#1C243A]"
-                >
-                  {isExpanded ? "Hide" : "View"} Details
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWhatsAppBillMessage({
-                      phone: group.phone,
-                      customer: group.customer,
-                      amount: group.displayAmount,
-                      date: group.date,
-                      status: group.status,
-                      paymentCount: group.items.length,
-                    });
-                  }}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 text-emerald-500 transition-all hover:bg-emerald-50 hover:text-emerald-700 dark:border-[#222B40] dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
-                  title="Send Reminder"
-                >
-                  <Share2 size={16} />
-                </button>
-              </div>
-            </td>
-          </tr>
-
-          {isExpanded && (
-            <tr className="bg-[#FFFCF8] dark:bg-[#1C243A]">
-              <td colSpan="5" className="px-6 py-4">
-                <div className="overflow-hidden rounded-[24px] border border-[#EFE4D6] bg-white dark:border-[#222B40] dark:bg-[#121829]">
-                  <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F2EDE4] bg-[#FFF8F0] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#B89970] dark:border-[#222B40] dark:bg-[#161C2C] dark:text-slate-400">
-                    <span>Customer</span>
-                    <span>Date</span>
-                    <span>Amount</span>
-                    <span>Status</span>
-                    <span className="text-right">Actions</span>
-                  </div>
-
-                  {group.items.map((pay) => (
-                    <div
-                      key={pay.id}
-                      className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-[#F8F2E8] px-4 py-4 last:border-b-0 dark:border-[#222B40]"
-                    >
-                      <div>
-                        <div className="font-bold text-gray-900 dark:text-white">{pay.customer}</div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">Payment ID: {pay.id}</div>
-                        {String(pay.verificationStatus || "").toUpperCase() === "SUBMITTED" ? (
-                          <div className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-300">
-                            Paid, pending verification
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="text-sm text-gray-500 dark:text-slate-400">{formatPaymentDate(pay.date)}</div>
-                      <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(pay.amount)}</div>
-                      <div>{renderStatusBadge(pay.status)}</div>
-                      <div className="flex items-center justify-end gap-2">
-                        {isCollectibleStatus(pay.status) && (
-                          <button
-                            onClick={() => setActivePaymentModal(pay)}
-                            className="h-9 px-4 bg-blue-600 text-white text-[11px] font-black uppercase rounded-xl hover:bg-blue-700 shadow-md shadow-blue-100 transition-all active:scale-95 flex items-center justify-center"
-                          >
-                            Collect
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </td>
-            </tr>
-          )}
-        </React.Fragment>
-      );
-    });
-
-  const renderMobilePaymentCards = () =>
-    groupedPayments.map((group) => {
-      const isExpanded = Boolean(expandedPaymentGroups[group.groupKey]);
-
-      return (
-        <article
-          key={group.groupKey}
-          className="rounded-[20px] border border-[#F2EDE4] bg-[#FFFDF8] p-4 dark:border-[#1E293B] dark:bg-[#161C2C]"
-        >
-          <button
-            type="button"
-            onClick={() => togglePaymentGroup(group.groupKey)}
-            className="flex w-full items-start justify-between gap-3 text-left"
-          >
-            <div className="min-w-0">
-              <h4 className="break-words text-base font-black text-[#2C1A0E] dark:text-white">
-                {group.customer || "Customer"}
-              </h4>
-              <p className="mt-1 text-xs font-semibold text-[#8B7355] dark:text-slate-400">
-                {group.items.length} payment{group.items.length > 1 ? "s" : ""} on this day
-              </p>
-            </div>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FDF6EC] text-[#B8641A] dark:bg-[#0B0F19] dark:text-[#d97706]">
-              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </span>
-          </button>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2.5 dark:border-[#222B40] dark:bg-[#121829]">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970] dark:text-slate-400">Date</p>
-              <p className="mt-1 text-sm font-bold text-[#5C3D1E] dark:text-white">{formatPaymentDate(group.date)}</p>
-            </div>
-            <div className="rounded-2xl border border-[#F2EDE4] bg-white px-3 py-2.5 dark:border-[#222B40] dark:bg-[#121829]">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B89970] dark:text-slate-400">Amount</p>
-              <p className="mt-1 text-sm font-black text-[#2C1A0E] dark:text-white">{formatCurrency(group.displayAmount)}</p>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            {renderStatusBadge(group.status)}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => togglePaymentGroup(group.groupKey)}
-                className="h-9 rounded-xl bg-[#FDF6EC] px-3 text-[11px] font-black uppercase text-[#B8641A] transition hover:bg-[#F7E8D3] dark:bg-[#0B0F19] dark:text-[#d97706] dark:hover:bg-[#1C243A]"
-              >
-                {isExpanded ? "Hide" : "View"} Details
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  openWhatsAppBillMessage({
-                    phone: group.phone,
-                    customer: group.customer,
-                    amount: group.displayAmount,
-                    date: group.date,
-                    status: group.status,
-                    paymentCount: group.items.length,
-                  })
-                }
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#EDE8DF] text-emerald-600 transition hover:bg-emerald-50 dark:border-[#222B40] dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-                title="Send Reminder"
-              >
-                <Share2 size={16} />
-              </button>
-            </div>
-          </div>
-
-          {group.items.length > 1 && (
-            <p className="mt-3 text-xs font-semibold text-[#8B7355] dark:text-slate-400">
-              {group.hasCollectibleItems
-                ? `Total activity: ${formatCurrency(group.totalAmount)}`
-                : `Recorded total: ${formatCurrency(group.totalAmount)}`}
-            </p>
-          )}
-
-          {isExpanded && (
-            <div className="mt-4 space-y-3 rounded-[18px] border border-[#EFE4D6] bg-white p-3 dark:border-[#222B40] dark:bg-[#121829]">
-              {group.items.map((pay) => (
-                <div
-                  key={pay.id}
-                  className="border-b border-[#F8F2E8] pb-3 last:border-b-0 last:pb-0 dark:border-[#222B40]"
-                >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-[#2C1A0E] dark:text-white">{formatCurrency(pay.amount)}</p>
-                    <p className="mt-1 text-xs text-[#8B7355] dark:text-slate-400">
-                      {formatPaymentDate(pay.date)} · Payment ID: {pay.id}
-                    </p>
-                    {String(pay.verificationStatus || "").toUpperCase() === "SUBMITTED" ? (
-                      <p className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-300">
-                        Paid, pending verification
-                      </p>
-                    ) : null}
-                  </div>
-                    {renderStatusBadge(pay.status)}
-                  </div>
-                  {isCollectibleStatus(pay.status) && (
-                    <button
-                      type="button"
-                      onClick={() => setActivePaymentModal(pay)}
-                      className="mt-3 h-9 w-full rounded-xl bg-[#B8641A] text-[11px] font-black uppercase text-white transition hover:bg-[#9E5415]"
-                    >
-                      Collect Payment
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-      );
-    });
-
   return (
     <div className="ds-portal ds-admin-portal min-h-screen bg-[#FAFAF7] text-[#2C1A0E] dark:bg-[#0B0F19] dark:text-white" style={adminShellFont}>
       <AdminMobileTopbar adminName={adminName} onMenu={() => setSidebarOpen(true)} />
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="px-4 py-5 pb-40 sm:px-6 lg:ml-64 lg:px-10 lg:py-8 lg:pb-32 xl:ml-80">
-        
+
         {/* SECTION 1: STATS */}
         <div className="mb-6 grid grid-cols-1 gap-4 lg:mb-8 lg:grid-cols-3 lg:gap-6">
           <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#3E2B18] via-[#5B3E24] to-[#8A6A46] p-5 text-white shadow-lg lg:rounded-[32px] lg:p-6">
@@ -1062,7 +593,13 @@ export default function AdminPayments() {
               </div>
             ) : (
               <div className="grid gap-3 p-3 sm:p-4">
-                {renderMobilePaymentCards()}
+                <MobilePaymentCards
+                  groups={groupedPayments}
+                  expanded={expandedPaymentGroups}
+                  onToggle={togglePaymentGroup}
+                  onSendReminder={openWhatsAppBillMessage}
+                  onCollect={setActivePaymentModal}
+                />
               </div>
             )}
             </div>
@@ -1088,42 +625,13 @@ export default function AdminPayments() {
                     </td>
                   </tr>
                 ) : (
-                  renderGroupedPayments() || payments.map((pay) => (
-                    <tr key={pay.id} className="hover:bg-gray-50 transition group">
-                      <td className="px-6 py-5"><div className="font-bold text-gray-900">{pay.customer}</div></td>
-                      <td className="px-6 py-5 text-sm text-gray-500">{new Date(pay.date).toLocaleDateString('en-GB')}</td>
-                      <td className="px-6 py-5 font-bold text-gray-900">{formatCurrency(pay.amount)}</td>
-                      <td className="px-6 py-5">{renderStatusBadge(pay.status)}</td>
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {isCollectibleStatus(pay.status) && (
-                            <button 
-                              onClick={() => setActivePaymentModal(pay)} 
-                              className="h-9 px-4 bg-blue-600 text-white text-[11px] font-black uppercase rounded-xl hover:bg-blue-700 shadow-md shadow-blue-100 transition-all active:scale-95 flex items-center justify-center"
-                            >
-                              Collect
-                            </button>
-                          )}
-                          <button 
-                            onClick={() =>
-                              openWhatsAppBillMessage({
-                                phone: pay.phone,
-                                customer: pay.customer,
-                                amount: pay.amount,
-                                date: pay.date,
-                                status: pay.status,
-                                paymentCount: 1,
-                              })
-                            }
-                            className="h-9 w-9 flex items-center justify-center text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-100 rounded-xl transition-all"
-                            title="Send Reminder"
-                          >
-                            <Share2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  <GroupedPayments
+                    groups={groupedPayments}
+                    expanded={expandedPaymentGroups}
+                    onToggle={togglePaymentGroup}
+                    onSendReminder={openWhatsAppBillMessage}
+                    onCollect={setActivePaymentModal}
+                  />
                 )}
               </tbody>
             </table>
@@ -1389,10 +897,10 @@ export default function AdminPayments() {
                   disabled={!selectedAutopayMethod || autopaySaving}
                   className="rounded-[14px] bg-[#B8641A] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#9F5414] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {autopaySaving 
-                    ? "Processing..." 
-                    : selectedAutopayMethod === "ONETIME" 
-                      ? "Pay Now" 
+                  {autopaySaving
+                    ? "Processing..."
+                    : selectedAutopayMethod === "ONETIME"
+                      ? "Pay Now"
                       : "Enable Autopay"}
                 </button>
               </div>
@@ -1400,10 +908,96 @@ export default function AdminPayments() {
           </div>
         </div>
       )}
+      {/* Rejection Reason Modal */}
+      {rejectModal.open && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(15,12,8,0.55)] px-4 backdrop-blur-sm"
+          onClick={() => { if (!rejectSubmitting) { setRejectModal({ open: false, id: null }); setRejectReason(""); } }}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-[24px] border border-[#EDE8DF] bg-white shadow-[0_30px_80px_rgba(30,16,8,0.28)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header accent */}
+            <div className="h-[3px] w-full bg-gradient-to-r from-[#C0392B] to-[#E74C3C]" />
+
+            <div className="px-6 pt-6 pb-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[13px] bg-[#FDECEA] text-[#C0392B]">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <h3
+                    className="text-xl font-semibold text-[#2C1A0E]"
+                    style={adminHeadingFont}
+                  >
+                    Reject Payment
+                  </h3>
+                  <p className="mt-1 text-sm text-[#8B7355]">
+                    Please provide a reason for rejecting this payment verification.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setRejectModal({ open: false, id: null }); setRejectReason(""); }}
+                  disabled={rejectSubmitting}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F7F2EB] text-[#8B7355] transition hover:bg-[#EDE4D8] disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 px-6 pb-6 pt-3">
+              <div>
+                <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-[#A88763]">
+                  Reason for Rejection
+                </label>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && rejectReason.trim()) {
+                      e.preventDefault();
+                      handleConfirmRejection();
+                    }
+                  }}
+                  placeholder="e.g. UTR number does not match, amount mismatch, duplicate submission..."
+                  className="w-full rounded-[14px] border-[1.5px] border-[#EDE8DF] bg-[#FAFAF7] px-4 py-3 text-sm font-semibold text-[#2C1A0E] outline-none transition placeholder:text-[#C4A882] focus:border-[#C0392B] focus:ring-4 focus:ring-[#FDECEA] resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setRejectModal({ open: false, id: null }); setRejectReason(""); }}
+                  disabled={rejectSubmitting}
+                  className="rounded-[14px] border border-[#EDE4D8] bg-[#F7F2EB] px-4 py-3 text-sm font-bold text-[#8B7355] transition hover:bg-[#EDE4D8] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRejection}
+                  disabled={!rejectReason.trim() || rejectSubmitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#C0392B] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#A93226] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {rejectSubmitting ? (
+                    <><Loader2 size={14} className="animate-spin" /> Rejecting...</>
+                  ) : (
+                    "Confirm Rejection"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AdminMobileBottomNav />
     </div>
   );
 }
-
-
-
