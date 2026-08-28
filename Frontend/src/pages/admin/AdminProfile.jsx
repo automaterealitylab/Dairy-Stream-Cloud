@@ -4,8 +4,6 @@ import {
   Building2,
   CheckCircle2,
   CreditCard,
-  Eye,
-  EyeOff,
   Hash,
   Landmark,
   Loader2,
@@ -29,257 +27,22 @@ import {
 import AdminSidebar from "../../components/admin/layout/AdminSidebar";
 import AdminMobileTopbar from "../../components/admin/layout/AdminMobileTopbar";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
+import { Field } from "../../components/admin/profile/Field";
+import { InfoCard } from "../../components/admin/profile/InfoCard";
+import { ValidationBadge } from "../../components/admin/profile/ValidationBadge";
 import { adminHeadingFont, adminShellFont } from "../../components/admin/adminTheme";
-
-const isCiphertext = (val) =>
-  typeof val === "string" && val.startsWith("ENC_DET:aes-256-gcm:");
-
-const sanitizeEncryptedValues = (value) => {
-  if (typeof value === "string") {
-    return isCiphertext(value) ? "" : value;
-  }
-  if (Array.isArray(value)) {
-    return value.map(sanitizeEncryptedValues);
-  }
-  if (value && typeof value === "object") {
-    const sanitized = {};
-    for (const key of Object.keys(value)) {
-      sanitized[key] = sanitizeEncryptedValues(value[key]);
-    }
-    return sanitized;
-  }
-  return value;
-};
-
-/**
- * Reads the cached admin object from localStorage but strips any field values
- * that are still raw ciphertext. This prevents showing encrypted strings in
- * the UI during the brief window before the live API response arrives.
- */
-const readStoredAdmin = () => {
-  let parsed = null;
-  try {
-    const directAdmin = localStorage.getItem("adminUser");
-    if (directAdmin) parsed = JSON.parse(directAdmin);
-  } catch {
-    // ignore
-  }
-
-  if (!parsed) {
-    try {
-      const user = localStorage.getItem("user");
-      if (user) {
-        const p = JSON.parse(user);
-        if (String(p?.role || "").toUpperCase() === "ADMIN") parsed = p;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  if (!parsed) return null;
-  return sanitizeEncryptedValues(parsed);
-};
-
-const emptyDairyProfile = {
-  dairy_name: "",
-  dairy_email: "",
-  dairy_phone: "",
-  address: "",
-  city: "",
-  state: "",
-  pincode: "",
-  owner_name: "",
-  bank_account_holder_name: "",
-  bank_account_number: "",
-  masked_account_number: "",
-  bank_account_number_revealed: false,
-  bank_ifsc_code: "",
-  bank_name: "",
-  bank_branch: "",
-  upi_id: "",
-  payment_instructions: "",
-  upi_qr_enabled: true,
-  bank_transfer_enabled: true,
-  payment_verification_mode: "MANUAL",
-  payments_enabled: false,
-  bank_verified: false,
-  verification_provider: "",
-  verification_reference_id: "",
-  bank_verification_status: "NOT_SUBMITTED",
-  bank_verification_timestamp: "",
-  account_name_match_score: null,
-  bank_metadata: {},
-  verified_account_holder_name: "",
-  verified_upi_id: "",
-  account_verification_response: {},
-  verification_attempts: 0,
-  verification_last_error: "",
-  verification_method: "",
-  vpa_detected: false,
-  vpa_verified: false,
-  bank_verification_reset_at: "",
-  verification_required: false,
-  account_last_updated_at: "",
-  pan: "",
-  one_time_payment_method: "DIRECT_UPI",
-  subscription_payment_method: "DIRECT_UPI",
-};
-
-const buildFormFromProfile = (dairy = {}, admin = {}) => ({
-  dairy_name: dairy?.dairy_name || "",
-  dairy_email: dairy?.dairy_email || "",
-  dairy_phone: dairy?.dairy_phone || "",
-  address: dairy?.address || "",
-  city: dairy?.city || "",
-  state: dairy?.state || "",
-  pincode: dairy?.pincode || "",
-  owner_name: dairy?.owner_name || admin?.name || "",
-  admin_email: admin?.email || "",
-  admin_phone: admin?.phone || admin?.phone_number || "",
-  bank_account_holder_name: dairy?.bank_account_holder_name || "",
-  bank_account_number: dairy?.bank_account_number || "",
-  masked_account_number: dairy?.masked_account_number || dairy?.bank_account_number || "",
-  bank_account_number_revealed: dairy?.bank_account_number_revealed ?? false,
-  bank_ifsc_code: dairy?.bank_ifsc_code || "",
-  bank_name: dairy?.bank_name || "",
-  bank_branch: dairy?.bank_branch || "",
-  upi_id: dairy?.upi_id || "",
-  bank_verified: dairy?.bank_verified ?? false,
-  verification_provider: dairy?.verification_provider || "",
-  verification_reference_id: dairy?.verification_reference_id || "",
-  bank_verification_status: dairy?.bank_verification_status || "NOT_SUBMITTED",
-  bank_verification_timestamp: dairy?.bank_verification_timestamp || "",
-  account_name_match_score: dairy?.account_name_match_score ?? null,
-  bank_metadata: dairy?.bank_metadata || {},
-  verified_account_holder_name: dairy?.verified_account_holder_name || "",
-  verified_upi_id: dairy?.verified_upi_id || "",
-  account_verification_response: dairy?.account_verification_response || {},
-  verification_attempts: dairy?.verification_attempts || 0,
-  verification_last_error: dairy?.verification_last_error || "",
-  verification_method: dairy?.verification_method || "",
-  vpa_detected: dairy?.vpa_detected ?? false,
-  vpa_verified: dairy?.vpa_verified ?? false,
-  bank_verification_reset_at: dairy?.bank_verification_reset_at || "",
-  verification_required: dairy?.verification_required ?? false,
-  account_last_updated_at: dairy?.account_last_updated_at || "",
-  payment_instructions: dairy?.payment_instructions || "",
-  upi_qr_enabled: dairy?.upi_qr_enabled ?? true,
-  bank_transfer_enabled: dairy?.bank_transfer_enabled ?? true,
-  pan: dairy?.pan || "",
-  one_time_payment_method: dairy?.one_time_payment_method || "DIRECT_UPI",
-  subscription_payment_method: dairy?.subscription_payment_method || "DIRECT_UPI",
-});
-
-const getInitials = (name) =>
-  String(name || "Admin")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || "")
-    .join("") || "A";
-
-const maskValue = (val, visibleChars = 4) => {
-  if (!val) return "-";
-  const str = String(val);
-  if (str.length <= visibleChars) return "•".repeat(str.length);
-  return "•".repeat(str.length - visibleChars) + str.slice(-visibleChars);
-};
-
-const maskUpiId = (val) => {
-  if (!val) return "-";
-  const parts = String(val).split("@");
-  if (parts.length < 2) return "•".repeat(val.length);
-  const local = parts[0];
-  const domain = parts[1];
-  const maskedLocal = local.length > 3 ? local.slice(0, 2) + "•".repeat(local.length - 3) + local.slice(-1) : "•".repeat(local.length);
-  return `${maskedLocal}@${domain}`;
-};
-
-const InfoCard = ({ icon, label, value, onToggleReveal, isRevealed, isLoading }) => {
-  const IconComponent = icon;
-  return (
-    <div className="rounded-[24px] border border-[#EDE8DF] bg-[#FFFDF8] p-5 dark:border-[#222B40] dark:bg-[#161C2C]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="rounded-2xl bg-[#FFF3E2] p-3 text-[#B8641A] dark:bg-[#d97706]/10 dark:text-[#fbbf24] shrink-0">
-            <IconComponent size={18} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B89970] dark:text-slate-400">{label}</p>
-            <p className="mt-1 break-words text-base font-black text-[#2C1A0E] dark:text-white">{value || "-"}</p>
-          </div>
-        </div>
-        {onToggleReveal && (
-          <button
-            type="button"
-            onClick={onToggleReveal}
-            disabled={isLoading}
-            className="rounded-full p-2 text-[#8B7355] transition hover:bg-[#FFF3E2] hover:text-[#B8641A] dark:hover:bg-[#222B40] dark:hover:text-[#fbbf24] shrink-0"
-            title={isRevealed ? "Hide details" : "Show details"}
-          >
-            {isLoading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : isRevealed ? (
-              <EyeOff size={16} />
-            ) : (
-              <Eye size={16} />
-            )}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const Field = ({
-  label,
-  value,
-  onChange,
-  type = "text",
-  className = "",
-  children,
-  disabled = false,
-  hint = "",
-}) => (
-  <label className={`rounded-[18px] border border-[#E5D9C7] bg-[#FFFDF8] px-3.5 py-2.5 ${className}`}>
-    <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B89970]">{label}</span>
-    {children || (
-      <input
-        type={type}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 w-full bg-transparent text-sm font-black text-[#2C1A0E] outline-none disabled:text-[#8B7355]"
-      />
-    )}
-    {hint ? <span className="mt-1 block text-[10px] font-semibold text-[#9B8469]">{hint}</span> : null}
-  </label>
-);
-
-const isValidIfscFormat = (value) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(String(value || "").trim().toUpperCase());
-const normalizeAccountNumber = (value) => String(value || "").replace(/\D/g, "");
-const maskAccountNumber = (value) => {
-  const normalized = normalizeAccountNumber(value);
-  if (!normalized) return "";
-  return `${"X".repeat(Math.max(normalized.length - 4, 0))}${normalized.slice(-4)}`;
-};
-
-const ValidationBadge = ({ tone = "neutral", children }) => {
-  const classes = {
-    neutral: "border-[#E5D9C7] bg-white text-[#8B7355]",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    warning: "border-amber-200 bg-amber-50 text-amber-700",
-    error: "border-red-200 bg-red-50 text-red-700",
-    info: "border-sky-200 bg-sky-50 text-sky-700",
-  };
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${classes[tone] || classes.neutral}`}>
-      {children}
-    </span>
-  );
-};
+import { emptyDairyProfile } from "../../constants/adminProfile";
+import {
+  buildFormFromProfile,
+  formatPaymentMethod,
+  getInitials,
+  isValidIfscFormat,
+  maskAccountNumber,
+  maskUpiId,
+  maskValue,
+  normalizeAccountNumber,
+  readStoredAdmin,
+} from "../../utils/adminProfile";
 
 export default function AdminProfile() {
   const cachedDashboard = useMemo(() => getCachedAdminDashboard(), []);
@@ -822,8 +585,8 @@ export default function AdminProfile() {
                 onToggleReveal={() => setShowUpi(!showUpi)}
                 isRevealed={showUpi}
               />
-              <InfoCard icon={ReceiptText} label="One-Time Orders Payment" value={dairyProfile.one_time_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
-              <InfoCard icon={CreditCard} label="Monthly Subscription Payment" value={dairyProfile.subscription_payment_method === "RAZORPAY" ? "Razorpay Checkout" : "Direct UPI QR"} />
+              <InfoCard icon={ReceiptText} label="One-Time Orders Payment" value={formatPaymentMethod(dairyProfile.one_time_payment_method)} />
+              <InfoCard icon={CreditCard} label="Monthly Subscription Payment" value={formatPaymentMethod(dairyProfile.subscription_payment_method)} />
               <InfoCard icon={ShieldCheck} label="Bank Verification" value={bankStatusLabel} />
               <InfoCard icon={CheckCircle2} label="Payments Enabled" value={paymentStatus} />
             </div>

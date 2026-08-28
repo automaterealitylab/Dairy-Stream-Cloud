@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Check } from "lucide-react";
 import { validateCouponCode } from "../../api/admin.api.js";
 import { toast } from "react-hot-toast";
@@ -26,8 +26,8 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
     {
       id: "GROWTH",
       name: "Growth",
-      monthlyPrice: 999,
-      yearlyPrice: 9990,
+      monthlyPrice: 1499,
+      yearlyPrice: 14990,
       popular: true,
       features: [
         "Customer, agent, and subscription management",
@@ -37,7 +37,7 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
       ],
     },
     {
-      id: "ENTERPRISE",
+      id: "PREMIUM",
       name: "Enterprise",
       monthlyPrice: 2499,
       yearlyPrice: 24990,
@@ -122,13 +122,10 @@ const PlanStep = ({ selected_plan, setPlan, formData, setFormData, couponApplied
           if (couponApplied) {
 
             const isPlanApplicable = !couponApplied.applicablePlans || 
-              couponApplied.applicablePlans.length === 0 || 
+              couponApplied.applicablePlans.length === 0 ||
               couponApplied.applicablePlans.some(ap => {
                 const normalizedAp = String(ap).toUpperCase().trim();
                 const normalizedPlanId = plan.id.toUpperCase();
-                
-                if (normalizedAp === "FREE" && normalizedPlanId === "STARTER") return true;
-                if (normalizedAp === "PRIME" && normalizedPlanId === "ENTERPRISE") return true;
                 return normalizedAp === normalizedPlanId;
               });
 

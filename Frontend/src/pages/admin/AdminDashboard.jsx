@@ -8,9 +8,7 @@ import AdminDashboardSkeleton from "../../components/admin/skeletons/AdminDashbo
 import AdminHeader from "../../components/admin/sections/AdminHeader";
 import AdminActivity from "../../components/admin/sections/AdminActivity";
 import DailyOperationsSnapshot from "../../components/admin/sections/DailyOperationsSnapshot";
-import DeliveryExceptionDashboard from "../../components/admin/sections/DeliveryExceptionDashboard";
 import CustomerRiskIndicator from "../../components/admin/sections/CustomerRiskIndicator";
-import BulkDeliveryActions from "../../components/admin/sections/BulkDeliveryActions";
 import ManualPaymentModal from "../../components/admin/sections/ManualPaymentModal";
 import AdminMobileBottomNav from "../../components/admin/layout/AdminMobileBottomNav";
 import { adminShellFont } from "../../components/admin/adminTheme";
@@ -18,7 +16,6 @@ import { adminShellFont } from "../../components/admin/adminTheme";
 export default function AdminDashboard() {
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedDeliveries, setSelectedDeliveries] = useState([]); 
   const [activePayment, setActivePayment] = useState(null); 
   
   // Hydrate from cache immediately
@@ -77,13 +74,6 @@ const loadDashboard = useCallback(async (force = false) => {
     loadDashboard(true);
   }, [loadDashboard]);
 
-  // Handlers
-  const toggleDeliverySelection = (id) => {
-    setSelectedDeliveries(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
-
   if (error && !uiReady) {
     return (
       <div className="h-screen flex items-center justify-center px-4">
@@ -110,12 +100,6 @@ const loadDashboard = useCallback(async (force = false) => {
             
             <div className="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-8">
-                <DeliveryExceptionDashboard 
-                  exceptions={data?.exceptions}
-                  selectedIds={selectedDeliveries}
-                  onToggleSelect={toggleDeliverySelection}
-                  onReschedule={() => {}} 
-                />
                 <AdminActivity activities={data.recentActivity} />
               </div>
 
@@ -124,17 +108,6 @@ const loadDashboard = useCallback(async (force = false) => {
               </div>
             </div>
           </>
-        )}
-
-        {selectedDeliveries.length > 0 && (
-          <BulkDeliveryActions 
-            selectedCount={selectedDeliveries.length} 
-            onReschedule={() => {
-              alert(`Rescheduling ${selectedDeliveries.length} items`);
-              setSelectedDeliveries([]);
-            }}
-            onAssign={() => alert("Assigning Agents...")}
-          />
         )}
 
         {activePayment && (
