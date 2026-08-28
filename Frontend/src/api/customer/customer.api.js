@@ -1,10 +1,10 @@
 import client from "../client";
 
-const CUSTOMER_DASHBOARD_CACHE_TTL_MS = 10 * 1000;
-const CUSTOMER_PROFILE_CACHE_TTL_MS = 30 * 1000;
-const CUSTOMER_DELIVERIES_CACHE_TTL_MS = 15 * 1000;
-const CUSTOMER_PAYMENTS_CACHE_TTL_MS = 15 * 1000;
-const CUSTOMER_SUBSCRIPTION_CACHE_TTL_MS = 15 * 1000;
+const CUSTOMER_DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const CUSTOMER_PROFILE_CACHE_TTL_MS = 120 * 1000;
+const CUSTOMER_DELIVERIES_CACHE_TTL_MS = 60 * 1000;
+const CUSTOMER_PAYMENTS_CACHE_TTL_MS = 60 * 1000;
+const CUSTOMER_SUBSCRIPTION_CACHE_TTL_MS = 60 * 1000;
 
 const customerDashboardCache = new Map();
 const customerDashboardRequests = new Map();
@@ -18,13 +18,32 @@ const getStoredCustomerToken = () => {
   if (!storedUser) return fallbackToken || null;
 
   try {
-    return JSON.parse(storedUser)?.token || fallbackToken || null;
+    const parsed = JSON.parse(storedUser);
+    return parsed?.token || fallbackToken || (parsed?.id ? `customer-${parsed.id}` : null);
   } catch {
     return fallbackToken || null;
   }
 };
 
-const hasFreshCacheEntry = (entry, ttlMs) => Boolean(entry) && Date.now() - entry.at < ttlMs;
+const isNonEmptyPayload = (payload) => {
+  if (!payload || typeof payload !== "object") return false;
+  if (Array.isArray(payload)) return payload.length > 0;
+  return Boolean(
+    payload.customer?.id ||
+    payload.id ||
+    payload.subscription ||
+    payload.todayDelivery ||
+    payload.summary ||
+    (Array.isArray(payload.deliveries) && payload.deliveries.length > 0)
+  );
+};
+
+const hasFreshCacheEntry = (entry, ttlMs) => {
+  if (!entry || !entry.payload) return false;
+  if (Date.now() - entry.at >= ttlMs) return false;
+  return isNonEmptyPayload(entry.payload);
+};
+
 const getFreshCachePayload = (cache, cacheKey, ttlMs) => {
   const entry = cache.get(cacheKey);
   return hasFreshCacheEntry(entry, ttlMs) ? entry.payload : null;
@@ -365,6 +384,28 @@ export const fetchCustomerInvoiceDetail = async (id) => {
 
 export const getCustomerInvoicePdfUrl = (id) => `/customer/invoices/${id}/pdf`;
 
+export const downloadCustomerInvoicePdfBlob = async (id) => {
+  const response = await client.get(`/customer/invoices/${id}/pdf`, {
+    responseType: "blob",
+  });
+
+  const contentDisposition = response.headers?.["content-disposition"] || "";
+  let filename = `DairyVision_Bill_${id}.pdf`;
+  const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (match && match[1]) {
+    filename = match[1];
+  }
+
+  const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+};
+
 export const shareCustomerInvoiceWhatsApp = async (id, payload = {}) => {
   const { data } = await client.post(`/customer/invoices/${id}/share-whatsapp`, payload);
   return data;
@@ -395,6 +436,34 @@ export const saveCustomerSubscription = async (payload) => {
   return data;
 };
 
+export const pauseCustomerSubscription = async (payload = {}) => {
+  const { data } = await client.post("/customer/subscription", {
+    action: "PAUSE",
+    ...(payload || {}),
+  });
+  invalidateCustomerDashboardCache();
+  invalidateCustomerReadCache("subscription", "deliveries", "payments");
+  return data;
+};
+
+export const resumeCustomerSubscription = async (payload = {}) => {
+  const { data } = await client.post("/customer/subscription", {
+    action: "RESUME",
+    ...(payload || {}),
+  });
+  invalidateCustomerDashboardCache();
+  invalidateCustomerReadCache("subscription", "deliveries", "payments");
+  return data;
+};
+
+export const skipCustomerDelivery = async ({ deliveryId, deliveryDate }) => {
+  const url = deliveryId ? `/customer/deliveries/${deliveryId}/skip` : "/customer/deliveries/skip";
+  const { data } = await client.post(url, { deliveryId, deliveryDate });
+  invalidateCustomerDashboardCache();
+  invalidateCustomerReadCache("deliveries", "subscription", "payments");
+  return data;
+};
+
 export const clearCustomerSubscription = async () => {
   const { data } = await client.delete("/customer/subscription");
   invalidateCustomerDashboardCache();
@@ -403,6 +472,20 @@ export const clearCustomerSubscription = async () => {
 };
 
 /* =========================
-    REGISTRATION
+    REGISTRATION & BATCH FETCH
 ========================= */
 export const registerCustomer = (data) => client.post("/customer/addCustomer", data);
+
+export const fetchCustomerPortalInitialData = async ({ force = false } = {}) => {
+  const [dashboardResult, profileResult, deliveriesResult] = await Promise.allSettled([
+    fetchCustomerDashboard({ force }),
+    fetchCustomerProfile({ force }),
+    fetchCustomerDeliveries({ force }),
+  ]);
+
+  return {
+    dashboard: dashboardResult.status === "fulfilled" ? dashboardResult.value : null,
+    profile: profileResult.status === "fulfilled" ? profileResult.value : null,
+    deliveries: deliveriesResult.status === "fulfilled" ? deliveriesResult.value : null,
+  };
+};

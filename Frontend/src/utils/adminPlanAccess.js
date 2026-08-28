@@ -1,36 +1,37 @@
 const PLAN_RANK = {
-  Free: 0,
-  Growth: 1,
-  Prime: 2,
+  STARTER: 0,
+  GROWTH: 1,
+  PREMIUM: 2,
 };
 
 const FEATURE_MIN_PLAN = {
-  dashboard: "Free",
-  customers: "Free",
-  deliveries: "Free",
-  products: "Free",
-  payments: "Free",
-  profile: "Free",
-  agents: "Growth",
-  performance: "Growth",
-  procurement: "Prime",
-  suppliers: "Prime",
+  // Base features available on all plans (STARTER, GROWTH, PREMIUM)
+  dashboard: "STARTER",
+  customers: "STARTER",
+  deliveries: "STARTER",
+  products: "STARTER",
+  payments: "STARTER",
+  profile: "STARTER",
+  agents: "STARTER",
+  notifications: "STARTER",
+  monitoring: "STARTER",
+  health: "STARTER",
+  buildings: "STARTER",
+  "farm-plan": "STARTER",
+  bank: "STARTER",
+
+  // Growth tier features
+  performance: "GROWTH",
+
+  // Premium tier features
+  procurement: "PREMIUM",
+  suppliers: "PREMIUM",
 };
 
 export const normalizeAdminPlan = (plan) => {
   const normalized = String(plan || "").trim().toUpperCase();
-  const mapping = {
-    STARTER: "Free",
-    FREE: "Free",
-    GROWTH: "Growth",
-    ENTERPRISE: "Prime",
-    PRIME: "Prime",
-  };
-  const mapped = mapping[normalized] || normalized;
-  const capitalizedMapped = mapped.charAt(0).toUpperCase() + mapped.slice(1).toLowerCase();
-  if (capitalizedMapped in PLAN_RANK) return capitalizedMapped;
-  if (mapped in PLAN_RANK) return mapped;
-  return "Free";
+  if (normalized in PLAN_RANK) return normalized;
+  return "STARTER";
 };
 
 export const canAccessAdminFeature = (plan, feature) => {

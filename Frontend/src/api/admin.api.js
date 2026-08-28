@@ -1,4 +1,4 @@
-﻿import client from "./client";
+import client from "./client";
 
 /* =========================
    ADMIN LOGIN
@@ -127,6 +127,30 @@ export const fetchAdminCustomerBillDetails = async (id) => {
   return data;
 };
 
+export const downloadAdminCustomerBillPdfBlob = async (customerId, billId = null) => {
+  const url = billId
+    ? `/admin/customers/${customerId}/bills/${billId}/pdf`
+    : `/admin/customers/${customerId}/bill-pdf`;
+
+  const response = await client.get(url, { responseType: "blob" });
+
+  const contentDisposition = response.headers?.["content-disposition"] || "";
+  let filename = `DairyVision_Bill_${customerId}.pdf`;
+  const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (match && match[1]) {
+    filename = match[1];
+  }
+
+  const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+};
+
 export const updateAdminCustomer = async (id, payload) => {
   const { data } = await client.put(`/admin/customers/${id}`, payload);
   return data;
@@ -151,6 +175,26 @@ export const assignAdminCustomerPermanentPartner = async (customerId, agentId) =
   const { data } = await client.patch(`/admin/customers/${customerId}/subscription/assign-partner`, {
     agentId,
   });
+  return data;
+};
+
+export const pauseAdminCustomerSubscription = async (customerId, payload) => {
+  const { data } = await client.patch(`/admin/customers/${customerId}/subscription/pause`, payload);
+  return data;
+};
+
+export const resumeAdminCustomerSubscription = async (customerId) => {
+  const { data } = await client.patch(`/admin/customers/${customerId}/subscription/resume`);
+  return data;
+};
+
+export const cancelAdminCustomerSubscription = async (customerId, payload) => {
+  const { data } = await client.patch(`/admin/customers/${customerId}/subscription/cancel`, payload);
+  return data;
+};
+
+export const addAdminCustomerExtraDelivery = async (customerId, payload) => {
+  const { data } = await client.post(`/admin/customers/${customerId}/extra-delivery`, payload);
   return data;
 };
 

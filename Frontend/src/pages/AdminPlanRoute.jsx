@@ -42,7 +42,7 @@ export default function AdminPlanRoute({
         }
       } catch {
         if (isMounted) {
-          setSelectedPlan("Free");
+          setSelectedPlan("STARTER");
         }
       } finally {
         if (isMounted) {
