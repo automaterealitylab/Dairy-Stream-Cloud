@@ -2,6 +2,16 @@
 -- Run these SQL statements in the Supabase SQL Editor to create all required tables
 
 -- ============================================
+-- Create Plan Enum Type
+-- ============================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dairy_plan_enum') THEN
+    CREATE TYPE public.dairy_plan_enum AS ENUM ('STARTER', 'GROWTH', 'PREMIUM');
+  END IF;
+END $$;
+
+-- ============================================
 -- Create Dairies Table
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.dairies (
@@ -41,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.dairies (
   direct_upi_proof_requirement VARCHAR(80) DEFAULT 'SCREENSHOT_OR_REFERENCE_ID',
   razorpay_charge_percent NUMERIC(5, 2) DEFAULT 2.00,
   razorpay_gst_percent_on_charge NUMERIC(5, 2) DEFAULT 18.00,
-  selected_plan VARCHAR(50) DEFAULT 'GROWTH',
+  selected_plan public.dairy_plan_enum DEFAULT 'GROWTH',
   status VARCHAR(50) DEFAULT 'ACTIVE',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -134,6 +144,49 @@ BEGIN
     ALTER TABLE public.dairies
       ADD CONSTRAINT chk_dairies_subscription_payment_method
       CHECK (subscription_payment_method IN ('DIRECT_UPI', 'RAZORPAY'));
+  END IF;
+
+  -- ============================================
+  -- Migrate selected_plan to dairy_plan_enum
+  -- ============================================
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dairy_plan_enum') THEN
+    CREATE TYPE public.dairy_plan_enum AS ENUM ('STARTER', 'GROWTH', 'PREMIUM');
+  END IF;
+
+  -- Sanitize legacy values
+  UPDATE public.dairies
+  SET selected_plan = (
+    CASE
+      WHEN UPPER(TRIM(selected_plan::text)) IN ('STARTER', 'FREE') THEN 'STARTER'
+      WHEN UPPER(TRIM(selected_plan::text)) IN ('PREMIUM', 'PRIME', 'ENTERPRISE') THEN 'PREMIUM'
+      ELSE 'GROWTH'
+    END
+  )::public.dairy_plan_enum
+  WHERE selected_plan IS NOT NULL;
+
+  -- Alter column to ENUM if it's not already of type dairy_plan_enum
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'dairies'
+      AND column_name = 'selected_plan'
+      AND udt_name != 'dairy_plan_enum'
+  ) THEN
+    ALTER TABLE public.dairies
+      ALTER COLUMN selected_plan DROP DEFAULT;
+
+    ALTER TABLE public.dairies
+      ALTER COLUMN selected_plan TYPE public.dairy_plan_enum
+      USING (
+        CASE
+          WHEN UPPER(TRIM(selected_plan::text)) IN ('STARTER', 'FREE') THEN 'STARTER'::public.dairy_plan_enum
+          WHEN UPPER(TRIM(selected_plan::text)) IN ('PREMIUM', 'PRIME', 'ENTERPRISE') THEN 'PREMIUM'::public.dairy_plan_enum
+          ELSE 'GROWTH'::public.dairy_plan_enum
+        END
+      );
+
+    ALTER TABLE public.dairies
+      ALTER COLUMN selected_plan SET DEFAULT 'GROWTH'::public.dairy_plan_enum;
   END IF;
 END $$;
 
@@ -521,6 +574,12 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_dairy_date_status
   ON public.deliveries(dairy_id, delivery_date, status);
 CREATE INDEX IF NOT EXISTS idx_deliveries_agent_date_status
   ON public.deliveries(agent_id, delivery_date, status);
+CREATE INDEX IF NOT EXISTS idx_deliveries_customer_date
+  ON public.deliveries(customer_id, delivery_date DESC);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_customer_status
+  ON public.subscriptions(customer_id, subscription_status);
+CREATE INDEX IF NOT EXISTS idx_payments_customer_created
+  ON public.payments(customer_id, created_at DESC);
 
 -- ============================================
 -- Create / Normalize Products Table

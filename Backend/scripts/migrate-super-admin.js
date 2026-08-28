@@ -258,15 +258,15 @@ async function run() {
       // Seed Default Platform Plans
       const seedPlansQuery = `
         INSERT INTO public.platform_plans (plan_key, name, monthly_price, yearly_price, gst_percent, trial_period_days, features, status)
-        VALUES 
-          ('FREE', 'Free Starter Plan', 0.00, 0.00, 18.00, 14, '["agents"]', 'ACTIVE'),
-          ('GROWTH', 'Growth Premium Plan', 999.00, 9990.00, 18.00, 14, '["agents", "performance"]', 'ACTIVE'),
-          ('PRIME', 'Prime Platform Plan', 2499.00, 24990.00, 18.00, 14, '["agents", "performance", "procurement", "suppliers"]', 'ACTIVE')
-        ON CONFLICT (plan_key) DO UPDATE 
+        VALUES
+          ('STARTER', 'Starter Plan', 499.00, 4990.00, 18.00, 14, '["dashboard","customers","deliveries","products","payments","profile","agents","notifications","monitoring","health","buildings","farm-plan","bank"]', 'ACTIVE'),
+          ('GROWTH', 'Growth Plan', 1499.00, 14990.00, 18.00, 14, '["dashboard","customers","deliveries","products","payments","profile","agents","notifications","monitoring","health","buildings","farm-plan","bank","performance"]', 'ACTIVE'),
+          ('PREMIUM', 'Premium Plan', 2499.00, 24990.00, 18.00, 14, '["dashboard","customers","deliveries","products","payments","profile","agents","notifications","monitoring","health","buildings","farm-plan","bank","performance","procurement","suppliers"]', 'ACTIVE')
+        ON CONFLICT (plan_key) DO UPDATE
         SET monthly_price = EXCLUDED.monthly_price, yearly_price = EXCLUDED.yearly_price, features = EXCLUDED.features;
       `;
       await client.query(seedPlansQuery);
-      console.log("Seeded default plans (FREE, GROWTH, PRIME) successfully!");
+      console.log("Seeded default plans (STARTER, GROWTH, PREMIUM) successfully!");
 
       await client.end();
       console.log("Database migration finished successfully!");
