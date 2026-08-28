@@ -1,4 +1,4 @@
-﻿import {
+import {
   getAdminCustomers,
   getCustomerBillDetails,
   getCustomerDetails,
@@ -7,7 +7,12 @@
   approveCustomerSubscriptionById,
   assignPermanentDeliveryPartnerByCustomerId,
   upsertAdminCustomerSubscriptionById,
+  pauseCustomerSubscriptionById,
+  resumeCustomerSubscriptionById,
+  cancelCustomerSubscriptionById,
 } from "../../services/admin/adminCustomers.service.js";
+import { getCustomerInvoiceDetail } from "../../services/customer/invoice.service.js";
+import { generateInvoicePdfBuffer, getBillPdfFilename } from "../../services/customer/pdfInvoice.service.js";
 
 export const fetchAdminCustomers = async (req, res) => {
   try {
@@ -150,3 +155,96 @@ export const assignAdminCustomerPermanentPartner = async (req, res) => {
   }
 };
 
+export const pauseAdminCustomerSubscription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    const { pausedFrom, pausedUntil } = req.body || {};
+    if (!dairyId) {
+      return res.status(403).json({ message: "Admin is not linked to any dairy" });
+    }
+
+    const subscription = await pauseCustomerSubscriptionById({
+      customerId: id,
+      dairyId,
+      pausedFrom,
+      pausedUntil,
+    });
+    res.json({ success: true, subscription });
+  } catch (err) {
+    console.error("ADMIN CUSTOMER SUBSCRIPTION PAUSE ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to pause customer subscription",
+    });
+  }
+};
+
+export const resumeAdminCustomerSubscription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    if (!dairyId) {
+      return res.status(403).json({ message: "Admin is not linked to any dairy" });
+    }
+
+    const subscription = await resumeCustomerSubscriptionById({
+      customerId: id,
+      dairyId,
+    });
+    res.json({ success: true, subscription });
+  } catch (err) {
+    console.error("ADMIN CUSTOMER SUBSCRIPTION RESUME ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to resume customer subscription",
+    });
+  }
+};
+
+export const cancelAdminCustomerSubscription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    const { cancelReason } = req.body || {};
+    if (!dairyId) {
+      return res.status(403).json({ message: "Admin is not linked to any dairy" });
+    }
+
+    const subscription = await cancelCustomerSubscriptionById({
+      customerId: id,
+      dairyId,
+      cancelReason,
+    });
+    res.json({ success: true, subscription });
+  } catch (err) {
+    console.error("ADMIN CUSTOMER SUBSCRIPTION CANCEL ERROR:", err.message);
+    res.status(500).json({
+      message: err?.message || "Failed to cancel customer subscription",
+    });
+  }
+};
+
+export const downloadAdminCustomerBillPdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dairyId = req.admin?.dairyId ?? null;
+    const invoiceId = req.params.billId || req.query.billId || id;
+
+    const invoice = await getCustomerInvoiceDetail({
+      customerId: req.params.billId ? Number(id) : null,
+      invoiceId: Number(invoiceId),
+      dairyId,
+    });
+
+    const pdfBuffer = await generateInvoicePdfBuffer(invoice);
+    const filename = getBillPdfFilename(invoice);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("ADMIN PDF GENERATION ERROR:", err.message);
+    res.status(err.statusCode || 500).json({
+      message: "Unable to generate the bill right now. Please try again.",
+    });
+  }
+};
