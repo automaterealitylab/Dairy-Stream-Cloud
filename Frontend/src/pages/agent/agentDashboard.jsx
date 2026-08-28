@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth.jsx";
 import {
@@ -8,7 +8,6 @@ import {
   Popup,
   CircleMarker,
   Polyline,
-  useMap,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -21,10 +20,6 @@ import {
   XCircle,
   Clock,
   Navigation,
-  ArrowUp,
-  CornerUpLeft,
-  CornerUpRight,
-  Undo2,
   Map as MapIcon,
   Home,
   List,
@@ -58,28 +53,35 @@ import {
   formatQuantity,
   getProductLabel,
 } from "../../utils/agentTaskGrouping.js";
-
-const headingFont = { fontFamily: "'Lora', serif" };
-const DELIVERY_RUN_STORAGE_KEY = "agent-dashboard-delivery-run";
-const SPEECH_MUTED_STORAGE_KEY = "agent-dashboard-speech-muted";
-const MAP_DELIVERED_PATH_VISIBLE_KEY = "agent-map-show-delivered-path";
-const MAP_DAIRY_PATH_VISIBLE_KEY = "agent-map-show-dairy-path";
-const SLOT_META = {
-  MORNING: {
-    label: "Morning",
-    startHour: 6,
-    startMinute: 0,
-    endHour: 9,
-    endMinute: 0,
-  },
-  EVENING: {
-    label: "Evening",
-    startHour: 17,
-    startMinute: 0,
-    endHour: 20,
-    endMinute: 0,
-  },
-};
+import {
+  buildSpokenInstruction,
+  fetchRoadRoute,
+  fetchRoadDistanceTable,
+  getDeliveryCoordinates,
+  getDairyCoordinates,
+  getDistanceInMeters,
+  getTurnInstructionLabel,
+  getTurnInstructionIcon,
+  getAutoZoomLevel,
+} from "../../utils/agentRouting";
+import {
+  getLocalDateKey,
+  compareScheduledDeliveries,
+  getDeliveryScheduleState,
+} from "../../utils/agentSchedule";
+import {
+  ActiveNavLabel,
+  DELIVERY_RUN_STORAGE_KEY,
+  SPEECH_MUTED_STORAGE_KEY,
+  MAP_DELIVERED_PATH_VISIBLE_KEY,
+  MAP_DAIRY_PATH_VISIBLE_KEY,
+  MAX_ROUTE_PREVIEW_DISTANCE_METERS,
+  headingFont,
+} from "../../constants/agent";
+import { MapController } from "../../components/agent/MapController";
+import { StatCard } from "../../components/agent/dashboard/StatCard";
+import { NavTab } from "../../components/agent/dashboard/NavTab";
+import { GoogleMapsBadgeIcon } from "../../components/agent/dashboard/GoogleMapsBadgeIcon";
 
 const DefaultIcon = L.icon({
   iconRetinaUrl: markerIcon2x,
@@ -89,430 +91,6 @@ const DefaultIcon = L.icon({
   iconAnchor: [12, 41],
 });
 L.Marker.prototype.options.icon = DefaultIcon;
-
-const MapController = ({ center, zoom, trigger }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!center) return;
-    map.flyTo(center, zoom || 15, {
-      animate: true,
-      duration: 1.2,
-    });
-  }, [center, zoom, trigger, map]);
-
-  return null;
-};
-
-const ROAD_ROUTE_PRECISION = 5;
-const MAX_ROUTE_PREVIEW_DISTANCE_METERS = 50000;
-const roadRouteCache = new Map();
-const roadDistanceTableCache = new Map();
-
-const formatInstructionDistance = (distanceInMeters) => {
-  if (!Number.isFinite(distanceInMeters)) return "";
-  if (distanceInMeters < 1000) return `${Math.max(10, Math.round(distanceInMeters / 10) * 10)} m`;
-  return `${(distanceInMeters / 1000).toFixed(distanceInMeters >= 10000 ? 0 : 1)} km`;
-};
-
-const formatManeuverText = (step) => {
-  const type = String(step?.maneuver?.type || "").toLowerCase();
-  const modifier = String(step?.maneuver?.modifier || "").toLowerCase();
-  const roadName = String(step?.name || "").trim();
-  const roadSuffix = roadName ? ` onto ${roadName}` : "";
-
-  if (type === "depart") return roadName ? `Head on ${roadName}` : "Start and continue ahead";
-  if (type === "arrive") return "Arrive at destination";
-  if (type === "roundabout") return roadName ? `Take the roundabout to ${roadName}` : "Take the roundabout";
-  if (type === "merge") return roadName ? `Merge onto ${roadName}` : "Merge ahead";
-  if (type === "fork") return modifier ? `Keep ${modifier}${roadSuffix}` : `Keep ahead${roadSuffix}`;
-  if (modifier === "uturn") return "Make a U-turn";
-  if (modifier) return `Turn ${modifier}${roadSuffix}`;
-  if (type === "continue") return roadName ? `Continue on ${roadName}` : "Continue ahead";
-  return roadName ? `Continue on ${roadName}` : "Continue ahead";
-};
-
-const getUpcomingInstructionSummary = (route) => {
-  const steps = route?.legs?.flatMap((leg) => (Array.isArray(leg?.steps) ? leg.steps : [])) || [];
-  const meaningfulSteps = steps.filter((step) => String(step?.maneuver?.type || "").toLowerCase() !== "depart");
-  const [primaryStep, secondaryStep] = meaningfulSteps;
-
-  return {
-    primary: primaryStep
-      ? {
-        distanceMeters: Number.isFinite(Number(primaryStep.distance)) ? Number(primaryStep.distance) : null,
-        distanceLabel: formatInstructionDistance(primaryStep.distance),
-        text: formatManeuverText(primaryStep),
-      }
-      : null,
-    secondary: secondaryStep
-      ? {
-        distanceMeters: Number.isFinite(Number(secondaryStep.distance)) ? Number(secondaryStep.distance) : null,
-        distanceLabel: formatInstructionDistance(secondaryStep.distance),
-        text: formatManeuverText(secondaryStep),
-      }
-      : null,
-  };
-};
-
-const buildSpokenInstruction = (instruction, distanceMeters) => {
-  if (!instruction?.text) return "";
-  if (!Number.isFinite(distanceMeters)) return instruction.text;
-  if (distanceMeters <= 120) return `Now ${instruction.text.toLowerCase()}.`;
-  if (distanceMeters <= 600) {
-    return `In ${formatInstructionDistance(distanceMeters)}, ${instruction.text.toLowerCase()}.`;
-  }
-  return `After ${formatInstructionDistance(distanceMeters)}, ${instruction.text.toLowerCase()}.`;
-};
-
-const buildRouteCacheKey = (agentCoordinates, customerCoordinates) => {
-  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) return null;
-
-  return [
-    agentCoordinates[0].toFixed(ROAD_ROUTE_PRECISION),
-    agentCoordinates[1].toFixed(ROAD_ROUTE_PRECISION),
-    customerCoordinates[0].toFixed(ROAD_ROUTE_PRECISION),
-    customerCoordinates[1].toFixed(ROAD_ROUTE_PRECISION),
-  ].join(":");
-};
-
-const fetchRoadRoute = async (agentCoordinates, customerCoordinates, signal) => {
-  if (!Array.isArray(agentCoordinates) || !Array.isArray(customerCoordinates)) {
-    return { points: [], distanceMeters: null, durationSeconds: null };
-  }
-
-  const cacheKey = buildRouteCacheKey(agentCoordinates, customerCoordinates);
-  if (cacheKey && roadRouteCache.has(cacheKey)) {
-    return roadRouteCache.get(cacheKey);
-  }
-
-  const [agentLat, agentLng] = agentCoordinates;
-  const [customerLat, customerLng] = customerCoordinates;
-  const url =
-    `https://router.project-osrm.org/route/v1/driving/` +
-    `${agentLng},${agentLat};${customerLng},${customerLat}` +
-    `?overview=simplified&geometries=geojson&steps=true`;
-
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Road route request failed with status ${response.status}`);
-  }
-
-  const payload = await response.json();
-  const route = payload?.routes?.[0];
-  const geometry = route?.geometry?.coordinates;
-  const routePoints = Array.isArray(geometry)
-    ? geometry
-      .map((point) => {
-        const lng = Number(point?.[0]);
-        const lat = Number(point?.[1]);
-        return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
-      })
-      .filter(Boolean)
-    : [];
-  const routeData = {
-    points: routePoints,
-    distanceMeters: Number.isFinite(Number(route?.distance)) ? Number(route.distance) : null,
-    durationSeconds: Number.isFinite(Number(route?.duration)) ? Number(route.duration) : null,
-    instructions: getUpcomingInstructionSummary(route),
-  };
-
-  if (cacheKey) {
-    roadRouteCache.set(cacheKey, routeData);
-  }
-
-  return routeData;
-};
-
-const fetchRoadDistanceTable = async (originCoordinates, deliveries, signal) => {
-  if (!Array.isArray(originCoordinates) || !Array.isArray(deliveries) || deliveries.length === 0) {
-    return {};
-  }
-
-  const validDeliveries = deliveries.filter((delivery) => Array.isArray(delivery?.coordinates));
-  if (validDeliveries.length === 0) return {};
-
-  const cacheKey = [
-    originCoordinates[0].toFixed(4),
-    originCoordinates[1].toFixed(4),
-    validDeliveries
-      .map(
-        (delivery) =>
-          `${delivery.id}:${delivery.coordinates[0].toFixed(4)}:${delivery.coordinates[1].toFixed(4)}`
-      )
-      .join("|"),
-  ].join("::");
-
-  if (roadDistanceTableCache.has(cacheKey)) {
-    return roadDistanceTableCache.get(cacheKey);
-  }
-
-  const [originLat, originLng] = originCoordinates;
-  const coordinatesParam = [
-    `${originLng},${originLat}`,
-    ...validDeliveries.map((delivery) => `${delivery.coordinates[1]},${delivery.coordinates[0]}`),
-  ].join(";");
-
-  const destinationsParam = validDeliveries.map((_, index) => index + 1).join(";");
-  const url =
-    `https://router.project-osrm.org/table/v1/driving/${coordinatesParam}` +
-    `?sources=0&destinations=${destinationsParam}&annotations=distance`;
-
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Road distance table request failed with status ${response.status}`);
-  }
-
-  const payload = await response.json();
-  const distanceRow = Array.isArray(payload?.distances?.[0]) ? payload.distances[0] : [];
-
-  const result = validDeliveries.reduce((accumulator, delivery, index) => {
-    const distanceMeters = Number(distanceRow[index]);
-    accumulator[String(delivery.id)] = Number.isFinite(distanceMeters) ? distanceMeters : null;
-    return accumulator;
-  }, {});
-
-  roadDistanceTableCache.set(cacheKey, result);
-  return result;
-};
-
-const getDeliveryCoordinates = (delivery) => {
-  const lat = Number(
-    delivery?.lat ??
-    delivery?.latitude ??
-    delivery?.customerLat ??
-    delivery?.customerLatitude ??
-    delivery?.location?.lat ??
-    delivery?.location?.latitude
-  );
-  const lng = Number(
-    delivery?.lng ??
-    delivery?.longitude ??
-    delivery?.customerLng ??
-    delivery?.customerLongitude ??
-    delivery?.location?.lng ??
-    delivery?.location?.longitude
-  );
-
-  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
-};
-
-const getDairyCoordinates = (source) => {
-  const lat = Number(
-    source?.dairyLat ??
-    source?.dairyLatitude ??
-    source?.dairyFarmLat ??
-    source?.dairyFarmLatitude ??
-    source?.dairy?.latitude ??
-    source?.dairy?.lat
-  );
-  const lng = Number(
-    source?.dairyLng ??
-    source?.dairyLongitude ??
-    source?.dairyFarmLng ??
-    source?.dairyFarmLongitude ??
-    source?.dairy?.longitude ??
-    source?.dairy?.lng
-  );
-
-  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
-};
-
-const getDistanceInMeters = (from, to) => {
-  if (!from || !to) return null;
-
-  const [fromLat, fromLng] = from;
-  const [toLat, toLng] = to;
-  const toRadians = (value) => (value * Math.PI) / 180;
-  const earthRadius = 6371000;
-  const dLat = toRadians(toLat - fromLat);
-  const dLng = toRadians(toLng - fromLng);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(fromLat)) *
-    Math.cos(toRadians(toLat)) *
-    Math.sin(dLng / 2) *
-    Math.sin(dLng / 2);
-
-  return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const getTurnInstructionLabel = (instruction) => {
-  const text = String(instruction?.text || "").trim();
-  if (!text) return "Follow route";
-
-  if (/u-turn/i.test(text)) return "Make a U-turn";
-  if (/turn right/i.test(text)) return "Take right";
-  if (/turn left/i.test(text)) return "Take left";
-  if (/keep right/i.test(text)) return "Keep right";
-  if (/keep left/i.test(text)) return "Keep left";
-  if (/continue|head|straight/i.test(text)) return "Go straight";
-  if (/arrive/i.test(text)) return "Reach destination";
-
-  return text;
-};
-
-const getTurnInstructionIcon = (instruction) => {
-  const text = String(instruction?.text || "").trim();
-  if (/u-turn/i.test(text)) return Undo2;
-  if (/turn right|keep right/i.test(text)) return CornerUpRight;
-  if (/turn left|keep left/i.test(text)) return CornerUpLeft;
-  return ArrowUp;
-};
-
-const _getTurnInstructionDetail = (instruction, fallbackDelivery) => {
-  const text = String(instruction?.text || "").trim();
-  const towardMatch = text.match(/\b(?:onto|on|to)\s+(.+)$/i);
-  if (towardMatch?.[1]) return towardMatch[1];
-  return fallbackDelivery?.customerName || fallbackDelivery?.address || "next location";
-};
-
-const getAutoZoomLevel = (distanceInMeters) => {
-  if (!Number.isFinite(distanceInMeters)) return 15;
-  if (distanceInMeters <= 75) return 18;
-  if (distanceInMeters <= 150) return 18;
-  if (distanceInMeters <= 300) return 17;
-  if (distanceInMeters <= 700) return 16;
-  if (distanceInMeters <= 1500) return 15;
-  return 14;
-};
-
-const _formatDistanceLabel = (distanceInMeters) => {
-  if (!Number.isFinite(distanceInMeters)) return "Distance unavailable";
-  if (distanceInMeters < 1000) return `${Math.round(distanceInMeters)} m`;
-  return `${(distanceInMeters / 1000).toFixed(distanceInMeters >= 10000 ? 0 : 1)} km`;
-};
-
-const _formatDurationLabel = (durationSeconds) => {
-  if (!Number.isFinite(durationSeconds)) return "ETA unavailable";
-  const totalMinutes = Math.max(1, Math.round(durationSeconds / 60));
-  if (totalMinutes < 60) return `${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
-};
-
-const getLocalDateKey = (value = new Date()) => {
-  const date = new Date(value);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getSlotSortOrder = (slotKey = "") => {
-  if (slotKey === "MORNING") return 1;
-  if (slotKey === "EVENING") return 2;
-  return 3;
-};
-
-const compareScheduledDeliveries = (left, right) => {
-  const leftDate = String(left?.date || "");
-  const rightDate = String(right?.date || "");
-
-  if (leftDate !== rightDate) {
-    return leftDate.localeCompare(rightDate);
-  }
-
-  const leftSlot = getSlotSortOrder(String(left?.slotKey || "").toUpperCase());
-  const rightSlot = getSlotSortOrder(String(right?.slotKey || "").toUpperCase());
-  if (leftSlot !== rightSlot) {
-    return leftSlot - rightSlot;
-  }
-
-  return String(left?.customerName || "").localeCompare(String(right?.customerName || ""));
-};
-
-const getDeliveryScheduleState = (delivery, now = new Date()) => {
-  const deliveryDate = String(delivery?.date || "").trim();
-  const todayKey = getLocalDateKey(now);
-
-  if (!deliveryDate) {
-    return { phase: "UNSCHEDULED", isStartable: false, helperText: "Schedule not available" };
-  }
-
-  if (deliveryDate < todayKey) {
-    return { phase: "PAST", isStartable: false, helperText: "Scheduled window has passed" };
-  }
-
-  if (deliveryDate > todayKey) {
-    return { phase: "FUTURE", isStartable: false, helperText: `Scheduled for ${deliveryDate}` };
-  }
-
-  const slotKey = String(delivery?.slotKey || "").toUpperCase();
-  const slotMeta = SLOT_META[slotKey];
-  if (!slotMeta) {
-    return { phase: "TODAY", isStartable: true, helperText: "Ready for today's delivery" };
-  }
-
-  const slotStart = new Date(now);
-  slotStart.setHours(slotMeta.startHour, slotMeta.startMinute, 0, 0);
-
-  const slotEnd = new Date(now);
-  slotEnd.setHours(slotMeta.endHour, slotMeta.endMinute, 0, 0);
-
-  if (now < slotStart) {
-    return {
-      phase: "UPCOMING_TODAY",
-      isStartable: true,
-      helperText: `${slotMeta.label} slot starts at ${delivery?.slotWindow || "-"}, but you can start delivery now`,
-    };
-  }
-
-  if (now > slotEnd) {
-    return {
-      phase: "ENDED_TODAY",
-      isStartable: true,
-      helperText: "",
-    };
-  }
-
-  return {
-    phase: "ACTIVE_TODAY",
-    isStartable: true,
-    helperText: `${slotMeta.label} slot is active now`,
-  };
-};
-
-const StatCard = ({ icon, label, value, accent, tint }) => (
-  <div className="rounded-[24px] border border-[#EDE8DF] bg-white px-4 py-3 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-    <div className="flex items-start justify-between gap-2">
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#A88763]">{label}</p>
-        <p className="mt-1 text-2xl font-black leading-none text-[#2C1A0E]">{value}</p>
-      </div>
-      <div className={`rounded-[16px] border px-2.5 py-2.5 ${tint}`}>
-        {React.cloneElement(icon, { size: 16, className: accent })}
-      </div>
-    </div>
-  </div>
-);
-
-const NavTab = ({ icon, label, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[18px] px-2 py-2 transition ${active ? "text-[#B8641A]" : "text-[#8B7355]"
-      }`}
-  >
-    {icon}
-    <span className="text-[8px] font-black uppercase tracking-[0.16em]">{label}</span>
-    {active && <div className="h-1 w-1 rounded-full bg-[#B8641A]" />}
-  </button>
-);
-
-const GoogleMapsBadgeIcon = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-    <path d="M12 2C8.7 2 6 4.7 6 8c0 4.5 6 14 6 14s6-9.5 6-14c0-3.3-2.7-6-6-6z" fill="#EA4335" />
-    <path d="M12 2c-1.8 0-3.5.8-4.6 2.1l9.1 9.1c.9-1.3 1.5-3 1.5-5.2 0-3.3-2.7-6-6-6z" fill="#FBBC04" />
-    <path d="M6 8c0 4.5 6 14 6 14V8H6z" fill="#34A853" />
-    <circle cx="12" cy="8" r="2.6" fill="#4285F4" />
-  </svg>
-);
-
-const ActiveNavLabel = {
-  HOME: "HOME",
-  MAP: "MAP",
-};
 
 const isUnauthorizedError = (error) => Number(error?.response?.status) === 401;
 
