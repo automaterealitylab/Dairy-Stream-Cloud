@@ -4,9 +4,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../hooks/useAuth.jsx"; // Adjust path if needed
 
 import {
-  Loader2, ShieldCheck, MapPin, Eye, EyeOff, Lock, User,
-  ChevronRight, AlertCircle, Briefcase, Mail, Smartphone,
-  Edit2, ArrowRight
+  Loader2, User, AlertCircle, ArrowRight
 } from "lucide-react";
 
 import dairyImage from "../assets/dairyproduct.jpg";
@@ -24,8 +22,20 @@ import {
   resetAgentPasswordWithOtpApi
 } from "../services/auth.api.js"; // Adjust path if needed
 
-const DASHBOARD_VISITED_FLAG = "customerDashboardVisited";
-const headingFont = { fontFamily: "'Lora', serif" };
+import { DASHBOARD_VISITED_FLAG, headingFont } from "../constants/loginPage.js";
+import {
+  normalizeIdentifier,
+  normalizeStaffId,
+  sanitizeOtp,
+  validateIdentifier,
+  getErrorMessage,
+  getOtpRequestsRemaining,
+} from "../utils/loginPage.js";
+import { MobileTopLogoCard, MobileBrandCard, LeftBrandPanel } from "../components/login/BrandPanels.jsx";
+import { IdentityDisplay } from "../components/login/IdentityDisplay.jsx";
+import { RoleBadge } from "../components/login/RoleBadge.jsx";
+import { PasswordField } from "../components/login/PasswordField.jsx";
+import { PasswordResetForm } from "../components/login/PasswordResetForm.jsx";
 
 const LoginPage = () => {
   const { login, user, loading: authLoading } = useAuth();
@@ -110,7 +120,7 @@ const LoginPage = () => {
   };
 
   const handleCustomerOtpResend = async () => {
-    const normalizedIdentifier = String(identifier || "").trim();
+    const normalizedIdentifier = normalizeIdentifier(identifier);
     if (!normalizedIdentifier) {
       toast.error("Identifier is required");
       return;
@@ -146,11 +156,9 @@ const LoginPage = () => {
   const handleIdentifierSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    const normalizedIdentifier = String(identifier || "").trim();
+    const normalizedIdentifier = normalizeIdentifier(identifier);
 
-    const isEmail = normalizedIdentifier.includes("@");
-    const isStaffId = normalizedIdentifier.toUpperCase().startsWith("STF");
-    const isMobile = /^\d{10}$/.test(normalizedIdentifier);
+    const { isEmail, isStaffId, isMobile } = validateIdentifier(normalizedIdentifier);
 
     if (!isEmail && !isStaffId && !isMobile) {
       toast.error("Please enter a valid Email, Mobile, or Staff ID");
@@ -260,7 +268,7 @@ const LoginPage = () => {
   };
 
   const handleAdminForgotPasswordRequest = async () => {
-    const normalizedIdentifier = String(identifier || "").trim();
+    const normalizedIdentifier = normalizeIdentifier(identifier);
     if (!normalizedIdentifier) {
       toast.error("Identifier is required");
       return;
@@ -276,17 +284,11 @@ const LoginPage = () => {
       setAdminResetOtpSent(true);
       setAgentResetMode(false);
       setAgentResetOtpSent(false);
-      setAdminOtpRequestsRemaining(
-        typeof result?.remainingRequests === "number" ? result.remainingRequests : null
-      );
+      setAdminOtpRequestsRemaining(getOtpRequestsRemaining(result));
       setAgentOtpRequestsRemaining(null);
       toast.success(result?.message || "OTP sent to registered admin email");
     } catch (err) {
-      const backendMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Failed to send OTP";
+      const backendMessage = getErrorMessage(err, "Failed to send OTP");
       setError(backendMessage);
       if (typeof err.response?.data?.remainingRequests === "number") {
         setAdminOtpRequestsRemaining(err.response.data.remainingRequests);
@@ -317,7 +319,7 @@ const LoginPage = () => {
     setError("");
     try {
       const result = await resetAdminPasswordWithOtpApi({
-        identifier: String(identifier || "").trim(),
+        identifier: normalizeIdentifier(identifier),
         otp: adminResetOtp.trim(),
         newPassword: newAdminPassword,
       });
@@ -330,11 +332,7 @@ const LoginPage = () => {
       setConfirmAdminPassword("");
       setPassword("");
     } catch (err) {
-      const backendMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Failed to reset password";
+      const backendMessage = getErrorMessage(err, "Failed to reset password");
       setError(backendMessage);
       toast.error(backendMessage);
     } finally {
@@ -343,7 +341,7 @@ const LoginPage = () => {
   };
 
   const handleAgentForgotPasswordRequest = async () => {
-    const normalizedStaffId = String(identifier || "").trim().toUpperCase();
+    const normalizedStaffId = normalizeStaffId(identifier);
     if (!normalizedStaffId) {
       toast.error("Staff ID is required");
       return;
@@ -359,17 +357,11 @@ const LoginPage = () => {
       setAgentResetOtpSent(true);
       setAdminResetMode(false);
       setAdminResetOtpSent(false);
-      setAgentOtpRequestsRemaining(
-        typeof result?.remainingRequests === "number" ? result.remainingRequests : null
-      );
+      setAgentOtpRequestsRemaining(getOtpRequestsRemaining(result));
       setAdminOtpRequestsRemaining(null);
       toast.success(result?.message || "OTP sent to registered agent email");
     } catch (err) {
-      const backendMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Failed to send OTP";
+      const backendMessage = getErrorMessage(err, "Failed to send OTP");
       setError(backendMessage);
       if (typeof err.response?.data?.remainingRequests === "number") {
         setAgentOtpRequestsRemaining(err.response.data.remainingRequests);
@@ -400,7 +392,7 @@ const LoginPage = () => {
     setError("");
     try {
       const result = await resetAgentPasswordWithOtpApi({
-        agentId: String(identifier || "").trim().toUpperCase(),
+        agentId: normalizeStaffId(identifier),
         otp: agentResetOtp.trim(),
         newPassword: newAgentPassword,
       });
@@ -413,11 +405,7 @@ const LoginPage = () => {
       setConfirmAgentPassword("");
       setPassword("");
     } catch (err) {
-      const backendMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Failed to reset password";
+      const backendMessage = getErrorMessage(err, "Failed to reset password");
       setError(backendMessage);
       toast.error(backendMessage);
     } finally {
@@ -481,55 +469,6 @@ const LoginPage = () => {
   }
 };
 
-  // ================= IDENTITY BADGE COMPONENT =================
-  const IdentityDisplay = () => {
-    if (!detectedUser) return null;
-
-    let Icon = User;
-    let label = "User";
-    let badgeColor = "bg-[#FFF4E2] text-[#B8641A]";
-
-    if (detectedUser.userType === "ADMIN") {
-      Icon = Mail;
-      label = "Admin ID";
-      badgeColor = "bg-[#FFF1E4] text-[#C86A2B]";
-    } else if (detectedUser.userType === "AGENT" || detectedUser.userType === "STAFF") {
-      Icon = Briefcase;
-      label = "Staff ID";
-      badgeColor = "bg-[#FFF1E4] text-[#C86A2B]";
-    } else if (detectedUser.userType === "CUSTOMER") {
-      Icon = Smartphone;
-      label = "Email/Mobile";
-      badgeColor = "bg-[#EEF5E7] text-[#4A7C2F]";
-    }
-
-    return (
-      <div className="mb-6 flex items-center justify-between rounded-[16px] border border-[#EDE8DF] bg-[#FBF7F0] p-3">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className={`p-2 rounded-full ${badgeColor}`}>
-            <Icon size={16} />
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#A88763]">
-              {label}
-            </span>
-            <span className="truncate text-sm font-semibold text-[#2C1A0E]">
-              {identifier}
-            </span>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="p-2 text-[#A88763] transition-colors hover:text-[#B8641A]"
-          title="Change User"
-        >
-          <Edit2 size={16} />
-        </button>
-      </div>
-    );
-  };
-
   // ================= FULL JSX =================
   return (
     <div
@@ -537,70 +476,13 @@ const LoginPage = () => {
       style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
     >
       {/* ================= MOBILE TOP LOGO CARD ================= */}
-      <div className="order-1 px-4 pt-6 sm:px-6 lg:hidden">
-        <div className="w-full max-w-md mx-auto rounded-[20px] border border-[#E7DAC6] bg-[#FFFDF7] p-4 text-center shadow-[0_8px_30px_rgba(44,26,14,0.06)]">
-          <div className="cursor-pointer text-2xl font-bold text-[#2C1A0E]" style={headingFont} onClick={() => navigate("/")}>
-            Dairy<span className="text-[#B8641A]">Vision</span>
-          </div>
-        </div>
-      </div>
+      <MobileTopLogoCard onLogoClick={() => navigate("/")} />
 
       {/* ================= MOBILE BOTTOM BRAND CARD ================= */}
-      <div className="order-3 px-4 pb-6 sm:px-6 lg:hidden">
-        <div className="relative overflow-hidden rounded-[28px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-5 py-6 text-white shadow-[0_20px_50px_rgba(44,26,14,0.16)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.18),transparent_40%)]" />
-          <div className="relative z-10">
-            <p className="max-w-sm text-sm text-[#F5E6D2]">
-              Manage milk deliveries, subscriptions, billing, and customer access from one calm, reliable platform.
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <Link
-                to="/register-dairy"
-                className="inline-flex items-center justify-center gap-1.5 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-2 py-2 text-xs sm:text-sm font-semibold text-white no-underline transition hover:bg-white/16 text-center"
-              >
-                <ShieldCheck size={16} className="shrink-0" />
-                <span className="truncate">Register Dairy</span>
-              </Link>
-              <Link
-                to="/explore"
-                className="inline-flex items-center justify-center gap-1.5 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-2 py-2 text-xs sm:text-sm font-semibold text-white no-underline transition hover:bg-white/16 text-center"
-              >
-                <MapPin size={16} className="shrink-0" />
-                <span className="truncate">Explore Nearby</span>
-              </Link>
-            </div>
-          </div>
-          <div className="absolute -bottom-16 -right-14 h-40 w-40 rounded-full bg-[#D28A40]/20 blur-3xl" />
-        </div>
-      </div>
+      <MobileBrandCard />
 
       {/* ================= LEFT BRAND SECTION ================= */}
-      <div className="relative hidden overflow-hidden bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] px-20 text-white lg:flex lg:flex-col lg:justify-center">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(210,138,64,0.16),transparent_42%)]" />
-        <div className="relative z-10">
-          <h1 className="mt-3 text-5xl font-semibold tracking-tight text-white" style={headingFont}>DairyVision</h1>
-          <div className="mb-6 mt-4 h-1 w-12 rounded-full bg-[#D6A15D]" />
-          <p className="max-w-md text-lg text-[#F5E6D2]">
-            Manage milk deliveries, subscriptions, billing, and customer access from one calm, reliable platform.
-          </p>
-          <div className="mt-8 flex gap-4">
-            <Link
-              to="/register-dairy"
-              className="flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-4 py-2.5 text-white no-underline transition hover:bg-white/16"
-            >
-              <ShieldCheck size={18} /> Register Dairy
-            </Link>
-            <Link
-              to="/explore"
-              className="flex items-center gap-2 rounded-[14px] border border-[#EFD7B3]/40 bg-white/10 px-4 py-2.5 text-white no-underline transition hover:bg-white/16"
-            >
-              <MapPin size={18} /> Explore Nearby
-            </Link>
-          </div>
-        </div>
-        <div className="absolute -bottom-40 -right-20 h-96 w-96 rounded-full bg-[#D28A40]/20 blur-3xl"></div>
-        <div className="absolute -top-24 left-10 h-52 w-52 rounded-full bg-[#FFF4E2]/8 blur-3xl"></div>
-      </div>
+      <LeftBrandPanel />
 
       {/* ================= RIGHT LOGIN FORM SECTION ================= */}
       <div className="order-2 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:order-none lg:px-4 lg:py-10">
@@ -630,18 +512,7 @@ const LoginPage = () => {
 
             {/* Role Tag */}
             {detectedUser && (
-              <div className="flex justify-center mt-3">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border uppercase ${
-                  detectedUser.userType === "ADMIN"
-                    ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
-                    : (detectedUser.userType === "AGENT" || detectedUser.userType === "STAFF")
-                    ? "border-[#F0D1B2] bg-[#FFF1E4] text-[#C86A2B]"
-                    : "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
-                }`}>
-                  {detectedUser.userType === "ADMIN" ? "Dairy Admin" : 
-                   (detectedUser.userType === "AGENT" || detectedUser.userType === "STAFF") ? "Delivery Agent" : "Customer"}
-                </span>
-              </div>
+              <RoleBadge userType={detectedUser.userType} />
             )}
           </div>
 
@@ -688,28 +559,19 @@ const LoginPage = () => {
               }
               className="space-y-5"
             >
-              <IdentityDisplay />
+              <IdentityDisplay detectedUser={detectedUser} identifier={identifier} onReset={handleReset} />
 
               {!adminResetMode && !agentResetMode ? (
                 <>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none transition focus:border-[#B8641A]"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
+                  <PasswordField
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    show={showPassword}
+                    onToggleShow={() => setShowPassword(!showPassword)}
+                    transition
+                    autoFocus
+                  />
 
                   {(detectedUser?.userType === "ADMIN" ||
                     detectedUser?.userType === "AGENT" ||
@@ -740,217 +602,59 @@ const LoginPage = () => {
                   </button>
                 </>
               ) : adminResetMode ? (
-                <>
-                  <div className="rounded-[14px] border border-[#E7DAC6] bg-[#FFF8EC] p-3 text-xs text-[#8B7355]">
-                    OTP will be sent to your registered admin email, irrespective of email/mobile login method.
-                  </div>
-
-                  {!adminResetOtpSent ? (
-                    <button
-                      type="button"
-                      onClick={handleAdminForgotPasswordRequest}
-                      disabled={loading}
-                      className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white hover:bg-[#9F5313] disabled:bg-[#D8C8B2]"
-                    >
-                      {loading ? <Loader2 className="animate-spin" /> : "Send OTP"}
-                    </button>
-                  ) : (
-                    <>
-                      {typeof adminOtpRequestsRemaining === "number" && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500">
-                            OTP requests remaining: {adminOtpRequestsRemaining}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleAdminForgotPasswordRequest}
-                            disabled={loading || adminOtpRequestsRemaining <= 0}
-                            className="font-semibold text-[#B8641A] hover:underline disabled:text-[#C4A882] disabled:no-underline"
-                          >
-                            Resend OTP
-                          </button>
-                        </div>
-                      )}
-                      {adminOtpRequestsRemaining === 0 && (
-                        <p className="text-xs text-red-600 font-medium">
-                          Limit reached. Try after 15 minutes.
-                        </p>
-                      )}
-
-                      <input
-                        value={adminResetOtp}
-                        onChange={(e) => setAdminResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="Enter 6-digit OTP"
-                        className="w-full rounded-[16px] border border-[#EDE8DF] py-3 text-center font-mono text-2xl tracking-widest outline-none focus:border-[#B8641A]"
-                        autoFocus
-                      />
-
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                          type={showNewPassword ? "text" : "password"}
-                          value={newAdminPassword}
-                          onChange={(e) => setNewAdminPassword(e.target.value)}
-                          placeholder="New password"
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
-                        >
-                          {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          value={confirmAdminPassword}
-                          onChange={(e) => setConfirmAdminPassword(e.target.value)}
-                          placeholder="Confirm new password"
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
-                        >
-                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-
-                      <button
-                        disabled={loading || adminResetOtp.length < 6 || !newAdminPassword || !confirmAdminPassword}
-                        className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
-                      >
-                        {loading ? <Loader2 className="animate-spin" /> : "Reset Password"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdminResetMode(false);
-                          setAdminResetOtpSent(false);
-                          setAdminResetOtp("");
-                          setNewAdminPassword("");
-                          setConfirmAdminPassword("");
-                          setAdminOtpRequestsRemaining(null);
-                        }}
-                        className="w-full text-sm text-[#8B7355] hover:text-[#5C3D1E]"
-                      >
-                        Back to Login
-                      </button>
-                    </>
-                  )}
-                </>
+                <PasswordResetForm
+                  infoText="OTP will be sent to your registered admin email, irrespective of email/mobile login method."
+                  otp={adminResetOtp}
+                  onOtpChange={setAdminResetOtp}
+                  newPassword={newAdminPassword}
+                  onNewPasswordChange={setNewAdminPassword}
+                  showNewPassword={showNewPassword}
+                  onToggleShowNewPassword={() => setShowNewPassword(!showNewPassword)}
+                  confirmPassword={confirmAdminPassword}
+                  onConfirmPasswordChange={setConfirmAdminPassword}
+                  showConfirmPassword={showConfirmPassword}
+                  onToggleShowConfirmPassword={() => setShowConfirmPassword(!showConfirmPassword)}
+                  otpRequestsRemaining={adminOtpRequestsRemaining}
+                  otpSent={adminResetOtpSent}
+                  onRequestOtp={handleAdminForgotPasswordRequest}
+                  onResendOtp={handleAdminForgotPasswordRequest}
+                  onBack={() => {
+                    setAdminResetMode(false);
+                    setAdminResetOtpSent(false);
+                    setAdminResetOtp("");
+                    setNewAdminPassword("");
+                    setConfirmAdminPassword("");
+                    setAdminOtpRequestsRemaining(null);
+                  }}
+                  loading={loading}
+                />
               ) : (
-                <>
-                  <div className="rounded-[14px] border border-[#E7DAC6] bg-[#FFF8EC] p-3 text-xs text-[#8B7355]">
-                    OTP will be sent to the agent's registered email using your staff ID.
-                  </div>
-
-                  {!agentResetOtpSent ? (
-                    <button
-                      type="button"
-                      onClick={handleAgentForgotPasswordRequest}
-                      disabled={loading}
-                      className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-3 font-semibold text-white hover:bg-[#9F5313] disabled:bg-[#D8C8B2]"
-                    >
-                      {loading ? <Loader2 className="animate-spin" /> : "Send OTP"}
-                    </button>
-                  ) : (
-                    <>
-                      {typeof agentOtpRequestsRemaining === "number" && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500">
-                            OTP requests remaining: {agentOtpRequestsRemaining}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleAgentForgotPasswordRequest}
-                            disabled={loading || agentOtpRequestsRemaining <= 0}
-                            className="font-semibold text-[#B8641A] hover:underline disabled:text-[#C4A882] disabled:no-underline"
-                          >
-                            Resend OTP
-                          </button>
-                        </div>
-                      )}
-                      {agentOtpRequestsRemaining === 0 && (
-                        <p className="text-xs text-red-600 font-medium">
-                          Limit reached. Try after 15 minutes.
-                        </p>
-                      )}
-
-                      <input
-                        value={agentResetOtp}
-                        onChange={(e) => setAgentResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="Enter 6-digit OTP"
-                        className="w-full rounded-[16px] border border-[#EDE8DF] py-3 text-center font-mono text-2xl tracking-widest outline-none focus:border-[#B8641A]"
-                        autoFocus
-                      />
-
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                          type={showNewPassword ? "text" : "password"}
-                          value={newAgentPassword}
-                          onChange={(e) => setNewAgentPassword(e.target.value)}
-                          placeholder="New password"
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
-                        >
-                          {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          value={confirmAgentPassword}
-                          onChange={(e) => setConfirmAgentPassword(e.target.value)}
-                          placeholder="Confirm new password"
-                          className="w-full rounded-[16px] border border-[#EDE8DF] bg-white py-3 pl-10 pr-10 text-[#2C1A0E] outline-none focus:border-[#B8641A]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A88763] hover:text-[#5C3D1E]"
-                        >
-                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-
-                      <button
-                        disabled={loading || agentResetOtp.length < 6 || !newAgentPassword || !confirmAgentPassword}
-                        className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#4A7C2F] py-3 font-semibold text-white hover:bg-[#3E6928] disabled:bg-[#BFD4AF]"
-                      >
-                        {loading ? <Loader2 className="animate-spin" /> : "Reset Password"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAgentResetMode(false);
-                          setAgentResetOtpSent(false);
-                          setAgentResetOtp("");
-                          setNewAgentPassword("");
-                          setConfirmAgentPassword("");
-                          setAgentOtpRequestsRemaining(null);
-                        }}
-                        className="w-full text-sm text-[#8B7355] hover:text-[#5C3D1E]"
-                      >
-                        Back to Login
-                      </button>
-                    </>
-                  )}
-                </>
+                <PasswordResetForm
+                  infoText="OTP will be sent to the agent's registered email using your staff ID."
+                  otp={agentResetOtp}
+                  onOtpChange={setAgentResetOtp}
+                  newPassword={newAgentPassword}
+                  onNewPasswordChange={setNewAgentPassword}
+                  showNewPassword={showNewPassword}
+                  onToggleShowNewPassword={() => setShowNewPassword(!showNewPassword)}
+                  confirmPassword={confirmAgentPassword}
+                  onConfirmPasswordChange={setConfirmAgentPassword}
+                  showConfirmPassword={showConfirmPassword}
+                  onToggleShowConfirmPassword={() => setShowConfirmPassword(!showConfirmPassword)}
+                  otpRequestsRemaining={agentOtpRequestsRemaining}
+                  otpSent={agentResetOtpSent}
+                  onRequestOtp={handleAgentForgotPasswordRequest}
+                  onResendOtp={handleAgentForgotPasswordRequest}
+                  onBack={() => {
+                    setAgentResetMode(false);
+                    setAgentResetOtpSent(false);
+                    setAgentResetOtp("");
+                    setNewAgentPassword("");
+                    setConfirmAgentPassword("");
+                    setAgentOtpRequestsRemaining(null);
+                  }}
+                  loading={loading}
+                />
               )}
             </form>
           )}
@@ -958,12 +662,12 @@ const LoginPage = () => {
           {/* STEP 3: OTP INPUT (Customer) */}
           {step === "OTP" && (
             <form onSubmit={handleFinalLogin} className="space-y-5">
-              <IdentityDisplay />
-              
+              <IdentityDisplay detectedUser={detectedUser} identifier={identifier} onReset={handleReset} />
+
               <div className="text-center">
                  <input
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setOtp(sanitizeOtp(e.target.value))}
                   maxLength={6}
                   placeholder="• • • • • •"
                   className="w-full rounded-[16px] border border-[#EDE8DF] py-4 text-center font-mono text-3xl tracking-widest outline-none focus:border-[#4A7C2F]"
