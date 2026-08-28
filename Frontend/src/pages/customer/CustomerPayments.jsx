@@ -3,9 +3,12 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Clock,
   CreditCard,
+  Download,
   Filter,
   Info,
   Loader2,
@@ -21,8 +24,6 @@ import CustomerLayout from "../../components/customer/layouts/CustomerLayout";
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import {
   createCustomerUpiPaymentIntent,
-  fetchCustomerPayments,
-  getCachedCustomerPayments,
   previewCustomerPaymentScreenshotOcr,
   submitCustomerUpiPaymentVerification,
   createCustomerPaymentOrder,
@@ -30,185 +31,38 @@ import {
   createCustomerWalletTopupOrder,
   verifyCustomerWalletTopup,
   payCustomerBillWithWallet,
+  downloadCustomerInvoicePdfBlob,
 } from "../../api/customer/customer.api.js";
 import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
-
-const bodyFont = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
-const headingFont = { fontFamily: "'Lora', serif" };
-
-const FILTER_OPTIONS = [
-  { value: "ALL", label: "All records" },
-  { value: "PENDING", label: "Pending" },
-  { value: "OVERDUE", label: "Overdue" },
-  { value: "PAID", label: "Paid" },
-];
-
-const WALLET_TOPUP_PRESETS = [100, 250, 500, 1000];
-
-const getAuthToken = () => {
-  const storedUser = localStorage.getItem("user");
-  return JSON.parse(storedUser || "{}")?.token || localStorage.getItem("token") || null;
-};
-
-const fmt = (value) => `\u20B9${Number(value || 0).toFixed(2)}`;
-
-const formatPaymentMethodLabel = (value) => {
-  const normalized = String(value || "").trim().toUpperCase();
-  if (!normalized || normalized === "-") return "";
-  if (normalized === "PAY_NOW" || normalized === "RAZORPAY") return "Online";
-  if (normalized === "COD" || normalized === "CASH") return "Cash";
-  if (normalized === "UPI") return "UPI";
-  return normalized
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-};
-
-const formatDateLabel = (
-  value,
-  options = { day: "numeric", month: "short", year: "numeric" }
-) => {
-  if (!value) return "";
-
-  const parsed = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return String(value);
-  }
-
-  return parsed.toLocaleDateString("en-IN", options);
-};
-
-const dueText = (dueInDays) => {
-  if (dueInDays === null || dueInDays === undefined) return "Due date not set";
-  if (dueInDays < 0) return `Overdue by ${Math.abs(dueInDays)} days`;
-  if (dueInDays === 0) return "Due today";
-  return `Due in ${dueInDays} days`;
-};
-
-const parseTitle = (raw = "") => {
-  const up = raw.toUpperCase();
-  let title = "Payment";
-
-  if (up.includes("ONE_TIME")) title = "One-time Delivery";
-  else if (up.includes("SUBSCRIPTION")) title = "Subscription Delivery";
-  else if (up.includes("WALLET")) title = "Wallet Topup";
-  else {
-    const cleaned = raw.replace(/\[.*?\]\s*/g, "").replace(/\w+=\S+;?\s*/g, "").trim();
-    if (cleaned) title = cleaned;
-  }
-
-  const parts = [];
-  const product = raw.match(/(?:product|milk)=([^;]+)/i)?.[1]?.trim();
-  if (product) parts.push(product.charAt(0).toUpperCase() + product.slice(1));
-
-  const qty = raw.match(/qty=([^;]+)/i)?.[1]?.trim();
-  if (qty) parts.push(`${qty} L`);
-
-  const dateStr = raw.match(/date=(\d{4}-\d{2}-\d{2})/i)?.[1];
-  if (dateStr) {
-    parts.push(formatDateLabel(dateStr));
-  }
-
-  return { title, subtitle: parts.join(" \u2022 ") };
-};
-
-const statusCfg = (status) => {
-  const normalizedStatus = String(status || "").toUpperCase();
-
-  if (normalizedStatus === "PAID") {
-    return {
-      pill: "border border-[#D6EEDD] bg-[#F4FBF7] text-[#1A7A4A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]",
-      dot: "bg-[#1A7A4A]",
-      label: "Paid",
-    };
-  }
-
-  if (normalizedStatus === "OVERDUE") {
-    return {
-      pill: "border border-[#F4D1D1] bg-[#FFF5F5] text-[#C53030] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
-      dot: "bg-[#C53030]",
-      label: "Overdue",
-    };
-  }
-
-  return {
-    pill: "border border-[#F3E1B8] bg-[#FFF9EE] text-[#B45309] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
-    dot: "bg-[#B45309]",
-    label: "Pending",
-  };
-};
-
-const paymentTypeCfg = (raw = "") => {
-  const normalizedTitle = String(raw || "").toUpperCase();
-
-  if (normalizedTitle.includes("WALLET")) {
-    return {
-      Icon: Wallet,
-      iconBg: "bg-[#EFF6FF] text-[#1D5FA5]",
-    };
-  }
-
-  if (normalizedTitle.includes("SUBSCRIPTION")) {
-    return {
-      Icon: RefreshCw,
-      iconBg: "bg-[#EBF7F1] text-[#1A7A4A]",
-    };
-  }
-
-  return {
-    Icon: CreditCard,
-    iconBg: "bg-[#FFFBEB] text-[#B45309]",
-  };
-};
-
-const getMonthEndDate = () => {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0);
-};
-
-const getNextSubscriptionDueDate = () => {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 10);
-};
-
-const INITIAL_SHOW = 7;
-const EMPTY_SUMMARY = {
-  monthlyDue: 0,
-  overdueAmount: 0,
-  overdueBaseAmount: 0,
-  overduePenaltyAmount: 0,
-  walletBalance: 0,
-  dueInDays: null,
-  beneficiary: null,
-  payableTillDate: 0,
-  billingSummaryAmount: 0,
-};
-
-const toPaymentsViewState = (data) => ({
-  summary: {
-    monthlyDue: Number(data?.summary?.monthlyDue || 0),
-    overdueAmount: Number(data?.summary?.overdueAmount || 0),
-    overdueBaseAmount: Number(data?.summary?.overdueBaseAmount || 0),
-    overduePenaltyAmount: Number(data?.summary?.overduePenaltyAmount || 0),
-    walletBalance: Number(data?.summary?.walletBalance || 0),
-    dueInDays: data?.summary?.dueInDays == null ? null : Number(data.summary.dueInDays),
-    beneficiary: data?.summary?.beneficiary || null,
-    payableTillDate: Number(data?.summary?.payableTillDate || 0),
-    billingSummaryAmount: Number(
-      data?.summary?.billingSummaryAmount ??
-        data?.summary?.payableTillDate ??
-        data?.summary?.monthlyDue ??
-        0
-    ),
-  },
-  history: Array.isArray(data?.history) ? data.history : [],
-});
+import { PaymentRow } from "../../components/customer/payments/PaymentRow.jsx";
+import { useCustomerPayments } from "../../hooks/useCustomerPayments.js";
+import {
+  bodyFont,
+  headingFont,
+  FILTER_OPTIONS,
+  WALLET_TOPUP_PRESETS,
+  INITIAL_SHOW,
+  fmt,
+  formatPaymentMethodLabel,
+  formatDateLabel,
+  dueText,
+  parseTitle,
+  statusCfg,
+  paymentTypeCfg,
+  getMonthEndDate,
+  getNextSubscriptionDueDate,
+} from "../../utils/customerPayments.js";
 
 export default function Payments() {
-  const cachedPayments = getCachedCustomerPayments();
-  const initialPaymentsState = toPaymentsViewState(cachedPayments);
-  const [summary, setSummary] = useState(initialPaymentsState.summary);
-  const [history, setHistory] = useState(initialPaymentsState.history);
-  const [loading, setLoading] = useState(() => !cachedPayments);
+  const {
+    summary,
+    history,
+    loading,
+    error,
+    setError,
+    loadPayments,
+  } = useCustomerPayments();
+
   const [payingPaymentId, setPayingPaymentId] = useState(null);
   const [walletTopupAmount, setWalletTopupAmount] = useState("250");
   const [walletTopupLoading, setWalletTopupLoading] = useState(false);
@@ -218,74 +72,39 @@ export default function Payments() {
   const [ocrPreview, setOcrPreview] = useState(null);
   const [ocrPreviewing, setOcrPreviewing] = useState(false);
   const [submittingVerification, setSubmittingVerification] = useState(false);
-  const [error, setError] = useState(null);
   const [showAll, setShowAll] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [detailPayment, setDetailPayment] = useState(null);
+  const itemsPerPage = 8;
   const [paymentSelectorOpen, setPaymentSelectorOpen] = useState(false);
   const [selectedPaymentTarget, setSelectedPaymentTarget] = useState(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [downloadingPdfId, setDownloadingPdfId] = useState(null);
 
-  const hasRazorpay = Boolean(summary.beneficiary?.razorpayLinkedAccountId);
-  const hasUpi = Boolean(summary.beneficiary?.upiId);
-
-
-  const applyPaymentsState = (data) => {
-    const nextState = toPaymentsViewState(data);
-    setSummary(nextState.summary);
-    setHistory(nextState.history);
-  };
-
-  const loadPayments = async ({ force = false, showSpinner = force || !getCachedCustomerPayments() } = {}) => {
-    if (showSpinner) {
-      setLoading(true);
-    }
-    setError(null);
+  const handleDownloadPdf = async (payment) => {
+    const invoiceId = payment?.monthly_bill_id || payment?.monthlyBillId || payment?.id;
+    if (!invoiceId) return;
 
     try {
-      if (!getAuthToken()) throw new Error("Session expired. Please log in again.");
-
-      const data = await fetchCustomerPayments({ force });
-      applyPaymentsState(data);
-    } catch (err) {
-      setError(err?.message || "Failed to load payments.");
-      const hasVisiblePayments =
-        history.length > 0 ||
-        Number(summary.billingSummaryAmount || 0) > 0 ||
-        Number(summary.monthlyDue || 0) > 0 ||
-        Number(summary.walletBalance || 0) > 0;
-
-      if (!hasVisiblePayments) {
-        setSummary(EMPTY_SUMMARY);
-        setHistory([]);
-      }
+      setDownloadingPdfId(invoiceId);
+      await downloadCustomerInvoicePdfBlob(invoiceId);
+    } catch (error) {
+      console.error("PDF download failed:", error);
+      alert(error?.response?.data?.message || "Unable to generate/download the bill right now. Please try again.");
     } finally {
-      setLoading(false);
+      setDownloadingPdfId(null);
     }
   };
 
-  useEffect(() => {
-    loadPayments();
-  }, []);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      loadPayments({ force: true, showSpinner: false });
-    }, 30000);
-
-    const handleFocus = () => {
-      loadPayments({ force: true, showSpinner: false });
-    };
-
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, []);
+  const beneficiary = summary?.beneficiary;
+  const hasRazorpay = Boolean(beneficiary?.subscriptionAcceptRazorpay);
+  const hasUpi = Boolean(beneficiary?.subscriptionAcceptDirectUpi);
+  const preferredMethod = beneficiary?.subscriptionPaymentMethod || (hasRazorpay ? "RAZORPAY" : "DIRECT_UPI");
 
   useEffect(() => {
     setShowAll(false);
+    setCurrentPage(1);
   }, [statusFilter]);
 
   useEffect(() => {
@@ -313,56 +132,34 @@ export default function Payments() {
       setError("No pending payment selected.");
       return;
     }
-    if (payAll && Number(summary.monthlyDue || 0) <= 0) {
+    const totalPayableAmount = Number(summary.monthlyDue || 0) > 0
+      ? Number(summary.monthlyDue)
+      : Number(summary.billingSummaryAmount || summary.payableTillDate || 0);
+
+    if (payAll && totalPayableAmount <= 0) {
       setError("Nothing to pay.");
       return;
     }
 
-    const hasRazorpay = Boolean(summary.beneficiary?.razorpayLinkedAccountId);
-    const hasUpi = Boolean(summary.beneficiary?.upiId);
-    let optOnline = false;
-    let optUpi = false;
-
-    // Check what the dairy selected for this type of payment
-    const targetPayment = payment || {};
-    const isOneTime = targetPayment.title && String(targetPayment.title).toUpperCase().includes("ONE_TIME");
-    const methodSelected = isOneTime
-      ? (summary.beneficiary?.oneTimePaymentMethod || "DIRECT_UPI")
-      : (summary.beneficiary?.subscriptionPaymentMethod || "DIRECT_UPI");
-
-    if (hasRazorpay && hasUpi) {
-      if (methodSelected === "RAZORPAY") {
-        optOnline = true;
-      } else {
-        optUpi = true;
-      }
-    } else if (hasRazorpay) {
-      optOnline = true;
-    } else if (hasUpi) {
-      optUpi = true;
-    }
-
-    if (!optOnline && !optUpi) {
-      optOnline = true;
-      optUpi = true;
-    }
-
     const target = { payment, payAll };
-    const paymentAmount = payAll ? Number(summary.monthlyDue || 0) : Number(payment?.amount || 0);
+    const paymentAmount = payAll ? totalPayableAmount : Number(payment?.amount || 0);
     const hasSufficientWallet = Number(summary.walletBalance || 0) >= paymentAmount && paymentAmount > 0;
 
-    if (hasSufficientWallet) {
+    if (hasSufficientWallet || (hasRazorpay && hasUpi)) {
       setSelectedPaymentTarget(target);
       setPaymentSelectorOpen(true);
       setError(null);
-    } else if (optOnline && !optUpi) {
+      return;
+    }
+
+    if (hasUpi && !hasRazorpay) {
+      handleExecuteUpiPayment(target);
+    } else if (hasRazorpay && !hasUpi) {
       handleExecuteRazorpayPayment(target);
-    } else if (optUpi && !optOnline) {
+    } else if (preferredMethod === "DIRECT_UPI") {
       handleExecuteUpiPayment(target);
     } else {
-      setSelectedPaymentTarget(target);
-      setPaymentSelectorOpen(true);
-      setError(null);
+      handleExecuteRazorpayPayment(target);
     }
   };
 
@@ -376,9 +173,11 @@ export default function Payments() {
       setPayingPaymentId(payAll ? "__ALL__" : payment.id);
       setError(null);
 
-      const intentPayload = await createCustomerUpiPaymentIntent(
-        payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
-      );
+      const payload = payAll || !payment?.id || String(payment.id).startsWith("payment-")
+        ? { payAll: true, includeRunningDue: true }
+        : { paymentId: payment.id, includeRunningDue: true };
+
+      const intentPayload = await createCustomerUpiPaymentIntent(payload);
       setUpiIntent({ ...intentPayload, payAll, paymentId: payment?.id || null });
       setUpiForm({ utrNumber: "", payerUpiId: "", screenshotFile: null });
       setOcrPreview(null);
@@ -404,9 +203,11 @@ export default function Payments() {
         throw new Error("Failed to load Razorpay SDK. Please check your network connection.");
       }
 
-      const orderData = await createCustomerPaymentOrder(
-        payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
-      );
+      const payload = payAll || !payment?.id || String(payment.id).startsWith("payment-")
+        ? { payAll: true, includeRunningDue: true }
+        : { paymentId: payment.id, includeRunningDue: true };
+
+      const orderData = await createCustomerPaymentOrder(payload);
 
       const { keyId, order } = orderData;
 
@@ -416,7 +217,7 @@ export default function Payments() {
           await verifyCustomerPayment({
             paymentId: payment?.id || null,
             payAll,
-            includeRunningDue: false,
+            includeRunningDue: true,
             razorpayOrderId: order.id,
             razorpayPaymentId: `pay_mock_${Math.random().toString(36).substr(2, 9)}`,
             razorpaySignature: "mock_signature",
@@ -452,7 +253,7 @@ export default function Payments() {
             await verifyCustomerPayment({
               paymentId: payment?.id || null,
               payAll,
-              includeRunningDue: false,
+              includeRunningDue: true,
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
@@ -597,7 +398,7 @@ export default function Payments() {
       await submitCustomerUpiPaymentVerification({
         paymentId: upiIntent.paymentId || "",
         payAll: upiIntent.payAll ? "true" : "false",
-        includeRunningDue: upiIntent.isWalletTopup ? "false" : (upiIntent.payAll ? "false" : "true"),
+        includeRunningDue: upiIntent.isWalletTopup ? "false" : "true",
         isWalletTopup: upiIntent.isWalletTopup ? "true" : "false",
         amount: upiIntent.amount,
         utrNumber: upiForm.utrNumber,
@@ -642,7 +443,10 @@ export default function Payments() {
     ) ?? null;
 
   const isOverdue = summary.dueInDays !== null && summary.dueInDays < 0;
-  const hasDue = Number(summary.monthlyDue || 0) > 0;
+  const totalPayableNow = Number(summary.monthlyDue || 0) > 0
+    ? Number(summary.monthlyDue)
+    : Number(summary.billingSummaryAmount || summary.payableTillDate || 0);
+  const hasDue = totalPayableNow > 0;
   const walletTopupValue = Number(walletTopupAmount);
   const canTopupWallet = Number.isFinite(walletTopupValue) && walletTopupValue >= 10;
   const walletTopupButtonLabel =
@@ -655,7 +459,7 @@ export default function Payments() {
     month: "short",
     year: "numeric",
   });
-  const heroAmount = hasDue ? summary.monthlyDue : summary.billingSummaryAmount;
+  const heroAmount = hasDue ? totalPayableNow : summary.billingSummaryAmount;
   const heroLabel = hasDue
     ? "Amount Due Now"
     : hasRunningSubscriptionBill
@@ -680,7 +484,7 @@ export default function Payments() {
     : "border border-white/10 bg-white/10 text-white/70";
 
   const payAllButtonClasses =
-    hasDue && nextUnpaidPayment
+    hasDue
       ? "bg-[#B8641A] text-white hover:bg-[#9F5414] disabled:bg-white/12 disabled:text-white/40"
       : "bg-white/12 text-white/40 hover:bg-white/12 disabled:bg-white/12 disabled:text-white/40";
 
@@ -689,8 +493,11 @@ export default function Payments() {
     return String(payment.status || "").toUpperCase() === statusFilter;
   });
 
-  const visibleHistory = showAll ? filteredHistory : filteredHistory.slice(0, INITIAL_SHOW);
-  const hiddenCount = Math.max(filteredHistory.length - INITIAL_SHOW, 0);
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const visibleHistory = filteredHistory.slice(startIndex, startIndex + itemsPerPage);
+  const startItem = filteredHistory.length > 0 ? startIndex + 1 : 0;
+  const endItem = Math.min(startIndex + itemsPerPage, filteredHistory.length);
   const nextBillDateLabel = formatDateLabel(getMonthEndDate(), {
     day: "numeric",
     month: "short",
@@ -710,28 +517,8 @@ export default function Payments() {
       ? "This overdue stays added until that bill is paid"
       : "No overdue is being carried forward";
 
-  let showOnlinePay = false;
-  let showDirectUpi = false;
-
-  if (hasRazorpay && hasUpi) {
-    const targetPayment = selectedPaymentTarget?.payment || {};
-    const isOneTime = targetPayment.title && String(targetPayment.title).toUpperCase().includes("ONE_TIME");
-    const methodSelected = isOneTime
-      ? (summary.beneficiary?.oneTimePaymentMethod || "DIRECT_UPI")
-      : (summary.beneficiary?.subscriptionPaymentMethod || "DIRECT_UPI");
-
-    showOnlinePay = methodSelected === "RAZORPAY";
-    showDirectUpi = methodSelected === "DIRECT_UPI";
-  } else if (hasRazorpay) {
-    showOnlinePay = true;
-  } else if (hasUpi) {
-    showDirectUpi = true;
-  }
-
-  if (!showOnlinePay && !showDirectUpi) {
-    showOnlinePay = true;
-    showDirectUpi = true;
-  }
+  const showOnlinePay = hasRazorpay;
+  const showDirectUpi = hasUpi;
 
   const selectedTargetPayment = selectedPaymentTarget?.payment || {};
   const selectedPaymentAmount = selectedPaymentTarget?.payAll
@@ -812,7 +599,7 @@ export default function Payments() {
 
                   <button
                     onClick={() => handlePayNow(nextUnpaidPayment, { payAll: true })}
-                    disabled={isBusy || !nextUnpaidPayment || !hasDue}
+                    disabled={isBusy || !hasDue}
                     className={`inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[10px] px-5 py-3 text-sm font-extrabold transition sm:w-auto lg:min-w-[200px] ${payAllButtonClasses}`}
                   >
                     {payingPaymentId === "__ALL__" || (paymentProcessing && selectedPaymentTarget?.payAll) ? (
@@ -822,7 +609,7 @@ export default function Payments() {
                     )}
                     {payingPaymentId === "__ALL__" || (paymentProcessing && selectedPaymentTarget?.payAll)
                       ? "Processing..."
-                      : `Pay Now ${fmt(summary.monthlyDue)}`}
+                      : `Pay Now ${fmt(totalPayableNow)}`}
                   </button>
                 </div>
               </div>
@@ -1012,7 +799,6 @@ export default function Payments() {
                   {visibleHistory.map((payment) => {
                     const cfg = statusCfg(payment.status);
                     const typeCfg = paymentTypeCfg(payment.title);
-                    const { Icon } = typeCfg;
                     const normalizedStatus = String(payment.status || "").toUpperCase();
                     const verificationStatus = String(payment.verificationStatus || "").toUpperCase();
                     const isUnpaid = ["PENDING", "OVERDUE"].includes(normalizedStatus);
@@ -1045,157 +831,51 @@ export default function Payments() {
                       .join(" \u2022 ");
 
                     return (
-                      <div
+                      <PaymentRow
                         key={payment.id}
-                        className="border-t border-[#F2EDE4] first:border-t-0 md:first:border-t-0"
-                      >
-                        <div className="px-3 py-3 sm:px-6 sm:py-4">
-                          <div className="md:hidden">
-                            <div className="flex min-w-0 items-start gap-2">
-                              <div
-                                className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] ${typeCfg.iconBg}`}
-                              >
-                                <Icon size={15} />
-                              </div>
-
-                              <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <p className="min-w-0 flex-1 break-words text-[12px] font-bold leading-[1.35] text-[#2C1A0E]">
-                                    {title}
-                                  </p>
-                                  {subtitle ? (
-                                    <p className="mt-0.5 break-words text-[10px] leading-4 text-[#B89970]">
-                                      {subtitle}
-                                    </p>
-                                  ) : null}
-                                  {mobileMeta ? (
-                                    <p className="mt-0.5 text-[10px] leading-4 text-[#B89970]">
-                                      {mobileMeta}
-                                    </p>
-                                  ) : !subtitle ? (
-                                    <p className="mt-0.5 text-[10px] leading-4 text-[#B89970]">
-                                      Payment details will appear here.
-                                    </p>
-                                  ) : null}
-
-                                  <div className="mt-1 flex flex-nowrap items-center gap-1.5 px-3 py-1">
-                                    <p className="truncate text-[10px] font-medium leading-none text-[#7B654B]">
-                                      {paymentStatusMeta}
-                                    </p>
-                                    <span
-                                      className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold leading-none ${cfg.pill}`}
-                                    >
-                                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                                      {cfg.label}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                                  <p
-                                    className="whitespace-nowrap pt-0.5 text-[15px] font-semibold leading-none tracking-[-0.03em] text-[#2C1A0E]"
-                                    style={headingFont}
-                                  >
-                                    {fmt(payment.amount)}
-                                  </p>
-
-                                  {isUnpaid && (
-                                    <button
-                                      onClick={() => handlePayNow(payment)}
-                                      disabled={isBusy}
-                                      className="inline-flex min-h-[30px] items-center gap-1 rounded-[9px] bg-[#2C1A0E] px-2.5 py-1.5 text-[10px] font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
-                                    >
-                                      {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? (
-                                        <Loader2 size={10} className="animate-spin" />
-                                      ) : (
-                                        <CreditCard size={10} />
-                                      )}
-                                      {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? "Processing..." : "Pay Bill"}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="hidden md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(120px,0.95fr)_minmax(130px,0.95fr)_minmax(170px,1fr)] md:items-center md:gap-4">
-                            <div className="flex min-w-0 items-start gap-3">
-                              <div
-                                className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[12px] ${typeCfg.iconBg}`}
-                              >
-                                <Icon size={17} />
-                              </div>
-
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-bold text-[#2C1A0E]">{title}</p>
-                                <p className="mt-1 truncate text-xs text-[#B89970]">
-                                  {subtitle || "Monthly dairy billing"}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div>
-                              <p className="text-sm font-semibold text-[#5C3D1E]">{paymentDateLabel}</p>
-                            </div>
-
-                            <div className="px-3 py-2.5">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-xs font-medium text-[#7B654B]">
-                                  {paymentStatusMeta}
-                                </p>
-                                <span
-                                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold ${cfg.pill}`}
-                                >
-                                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                                  {cfg.label}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col items-start gap-2 md:items-end">
-                              <p
-                                className="text-[22px] font-semibold leading-none tracking-[-0.03em] text-[#2C1A0E]"
-                                style={headingFont}
-                              >
-                                {fmt(payment.amount)}
-                              </p>
-
-                              {isUnpaid && (
-                                <button
-                                  onClick={() => handlePayNow(payment)}
-                                  disabled={isBusy}
-                                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#2C1A0E] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#B8641A] disabled:cursor-not-allowed disabled:bg-[#DDD2BF] disabled:text-[#8B7355]"
-                                >
-                                  {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                  ) : (
-                                    <CreditCard size={12} />
-                                  )}
-                                  {payingPaymentId === payment.id || (paymentProcessing && selectedPaymentTarget?.payment?.id === payment.id) ? "Processing..." : "Pay Bill"}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        payment={payment}
+                        cfg={cfg}
+                        typeCfg={typeCfg}
+                        title={title}
+                        subtitle={subtitle}
+                        paymentDateLabel={paymentDateLabel}
+                        onRowClick={(p) => setDetailPayment(p)}
+                        onDownloadPdf={(p) => handleDownloadPdf(p)}
+                      />
                     );
                   })}
 
-                  {filteredHistory.length > INITIAL_SHOW && (
-                    <button
-                      onClick={() => setShowAll((prev) => !prev)}
-                      className="flex w-full items-center justify-center gap-1.5 border-t border-[#F2EDE4] px-4 py-4 text-sm font-semibold text-[#8B7355] transition hover:bg-[#FDF6EC] hover:text-[#B8641A]"
-                    >
-                      {showAll ? (
-                        <>
-                          <ChevronUp size={14} /> Show less
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown size={14} /> Show {hiddenCount} more payments
-                        </>
-                      )}
-                    </button>
+                  {filteredHistory.length > itemsPerPage && (
+                    <div className="flex flex-col gap-3 border-t border-[#F2EDE4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
+                      <p className="text-xs text-[#8B7355]">
+                        Showing <span className="font-bold text-[#2C1A0E]">{startItem}-{endItem}</span> of{" "}
+                        <span className="font-bold text-[#2C1A0E]">{filteredHistory.length}</span> payments
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="inline-flex items-center gap-1 rounded-xl border border-[#EDE8DF] bg-white px-3.5 py-1.5 text-xs font-bold text-[#5C3D1E] transition hover:border-[#D4B896] hover:bg-[#FAF5EF] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <ChevronLeft size={14} /> Previous
+                        </button>
+
+                        <span className="text-xs font-semibold text-[#8B7355] px-2">
+                          Page {currentPage} of {totalPages || 1}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage >= totalPages}
+                          className="inline-flex items-center gap-1 rounded-xl border border-[#EDE8DF] bg-white px-3.5 py-1.5 text-xs font-bold text-[#5C3D1E] transition hover:border-[#D4B896] hover:bg-[#FAF5EF] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Next <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
@@ -1596,6 +1276,88 @@ export default function Payments() {
                   {walletTopupLoading ? "Preparing..." : walletTopupButtonLabel}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailPayment && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setDetailPayment(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-[#EDE8DF] bg-[#FFFDF7] p-6 shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#F2EDE4]">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882]">
+                  Payment Details
+                </p>
+                <h3 className="text-lg font-bold text-[#2C1A0E] mt-0.5">
+                  {parseTitle(detailPayment.title).title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailPayment(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355] hover:bg-[#FAF5EF] font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-xs text-[#5C3D1E]">
+              <div className="flex justify-between py-1.5 border-b border-[#F2EDE4]">
+                <span className="text-[#8B7355]">Amount</span>
+                <span className="font-bold text-base text-[#2C1A0E]" style={headingFont}>
+                  {fmt(detailPayment.amount)}
+                </span>
+              </div>
+
+              <div className="flex justify-between py-1.5 border-b border-[#F2EDE4]">
+                <span className="text-[#8B7355]">Status</span>
+                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg(detailPayment.status).pill}`}>
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusCfg(detailPayment.status).dot}`} />
+                  {statusCfg(detailPayment.status).label}
+                </span>
+              </div>
+
+              <div className="flex justify-between py-1.5 border-b border-[#F2EDE4]">
+                <span className="text-[#8B7355]">Date</span>
+                <span className="font-semibold">{formatDateLabel(detailPayment.date) || "-"}</span>
+              </div>
+
+              <div className="flex justify-between py-1.5 border-b border-[#F2EDE4]">
+                <span className="text-[#8B7355]">Payment Method</span>
+                <span className="font-semibold">{formatPaymentMethodLabel(detailPayment.method) || "UPI"}</span>
+              </div>
+
+              {detailPayment.id && (
+                <div className="flex justify-between py-1.5 border-b border-[#F2EDE4]">
+                  <span className="text-[#8B7355]">Reference ID</span>
+                  <span className="font-mono text-[11px] text-[#2C1A0E]">{detailPayment.id}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(detailPayment)}
+                disabled={Boolean(downloadingPdfId)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#B8641A] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#9F5414] disabled:opacity-50"
+              >
+                <Download size={14} /> {downloadingPdfId ? "Generating PDF..." : "Download Bill PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailPayment(null)}
+                className="rounded-xl border border-[#EDE8DF] bg-white px-5 py-2 text-xs font-bold text-[#6B5B3E] hover:bg-[#FAF5EF]"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
