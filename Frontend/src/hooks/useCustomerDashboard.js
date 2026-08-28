@@ -16,12 +16,13 @@ export const useCustomerDashboard = () => {
 
     const loadDashboard = async () => {
       const cachedDashboard = getCachedCustomerDashboard();
+      const hasValidCache = Boolean(cachedDashboard?.customer?.id);
 
       if (!cancelled) {
-        if (cachedDashboard) {
+        if (hasValidCache) {
           setData(cachedDashboard);
         }
-        setLoading(!cachedDashboard);
+        setLoading(!hasValidCache);
         setError(null);
       }
 
@@ -36,7 +37,7 @@ export const useCustomerDashboard = () => {
         }
 
         const token = user?.token || storedToken || localStorage.getItem("token");
-        if (!token) {
+        if (!token && !user) {
           if (!cancelled) {
             setData(null);
             setError("Customer token missing");
@@ -45,13 +46,14 @@ export const useCustomerDashboard = () => {
           return;
         }
 
-        const res = await fetchCustomerDashboard();
+        const res = await fetchCustomerDashboard({ force: !hasValidCache });
 
         if (!cancelled) {
           setData(res);
           setLoading(false);
         }
-      } catch {
+      } catch (err) {
+        console.error("Dashboard fetch error:", err);
         if (!cancelled) {
           setData(null);
           setError("Failed to load dashboard");

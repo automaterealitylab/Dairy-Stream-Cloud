@@ -50,7 +50,7 @@ const NAV_ITEMS = [
   {
     icon: ShoppingBag,
     label: "My Subscription",
-    mobileLabel: "Plans",
+    mobileLabel: "Subscriptions",
     path: "/customer/dashboard/subscriptions",
     preload: preloadSubscriptionPage,
     prefetchData: [prefetchCustomerSubscription],
@@ -153,105 +153,118 @@ const CustomerLayout = ({ children }) => {
 
   return (
     <div className="ds-portal ds-customer-portal flex min-h-screen bg-[#FAFAF7] text-[#2C1A0E]" style={shellFont}>
-      <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-[#EDE8DF] bg-white/95 backdrop-blur md:flex xl:w-80">
-        <div className="border-b border-[#F2EDE4] px-6 py-7 xl:px-[30px] xl:py-[34px]">
-          <h1 className="text-[26px] text-[#B8641A] xl:text-[32px]" style={brandFont}>
+      <aside className="fixed inset-y-0 hidden w-[260px] flex-col border-r border-[#F0EBE1] bg-[#FDFBF7] md:flex">
+        <div className="border-b border-[#F0EBE1] px-5 py-6">
+          <h1 className="text-[24px] font-semibold leading-tight text-[#B8641A]" style={brandFont}>
             DairyVision
           </h1>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882] xl:mt-2 xl:text-[13px]">
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B0997D]">
             Customer Portal
           </p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto pb-5 pt-2 xl:pt-3">
-          <p className="px-6 pb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882] xl:px-[30px] xl:pb-7 xl:text-[12px]">
-            Menu
-          </p>
-          {NAV_ITEMS.slice(0, 4).map((item) => {
-            const active = isActive(item.path);
-            const Icon = item.icon;
+        <nav className="flex-1 space-y-6 overflow-y-auto px-3.5 pb-4 pt-5">
+          <div>
+            <p className="px-2.5 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B0997D]">
+              MAIN
+            </p>
+            <div className="space-y-1">
+              {NAV_ITEMS.slice(0, 4).map((item) => {
+                const active = isActive(item.path);
+                const Icon = item.icon;
 
-            return (
-              <button
-                key={item.label}
-                onClick={() => navigate(item.path)}
-                onMouseEnter={() => warmRoute(item)}
-                onFocus={() => warmRoute(item)}
-                className={`relative flex w-full items-center gap-3 px-6 py-3 text-left text-sm transition xl:min-h-[65px] xl:gap-5 xl:px-[30px] xl:text-[17px] ${active
-                    ? "bg-[#FDE9C9] font-bold text-[#B8641A]"
-                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
-                  }`}
-              >
-                {active && (
-                  <span className="absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-[#B8641A]" />
-                )}
-                <Icon className="h-[18px] w-[18px] xl:h-[21px] xl:w-[21px]" strokeWidth={active ? 2.5 : 2} />
-                {item.label}
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => navigate(item.path)}
+                    onMouseEnter={() => warmRoute(item)}
+                    onFocus={() => warmRoute(item)}
+                    className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all ${
+                      active
+                        ? "bg-[#FAF5EF] font-semibold text-[#2C1A0E]"
+                        : "font-medium text-[#524134] hover:bg-[#FAF6F0] hover:text-[#2C1A0E]"
+                    }`}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-[#C86D27]" />
+                    )}
+                    <Icon
+                      className={`h-5 w-5 flex-shrink-0 transition-colors ${
+                        active ? "text-[#C86D27]" : "text-[#7C6A5A] group-hover:text-[#2C1A0E]"
+                      }`}
+                      strokeWidth={active ? 2 : 1.75}
+                    />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          <p className="px-6 pb-2 pt-6 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#C4A882] xl:px-[30px] xl:pb-7 xl:pt-8 xl:text-[12px]">
-            Support
-          </p>
-          {NAV_ITEMS.slice(4).map((item) => {
-            const active = isActive(item.path);
-            const Icon = item.icon;
+          <div>
+            <p className="px-2.5 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#B0997D]">
+              ACCOUNT
+            </p>
+            <div className="space-y-1">
+              {NAV_ITEMS.slice(4).map((item) => {
+                const active = isActive(item.path);
+                const Icon = item.icon;
 
-            return (
-              <button
-                key={item.label}
-                onClick={() => navigate(item.path)}
-                onMouseEnter={() => warmRoute(item)}
-                onFocus={() => warmRoute(item)}
-                className={`relative flex w-full items-center gap-3 px-6 py-3 text-left text-sm transition xl:min-h-[65px] xl:gap-5 xl:px-[30px] xl:text-[17px] ${active
-                    ? "bg-[#FDE9C9] font-bold text-[#B8641A]"
-                    : "text-[#8B7355] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
-                  }`}
-              >
-                {active && (
-                  <span className="absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-[#B8641A]" />
-                )}
-                <Icon className="h-[18px] w-[18px] xl:h-[21px] xl:w-[21px]" strokeWidth={active ? 2.5 : 2} />
-                {item.label}
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => navigate(item.path)}
+                    onMouseEnter={() => warmRoute(item)}
+                    onFocus={() => warmRoute(item)}
+                    className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all ${
+                      active
+                        ? "bg-[#FAF5EF] font-semibold text-[#2C1A0E]"
+                        : "font-medium text-[#524134] hover:bg-[#FAF6F0] hover:text-[#2C1A0E]"
+                    }`}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-[#C86D27]" />
+                    )}
+                    <Icon
+                      className={`h-5 w-5 flex-shrink-0 transition-colors ${
+                        active ? "text-[#C86D27]" : "text-[#7C6A5A] group-hover:text-[#2C1A0E]"
+                      }`}
+                      strokeWidth={active ? 2 : 1.75}
+                    />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </nav>
 
-        <div className="mt-auto border-t border-[#F2EDE4] px-6 py-5 xl:px-[30px] xl:py-12">
+        <div className="mt-auto border-t border-[#F0EBE1] p-3.5">
           <button
             onClick={handleLogout}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#EDE8DF] px-4 py-2.5 text-sm font-semibold text-[#B89970] transition hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B] xl:mt-0 xl:h-[52px] xl:text-[16px]"
+            className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#524134] transition-all hover:bg-[#FAF5EF] hover:text-[#2C1A0E]"
           >
-            <LogOut size={16} />
-            Logout
+            <LogOut className="h-5 w-5 flex-shrink-0 text-[#7C6A5A] transition-colors group-hover:text-[#2C1A0E]" strokeWidth={1.75} />
+            <span>Logout</span>
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+88px)] md:ml-64 md:pb-0 xl:ml-80">
-        <header className="sticky top-0 z-20 border-b border-[#EDE8DF] bg-[rgba(255,253,248,0.96)] px-4 py-3 backdrop-blur md:hidden">
+      <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+88px)] md:ml-[260px] md:pb-0">
+        <header className="sticky top-0 z-20 border-b border-[#F0EBE1] bg-[rgba(253,251,247,0.96)] px-4 py-3 backdrop-blur md:hidden">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg text-[#B8641A]" style={brandFont}>
                 DairyVision
               </h1>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#C4A882]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#B0997D]">
                 Customer Portal
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#8B7355]">
-                <Bell size={18} />
+            <div className="flex items-center">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#F0EBE1] bg-white text-[#7C6A5A]">
+                <Bell size={18} strokeWidth={1.75} />
               </div>
-              <button
-                onClick={handleLogout}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[#EDE8DF] bg-white px-3 text-xs font-semibold text-[#8B7355] transition hover:border-[#F5C6C4] hover:bg-[#FDF6EC] hover:text-[#C0392B]"
-              >
-                <LogOut size={14} />
-                Logout
-              </button>
             </div>
           </div>
         </header>
@@ -261,9 +274,9 @@ const CustomerLayout = ({ children }) => {
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#EDE8DF] bg-[rgba(255,253,248,0.98)] px-1.5 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] shadow-[0_-10px_30px_rgba(100,72,35,0.08)] backdrop-blur md:hidden">
-        <div className="grid grid-cols-6 gap-0.5">
-          {NAV_ITEMS.map((item) => {
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#F0EBE1] bg-[rgba(253,251,247,0.98)] px-1.5 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] shadow-[0_-10px_30px_rgba(100,72,35,0.06)] backdrop-blur md:hidden">
+        <div className="grid grid-cols-5 gap-0.5">
+          {NAV_ITEMS.filter((item) => item.path !== "/customer/dashboard/track/agent").map((item) => {
             const active = isActive(item.path);
             const Icon = item.icon;
 
@@ -273,13 +286,14 @@ const CustomerLayout = ({ children }) => {
                 onClick={() => navigate(item.path)}
                 onMouseEnter={() => warmRoute(item)}
                 onFocus={() => warmRoute(item)}
-                className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-[12px] px-0.5 py-2 transition ${active
-                    ? "bg-[#FDE9C9] text-[#B8641A]"
-                    : "text-[#B89970] hover:bg-[#FDF6EC] hover:text-[#8B7355]"
-                  }`}
+                className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-lg px-0.5 py-1.5 transition-all duration-150 active:scale-95 ${
+                  active
+                    ? "bg-[#FAF5EF] font-semibold text-[#2C1A0E]"
+                    : "text-[#7C6A5A] hover:bg-[#FAF6F0] hover:text-[#2C1A0E]"
+                }`}
               >
-                <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                <span className="text-center text-[8px] font-semibold leading-tight sm:text-[9px]">
+                <Icon className={`transition-transform duration-150 ${active ? "text-[#C86D27] scale-105" : "text-[#7C6A5A]"}`} size={18} strokeWidth={active ? 2 : 1.75} />
+                <span className="text-center text-[8px] leading-tight sm:text-[9px]">
                   {item.mobileLabel || item.label}
                 </span>
               </button>

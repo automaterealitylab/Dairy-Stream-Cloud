@@ -13,7 +13,6 @@ import {
 import { fetchPublicDairyById } from "../../api/public.api.js";
 import {
   PlusCircle,
-  PauseCircle,
   PlayCircle,
   Truck,
   CreditCard,
@@ -27,371 +26,47 @@ import {
   Banknote,
   Receipt,
 } from "lucide-react";
-
-const headingFont = { fontFamily: "'Lora', serif" };
-const formatCurrency = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
-
-const ACTIONS = [
-  {
-    key: "add",
-    label: "Add Extra",
-    Icon: PlusCircle,
-    bg: "bg-[#FFF4E2]",
-    text: "text-[#B8641A]",
-    border: "border-[#EFD7B3]",
-    route: null,
-  },
-  {
-    key: "pause",
-    label: "Pause",
-    Icon: PauseCircle,
-    bg: "bg-[#FFF1E4]",
-    text: "text-[#C86A2B]",
-    border: "border-[#F0D1B2]",
-    route: null,
-  },
-  {
-    key: "deliveries",
-    label: "Deliveries",
-    Icon: Truck,
-    bg: "bg-[#EEF5E7]",
-    text: "text-[#4A7C2F]",
-    border: "border-[#DDE8D1]",
-    route: "/customer/dashboard/deliveries",
-  },
-  {
-    key: "pay",
-    label: "Pay Bill",
-    Icon: CreditCard,
-    bg: "bg-[#FDECEA]",
-    text: "text-[#C0392B]",
-    border: "border-[#F2D0C8]",
-    route: "/customer/dashboard/payments",
-  },
-];
-
-const getBillingDueText = (dueInDays) => {
-  if (dueInDays === null || dueInDays === undefined) return "Due date not set";
-  if (dueInDays < 0) return `Overdue by ${Math.abs(dueInDays)} days`;
-  if (dueInDays === 0) return "Due today";
-  return `Due in ${dueInDays} days`;
-};
-
-const getDateInputValue = (dateValue = new Date()) => {
-  const date = new Date(dateValue);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getTomorrowDateInput = () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return getDateInputValue(tomorrow);
-};
-
-const deriveProductType = (type, name) => {
-  const t = String(type || "").trim().toUpperCase();
-  if (t && t !== "OTHER" && ["MILK", "CURD", "PANEER", "GHEE"].includes(t)) {
-    return t;
-  }
-  const n = String(name || "").toLowerCase();
-  if (n.includes("milk")) return "MILK";
-  if (n.includes("curd") || n.includes("dahi") || n.includes("yogurt")) return "CURD";
-  if (n.includes("paneer") || n.includes("panner") || n.includes("cheese")) return "PANEER";
-  if (n.includes("ghee") || n.includes("butter")) return "GHEE";
-  return "OTHER";
-};
-
-const normalizeProducts = (dairy = {}) => {
-  const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
-  if (explicitItems.length > 0) {
-    return explicitItems
-      .map((item) => ({
-        id: item.id || item.name,
-        name: String(item.name || "").trim(),
-        type: deriveProductType(item.type || item.product_type, item.name),
-        ratePerUnit: Number(item.ratePerUnit || 0),
-        stockQuantity: Number(item.stockQuantity || 0),
-        unit: item.unit || "LITER",
-      }))
-      .filter((item) => item.name && item.ratePerUnit > 0);
-  }
-
-  const legacyProducts = dairy?.products || {};
-  return Object.keys(legacyProducts).map((name) => ({
-    id: name,
-    name,
-    type: deriveProductType("MILK", name),
-    ratePerUnit: Number(legacyProducts[name] || 0),
-    stockQuantity: Number.POSITIVE_INFINITY,
-    unit: "LITER",
-  }));
-};
-
-const normalizeProductUnit = (unit) => {
-  const normalized = String(unit || "").trim().toUpperCase();
-  if (!normalized) return "UNIT";
-  if (["L", "LTR", "LITER", "LITRE", "LITERS", "LITRES"].includes(normalized)) {
-    return "LITER";
-  }
-  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(normalized)) {
-    return "KG";
-  }
-  return normalized;
-};
-
-const getProductUnitLabel = (unit, { short = false, lowercase = false } = {}) => {
-  const normalized = normalizeProductUnit(unit);
-
-  let label = normalized;
-  if (normalized === "LITER") {
-    label = short ? "L" : "Liter";
-  } else if (normalized === "KG") {
-    label = short ? "kg" : "KG";
-  }
-
-  return lowercase ? label.toLowerCase() : label;
-};
-
-const getProductQuantityStep = (unit) => {
-  const normalized = normalizeProductUnit(unit);
-  if (normalized === "KG") return "0.25";
-  if (normalized === "LITER") return "0.5";
-  return "1";
-};
-
-const getDefaultProductQuantity = (product, fallbackQuantity = "1") => {
-  const fallback = Number(fallbackQuantity);
-  if (Number.isFinite(fallback) && fallback > 0) {
-    return formatMeasureValue(fallback);
-  }
-
-  return getProductQuantityStep(product?.unit);
-};
-
-const formatMeasureValue = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "0";
-  if (Number.isInteger(numeric)) return String(numeric);
-  return numeric.toFixed(2).replace(/\.?0+$/, "");
-};
-
-const isProductOutOfStock = (stockQuantity) => {
-  const stock = Number(stockQuantity);
-  return Number.isFinite(stock) && stock <= 0;
-};
-
-const getStoredCustomerAddress = () => {
-  const storedUser = localStorage.getItem("user");
-  if (!storedUser) return "";
-
-  try {
-    const parsed = JSON.parse(storedUser);
-    return String(parsed?.user?.address || parsed?.address || "").trim();
-  } catch {
-    return "";
-  }
-};
-
-const buildUpiPaymentLink = ({ upiId, amount, name, note }) => {
-  if (!upiId) return "";
-
-  const params = new URLSearchParams();
-  params.set("pa", String(upiId).trim());
-  if (name) params.set("pn", String(name).trim());
-  if (Number.isFinite(Number(amount)) && Number(amount) > 0) {
-    params.set("am", Number(amount).toFixed(2));
-  }
-  params.set("cu", "INR");
-  if (note) params.set("tn", String(note).trim());
-
-  return `upi://pay?${params.toString()}`;
-};
-
-const normalizeAddExtraPaymentOption = (value) => {
-  const normalized = String(value || "").trim().toUpperCase();
-  if (["SUBSCRIPTION", "ADD_TO_SUBSCRIPTION", "MONTHLY_BILL"].includes(normalized)) {
-    return "ADD_TO_SUBSCRIPTION";
-  }
-  if (["COD", "CASH"].includes(normalized)) {
-    return "PAY_NOW_CASH";
-  }
-  return "PAY_NOW_ONLINE";
-};
-
-const getAddExtraOrderPaymentMethod = (option) => {
-  if (option === "ADD_TO_SUBSCRIPTION") return "MONTHLY_BILL";
-  if (option === "PAY_NOW_CASH") return "COD";
-  return "PAY_NOW";
-};
+import { ACTIONS, headingFont } from "../../constants/customer.js";
+import {
+  formatCurrency,
+  getBillingDueText,
+  getTomorrowDateInput,
+  normalizeProducts,
+  getProductUnitLabel,
+  getProductQuantityStep,
+  getDefaultProductQuantity,
+  isProductOutOfStock,
+  getStoredCustomerAddress,
+  buildUpiPaymentLink,
+  normalizeAddExtraPaymentOption,
+  getAddExtraOrderPaymentMethod,
+  normalizeAddExtraSlot,
+  formatTomorrowExtraStatus,
+  getTomorrowExtraStatusClasses,
+  getTodayDeliveryMeta,
+  getPreferredExtraProductName,
+  getPreferredExtraQuantity,
+  getDailyDeliverySummary,
+  toSubscriptionPayload,
+} from "../../utils/customerDashboard.js";
+import { ReportIssueModal } from "../../components/customer/ReportIssueModal.jsx";
+import { PauseSubscriptionModal } from "../../components/customer/PauseSubscriptionModal.jsx";
 
 const getProductImage = (type) => {
   const t = String(type || "").toUpperCase();
   switch (t) {
     case "MILK":
-      return <img src="/images/products/milk.png" alt="Milk" className="h-full w-full object-contain" />;
+      return <img src="/images/products/milk.png" alt="Milk" width="48" height="48" loading="lazy" className="h-full w-full object-contain" />;
     case "CURD":
-      return <img src="/images/products/curd.png" alt="Curd" className="h-full w-full object-contain" />;
+      return <img src="/images/products/curd.png" alt="Curd" width="48" height="48" loading="lazy" className="h-full w-full object-contain" />;
     case "PANEER":
-      return <img src="/images/products/paneer.png" alt="Paneer" className="h-full w-full object-contain" />;
+      return <img src="/images/products/paneer.png" alt="Paneer" width="48" height="48" loading="lazy" className="h-full w-full object-contain" />;
     case "GHEE":
-      return <img src="/images/products/ghee.png" alt="Ghee" className="h-full w-full object-contain" />;
+      return <img src="/images/products/ghee.png" alt="Ghee" width="48" height="48" loading="lazy" className="h-full w-full object-contain" />;
     default:
-      return <img src="/images/products/other.png" alt="Other" className="h-full w-full object-contain" />;
+      return <img src="/images/products/other.png" alt="Other" width="48" height="48" loading="lazy" className="h-full w-full object-contain" />;
   }
 };
-
-const normalizeAddExtraSlot = (value) => {
-  const normalized = String(value || "").trim().toUpperCase();
-  if (normalized.startsWith("EVE")) return "Evening";
-  return "Morning";
-};
-
-const formatTomorrowExtraStatus = (status) => {
-  const normalized = String(status || "").trim().toUpperCase();
-  if (normalized === "PENDING_APPROVAL" || normalized === "PENDING_VERIFICATION") return "Approval Pending";
-  if (normalized === "PENDING") return "Scheduled";
-  if (normalized === "DELIVERED") return "Delivered";
-  if (normalized === "FAILED") return "Failed";
-  if (normalized === "SKIPPED") return "Skipped";
-  if (normalized === "CANCELLED") return "Cancelled";
-  return "Scheduled";
-};
-
-const getTomorrowExtraStatusClasses = (status) => {
-  const normalized = String(status || "").trim().toUpperCase();
-  if (normalized === "DELIVERED") return "bg-[#EEF5E7] text-[#4A7C2F]";
-  if (normalized === "FAILED" || normalized === "CANCELLED") {
-    return "bg-[#FDECEA] text-[#C0392B]";
-  }
-  if (normalized === "PENDING_APPROVAL" || normalized === "PENDING_VERIFICATION") return "bg-[#FFF1E4] text-[#C86A2B]";
-  return "bg-[#FFF4E2] text-[#B8641A]";
-};
-
-const getTodayDeliveryMeta = (delivery = {}) => {
-  const status = String(delivery?.status || "").toUpperCase();
-  const hasAgent = Boolean(delivery?.agent?.name || delivery?.agentId);
-
-  if (status === "DELIVERED") {
-    return {
-      title: "Delivered Successfully",
-      tone: "success",
-      helperText: "Your order was delivered successfully.",
-    };
-  }
-
-  if (status === "PENDING_APPROVAL" || status === "PENDING_VERIFICATION") {
-    return {
-      title: "Approval Pending",
-      tone: "approval",
-      helperText: "Your one-time order is waiting for dairy admin approval.",
-    };
-  }
-
-  if (status === "OUT_FOR_DELIVERY" || status === "IN_TRANSIT") {
-    return {
-      title: "Out for Delivery",
-      tone: "pending",
-      helperText: "Your order is scheduled and out for delivery.",
-    };
-  }
-
-  if (status === "CANCELLED") {
-    return {
-      title: "Order Cancelled",
-      tone: "failed",
-      helperText: "This one-time order was cancelled and remains in your history.",
-    };
-  }
-
-  if (status === "FAILED") {
-    return {
-      title: "Delivery Failed",
-      tone: "failed",
-      helperText: "This delivery could not be completed today.",
-    };
-  }
-
-  if (status === "NOT_SUBSCRIBED") {
-    return {
-      title: "No Delivery Scheduled Today",
-      tone: "idle",
-      helperText: "Start a subscription or place a one-time order to get a delivery.",
-    };
-  }
-
-  if (status === "NOT_SCHEDULED") {
-    return {
-      title: "No Delivery Scheduled Today",
-      tone: "idle",
-      helperText: "Your subscription is active, but there is no delivery planned for today.",
-    };
-  }
-
-  if (status === "PENDING" && !hasAgent) {
-    return {
-      title: "Delivery Partner Not Assigned",
-      tone: "pending",
-      helperText: "We are assigning a delivery partner for your order.",
-    };
-  }
-
-  return {
-    title: "Delivery Pending",
-    tone: "pending",
-    helperText: "Your order is scheduled and awaiting delivery.",
-  };
-};
-
-const getPreferredExtraProductName = ({ subscription, tomorrow, today }) =>
-  String(
-    subscription?.milkType ||
-    tomorrow?.product ||
-    today?.product ||
-    ""
-  ).trim();
-
-const getPreferredExtraQuantity = ({ subscription, tomorrow, today }) => {
-  const rawQuantity = subscription?.quantity ?? tomorrow?.quantity ?? today?.quantity ?? 1;
-  const numericQuantity = Number.parseFloat(String(rawQuantity).replace(/[^0-9.]/g, ""));
-
-  if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
-    return "1";
-  }
-
-  return formatMeasureValue(numericQuantity);
-};
-
-const getDailyDeliverySummary = ({ subscription, tomorrow, today }) => {
-  const scheduledQuantity = String(tomorrow?.quantity || today?.quantity || "").trim();
-  const scheduledProduct = String(tomorrow?.product || today?.product || "").trim();
-
-  if (scheduledQuantity && scheduledProduct) {
-    return `${scheduledQuantity} ${scheduledProduct}`;
-  }
-
-  const subscriptionProduct = String(subscription?.milkType || "").trim();
-  const subscriptionQuantity = getPreferredExtraQuantity({ subscription, tomorrow: null, today: null });
-
-  if (subscriptionProduct) {
-    return `${subscriptionQuantity}L ${subscriptionProduct}`;
-  }
-
-  return "1L Milk";
-};
-
-const toSubscriptionPayload = (subscription, nextStatus) => ({
-  dairyId: subscription?.dairyId,
-  milkType: subscription?.milkType || "Milk",
-  quantity: Number(subscription?.quantity || 1),
-  slot: subscription?.slot || "Morning",
-  startDate: subscription?.startDate || undefined,
-  address: subscription?.address || "",
-  paymentMethod: subscription?.paymentMethod || "UPI",
-  status: nextStatus,
-});
 
 export default function DairyCustomerDashboard() {
   const navigate = useNavigate();
@@ -399,6 +74,8 @@ export default function DairyCustomerDashboard() {
 
   const [dashboardData, setDashboardData] = useState(null);
   const [savingPause, setSavingPause] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pausingSub, setPausingSub] = useState(false);
   const [pendingSubscriptionStatus, setPendingSubscriptionStatus] = useState(null);
   const [toast, setToast] = useState(null);
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -545,12 +222,22 @@ export default function DairyCustomerDashboard() {
   const tomorrowExtraOrders = Array.isArray(tomorrow?.extraOrders) ? tomorrow.extraOrders : [];
   const hasTomorrowExtras = tomorrowExtraOrders.length > 0;
   const showTomorrowCard = Boolean(hasSubscription || hasTomorrowExtras);
+  const formattedTomorrowQty = tomorrow?.quantity
+    ? String(tomorrow.quantity).toLowerCase().includes("l")
+      ? tomorrow.quantity
+      : `${tomorrow.quantity} L`
+    : "-";
   const tomorrowTitle = hasSubscription
-    ? `${tomorrow?.quantity || "-"} ${subscription?.milkType || "Milk"}`
+    ? `${formattedTomorrowQty} · ${subscription?.milkType || "Milk"}`
     : "Extra orders for tomorrow";
   const tomorrowSubtitle = hasSubscription
     ? `${tomorrow?.slot || "-"} slot`
     : `${tomorrowExtraOrders.length} extra ${tomorrowExtraOrders.length === 1 ? "item" : "items"} added`;
+  const formattedSubQty = subscription?.quantity
+    ? String(subscription.quantity).toLowerCase().includes("l")
+      ? subscription.quantity
+      : `${subscription.quantity} L`
+    : "-";
 
   useEffect(() => {
     if (canAddExtraToSubscriptionBill || addExtraForm.paymentMethod !== "ADD_TO_SUBSCRIPTION") {
@@ -625,14 +312,16 @@ export default function DairyCustomerDashboard() {
       .reduce((sum, line) => sum + Number(line.lineTotal || 0), 0)
       .toFixed(2)
   );
-  const formattedAddExtraTotal = `Rs.${Number.isFinite(addExtraTotal) ? addExtraTotal.toFixed(2) : "0.00"}`;
+  const formattedAddExtraTotal = formatCurrency(addExtraTotal);
   const addExtraSubmitLabel = addExtraSubmitting
     ? "Placing extra orders..."
-    : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
-      ? `Pay ${formattedAddExtraTotal} & Add Extras`
-      : addExtraForm.paymentMethod === "PAY_NOW_CASH"
-        ? `Add Extras for ${formattedAddExtraTotal} with Cash`
-        : `Add ${formattedAddExtraTotal} to Subscription Bill`;
+    : selectedAddExtraOrderLines.length === 0
+      ? "Select items to continue"
+      : addExtraForm.paymentMethod === "PAY_NOW_ONLINE"
+        ? `Pay ${formattedAddExtraTotal} & Add Extras`
+        : addExtraForm.paymentMethod === "PAY_NOW_CASH"
+          ? `Add Extras for ${formattedAddExtraTotal} with Cash`
+          : `Add ${formattedAddExtraTotal} to Subscription Bill`;
   const canSubmitAddExtraOrder =
     !addExtraLoading &&
     !addExtraSubmitting &&
@@ -953,32 +642,54 @@ export default function DairyCustomerDashboard() {
       return;
     }
 
-    const previousStatus = String(subscription?.status || "ACTIVE").toUpperCase();
-    const nextStatus = isPaused ? "ACTIVE" : "PAUSED";
-    setPendingSubscriptionStatus(nextStatus);
-    setSavingPause(true);
+    if (isPaused) {
+      setSavingPause(true);
+      setPendingSubscriptionStatus("ACTIVE");
+      try {
+        const result = await saveCustomerSubscription({
+          action: "RESUME",
+          dairyId: subscription.dairyId,
+        });
+        const resolvedStatus = String(result?.subscription?.status || "ACTIVE").toUpperCase();
+        setPendingSubscriptionStatus(resolvedStatus);
+        syncLocalSubscriptionStatus(resolvedStatus);
+        showToast("Subscription resumed! Daily deliveries will resume.", "success");
+        refreshDashboard().catch(() => {});
+      } catch (err) {
+        setPendingSubscriptionStatus("PAUSED");
+        syncLocalSubscriptionStatus("PAUSED");
+        showToast(err?.message || "Failed to resume subscription.", "error");
+      } finally {
+        setSavingPause(false);
+      }
+    } else {
+      setShowPauseModal(true);
+    }
+  };
 
-    // Reflect the new state immediately on the home page, then confirm with the server.
-    syncLocalSubscriptionStatus(nextStatus);
+  const handleConfirmPause = async ({ durationType, startDate, endDate }) => {
+    if (!subscription?.dairyId || pausingSub) return;
+    setPausingSub(true);
 
     try {
-      const result = await saveCustomerSubscription(toSubscriptionPayload(subscription, nextStatus));
-      const resolvedStatus = String(result?.subscription?.status || nextStatus).toUpperCase();
+      const result = await saveCustomerSubscription({
+        action: "PAUSE",
+        dairyId: subscription.dairyId,
+        durationType,
+        startDate,
+        endDate,
+      });
+
+      const resolvedStatus = String(result?.subscription?.status || "PAUSED").toUpperCase();
       setPendingSubscriptionStatus(resolvedStatus);
       syncLocalSubscriptionStatus(resolvedStatus);
-      showToast(
-        resolvedStatus === "ACTIVE" ? "Subscription resumed!" : "Subscription paused.",
-        resolvedStatus === "ACTIVE" ? "success" : "warning"
-      );
-      refreshDashboard().catch(() => {
-        // Keep the optimistic status if the follow-up refresh fails temporarily.
-      });
+      setShowPauseModal(false);
+      showToast("Subscription paused successfully.", "warning");
+      refreshDashboard().catch(() => {});
     } catch (err) {
-      setPendingSubscriptionStatus(previousStatus);
-      syncLocalSubscriptionStatus(previousStatus);
-      showToast(err?.message || "Failed to update subscription status.", "error");
+      showToast(err?.message || "Failed to pause subscription.", "error");
     } finally {
-      setSavingPause(false);
+      setPausingSub(false);
     }
   };
 
@@ -1105,57 +816,55 @@ export default function DairyCustomerDashboard() {
           </div>
         )}
 
-        <div className="rounded-[24px] border-0 bg-transparent p-0 shadow-none sm:rounded-[30px] sm:bg-[#F5F0E8] sm:p-5 sm:shadow-[0_20px_60px_rgba(84,52,16,0.08)] xl:rounded-[34px] xl:p-0">
-          <div className="rounded-[26px] border-0 bg-[linear-gradient(180deg,#F8F2E9_0%,#FFFDF8_100%)] p-4 shadow-[0_10px_24px_rgba(84,52,16,0.04)] sm:p-6 xl:min-h-[200px] xl:rounded-[34px] xl:px-[30px] xl:py-[29px]">
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_400px] xl:items-start xl:gap-8">
-              <div className="min-w-0 max-w-3xl">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882] xl:text-[12px]">
-                    Customer Overview
-                  </p>
-                </div>
-                <h1
-                  className="mt-2 text-[26px] font-semibold leading-[1.08] text-[#2C1A0E] sm:text-[38px] xl:mt-5 xl:text-[43px]"
-                  style={headingFont}
-                >
-                  {greeting}, <span className="text-[#B8641A]">{customerName}</span>
-                </h1>
-                <p className="mt-2 text-sm text-[#8B7355] xl:mt-3 xl:text-[17px]">
-                  Member of{" "}
-                  <span className="font-bold text-[#5C3D1E]">{dairyName}</span>
-                </p>
-              </div>
+        <div className="rounded-[22px] border border-[#F0EBE1] bg-[linear-gradient(180deg,#FAF5EF_0%,#FDFBF7_100%)] p-4 shadow-xs sm:p-5 xl:rounded-[26px] xl:px-6 xl:py-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px] xl:items-center xl:gap-8">
+            <div className="min-w-0 max-w-3xl">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B0997D]">
+                Customer Overview
+              </p>
+              <h1
+                className="mt-1.5 text-[24px] font-semibold leading-tight text-[#2C1A0E] sm:text-[32px] xl:mt-2 xl:text-[36px]"
+                style={headingFont}
+              >
+                {greeting}, <span className="text-[#B8641A]">{customerName}</span>
+              </h1>
+              <p className="mt-1 text-xs text-[#7C6A5A] sm:text-sm">
+                Member of{" "}
+                <span className="font-semibold text-[#524134]">{dairyName}</span>
+              </p>
+            </div>
 
-              <div className="w-full rounded-[18px] border border-[#E7DDCF] bg-white/90 px-4 py-3.5 backdrop-blur-sm xl:min-h-[112px] xl:justify-self-end xl:rounded-[22px] xl:px-[30px] xl:py-[23px]">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882] xl:text-[12px]">
-                  Plan Status
-                </p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2.5 xl:mt-5 xl:gap-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold xl:px-5 xl:py-1.5 xl:text-sm ${!subscription
-                        ? "bg-[#F5F0E8] text-[#8B7355]"
-                        : isPaused
-                          ? "bg-[#FFF1E4] text-[#C86A2B]"
-                          : "bg-[#EEF5E7] text-[#4A7C2F]"
-                      }`}
-                  >
-                    {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
-                  </span>
-                  <span className="text-xs font-medium text-[#8B7355] xl:text-sm">
-                    {subscription
-                      ? `${subscription.quantity || "-"} L ${subscription.milkType || "Milk"}`
-                      : "No active subscription"}
-                  </span>
-                </div>
+            <div className="w-full rounded-xl border border-[#F0EBE1] bg-white/90 px-4 py-3 shadow-xs xl:justify-self-end xl:px-5 xl:py-3.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#B0997D]">
+                Plan Status
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <span
+                  className={`rounded-full px-3 py-0.5 text-xs font-semibold ${
+                    !subscription
+                      ? "bg-[#F5F0E8] text-[#7C6A5A]"
+                      : isPaused
+                        ? "border border-[#F0D1B2] bg-[#FFF1E4] text-[#C86D27]"
+                        : "border border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
+                  }`}
+                >
+                  {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
+                </span>
+                <span className="text-xs font-medium text-[#524134]">
+                  {subscription
+                    ? `${formattedSubQty} · ${String(subscription.milkType || "Milk").replace(/^(\d+)([a-zA-Z])/, "$1 $2")}`
+                    : "No active subscription"}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
         {today && (
-          <div className="relative mt-3 overflow-hidden rounded-[24px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:mt-4 sm:rounded-[28px] sm:p-7 xl:mt-5 xl:min-h-[312px] xl:px-[30px] xl:py-[31px]">
+          <div className="relative overflow-hidden rounded-[22px] border border-[#5C3D1E]/10 bg-[linear-gradient(135deg,#2C2416_0%,#4A3820_60%,#6B4F2A_100%)] p-4 sm:p-6 xl:rounded-[26px] xl:px-7 xl:py-6">
             <div
-              className={`pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ${todayMeta.tone === "success"
+              className={`pointer-events-none absolute inset-0 rounded-[22px] ${
+                todayMeta.tone === "success"
                   ? "bg-[radial-gradient(circle_at_top_right,rgba(238,245,231,0.16),transparent_40%)]"
                   : todayMeta.tone === "approval"
                     ? "bg-[radial-gradient(circle_at_top_right,rgba(246,240,255,0.18),transparent_40%)]"
@@ -1164,19 +873,20 @@ export default function DairyCustomerDashboard() {
                       : todayMeta.tone === "idle"
                         ? "bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.09),transparent_40%)]"
                         : "bg-[radial-gradient(circle_at_top_right,rgba(255,241,228,0.18),transparent_40%)]"
-                }`}
+              }`}
             />
-            <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/5 xl:-right-7 xl:-top-8 xl:h-48 xl:w-48" />
-            <div className="absolute -bottom-14 left-7 h-36 w-36 rounded-full bg-[#D28A40]/10 xl:left-9" />
+            <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/5" />
 
-            <p className="relative mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/50 sm:mb-4 xl:text-[12px]">
-              Today&apos;s Delivery
+            <p className="relative mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
+              TODAY&apos;S DELIVERY
             </p>
-            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between xl:gap-10">
+
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between xl:gap-8">
               <div className="min-w-0 flex-1">
-                <div className="flex items-start gap-3.5 xl:gap-4">
+                <div className="flex items-start gap-3.5 sm:gap-4">
                   <div
-                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[18px] xl:h-[70px] xl:w-[70px] xl:rounded-[21px] ${todayMeta.tone === "success"
+                    className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl sm:h-14 sm:w-14 xl:h-14 xl:w-14 ${
+                      todayMeta.tone === "success"
                         ? "bg-[#EEF5E7] text-[#4A7C2F]"
                         : todayMeta.tone === "approval"
                           ? "bg-[#F6F0FF] text-[#7C4DAB]"
@@ -1185,7 +895,7 @@ export default function DairyCustomerDashboard() {
                             : todayMeta.tone === "idle"
                               ? "bg-white/10 text-white/80"
                               : "bg-[#FFF1E4] text-[#D98A2B]"
-                      }`}
+                    }`}
                   >
                     {todayMeta.tone === "success" ? (
                       <CheckCircle size={22} />
@@ -1193,37 +903,37 @@ export default function DairyCustomerDashboard() {
                       <AlertCircle size={22} />
                     )}
                   </div>
+
                   <div className="min-w-0 flex-1">
-                    <h3 className="mb-1 text-[22px] font-semibold leading-tight text-white sm:text-[28px] xl:text-[36px]" style={headingFont}>
+                    <h3 className="mb-1.5 text-[20px] font-semibold leading-tight text-white sm:text-[24px] xl:text-[26px]" style={headingFont}>
                       {todayMeta.title}
                     </h3>
-                    <div className="flex flex-col gap-1.5">
-                      <p className="text-sm font-semibold text-white/80 xl:text-base">
-                        {today.quantity || "-"} - {today.product || "Milk"}
-                      </p>
-                      <p className="text-sm font-medium leading-6 text-white/85 xl:mt-7 xl:text-base">
-                        {todayMeta.helperText}
-                      </p>
-                    </div>
+                    <p className="mb-1.5 text-sm font-semibold text-white/95 sm:text-base">
+                      {today.quantity || "-"} · {today.product || "Milk"}
+                    </p>
+                    <p className="text-xs leading-relaxed text-white/80 sm:text-sm">
+                      {todayMeta.helperText}
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-1.5 xl:mt-10">
-                  {today?.agent?.name && (
-                    <p className="flex items-center gap-1.5 text-xs text-white/70 xl:text-sm">
-                      <User size={11} />
-                      Agent: {today.agent.name} {today.agent.phone ? `(${today.agent.phone})` : ""}
-                    </p>
-                  )}
-                  {today.time && todayMeta.tone === "success" && (
-                    <p className="flex items-center gap-1.5 text-xs text-white/70">
-                      <Clock size={11} />
-                      Dropped at Doorstep - {today.time}
-                    </p>
-                  )}
-                </div>
+                {today?.agent?.name && (
+                  <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-white/70 sm:mt-5">
+                    <span className="flex items-center gap-1.5">
+                      <User size={13} />
+                      Agent: <strong className="font-semibold text-white/90">{today.agent.name}</strong> {today.agent.phone ? `(${today.agent.phone})` : ""}
+                    </span>
+                    {today.time && todayMeta.tone === "success" && (
+                      <span className="flex items-center gap-1.5">
+                        <Clock size={13} />
+                        Dropped at Doorstep - {today.time}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="flex w-full flex-col gap-2 self-start lg:w-auto lg:min-w-[250px] xl:mt-8 xl:min-w-[312px]">
+
+              <div className="flex w-full flex-col gap-2 self-start lg:w-auto lg:min-w-[240px]">
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => {
@@ -1237,7 +947,7 @@ export default function DairyCustomerDashboard() {
                         String(today?.status || "").toUpperCase()
                       )
                     }
-                    className="w-full rounded-[13px] border border-white/70 bg-white/10 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45 xl:h-12 xl:px-5 xl:text-sm"
+                    className="w-full rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-[#2C1A0E] shadow-sm transition hover:bg-[#FAF5EF] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Track Agent
                   </button>
@@ -1249,39 +959,42 @@ export default function DairyCustomerDashboard() {
                         String(today?.status || "").toUpperCase()
                       )
                     }
-                    className="w-full rounded-[13px] border border-[#F2D0C8]/70 bg-[#FDECEA] px-3 py-2.5 text-xs font-bold text-[#A33A2B] transition hover:bg-[#F8DDD6] xl:h-12 xl:px-5 xl:text-sm"
+                    className="w-full rounded-xl border border-white/30 bg-transparent px-3 py-2.5 text-xs font-medium text-white/85 transition hover:bg-white/10 hover:text-white"
                   >
                     {reportingIssue ? "Reporting..." : "Report Issue"}
                   </button>
                 </div>
 
                 {hasIssue && (
-                  <div className="grid gap-2">
-                    <div className="relative rounded-[12px] border border-rose-100 bg-rose-50 px-3 py-1.5 sm:rounded-[14px]">
-                      <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-rose-400 sm:text-[9px] sm:tracking-[0.16em]">
+                  <div className="grid gap-1.5">
+                    <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">
                         Reported Issue
                       </p>
-                      <p className="mt-0.5 text-[11px] font-medium leading-3.5 text-rose-700 sm:text-xs">
+                      <p className="mt-0.5 text-xs font-medium text-rose-800">
                         {today.customerIssue}
                       </p>
                     </div>
 
                     {(hasAdminAction || issueStatus === "OPEN") && (
                       <div
-                        className={`relative rounded-[12px] border px-3 py-1.5 sm:rounded-[14px] ${hasAdminAction
+                        className={`rounded-lg border px-3 py-1.5 ${
+                          hasAdminAction
                             ? "border-emerald-100 bg-emerald-50"
                             : "border-amber-100 bg-amber-50"
-                          }`}
+                        }`}
                       >
                         <p
-                          className={`text-[8px] font-bold uppercase tracking-[0.14em] sm:text-[9px] sm:tracking-[0.16em] ${hasAdminAction ? "text-emerald-500" : "text-amber-500"
-                            }`}
+                          className={`text-[9px] font-bold uppercase tracking-wider ${
+                            hasAdminAction ? "text-emerald-500" : "text-amber-500"
+                          }`}
                         >
                           {hasAdminAction ? "Action Taken" : "Issue Status"}
                         </p>
                         <p
-                          className={`mt-0.5 text-[11px] font-medium leading-3.5 sm:text-xs ${hasAdminAction ? "text-emerald-700" : "text-amber-700"
-                            }`}
+                          className={`mt-0.5 text-xs font-medium ${
+                            hasAdminAction ? "text-emerald-700" : "text-amber-700"
+                          }`}
                         >
                           {hasAdminAction ? today.issueAdminAction : "Pending resolution"}
                         </p>
@@ -1294,69 +1007,79 @@ export default function DairyCustomerDashboard() {
           </div>
         )}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-7 md:grid-cols-4 lg:gap-4 xl:mt-[60px] xl:gap-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-4">
           {ACTIONS.map((action) => {
             const { key, label, bg, text, border } = action;
             const ActionIcon = action.Icon;
+            const isPay = key === "pay";
 
             return (
               <button
                 key={key}
                 onClick={() => handleAction(key)}
                 disabled={key === "pause" && !canTogglePause}
-                className={`rounded-[18px] border bg-[#FFFDF7] px-3.5 py-4 text-left transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 xl:min-h-[205px] xl:rounded-[22px] xl:px-5 xl:py-[30px] ${border}`}
+                className={`group relative flex flex-col justify-between rounded-xl border bg-[#FDFBF7] p-4 text-left min-h-[114px] transition-all hover:-translate-y-0.5 hover:shadow-xs disabled:cursor-not-allowed disabled:opacity-50 sm:p-5 ${
+                  isPay
+                    ? "border-[#F0D1B2] bg-[#FAF5EF]/60 hover:bg-[#FAF5EF]"
+                    : border
+                }`}
               >
-                <div className={`mb-2.5 flex h-10 w-10 items-center justify-center rounded-[13px] ${bg} ${text} sm:h-11 sm:w-11 xl:mb-5 xl:h-14 xl:w-14 xl:rounded-[16px]`}>
-                  {key === "pause" && isPaused ? <PlayCircle size={18} /> : <ActionIcon size={18} />}
+                <div className="w-full">
+                  <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${bg} ${text}`}>
+                    {key === "pause" && isPaused ? <PlayCircle size={18} /> : <ActionIcon size={18} />}
+                  </div>
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-sm font-semibold leading-tight text-[#2C1A0E] ${isPay ? "text-[#B8641A]" : ""}`}>
+                      {key === "pause" ? pauseToggleLabel : label}
+                    </span>
+                    <ChevronRight size={14} className="flex-shrink-0 text-[#B0997D] transition-transform group-hover:translate-x-0.5" />
+                  </div>
                 </div>
-                <span className="text-[13px] font-bold text-[#2C1A0E] sm:text-sm xl:text-[17px]">
-                  {key === "pause" ? pauseToggleLabel : label}
-                </span>
-                <p className="mt-1 text-[11px] leading-5 text-[#B89970] sm:text-xs xl:mt-1.5 xl:text-sm">
+                <p className="mt-1 text-xs leading-normal text-[#7C6A5A]">
                   {key === "pause"
                     ? pauseToggleHelper
                     : key === "add"
-                      ? "Choose extra products for tomorrow"
+                      ? "Choose extra products"
                       : key === "deliveries"
                         ? "Review delivery history"
-                        : "Open payment center"}
+                        : "Settle outstanding balance"}
                 </p>
               </button>
             );
           })}
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:mt-7 lg:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)] xl:mt-[60px] xl:gap-[30px]">
-          <div className="space-y-4 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 sm:space-y-5 sm:p-6 xl:min-h-[430px] xl:rounded-[28px] xl:px-[30px] xl:py-[31px]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-6">
+          <div className="flex flex-col rounded-2xl border border-[#F0EBE1] bg-[#FDFBF7] p-5">
             {showTomorrowCard ? (
               <div>
-                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
-                  Tomorrow
+                <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B0997D]">
+                  TOMORROW
                 </p>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#FFF4E2] text-[#B8641A] sm:h-11 sm:w-11">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#FFF4E2] text-[#B8641A]">
                       {hasSubscription ? <Truck size={18} /> : <PlusCircle size={18} />}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-base font-bold text-[#2C1A0E]">{tomorrowTitle}</p>
-                      <p className="mt-0.5 text-sm text-[#8B7355]">{tomorrowSubtitle}</p>
+                    <div>
+                      <h4 className="text-base font-semibold text-[#2C1A0E] sm:text-[17px]">{tomorrowTitle}</h4>
+                      <p className="mt-0.5 text-xs text-[#7C6A5A]">{tomorrowSubtitle}</p>
 
                       {hasTomorrowExtras && (
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           {tomorrowExtraOrders.map((order) => (
                             <div
                               key={order.id}
-                              className="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-[#F2EDE4] bg-[#FBF7F0] px-2.5 py-1.5"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-[#F0EBE1] bg-[#FAF5EF] px-2.5 py-1"
                             >
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#FFF4E2] text-xs font-bold leading-none text-[#B8641A]">
+                              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#FFF4E2] text-[10px] font-bold text-[#B8641A]">
                                 +
                               </span>
-                              <span className="text-xs font-bold text-[#5C3D1E]">
+                              <span className="text-xs font-semibold text-[#2C1A0E]">
                                 {order.quantity || "-"} {order.product || "Milk"}
                               </span>
                               <span
-                                className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${getTomorrowExtraStatusClasses(
+                                className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getTomorrowExtraStatusClasses(
                                   order.status
                                 )}`}
                               >
@@ -1372,7 +1095,7 @@ export default function DairyCustomerDashboard() {
                   {hasSubscription && (
                     <button
                       onClick={() => navigate("/customer/dashboard/subscriptions")}
-                      className="w-full rounded-[12px] border border-[#EDE8DF] bg-white px-3 py-2 text-xs font-bold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E] sm:w-auto"
+                      className="rounded-lg border border-[#EDE8DF] bg-white px-3 py-1.5 text-xs font-medium text-[#524134] transition hover:bg-[#FAF5EF] hover:text-[#2C1A0E]"
                     >
                       Edit
                     </button>
@@ -1381,17 +1104,17 @@ export default function DairyCustomerDashboard() {
               </div>
             ) : (
               <div>
-                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
-                  Tomorrow
+                <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B0997D]">
+                  TOMORROW
                 </p>
-                <div className="rounded-[16px] border border-dashed border-[#E7DAC6] bg-[#FBF7F0] px-4 py-4.5">
-                  <p className="text-sm font-bold text-[#5C3D1E]">No active subscription</p>
-                  <p className="mt-1 text-xs text-[#A88763]">
+                <div className="rounded-xl border border-dashed border-[#E7DAC6] bg-[#FAF5EF] p-4 text-center">
+                  <p className="text-sm font-semibold text-[#2C1A0E]">No active subscription</p>
+                  <p className="mt-1 text-xs text-[#7C6A5A]">
                     Subscribe to schedule your next delivery automatically.
                   </p>
                   <button
                     onClick={() => navigate("/customer/dashboard/subscriptions")}
-                    className="mt-3 inline-flex items-center rounded-[12px] bg-[#B8641A] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#9F5313]"
+                    className="mt-3 inline-flex items-center rounded-lg bg-[#B8641A] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#9F5313]"
                   >
                     Start Subscription
                   </button>
@@ -1399,44 +1122,46 @@ export default function DairyCustomerDashboard() {
               </div>
             )}
 
-            <div className="border-t border-[#F2EDE4] pt-4">
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
-                Subscription
+            <div className="mt-4 border-t border-[#F0EBE1] pt-3.5">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B0997D]">
+                SUBSCRIPTION
               </p>
-              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <p className="text-sm font-semibold leading-6 text-[#5C3D1E]">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-[#2C1A0E]">
                   {subscription
-                    ? `${subscription.milkType || "Milk"} - ${subscription.quantity || "-"} L Daily`
+                    ? `${subscription.milkType || "Milk"} · ${formattedSubQty} Daily`
                     : "No active subscription"}
                 </p>
                 <span
-                  className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${!subscription
-                      ? "bg-[#F5F0E8] text-[#8B7355]"
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    !subscription
+                      ? "bg-[#F5F0E8] text-[#7C6A5A]"
                       : isPaused
-                        ? "bg-[#FFF1E4] text-[#C86A2B]"
+                        ? "bg-[#FFF1E4] text-[#C86D27]"
                         : "bg-[#EEF5E7] text-[#4A7C2F]"
-                    }`}
+                  }`}
                 >
                   {subscription ? (isPaused ? "Paused" : "Active") : "Inactive"}
                 </span>
               </div>
-              <p className="mb-4 text-xs text-[#A88763]">
+              <p className="mt-1 text-xs text-[#7C6A5A]">
                 Start date: {subscription?.startDate || "Not available"}
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   onClick={handlePauseResume}
                   disabled={!canTogglePause}
-                  className={`flex-1 rounded-[14px] border py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${isPaused
+                  className={`flex h-9 items-center justify-center rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isPaused
                       ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F] hover:bg-[#E3EED8]"
                       : "border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B] hover:bg-[#F8DDD6]"
-                    }`}
+                  }`}
                 >
                   {pauseToggleLabel}
                 </button>
                 <button
                   onClick={() => navigate("/customer/dashboard/subscriptions")}
-                  className="flex-1 rounded-[14px] border border-[#EFD7B3] bg-[#FFF4E2] py-2.5 text-xs font-bold text-[#B8641A] transition hover:bg-[#FCE8CB]"
+                  className="flex h-9 items-center justify-center rounded-lg border border-[#F0D1B2] bg-[#FFF1E4] px-3 py-2 text-xs font-semibold text-[#B8641A] transition hover:bg-[#FFE8D6]"
                 >
                   Modify Plan
                 </button>
@@ -1444,50 +1169,68 @@ export default function DairyCustomerDashboard() {
             </div>
           </div>
 
-          <div className="rounded-[22px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#FFFDF7_0%,#FBF7F0_100%)] p-4 sm:p-6 xl:min-h-[430px] xl:rounded-[28px] xl:px-[30px] xl:py-[31px]">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#C4A882]">
-              Billing Summary
-            </p>
-            <div className="mb-1">
-              <span className="text-[34px] font-semibold tracking-tight text-[#2C1A0E] sm:text-4xl" style={headingFont}>
-                Rs.{billing.monthlyDue ?? 0}
-              </span>
-            </div>
-            {billing.dueInDays != null && (
-              <p className="mb-4 inline-flex rounded-full bg-[#FDECEA] px-3 py-1 text-xs font-semibold text-[#C0392B]">
-                {getBillingDueText(billing.dueInDays)}
+          <div className="flex flex-col justify-between rounded-2xl border border-[#F0EBE1] bg-[#FDFBF7] p-5">
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B0997D]">
+                BILLING SUMMARY
               </p>
-            )}
-            <div className="mb-4 space-y-0">
-              {[
-                { label: "Wallet Balance", value: `Rs.${billing.walletBalance ?? 0}` },
-                { label: "Last Payment", value: "Not available" },
-                { label: "Payment Mode", value: subscription?.paymentMethod || "UPI" },
-                { label: "Status", value: billing.monthlyDue > 0 ? "Pending" : "Clear", highlight: true },
-              ].map(({ label, value, highlight }) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between gap-3 border-b border-[#F2EDE4] py-2.5 last:border-none"
-                >
-                  <span className="text-xs text-[#8B7355]">{label}</span>
-                  <span className={`text-xs font-semibold ${highlight ? "text-[#B8641A]" : "text-[#5C3D1E]"}`}>
-                    {value}
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[32px] font-semibold tracking-tight text-[#2C1A0E] sm:text-[36px]" style={headingFont}>
+                  {formatCurrency(billing.monthlyDue)}
+                </span>
+                {billing.dueInDays != null && (
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                      billing.dueInDays < 0
+                        ? "border border-[#F2D0C8] bg-[#FDECEA] text-[#C0392B]"
+                        : "border border-[#F0D1B2] bg-[#FFF1E4] text-[#B8641A]"
+                    }`}
+                  >
+                    {getBillingDueText(billing.dueInDays)}
+                  </span>
+                )}
+              </div>
+
+              <div className="my-4 space-y-2 border-y border-[#F0EBE1] py-3">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="text-[#7C6A5A]">Wallet Balance</span>
+                  <span className="font-semibold text-[#2C1A0E]">
+                    {formatCurrency(billing.walletBalance)}
                   </span>
                 </div>
-              ))}
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="text-[#7C6A5A]">Payment Mode</span>
+                  <span className="font-medium text-[#524134]">
+                    {subscription?.paymentMethod || "UPI"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="text-[#7C6A5A]">Status</span>
+                  <span
+                    className={`font-semibold ${
+                      billing.monthlyDue > 0 ? "text-[#C86D27]" : "text-[#4A7C2F]"
+                    }`}
+                  >
+                    {billing.monthlyDue > 0 ? "Overdue / Pending" : "Clear"}
+                  </span>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => navigate("/customer/dashboard/payments")}
-              className="mb-2 w-full rounded-[14px] bg-[#2C2416] py-2.5 text-sm font-bold text-white transition hover:bg-[#4A3820]"
-            >
-              Pay Now
-            </button>
-            <button
-              onClick={() => navigate("/customer/dashboard/payments")}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-[#EDE8DF] bg-white py-2.5 text-xs font-semibold text-[#8B7355] transition hover:border-[#D4B896] hover:bg-[#FDF6EC] hover:text-[#5C3D1E]"
-            >
-              View Full Invoice <ChevronRight size={13} />
-            </button>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => navigate("/customer/dashboard/payments")}
+                className="w-full rounded-xl bg-[#2C2416] py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-[#4A3820] hover:opacity-95 active:scale-[0.98]"
+              >
+                Pay Now
+              </button>
+              <button
+                onClick={() => navigate("/customer/dashboard/payments")}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#EDE8DF] bg-white py-2 text-xs font-semibold text-[#7C6A5A] transition-all duration-150 hover:border-[#D4B896] hover:bg-[#FAF5EF] hover:text-[#2C1A0E] active:scale-[0.98]"
+              >
+                View Full Invoice <ChevronRight size={13} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1498,8 +1241,8 @@ export default function DairyCustomerDashboard() {
         )}
 
         {showAddExtraModal && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2416]/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-            <div className="flex h-[100svh] max-h-[100svh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-[#E7DAC6] bg-[#FFFDF7] shadow-[0_28px_80px_rgba(44,26,14,0.28)] sm:max-h-[92vh] sm:rounded-[28px]">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2416]/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6 animate-in fade-in duration-150">
+            <div className="flex h-[100svh] max-h-[100svh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-[#E7DAC6] bg-[#FFFDF7] shadow-[0_28px_80px_rgba(44,26,14,0.28)] sm:max-h-[92vh] sm:rounded-[28px] animate-in zoom-in-95 duration-200 ease-out">
               <div className="flex items-start justify-between gap-4 border-b border-[#F2EDE4] px-4 py-4 sm:px-7 sm:py-5">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C4A882]">
@@ -1609,13 +1352,8 @@ export default function DairyCustomerDashboard() {
                                       : "border-[#EDE8DF] bg-white hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_12px_24px_rgba(100,72,35,0.08)]"
                                   }`}
                               >
-                                {/* Product Image with dynamic background */}
-                                <div className={`flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl p-1.5 shadow-sm border border-black/5 ${
-                                  product.type === "MILK" ? "bg-blue-50/80" :
-                                  product.type === "CURD" ? "bg-rose-50/80" :
-                                  product.type === "PANEER" ? "bg-amber-50/80" :
-                                  product.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
-                                }`}>
+                                {/* Product Image with solid warm neutral background */}
+                                <div className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl p-1.5 shadow-xs border border-[#EDE8DF] bg-[#FAF7F2] overflow-hidden">
                                   {getProductImage(product.type)}
                                 </div>
 
@@ -1685,7 +1423,7 @@ export default function DairyCustomerDashboard() {
                             Selected Products
                           </label>
                           {selectedAddExtraOrderLines.length === 0 ? (
-                            <div className="rounded-[16px] border border-dashed border-[#E7DAC6] bg-white px-4 py-4 text-sm font-semibold text-[#8B7355]">
+                            <div className="flex min-h-[110px] items-center justify-center rounded-[16px] border border-dashed border-[#E7DAC6] bg-white px-4 py-4 text-center text-sm font-semibold text-[#8B7355]">
                               Select products from the list to add them here.
                             </div>
                           ) : (
@@ -1701,12 +1439,7 @@ export default function DairyCustomerDashboard() {
                                     className="rounded-2xl border border-[#EDE8DF] bg-white p-3.5 flex gap-3 shadow-sm hover:border-[#D4B896] transition-all"
                                   >
                                     {/* Product image wrapper */}
-                                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-1 shadow-sm border border-black/5 ${
-                                      line.product.type === "MILK" ? "bg-blue-50/80" :
-                                      line.product.type === "CURD" ? "bg-rose-50/80" :
-                                      line.product.type === "PANEER" ? "bg-amber-50/80" :
-                                      line.product.type === "GHEE" ? "bg-yellow-50/80" : "bg-slate-50/80"
-                                    }`}>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-1 shadow-xs border border-[#EDE8DF] bg-[#FAF7F2] overflow-hidden">
                                       {getProductImage(line.product.type)}
                                     </div>
 
@@ -1844,7 +1577,7 @@ export default function DairyCustomerDashboard() {
                           type="button"
                           onClick={() => handleSubmitExtraOrder(false)}
                           disabled={!canSubmitAddExtraOrder}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#B8641A_0%,#8F4D12_100%)] px-4 py-3.5 text-sm font-bold text-white shadow-[0_16px_30px_rgba(143,77,18,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_34px_rgba(143,77,18,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#B8641A_0%,#8F4D12_100%)] px-4 py-3.5 text-sm font-bold text-white shadow-[0_16px_30px_rgba(143,77,18,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_34px_rgba(143,77,18,0.28)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
                         >
                           {addExtraSubmitting ? (
                             <Loader2 size={15} className="animate-spin" />
@@ -2082,85 +1815,14 @@ export default function DairyCustomerDashboard() {
             </div>
           </div>
         )}
+
+        <PauseSubscriptionModal
+          isOpen={showPauseModal}
+          onClose={() => setShowPauseModal(false)}
+          onConfirm={handleConfirmPause}
+          submitting={pausingSub}
+        />
       </div>
     </CustomerLayout>
-  );
-}
-
-function ReportIssueModal({ issueText, saving, onClose, onChange, onSubmit }) {
-  const presets = [
-    "Milk packet damaged",
-    "Quantity mismatch",
-    "Delivery not received",
-    "Late delivery",
-  ];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 px-4 pb-4 sm:items-center sm:pb-0">
-      <div className="w-full max-w-lg rounded-t-[28px] border border-gray-200 bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-red-400">
-              Delivery Support
-            </p>
-            <h3 className="mt-2 text-xl font-bold text-gray-900">
-              Report a delivery issue
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Mention missing items, damaged packets, delay, wrong quantity, or any delivery problem.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-xl p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          {presets.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => onChange(preset)}
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-            >
-              {preset}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4">
-          <label className="mb-2 block text-sm font-semibold text-gray-700">
-            Describe the issue
-          </label>
-          <textarea
-            rows={5}
-            value={issueText}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Example: I received only 1 packet instead of 2, and one packet was leaking."
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-red-300 focus:bg-white"
-          />
-          <p className="mt-2 text-xs text-gray-400">Minimum 5 characters.</p>
-        </div>
-
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={saving}
-            className="rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? "Submitting..." : "Submit Issue"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { Calendar, Droplets, Milk, Phone, Store, User2, X } from "lucide-react";
+import { Calendar, Droplets, Milk, Phone, Store, User2, X, Pause, Play, Ban, PlusCircle } from "lucide-react";
 import {
   fetchAdminCustomerById,
   updateAdminCustomer,
   deleteAdminCustomer,
+  resumeAdminCustomerSubscription,
 } from "../../api/admin.api";
 import LoadingIndicator from "../common/LoadingIndicator.jsx";
 import { adminHeadingFont, adminShellFont, useTheme } from "../admin/adminTheme";
+import PauseSubscriptionModal from "./PauseSubscriptionModal";
+import CancelSubscriptionModal from "./CancelSubscriptionModal";
+import AddExtraDeliveryModal from "./AddExtraDeliveryModal";
 
 const DetailItem = ({ label, value }) => (
   <div className="space-y-1">
@@ -36,6 +40,29 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showExtraModal, setShowExtraModal] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+
+  const handleReload = () => {
+    if (!customerId) return;
+    fetchAdminCustomerById(customerId).then((res) => setData(res));
+    if (onChanged) onChanged();
+  };
+
+  const handleResumeSubscription = async () => {
+    try {
+      setIsResuming(true);
+      await resumeAdminCustomerSubscription(customerId);
+      handleReload();
+    } catch (_err) {
+      alert("Failed to resume subscription");
+    } finally {
+      setIsResuming(false);
+    }
+  };
   const [form, setForm] = useState({
     customer_name: "",
     phone_number: "",
@@ -283,6 +310,57 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
                     This customer does not have an active subscription yet. Once a plan is created, the milk type, quantity, slot, payment method, and assigned agent will appear here.
                   </div>
                 )}
+
+                {/* Quick Admin Call Actions */}
+                {subscription && (
+                  <div className="mt-5 pt-4 border-t border-[#E7DAC6]/60 dark:border-[#222B40] flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">
+                      📞 Phone Request Actions:
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {String(subscription.status).toUpperCase() === "PAUSED" ? (
+                        <button
+                          type="button"
+                          onClick={handleResumeSubscription}
+                          disabled={isResuming}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer"
+                        >
+                          <Play size={14} />
+                          {isResuming ? "Resuming..." : "Resume Subscription"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowPauseModal(true)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition cursor-pointer"
+                        >
+                          <Pause size={14} />
+                          Pause (Vacation)
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setShowExtraModal(true)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3.5 py-2 text-xs font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 transition cursor-pointer"
+                      >
+                        <PlusCircle size={14} />
+                        Add Extra Order
+                      </button>
+
+                      {String(subscription.status).toUpperCase() !== "CANCELLED" && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCancelModal(true)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2 text-xs font-bold text-red-700 dark:text-red-300 hover:bg-red-500/20 transition cursor-pointer"
+                        >
+                          <Ban size={14} />
+                          Cancel Subscription
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {isEditing && (
@@ -353,6 +431,33 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
         </div>
         </div>
       </div>
+
+      {showPauseModal && (
+        <PauseSubscriptionModal
+          customerId={customerId}
+          customerName={customer.customer_name}
+          onClose={() => setShowPauseModal(false)}
+          onSuccess={handleReload}
+        />
+      )}
+
+      {showCancelModal && (
+        <CancelSubscriptionModal
+          customerId={customerId}
+          customerName={customer.customer_name}
+          onClose={() => setShowCancelModal(false)}
+          onSuccess={handleReload}
+        />
+      )}
+
+      {showExtraModal && (
+        <AddExtraDeliveryModal
+          customerId={customerId}
+          customerName={customer.customer_name}
+          onClose={() => setShowExtraModal(false)}
+          onSuccess={handleReload}
+        />
+      )}
     </>
   );
 }
