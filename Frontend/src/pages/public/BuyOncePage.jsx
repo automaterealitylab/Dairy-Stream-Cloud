@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Calendar, Clock3, MapPin, ShoppingBag, CheckCircle2, CreditCard, Plus, Minus } from "lucide-react";
+import { ArrowLeft, Calendar, ShoppingBag } from "lucide-react";
 import toast from "react-hot-toast";
 import { fetchPublicDairyById } from "../../api/public.api.js";
 import {
@@ -14,154 +14,21 @@ import {
 import LoadingIndicator from "../../components/common/LoadingIndicator.jsx";
 import { buildCustomerAddress } from "../../utils/customerAddress.js";
 import { loadRazorpayCheckout } from "../../utils/loadRazorpay.js";
-
-const toDateInput = (dateValue = new Date()) => {
-  const date = new Date(dateValue);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-const getDefaultBuyOnceDate = () => {
-  const now = new Date();
-  const eveningCutoff = new Date(now);
-  eveningCutoff.setHours(16, 0, 0, 0);
-  if (now <= eveningCutoff) return toDateInput(now);
-
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return toDateInput(tomorrow);
-};
-
-const getTomorrowBuyOnceDate = () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return toDateInput(tomorrow);
-};
-
-const getDeliverySlotOptions = (deliveryDate) => {
-  const now = new Date();
-  const todayIso = toDateInput(now);
-
-  const baseSlots = [
-    {
-      id: "Morning",
-      label: "Morning (6:00 AM - 9:00 AM)",
-      cutoffHour: 5,
-      cutoffMinute: 30,
-    },
-    {
-      id: "Evening",
-      label: "Evening (5:00 PM - 8:00 PM)",
-      cutoffHour: 16,
-      cutoffMinute: 0,
-    },
-  ];
-
-  if (!deliveryDate) return baseSlots.map((slot) => ({ ...slot, available: false }));
-
-  if (deliveryDate > todayIso) {
-    return baseSlots.map((slot) => ({ ...slot, available: true, reason: "Available" }));
-  }
-
-  if (deliveryDate < todayIso) {
-    return baseSlots.map((slot) => ({
-      ...slot,
-      available: false,
-      reason: "Past date not allowed",
-    }));
-  }
-
-  return baseSlots.map((slot) => {
-    const cutoff = new Date(now);
-    cutoff.setHours(slot.cutoffHour, slot.cutoffMinute, 0, 0);
-    const available = now <= cutoff;
-    return {
-      ...slot,
-      available,
-      reason: available ? "Available today" : "Cut-off passed for today",
-    };
-  });
-};
-
-const deriveProductType = (type, name) => {
-  const t = String(type || "").trim().toUpperCase();
-  if (t && t !== "OTHER" && ["MILK", "CURD", "PANEER", "GHEE"].includes(t)) {
-    return t;
-  }
-  const n = String(name || "").toLowerCase();
-  if (n.includes("milk")) return "MILK";
-  if (n.includes("curd") || n.includes("dahi") || n.includes("yogurt")) return "CURD";
-  if (n.includes("paneer") || n.includes("panner") || n.includes("cheese")) return "PANEER";
-  if (n.includes("ghee") || n.includes("butter")) return "GHEE";
-  return "OTHER";
-};
-
-const normalizeProducts = (dairy = {}) => {
-  const explicitItems = Array.isArray(dairy?.productItems) ? dairy.productItems : [];
-  if (explicitItems.length > 0) {
-    return explicitItems
-      .map((item) => ({
-        id: item.id || item.name,
-        name: String(item.name || "").trim(),
-        type: deriveProductType(item.type || item.product_type, item.name),
-        ratePerUnit: Number(item.ratePerUnit || 0),
-        stockQuantity: Number(item.stockQuantity || 0),
-        unit: item.unit || "LITER",
-      }))
-      .filter((item) => item.name && item.ratePerUnit > 0);
-  }
-
-  const legacyProducts = dairy?.products || {
-    "Full Cream": 64,
-    Toned: 54,
-    "Cow Milk": 60,
-    "Buffalo Milk": 72,
-  };
-
-  return Object.keys(legacyProducts).map((name) => ({
-    id: name,
-    name,
-    type: deriveProductType("MILK", name),
-    ratePerUnit: Number(legacyProducts[name] || 0),
-    stockQuantity: Number.POSITIVE_INFINITY,
-    unit: "LITER",
-  }));
-};
-
-const isProductOutOfStock = (stockQuantity) => {
-  const stock = Number(stockQuantity);
-  return Number.isFinite(stock) && stock <= 0;
-};
-
-const formatProductStockLabel = (stockQuantity) => {
-  const stock = Number(stockQuantity);
-  if (!Number.isFinite(stock)) return "Unlimited";
-  if (stock <= 0) return "Out of Stock";
-  return String(stock);
-};
-
-const hasOpenSubscriptionStatus = (status) => {
-  const value = String(status || "ACTIVE").trim().toUpperCase();
-  return value !== "CLOSED" && value !== "CANCELLED" && value !== "CANCELED";
-};
-
-const getProductImage = (type) => {
-  const t = String(type || "").toUpperCase();
-  switch (t) {
-    case "MILK":
-      return <img src="/images/products/milk.png" alt="Milk" className="h-full w-full object-contain" />;
-    case "CURD":
-      return <img src="/images/products/curd.png" alt="Curd" className="h-full w-full object-contain" />;
-    case "PANEER":
-      return <img src="/images/products/paneer.png" alt="Paneer" className="h-full w-full object-contain" />;
-    case "GHEE":
-      return <img src="/images/products/ghee.png" alt="Ghee" className="h-full w-full object-contain" />;
-    default:
-      return <img src="/images/products/other.png" alt="Other" className="h-full w-full object-contain" />;
-  }
-};
+import {
+  computeTotalPrice,
+  getDefaultBuyOnceDate,
+  getDeliverySlotOptions,
+  getOrderPaymentId,
+  getTomorrowBuyOnceDate,
+  hasOpenSubscriptionStatus,
+  isProductOutOfStock,
+  normalizeProducts,
+  toDateInput,
+} from "../../utils/buyOnce.js";
+import { OrderSummary } from "../../components/buyOnce/OrderSummary.jsx";
+import { ProductCard } from "../../components/buyOnce/ProductCard.jsx";
+import { SelectedItemRow } from "../../components/buyOnce/SelectedItemRow.jsx";
+import { SlotOptionCard } from "../../components/buyOnce/SlotOptionCard.jsx";
 
 const BuyOncePage = () => {
   const { id } = useParams();
@@ -294,11 +161,7 @@ const BuyOncePage = () => {
   );
 
   const totalPrice = useMemo(
-    () =>
-      selectedItems.reduce(
-        (sum, item) => sum + Number(item.quantity || 0) * Number(item.ratePerUnit || 0),
-        0
-      ),
+    () => computeTotalPrice(selectedItems),
     [selectedItems]
   );
   const slotOptions = useMemo(() => getDeliverySlotOptions(form.deliveryDate), [form.deliveryDate]);
@@ -408,14 +271,6 @@ const BuyOncePage = () => {
       checkout.open();
     });
   };
-
-  const getOrderPaymentId = (response) =>
-    response?.payment?.id ||
-    response?.paymentId ||
-    response?.order?.payment_id ||
-    response?.order?.paymentId ||
-    response?.order?.payment?.id ||
-    null;
 
   const toggleProductSelection = (productName) => {
     setForm((prev) => {
@@ -650,42 +505,13 @@ const BuyOncePage = () => {
               </div>
               <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-2.5">
                 {dairy.productItems.map((item) => (
-                  <button
+                  <ProductCard
                     key={item.id}
-                    type="button"
-                    disabled={isProductOutOfStock(item.stockQuantity)}
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, milkType: item.name }));
-                      toggleProductSelection(item.name);
-                    }}
-                    className={`relative p-3 rounded-xl border-2 text-left transition-all group flex flex-col sm:flex-row gap-2.5 ${
-                      isProductOutOfStock(item.stockQuantity)
-                      ? "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
-                      :
-                      Number(form.items?.[item.name] || 0) > 0
-                      ? "border-blue-600 bg-blue-50/50 ring-4 ring-blue-50"
-                      : "border-slate-100 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    {/* Product Image */}
-                    <div className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-lg bg-[#FAF9F5] border border-slate-200/50 p-1 shadow-sm">
-                      {getProductImage(item.type)}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      {Number(form.items?.[item.name] || 0) > 0 && (
-                        <CheckCircle2 size={16} className="absolute top-2 right-2 text-blue-600" />
-                      )}
-                      <p className={`text-xs sm:text-sm font-bold truncate ${Number(form.items?.[item.name] || 0) > 0 ? "text-blue-900" : "text-slate-600"}`}>{item.name}</p>
-                      <p className="text-sm sm:text-base font-black text-slate-900 mt-0.5">Rs {item.ratePerUnit}<span className="text-[9px] text-slate-400 font-normal">/{item.unit}</span></p>
-                      <p className={`text-[9px] sm:text-[10px] mt-0.5 font-semibold ${isProductOutOfStock(item.stockQuantity) ? "text-red-500" : "text-emerald-600"}`}>
-                        Stock: {formatProductStockLabel(item.stockQuantity)}
-                      </p>
-                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                        {Number(form.items?.[item.name] || 0) > 0 ? `${form.items?.[item.name]}L selected` : "Tap to add"}
-                      </p>
-                    </div>
-                  </button>
+                    item={item}
+                    form={form}
+                    setForm={setForm}
+                    toggleProductSelection={toggleProductSelection}
+                  />
                 ))}
               </div>
               {dairy.productItems.length === 0 && (
@@ -700,38 +526,11 @@ const BuyOncePage = () => {
                     </p>
                   </div>
                   {selectedItems.map((item) => (
-                    <div key={item.name} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-semibold text-slate-900">{item.name}</p>
-                          <p className="text-xs text-slate-500">Rs {item.ratePerUnit}/{item.unit}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedItemQuantity(item.name, item.quantity - 0.5)}
-                            className="rounded-full border border-slate-200 p-2 text-slate-500"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <input
-                            type="number"
-                            min="0.5"
-                            step="0.5"
-                            value={item.quantity}
-                            onChange={(e) => updateSelectedItemQuantity(item.name, e.target.value)}
-                            className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-center font-bold outline-none focus:border-blue-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedItemQuantity(item.name, item.quantity + 0.5)}
-                            className="rounded-full border border-slate-200 p-2 text-slate-500"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <SelectedItemRow
+                      key={item.name}
+                      item={item}
+                      updateSelectedItemQuantity={updateSelectedItemQuantity}
+                    />
                   ))}
                 </div>
               )}
@@ -782,25 +581,7 @@ const BuyOncePage = () => {
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Time Slot</label>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {slotOptions.map((slot) => (
-                      <button
-                        key={slot.id}
-                        disabled={!slot.available}
-                        onClick={() => slot.available && setForm((prev) => ({ ...prev, slot: slot.id }))}
-                        className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-all ${
-                          form.slot === slot.id && slot.available
-                            ? "border-blue-600 bg-blue-50 ring-2 ring-blue-100"
-                            : slot.available
-                            ? "border-slate-200 hover:border-blue-200 bg-white"
-                            : "border-slate-100 bg-slate-50 opacity-60 grayscale cursor-not-allowed"
-                        }`}
-                      >
-                        <Clock3 size={20} className={form.slot === slot.id ? "text-blue-600" : "text-slate-400"} />
-                        <div>
-                          <p className="font-bold text-sm text-slate-800">{slot.id}</p>
-                          <p className="text-[10px] text-slate-500 font-medium">{slot.label}</p>
-                          <p className={`text-[10px] mt-1 font-bold ${slot.available ? "text-green-600" : "text-red-500"}`}>{slot.reason}</p>
-                        </div>
-                      </button>
+                      <SlotOptionCard key={slot.id} slot={slot} form={form} setForm={setForm} />
                     ))}
                   </div>
                 </div>
@@ -808,87 +589,20 @@ const BuyOncePage = () => {
             </section>
           </div>
 
-          <div id="order-summary-section" className="lg:w-[380px] space-y-6 scroll-mt-24">
-            <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl sticky top-24">
-              <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                <CreditCard size={20} className="text-blue-400" /> Order Summary
-              </h3>
-
-              <div className="space-y-4 border-b border-slate-800 pb-6 mb-6">
-                {selectedItems.length > 0 ? (
-                  selectedItems.map((item) => (
-                    <div key={item.name} className="flex justify-between text-sm">
-                      <span className="text-slate-400">{item.name} x {item.quantity}L</span>
-                      <span className="font-bold">Rs {(item.quantity * item.ratePerUnit).toFixed(2)}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-slate-400">No products selected yet.</div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Delivery Fee</span>
-                  <span className="text-green-400 font-bold uppercase text-[10px] bg-green-400/10 px-2 py-1 rounded">Free</span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-end mb-8">
-                <span className="text-slate-400 text-sm">Grand Total</span>
-                <span className="text-3xl font-black">Rs {totalPrice.toFixed(2)}</span>
-              </div>
-
-              <div className="space-y-3 mb-8">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
-                <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
-                  <p className="text-sm font-bold text-white">Online payment required</p>
-                  <p className="mt-1 text-xs text-slate-300">
-                    One-time deliveries are confirmed only after successful payment.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-8">
-                <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                  <MapPin size={10} /> Delivery Address
-                </label>
-                <textarea
-                  rows={2} value={form.address}
-                  onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
-                  placeholder="Street, Landmark, City..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-all"
-                />
-              </div>
-
-              <button
-                onClick={() => handleSubmit(false)}
-                disabled={submitting || (hasSubscriptionForThisDairy && !isCustomerExtraFlow) || !hasAvailableSlot || !selectedItems.length || Boolean(invalidStockItem) || dairy.productItems.length === 0}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all transform active:scale-[0.98] disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
-              >
-                {submitting
-                  ? "Processing..."
-                  : hasSubscriptionForThisDairy && !isCustomerExtraFlow
-                  ? "Unavailable For Active Subscribers"
-                  : isCustomerExtraFlow
-                  ? "Pay & Add Extra"
-                  : "Pay & Place Order"}
-              </button>
-              {(invalidStockItem || !selectedItems.length) && (
-                <p className="mt-2 text-xs text-red-400 font-medium">
-                  {invalidStockItem
-                    ? `${invalidStockItem.name} quantity is more than available stock`
-                    : "Select at least one product"}
-                </p>
-              )}
-            </div>
-
-            {!hasAvailableSlot && nextAvailableDate && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex gap-3">
-                <Clock3 className="text-amber-600 shrink-0" size={18} />
-                <p className="text-[11px] text-amber-800 font-medium">
-                  Cut-off reached for today. Next slot opens on <span className="font-bold">{nextAvailableDate}</span>.
-                </p>
-              </div>
-            )}
-          </div>
+          <OrderSummary
+            selectedItems={selectedItems}
+            totalPrice={totalPrice}
+            form={form}
+            setForm={setForm}
+            handleSubmit={handleSubmit}
+            submitting={submitting}
+            hasSubscriptionForThisDairy={hasSubscriptionForThisDairy}
+            isCustomerExtraFlow={isCustomerExtraFlow}
+            hasAvailableSlot={hasAvailableSlot}
+            invalidStockItem={invalidStockItem}
+            dairy={dairy}
+            nextAvailableDate={nextAvailableDate}
+          />
         </div>
       </div>
 
