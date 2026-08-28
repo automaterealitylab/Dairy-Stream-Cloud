@@ -1,4 +1,4 @@
-﻿import { supabase } from "../../config/supabase.js"; // Adjust path to match your customer service import
+import { supabase } from "../../config/supabase.js"; // Adjust path to match your customer service import
 import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
 
 const parseDateSafe = (value) => {

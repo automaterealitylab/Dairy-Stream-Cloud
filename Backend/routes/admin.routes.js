@@ -1,9 +1,10 @@
-﻿import express from "express";
+import express from "express";
 const router = express.Router();
 
 // --- CONTROLLER IMPORTS ---
 import { adminLogin } from "../controllers/authentication/adminAuth.controller.js";
 import { verifyAdmin } from "../middleware/admin.middleware.js";
+import { verifyAdminPlan } from "../middleware/adminPlan.middleware.js";
 import { getDashboard } from "../controllers/admin/dashboard.controller.js";
 import { 
   getAdminNotifications, 
@@ -19,6 +20,7 @@ import {
   resolveAdminDeliveryIssue,
   scheduleAdminDelivery,
   scheduleAdminDeliveriesBulk,
+  addAdminExtraDelivery,
 } from "../controllers/admin/adminDeliveries.controller.js";
 import {
   fetchAdminCustomers,
@@ -29,6 +31,10 @@ import {
   approveAdminCustomerSubscription,
   assignAdminCustomerPermanentPartner,
   upsertAdminCustomerSubscription,
+  pauseAdminCustomerSubscription,
+  resumeAdminCustomerSubscription,
+  cancelAdminCustomerSubscription,
+  downloadAdminCustomerBillPdf,
 } from "../controllers/admin/adminCustomers.controller.js";
 import {
   getAdminDairyProfile,
@@ -125,7 +131,7 @@ router.patch("/notifications/:id/read", verifyAdmin, markNotificationAsRead); //
 router.post("/notifications/read-all", verifyAdmin, markAllNotificationsAsRead); // Mark all notifications as read
 router.get("/monitoring/operations", verifyAdmin, fetchOperationalMonitoring);
 router.post("/monitoring/whatsapp/process", verifyAdmin, processWhatsAppQueue);
-router.get("/health", verifyAdmin, (req, res) => {
+router.get("/health", verifyAdmin, (_req, res) => {
   res.json({ status: "ok" });
 });
 
@@ -135,6 +141,9 @@ router.get("/health", verifyAdmin, (req, res) => {
 router.get("/customers", verifyAdmin, fetchAdminCustomers); // List all customers
 router.get("/customers/:id", verifyAdmin, fetchAdminCustomerById); // Get specific customer details
 router.get("/customers/:id/bill-details", verifyAdmin, fetchAdminCustomerBillDetails); // Get bill detail rows
+router.get("/customers/:id/bill-pdf", verifyAdmin, downloadAdminCustomerBillPdf); // Download PDF bill
+router.get("/customers/:id/bills/:billId/pdf", verifyAdmin, downloadAdminCustomerBillPdf); // Download specific bill PDF
+router.get("/invoices/:id/pdf", verifyAdmin, downloadAdminCustomerBillPdf); // Download invoice PDF
 router.put("/customers/:id", verifyAdmin, updateAdminCustomerById); // Edit customer info
 router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById); // Remove customer
 
@@ -142,6 +151,11 @@ router.delete("/customers/:id", verifyAdmin, deleteAdminCustomerById); // Remove
 router.post("/customers/:id/subscription", verifyAdmin, upsertAdminCustomerSubscription); // Add/Update customer plan
 router.patch("/customers/:id/subscription/approve", verifyAdmin, approveAdminCustomerSubscription); // Approve requested sub
 router.patch("/customers/:id/subscription/assign-partner", verifyAdmin, assignAdminCustomerPermanentPartner); // Link agent to customer
+router.patch("/customers/:id/subscription/pause", verifyAdmin, pauseAdminCustomerSubscription); // Pause subscription (dates)
+router.patch("/customers/:id/subscription/resume", verifyAdmin, resumeAdminCustomerSubscription); // Resume subscription
+router.patch("/customers/:id/subscription/cancel", verifyAdmin, cancelAdminCustomerSubscription); // Cancel/close subscription
+router.post("/customers/:id/extra-delivery", verifyAdmin, addAdminExtraDelivery); // One-off extra product/quantity delivery
+
 
 // ==========================================
 // 4. AGENT (DELIVERY PARTNER) MANAGEMENT
@@ -166,11 +180,11 @@ router.patch("/deliveries/:id/resolve-issue", verifyAdmin, resolveAdminDeliveryI
 router.post("/deliveries/approve-all", verifyAdmin, approveAllAdminDeliveries); // Bulk approval for current shift
 
 // ==========================================
-// 6. PROCUREMENT (SUPPLY CHAIN)
+// 6. PROCUREMENT (SUPPLY CHAIN) - Requires PREMIUM plan
 // ==========================================
-router.get("/procurement", verifyAdmin, fetchProcurementLogs); // View milk purchase history
-router.post("/procurement", verifyAdmin, addProcurementLog); // Log new milk purchase from supplier
-router.put("/procurement/:id", verifyAdmin, updateProcurementLog); // Correct an existing purchase entry
+router.get("/procurement", verifyAdmin, verifyAdminPlan("procurement"), fetchProcurementLogs); // View milk purchase history
+router.post("/procurement", verifyAdmin, verifyAdminPlan("procurement"), addProcurementLog); // Log new milk purchase from supplier
+router.put("/procurement/:id", verifyAdmin, verifyAdminPlan("procurement"), updateProcurementLog); // Correct an existing purchase entry
 
 // ==========================================
 // 7. PAYMENTS & BILLING
@@ -197,15 +211,15 @@ router.put("/products/:id", verifyAdmin, editAdminProduct); // Edit product pric
 router.delete("/products/:id", verifyAdmin, removeAdminProduct); // Remove product
 
 // ==========================================
-// 9. ANALYTICS & EARNINGS
+// 9. ANALYTICS & EARNINGS - Requires GROWTH plan
 // ==========================================
 // Agent Performance
-router.get("/performance", verifyAdmin, getPerformance);
-router.get("/performance/summary", verifyAdmin, getPerformanceSummaryData);
-router.get("/performance/monthly-trends", verifyAdmin, getPerformanceMonthlyTrends);
-router.get("/performance/top-performers", verifyAdmin, getTopPerformers);
-router.get("/performance/missed-deliveries", verifyAdmin, getMissedDeliveries);
-router.post("/performance/update", verifyAdmin, updatePerformanceMetrics);
+router.get("/performance", verifyAdmin, verifyAdminPlan("performance"), getPerformance);
+router.get("/performance/summary", verifyAdmin, verifyAdminPlan("performance"), getPerformanceSummaryData);
+router.get("/performance/monthly-trends", verifyAdmin, verifyAdminPlan("performance"), getPerformanceMonthlyTrends);
+router.get("/performance/top-performers", verifyAdmin, verifyAdminPlan("performance"), getTopPerformers);
+router.get("/performance/missed-deliveries", verifyAdmin, verifyAdminPlan("performance"), getMissedDeliveries);
+router.post("/performance/update", verifyAdmin, verifyAdminPlan("performance"), updatePerformanceMetrics);
 
 
 
@@ -215,12 +229,12 @@ router.get("/buildings", verifyAdmin, getUniqueBuildings); // Fetch list of serv
 
 
 // ==========================================
-// 10. SUPPLIER MANAGEMENT
+// 10. SUPPLIER MANAGEMENT - Requires PREMIUM plan
 // ==========================================
-router.get("/suppliers", verifyAdmin, fetchSuppliers); // Fetch all active suppliers
-router.post("/suppliers", verifyAdmin, addSupplier); // Register a new supplier
-router.put("/suppliers/:id", verifyAdmin, updateSupplier); // Edit supplier details
-router.delete("/suppliers/:id", verifyAdmin, deactivateSupplier); // Deactivate supplier from active use
+router.get("/suppliers", verifyAdmin, verifyAdminPlan("suppliers"), fetchSuppliers); // Fetch all active suppliers
+router.post("/suppliers", verifyAdmin, verifyAdminPlan("suppliers"), addSupplier); // Register a new supplier
+router.put("/suppliers/:id", verifyAdmin, verifyAdminPlan("suppliers"), updateSupplier); // Edit supplier details
+router.delete("/suppliers/:id", verifyAdmin, verifyAdminPlan("suppliers"), deactivateSupplier); // Deactivate supplier from active use
 
 export default router;
 

@@ -18,6 +18,7 @@ import {
   updateRouteSettlementConfig,
 } from "../marketplace/razorpayRoute.service.js";
 import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
+import { getPlatformPlan } from "../common/platformPlan.service.js";
 
 export const decryptDairyFields = (dairy) => {
   if (!dairy) return dairy;
@@ -225,6 +226,11 @@ export const registerDairyService = async ({
       throw conflictError;
     }
 
+    let sanitizedPlan = String(selected_plan || "GROWTH").toUpperCase().trim();
+    if (!["STARTER", "GROWTH", "PREMIUM"].includes(sanitizedPlan)) {
+      sanitizedPlan = "GROWTH";
+    }
+
     // 3. Insert Dairy
     const { data: dairyData, error: dairyError } = await supabase
       .from("dairies")
@@ -245,7 +251,7 @@ export const registerDairyService = async ({
         service_pincodes,
         service_radius: parseFloat(service_radius) || 10,
         owner_name,
-        selected_plan,
+        selected_plan: sanitizedPlan,
         status: "ACTIVE",
         bank_account_holder_name: String(bank_account_holder_name || "").trim() || null,
         bank_account_number: process.env.BANK_ACCOUNT_ENCRYPTION_KEY || process.env.BANK_VERIFICATION_ENCRYPTION_KEY
@@ -278,23 +284,12 @@ export const registerDairyService = async ({
 
     if (dairyError) throw new Error(`Failed to create dairy: ${dairyError.message}`);
 
-    // Create Initial platform_subscriptions row applying trial length
-    const PLATFORM_PLAN_PRICES = {
-      STARTER: { monthly: 499, yearly: 4990, trialDays: 14 },
-      GROWTH: { monthly: 999, yearly: 9990, trialDays: 14 },
-      ENTERPRISE: { monthly: 2499, yearly: 24990, trialDays: 14 },
-    };
-
+    // Create Initial platform_subscriptions row applying dynamic trial length and pricing from DB
     let planKey = String(selected_plan || "GROWTH").toUpperCase().trim();
-    if (planKey === "FREE" || planKey === "Starter") planKey = "STARTER";
-    if (planKey === "PRIME" || planKey === "Enterprise" || planKey === "PRIME ENTERPRISE") planKey = "ENTERPRISE";
+    const planRow = await getPlatformPlan(planKey);
 
-    let trialDays = 14;
-    let originalAmount = 999.00;
-    if (PLATFORM_PLAN_PRICES[planKey]) {
-      originalAmount = PLATFORM_PLAN_PRICES[planKey].monthly;
-      trialDays = PLATFORM_PLAN_PRICES[planKey].trialDays;
-    }
+    let trialDays = Number(planRow?.trial_period_days ?? 14);
+    let originalAmount = Number(planRow?.monthly_price ?? 1499);
 
     let discountApplied = 0;
     let trialExtension = 0;
@@ -330,12 +325,6 @@ export const registerDairyService = async ({
 
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + trialDays + trialExtension);
-
-    const { data: planRow } = await supabase
-      .from("platform_plans")
-      .select("id")
-      .eq("plan_key", planKey)
-      .maybeSingle();
 
     await supabase.from("platform_subscriptions").insert({
       dairy_id: dairyData.id,
