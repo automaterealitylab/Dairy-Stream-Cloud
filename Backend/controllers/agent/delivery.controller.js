@@ -47,8 +47,19 @@ export const fetchAssignedDeliveries = async (req, res) => {
 
 export const fetchAgentHistory = async (req, res) => {
   try {
-    const payload = await getAgentDeliveryHistory(getAgentContext(req));
-    return res.json({ history: payload });
+    const { agentDbId, dairyId } = getAgentContext(req);
+    const { date, status, search, page, limit, month } = req.query;
+    const payload = await getAgentDeliveryHistory({
+      agentDbId,
+      dairyId,
+      date,
+      status,
+      search,
+      page,
+      limit,
+      month,
+    });
+    return res.json(payload);
   } catch (err) {
     console.error("AGENT HISTORY ERROR:", err?.message || err);
     return res.status(err?.statusCode || 500).json({

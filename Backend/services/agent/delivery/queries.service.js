@@ -98,6 +98,163 @@ export const fetchDeliveryRows = async ({
   return data || [];
 };
 
+export const fetchAgentMonthActiveDates = async ({ agentDbId, dairyId = null, month = null } = {}) => {
+  const now = new Date();
+  const currentMonth = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [yearStr, monthStr] = currentMonth.split("-");
+  const year = parseInt(yearStr, 10) || now.getFullYear();
+  const m = parseInt(monthStr, 10) || now.getMonth() + 1;
+  const startDate = `${year}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, m, 0).getDate();
+  const endDate = `${year}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  let query = supabase
+    .from("deliveries")
+    .select("delivery_date")
+    .eq("agent_id", agentDbId)
+    .neq("approval_status", "PENDING_PAYMENT")
+    .gte("delivery_date", startDate)
+    .lte("delivery_date", endDate)
+    .order("delivery_date", { ascending: false });
+
+  if (dairyId) query = query.eq("dairy_id", dairyId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const dates = [...new Set((data || []).map((row) => row.delivery_date).filter(Boolean))];
+  return dates;
+};
+
+export const fetchAgentDayDeliverySummary = async ({ agentDbId, dairyId = null, date } = {}) => {
+  let query = supabase
+    .from("deliveries")
+    .select("status, quantity_liters, approval_status")
+    .eq("agent_id", agentDbId)
+    .eq("delivery_date", date)
+    .neq("approval_status", "PENDING_PAYMENT");
+
+  if (dairyId) query = query.eq("dairy_id", dairyId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = data || [];
+  const total = rows.length;
+  let completed = 0;
+  let failed = 0;
+  let pending = 0;
+  let totalQuantity = 0;
+
+  rows.forEach((row) => {
+    const s = String(row?.status || "").toUpperCase();
+    if (s === "COMPLETED") {
+      completed += 1;
+      const qty = Number(row?.quantity_liters || 0);
+      if (Number.isFinite(qty) && qty > 0) totalQuantity += qty;
+    } else if (s === "FAILED") {
+      failed += 1;
+    } else {
+      pending += 1;
+    }
+  });
+
+  return {
+    summary: {
+      total,
+      completed,
+      failed,
+      pending,
+      totalQuantity,
+    },
+    statusCounts: {
+      all: total,
+      pending,
+      completed,
+      failed,
+    },
+  };
+};
+
+export const fetchAgentPaginatedHistoryRows = async ({
+  agentDbId,
+  dairyId = null,
+  date,
+  status = "all",
+  search = null,
+  page = 1,
+  limit = 25,
+} = {}) => {
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = supabase
+    .from("deliveries")
+    .select(
+      "id, customer_id, dairy_id, agent_id, delivery_date, milk_type, quantity_liters, status, approval_status, notes, updated_at, created_at",
+      { count: "exact" }
+    )
+    .eq("agent_id", agentDbId)
+    .eq("delivery_date", date)
+    .neq("approval_status", "PENDING_PAYMENT");
+
+  if (dairyId) query = query.eq("dairy_id", dairyId);
+
+  // Status filter
+  const normalizedStatus = String(status || "").toLowerCase();
+  if (normalizedStatus === "completed") {
+    query = query.eq("status", "COMPLETED");
+  } else if (normalizedStatus === "failed") {
+    query = query.eq("status", "FAILED");
+  } else if (normalizedStatus === "pending") {
+    query = query.in("status", ["PENDING", "OUT_FOR_DELIVERY", "IN_TRANSIT", "ASSIGNED"]);
+  }
+
+  // Search filter
+  if (search && search.trim()) {
+    const term = search.trim();
+    const isNumeric = /^\d+$/.test(term);
+
+    // Look for customers matching name, phone, building, room_no, wing, address
+    let customerFilterQuery = supabase
+      .from("customers")
+      .select("id")
+      .or(
+        `customer_name.ilike.%${term}%,phone_number.ilike.%${term}%,building_name.ilike.%${term}%,room_no.ilike.%${term}%,wing.ilike.%${term}%,address_line_1.ilike.%${term}%`
+      )
+      .limit(100);
+
+    if (dairyId) customerFilterQuery = customerFilterQuery.eq("dairy_id", dairyId);
+    const { data: matchedCustomers } = await customerFilterQuery;
+    const matchedCustomerIds = (matchedCustomers || []).map((c) => c.id).filter(Boolean);
+
+    const orConditions = [];
+    if (isNumeric) {
+      orConditions.push(`id.eq.${parseInt(term, 10)}`);
+    }
+    if (matchedCustomerIds.length > 0) {
+      orConditions.push(`customer_id.in.(${matchedCustomerIds.join(",")})`);
+    }
+    orConditions.push(`milk_type.ilike.%${term}%`);
+
+    query = query.or(orConditions.join(","));
+  }
+
+  // Default sort: PENDING first, FAILED second, COMPLETED last, then created_at desc
+  query = query
+    .order("status", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  const { data, count, error } = await query;
+  if (error) throw error;
+
+  return {
+    rows: data || [],
+    total: count ?? (data ? data.length : 0),
+  };
+};
+
 export const fetchAssignedDeliveryRow = async ({ agentDbId, dairyId = null, deliveryId } = {}) => {
   const parsedId = Number(deliveryId);
   if (!Number.isFinite(parsedId) || parsedId <= 0) {

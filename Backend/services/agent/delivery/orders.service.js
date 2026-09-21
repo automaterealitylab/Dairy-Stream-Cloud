@@ -35,6 +35,9 @@ import {
   fetchAgentCore,
   fetchAssignedDeliveryRow,
   fetchDeliveryRows,
+  fetchAgentMonthActiveDates,
+  fetchAgentDayDeliverySummary,
+  fetchAgentPaginatedHistoryRows,
   findPaymentRowByDeliveryId,
   getDeliverySettings,
 } from "./queries.service.js";
@@ -359,54 +362,112 @@ export const getAgentDashboard = async ({ agentDbId, dairyId = null } = {}) => {
   };
 };
 
-export const getAgentDeliveryHistory = async ({ agentDbId, dairyId = null } = {}) => {
+export const getAgentDeliveryHistory = async ({
+  agentDbId,
+  dairyId = null,
+  date = null,
+  status = "all",
+  search = null,
+  page = 1,
+  limit = 25,
+  month = null,
+} = {}) => {
   const today = getLocalTodayIso();
-  const rows = await fetchDeliveryRows({
+  const queryDate = date ? normalizeDate(date) : today;
+  const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+  const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+
+  // 1. Fetch Month Active Dates for calendar dots
+  const activeDates = await fetchAgentMonthActiveDates({
     agentDbId,
     dairyId,
-    maxDate: today,
-    limit: 2000,
+    month: month || queryDate.slice(0, 7),
   });
 
-  if (!rows.length) return [];
-  const lookups = await buildLookupMaps(rows);
+  // 2. Fetch Full Day Summary & Status Counts for selected date
+  const { summary, statusCounts } = await fetchAgentDayDeliverySummary({
+    agentDbId,
+    dairyId,
+    date: queryDate,
+  });
 
-  const grouped = new Map();
-  for (const row of rows) {
+  // 3. Fetch Paginated Rows for selected date with filters
+  const { rows, total } = await fetchAgentPaginatedHistoryRows({
+    agentDbId,
+    dairyId,
+    date: queryDate,
+    status,
+    search,
+    page: parsedPage,
+    limit: parsedLimit,
+  });
+
+  // 4. Build lookups only for the current page batch
+  const lookups = rows.length > 0
+    ? await buildLookupMaps(rows)
+    : { customersById: new Map(), dairiesById: new Map() };
+
+  // 5. Map rows to clean, scalable delivery log shape
+  const deliveries = rows.map((row) => {
     const mapped = mapAssignedDelivery(row, lookups);
-    const dateKey = normalizeDate(row.delivery_date || row.created_at) || today;
-    if (!grouped.has(dateKey)) grouped.set(dateKey, []);
-
-    const status = normalizeStatusForHistory(mapped.status);
-    const isCompleted = status === "completed";
+    const itemStatus = normalizeStatusForHistory(mapped.status);
+    const isCompleted = itemStatus === "completed";
     const completedAtValue = isCompleted && mapped.completedAt ? new Date(mapped.completedAt) : null;
     const completedAt = completedAtValue && !Number.isNaN(completedAtValue.getTime())
       ? completedAtValue.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
       : "-";
 
-    grouped.get(dateKey).push({
+    const flatOrRoom = mapped.roomNo ? `Flat ${mapped.roomNo}` : (mapped.wing ? `Wing ${mapped.wing}` : "");
+    const building = mapped.buildingName || "";
+    const unitAndBuilding = [flatOrRoom, building].filter(Boolean).join(" • ") || mapped.address;
+    const productLabel = mapped.productName || mapped.milkType || "Milk";
+
+    return {
       id: mapped.id,
       customerName: mapped.customerName,
+      unitAndBuilding,
+      buildingName: mapped.buildingName || "",
+      wing: mapped.wing || "",
+      roomNo: mapped.roomNo || "",
+      productLabel,
       milkQuantity: mapped.quantity,
+      quantityLiters: mapped.quantity_liters,
+      productAndQty: `${productLabel} • ${mapped.quantity} L`,
       address: mapped.address,
       phone: mapped.phoneNumber,
-      status,
+      status: itemStatus,
       completedAt,
       dairyName: mapped.dairyFarmName,
       failedReason: mapped.failedReason,
       failedImage: mapped.failedImage,
-    });
-  }
+    };
+  });
 
-  return [...grouped.entries()]
-    .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
-    .map(([date, deliveries]) => ({
-      date,
-      deliveries: deliveries.sort((a, b) => {
-        const priority = (s) => (s === "completed" ? 0 : s === "failed" ? 1 : 2);
-        return priority(a.status) - priority(b.status);
-      }),
-    }));
+  const totalPages = Math.ceil(total / parsedLimit);
+  const from = (parsedPage - 1) * parsedLimit;
+  const hasMore = from + deliveries.length < total;
+
+  return {
+    date: queryDate,
+    deliveries,
+    pagination: {
+      page: parsedPage,
+      limit: parsedLimit,
+      total,
+      totalPages,
+      hasMore,
+    },
+    summary,
+    statusCounts,
+    activeDates,
+    // Backwards compatibility array:
+    history: [
+      {
+        date: queryDate,
+        deliveries,
+      },
+    ],
+  };
 };
 
 export const getAgentProfile = async ({ agentDbId, dairyId = null } = {}) => {
