@@ -17,6 +17,7 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import {
   Package,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   Clock,
   Navigation,
@@ -28,6 +29,7 @@ import {
   LocateFixed,
   LogOut,
   Truck,
+  Building2,
   Volume2,
   VolumeX,
   Settings2,
@@ -49,14 +51,17 @@ import {
 import { startDelivery, updateAgentLocation } from "../../api/agent/location.js";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
 import {
+  buildBuildingTaskGroups,
+  separateBuildingTaskGroups,
   calculateDetailedDeliverySummary,
   formatQuantity,
-  getProductLabel,
 } from "../../utils/agentTaskGrouping.js";
 import {
   buildSpokenInstruction,
   fetchRoadRoute,
   fetchRoadDistanceTable,
+  formatDistanceLabel,
+  formatDurationLabel,
   getDeliveryCoordinates,
   getDairyCoordinates,
   getDistanceInMeters,
@@ -64,6 +69,7 @@ import {
   getTurnInstructionIcon,
   getAutoZoomLevel,
 } from "../../utils/agentRouting";
+
 import {
   getLocalDateKey,
   compareScheduledDeliveries,
@@ -94,10 +100,15 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const isUnauthorizedError = (error) => Number(error?.response?.status) === 401;
 
+const formatSizeLabel = (label) => {
+  if (!label) return "Standard";
+  return String(label).replace(/^(\d+(?:\.\d+)?)(L|ml|kg|g)$/i, "$1 $2").trim();
+};
+
 const AgentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [stats, setStats] = useState({ totalAssigned: 0, completed: 0, pending: 0, failed: 0 });
   const [deliveries, setDeliveries] = useState(() => getCachedAssignedAgentDeliveries());
@@ -122,9 +133,7 @@ const AgentDashboard = () => {
     instructions: null,
   });
   const [secondaryRoadRoutes, setSecondaryRoadRoutes] = useState([]);
-  const [completedRoadRoutes, setCompletedRoadRoutes] = useState([]);
   const [dairyRoadRoute, setDairyRoadRoute] = useState([]);
-  const [nearestByRoadDeliveryId, setNearestByRoadDeliveryId] = useState(null);
   const [deliveryRunStartedAt, setDeliveryRunStartedAt] = useState(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingAgentSyncCount());
   const [isSpeechMuted, setIsSpeechMuted] = useState(() => {
@@ -489,6 +498,29 @@ const AgentDashboard = () => {
     return calculateDetailedDeliverySummary(sourceDeliveries);
   }, [todayDeliveries, todayOpenDeliveries]);
 
+  const milkCarryRows = useMemo(() => {
+    if (!carrySummary?.milkTypes) return [];
+    const rows = [];
+    carrySummary.milkTypes.forEach((item) => {
+      if (item.breakdown && item.breakdown.length > 0) {
+        item.breakdown.forEach((b) => {
+          rows.push({
+            productName: item.name,
+            size: b.sizeLabel || "Standard",
+            packets: b.packets,
+          });
+        });
+      } else {
+        rows.push({
+          productName: item.name,
+          size: "Standard",
+          packets: item.totalPackets,
+        });
+      }
+    });
+    return rows;
+  }, [carrySummary]);
+
   useEffect(() => {
     setStats(statsForToday);
   }, [statsForToday]);
@@ -540,127 +572,132 @@ const AgentDashboard = () => {
   const completionPercentage =
     stats.totalAssigned > 0 ? Math.round((stats.completed / stats.totalAssigned) * 100) : 0;
 
-  const nextTaskCoordinates = getDeliveryCoordinates(nextTask);
-  const deliveriesWithCoordinates = useMemo(
-    () => deliveries.filter((delivery) => getDeliveryCoordinates(delivery)),
-    [deliveries]
-  );
-  const mapCandidateDeliveries = useMemo(() => {
-    const todayCandidates = todayDeliveries.filter((delivery) =>
-      ["PENDING", "OUT_FOR_DELIVERY"].includes(String(delivery?.status || "").toUpperCase())
-    );
-
-    if (todayCandidates.length > 0) {
-      return todayCandidates;
-    }
-
-    return nextTask ? [nextTask] : [];
-  }, [nextTask, todayDeliveries]);
-  const routeSourceDeliveries = useMemo(() => {
-    const sourceItems = isDeliveryRunActive ? todayOpenDeliveries : mapCandidateDeliveries;
-
-    return sourceItems
-      .map((delivery) => ({
-        ...delivery,
-        coordinates: getDeliveryCoordinates(delivery),
-      }))
-      .filter((delivery) => Array.isArray(delivery.coordinates));
-  }, [isDeliveryRunActive, mapCandidateDeliveries, todayOpenDeliveries]);
-  const completedMapDeliveries = useMemo(
-    () =>
-      todayDeliveries
-        .filter((delivery) => {
-          const status = String(delivery?.status || "").toUpperCase();
-          return status === "COMPLETED" || status === "FAILED";
-        })
-        .map((delivery) => ({
-          ...delivery,
-          coordinates: getDeliveryCoordinates(delivery),
-        }))
-        .filter((delivery) => Array.isArray(delivery.coordinates)),
+  // Group today's deliveries by building
+  const todayBuildingGroups = useMemo(
+    () => buildBuildingTaskGroups(todayDeliveries),
     [todayDeliveries]
   );
+  const { active: activeBuildings, completed: completedBuildings } = useMemo(
+    () => separateBuildingTaskGroups(todayBuildingGroups),
+    [todayBuildingGroups]
+  );
 
-  const routeDeliveries = useMemo(() => {
-    const mappedDeliveries = routeSourceDeliveries;
+  const [buildingRoadDistanceMap, setBuildingRoadDistanceMap] = useState({});
 
-    const orderedDeliveries = agentLocation
-      ? [...mappedDeliveries].sort((left, right) => {
-        const leftDistance = getDistanceInMeters(agentLocation, left.coordinates);
-        const rightDistance = getDistanceInMeters(agentLocation, right.coordinates);
+  const activeBuildingsWithCoords = useMemo(
+    () => activeBuildings.filter((b) => Array.isArray(b.coordinates)),
+    [activeBuildings]
+  );
 
-        if (Number.isFinite(leftDistance) && Number.isFinite(rightDistance) && leftDistance !== rightDistance) {
-          return leftDistance - rightDistance;
-        }
+  const buildingRoadRankingKey = useMemo(
+    () =>
+      activeBuildingsWithCoords
+        .map((b) => `${b.buildingName}:${b.coordinates[0]?.toFixed?.(4)}:${b.coordinates[1]?.toFixed?.(4)}`)
+        .join("|"),
+    [activeBuildingsWithCoords]
+  );
 
-        return compareScheduledDeliveries(left, right);
-      })
-      : mappedDeliveries.sort(compareScheduledDeliveries);
-
-    return orderedDeliveries.filter((delivery, index, items) => {
-      if (!agentLocation) return true;
-
-      const distanceFromAgent = getDistanceInMeters(agentLocation, delivery.coordinates);
-      if (!Number.isFinite(distanceFromAgent)) return false;
-      if (distanceFromAgent <= MAX_ROUTE_PREVIEW_DISTANCE_METERS) return true;
-
-      const nearestDistance = getDistanceInMeters(agentLocation, items[0]?.coordinates);
-      return index === 0 && Number.isFinite(nearestDistance);
-    });
-  }, [agentLocation, routeSourceDeliveries]);
-  const roadRankingOrigin = useMemo(
+  const roadOrigin = useMemo(
     () =>
       Array.isArray(agentLocation)
         ? [Number(agentLocation[0].toFixed(4)), Number(agentLocation[1].toFixed(4))]
         : null,
     [agentLocation?.[0], agentLocation?.[1]]
   );
-  const roadRankingKey = useMemo(
-    () =>
-      routeDeliveries
-        .map(
-          (delivery) =>
-            `${delivery.id}:${delivery.coordinates?.[0]?.toFixed?.(4)}:${delivery.coordinates?.[1]?.toFixed?.(4)}`
-        )
-        .join("|"),
-    [routeDeliveries]
-  );
-  const roadRankingDeliveries = useMemo(
-    () =>
-      routeDeliveries.map((delivery) => ({
-        id: delivery.id,
-        coordinates: delivery.coordinates,
-      })),
-    [roadRankingKey, routeDeliveries]
-  );
-  const visibleMapDeliveries = useMemo(() => {
-    const merged = [...routeDeliveries, ...completedMapDeliveries];
-    const unique = new Map();
-    merged.forEach((delivery) => {
-      unique.set(String(delivery.id), delivery);
+
+  useEffect(() => {
+    if (!roadOrigin || activeBuildingsWithCoords.length === 0) {
+      setBuildingRoadDistanceMap({});
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const destinations = activeBuildingsWithCoords.map((b) => ({
+      id: b.buildingName,
+      coordinates: b.coordinates,
+    }));
+
+    fetchRoadDistanceTable(roadOrigin, destinations, controller.signal)
+      .then((distMap) => {
+        setBuildingRoadDistanceMap(distMap || {});
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        console.error("Active building road distance ranking failed:", err);
+      });
+
+    return () => controller.abort();
+  }, [buildingRoadRankingKey, roadOrigin]);
+
+  const orderedActiveBuildings = useMemo(() => {
+    if (activeBuildings.length === 0) return [];
+    return [...activeBuildings].sort((a, b) => {
+      const distA =
+        buildingRoadDistanceMap[a.buildingName] ??
+        (agentLocation && a.coordinates ? getDistanceInMeters(agentLocation, a.coordinates) : null);
+      const distB =
+        buildingRoadDistanceMap[b.buildingName] ??
+        (agentLocation && b.coordinates ? getDistanceInMeters(agentLocation, b.coordinates) : null);
+
+      if (Number.isFinite(distA) && Number.isFinite(distB) && distA !== distB) {
+        return distA - distB;
+      }
+      if (Number.isFinite(distA)) return -1;
+      if (Number.isFinite(distB)) return 1;
+      return a.buildingName.localeCompare(b.buildingName);
     });
-    return [...unique.values()];
-  }, [completedMapDeliveries, routeDeliveries]);
-  const nearestRouteDelivery = useMemo(() => {
-    if (!Array.isArray(routeDeliveries) || routeDeliveries.length === 0) return null;
-    if (!nearestByRoadDeliveryId) return routeDeliveries[0] || null;
-    return routeDeliveries.find((delivery) => String(delivery.id) === String(nearestByRoadDeliveryId)) || routeDeliveries[0] || null;
-  }, [nearestByRoadDeliveryId, routeDeliveries]);
-  const nearestRouteCoordinates = nearestRouteDelivery?.coordinates || null;
-  const nextDirectionLabel = useMemo(
-    () => getTurnInstructionLabel(primaryRouteStats.instructions?.primary),
-    [primaryRouteStats.instructions]
-  );
-  const NextDirectionIcon = useMemo(
-    () => getTurnInstructionIcon(primaryRouteStats.instructions?.primary),
-    [primaryRouteStats.instructions]
-  );
-  const nextDisplayTask = nearestRouteDelivery || nextTask || null;
-  const nextDisplayTaskCoordinates = nextDisplayTask?.coordinates || getDeliveryCoordinates(nextDisplayTask);
-  const nextDisplayTaskSchedule = useMemo(
-    () => (nextDisplayTask ? getDeliveryScheduleState(nextDisplayTask, now) : null),
-    [nextDisplayTask, now]
-  );
+  }, [activeBuildings, agentLocation, buildingRoadDistanceMap]);
+
+  const currentDestinationBuilding = orderedActiveBuildings[0] || null;
+  const currentDestinationCoordinates = currentDestinationBuilding?.coordinates || null;
+
+  const distanceToDestination = useMemo(() => {
+    if (primaryRouteStats.distanceMeters !== null) return primaryRouteStats.distanceMeters;
+    if (agentLocation && currentDestinationCoordinates) {
+      return getDistanceInMeters(agentLocation, currentDestinationCoordinates);
+    }
+    return null;
+  }, [agentLocation, currentDestinationCoordinates, primaryRouteStats.distanceMeters]);
+
+  // Arrival detection with GPS stability (2 consecutive readings <= 55m) and idempotency
+  const consecutiveArrivalReadingsRef = useRef(0);
+  const hasTriggeredArrivalForBuildingRef = useRef(null);
+  const lastDestinationBuildingRef = useRef(null);
+  const [isArrivedAtDestination, setIsArrivedAtDestination] = useState(false);
+
+  useEffect(() => {
+    if (!agentLocation || !currentDestinationCoordinates || !currentDestinationBuilding) {
+      consecutiveArrivalReadingsRef.current = 0;
+      setIsArrivedAtDestination(false);
+      return;
+    }
+
+    const buildingName = currentDestinationBuilding.buildingName;
+    if (lastDestinationBuildingRef.current !== buildingName) {
+      lastDestinationBuildingRef.current = buildingName;
+      hasTriggeredArrivalForBuildingRef.current = null;
+      consecutiveArrivalReadingsRef.current = 0;
+      setIsArrivedAtDestination(false);
+    }
+
+    const distance = getDistanceInMeters(agentLocation, currentDestinationCoordinates);
+    if (!Number.isFinite(distance)) return;
+
+    if (distance <= 55) {
+      consecutiveArrivalReadingsRef.current += 1;
+      if (consecutiveArrivalReadingsRef.current >= 2) {
+        setIsArrivedAtDestination(true);
+        if (hasTriggeredArrivalForBuildingRef.current !== buildingName) {
+          hasTriggeredArrivalForBuildingRef.current = buildingName;
+          navigate(`/agent/working/building/${encodeURIComponent(buildingName)}`);
+        }
+      }
+    } else if (distance > 75) {
+      consecutiveArrivalReadingsRef.current = 0;
+      setIsArrivedAtDestination(false);
+    }
+  }, [agentLocation, currentDestinationBuilding, currentDestinationCoordinates, navigate]);
+
   const dairyName =
     agentProfile.dairyName ||
     deliveries.find((delivery) => delivery?.dairyFarmName)?.dairyFarmName ||
@@ -672,81 +709,43 @@ const AgentDashboard = () => {
       null,
     [agentProfile.dairyCoordinates, deliveries]
   );
-  const distanceToNextTask = useMemo(
-    () => getDistanceInMeters(agentLocation, nearestRouteCoordinates || nextTaskCoordinates),
-    [agentLocation, nearestRouteCoordinates, nextTaskCoordinates]
+
+  const nextDirectionLabel = useMemo(
+    () => getTurnInstructionLabel(primaryRouteStats.instructions?.primary),
+    [primaryRouteStats.instructions]
   );
+  const NextDirectionIcon = useMemo(
+    () => getTurnInstructionIcon(primaryRouteStats.instructions?.primary),
+    [primaryRouteStats.instructions]
+  );
+
   const routeCoordinates = useMemo(() => {
-    if (!agentLocation || routeDeliveries.length === 0) return [];
-
+    if (!agentLocation || !currentDestinationCoordinates) return [];
     if (primaryRoadRoute.length >= 2) return primaryRoadRoute;
+    return [agentLocation, currentDestinationCoordinates].filter(Boolean);
+  }, [agentLocation, currentDestinationCoordinates, primaryRoadRoute]);
 
-    return [agentLocation, nearestRouteCoordinates].filter(Boolean);
-  }, [agentLocation, nearestRouteCoordinates, primaryRoadRoute, routeDeliveries.length]);
   const secondaryRouteSegments = useMemo(() => {
-    if (routeDeliveries.length < 2) return [];
-
-    return routeDeliveries
+    if (orderedActiveBuildings.length < 2) return [];
+    return orderedActiveBuildings
       .slice(0, -1)
-      .map((delivery, index) => ({
-        id: `${delivery.id}-${routeDeliveries[index + 1]?.id ?? index}`,
-        points: [delivery.coordinates, routeDeliveries[index + 1]?.coordinates].filter(Boolean),
-      }))
-      .filter((segment) => segment.points.length >= 2);
-  }, [routeDeliveries]);
-  useEffect(() => {
-    if (!roadRankingOrigin || roadRankingDeliveries.length === 0) {
-      setNearestByRoadDeliveryId(null);
-      return undefined;
-    }
-
-    if (roadRankingDeliveries.length === 1) {
-      setNearestByRoadDeliveryId(String(roadRankingDeliveries[0].id));
-      return undefined;
-    }
-
-    const controller = new AbortController();
-
-    fetchRoadDistanceTable(roadRankingOrigin, roadRankingDeliveries, controller.signal)
-      .then((distanceMap) => {
-        let nearestId = null;
-        let nearestDistance = Number.POSITIVE_INFINITY;
-
-        roadRankingDeliveries.forEach((delivery) => {
-          const distance = distanceMap[String(delivery.id)];
-          if (!Number.isFinite(distance)) return;
-          if (distance < nearestDistance) {
-            nearestDistance = distance;
-            nearestId = String(delivery.id);
-          }
-        });
-
-        setNearestByRoadDeliveryId(nearestId || String(roadRankingDeliveries[0].id));
+      .map((building, index) => {
+        const nextB = orderedActiveBuildings[index + 1];
+        if (!building.coordinates || !nextB?.coordinates) return null;
+        return {
+          id: `${building.buildingName}-${nextB.buildingName}`,
+          points: [building.coordinates, nextB.coordinates],
+        };
       })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        console.error("Nearest-by-road selection failed:", err);
-        setNearestByRoadDeliveryId(String(roadRankingDeliveries[0].id));
-      });
-
-    return () => controller.abort();
-  }, [roadRankingDeliveries, roadRankingKey, roadRankingOrigin]);
+      .filter(Boolean);
+  }, [orderedActiveBuildings]);
 
   useEffect(() => {
     if (hasAutoFocusedDestination) return;
 
-    if (nearestRouteCoordinates || nextTaskCoordinates) {
-      setMapView(nearestRouteCoordinates || nextTaskCoordinates);
+    if (currentDestinationCoordinates) {
+      setMapView(currentDestinationCoordinates);
       setZoomLevel(17);
-      setHasAutoFocusedDestination(true);
-      return;
-    }
-
-    const firstPinnedCoordinates =
-      visibleMapDeliveries[0]?.coordinates || getDeliveryCoordinates(deliveriesWithCoordinates[0]);
-    if (firstPinnedCoordinates) {
-      setMapView(firstPinnedCoordinates);
-      setZoomLevel(16);
       setHasAutoFocusedDestination(true);
       return;
     }
@@ -755,23 +754,15 @@ const AgentDashboard = () => {
       setMapView(agentLocation);
       setZoomLevel(15);
     }
-  }, [
-    agentLocation,
-    deliveriesWithCoordinates,
-    hasAutoFocusedDestination,
-    mapView,
-    nearestRouteCoordinates,
-    nextTaskCoordinates,
-    visibleMapDeliveries,
-  ]);
+  }, [agentLocation, currentDestinationCoordinates, hasAutoFocusedDestination, mapView]);
 
   useEffect(() => {
-    if (!(nearestRouteCoordinates || nextTaskCoordinates) || !agentLocation) return;
-    setZoomLevel(getAutoZoomLevel(distanceToNextTask));
-  }, [agentLocation, distanceToNextTask, nearestRouteCoordinates, nextTaskCoordinates]);
+    if (!currentDestinationCoordinates || !agentLocation) return;
+    setZoomLevel(getAutoZoomLevel(distanceToDestination));
+  }, [agentLocation, currentDestinationCoordinates, distanceToDestination]);
 
   useEffect(() => {
-    if (!agentLocation || !nearestRouteCoordinates) {
+    if (!agentLocation || !currentDestinationCoordinates) {
       setPrimaryRoadRoute([]);
       setPrimaryRouteStats({ distanceMeters: null, durationSeconds: null, instructions: null });
       return undefined;
@@ -779,7 +770,7 @@ const AgentDashboard = () => {
 
     const controller = new AbortController();
 
-    fetchRoadRoute(agentLocation, nearestRouteCoordinates, controller.signal)
+    fetchRoadRoute(agentLocation, currentDestinationCoordinates, controller.signal)
       .then((routeData) => {
         setPrimaryRoadRoute(Array.isArray(routeData?.points) ? routeData.points : []);
         setPrimaryRouteStats({
@@ -790,7 +781,7 @@ const AgentDashboard = () => {
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
-        console.error("Agent road route fetch failed:", err);
+        console.error("Agent destination road route fetch failed:", err);
         setPrimaryRoadRoute([]);
         setPrimaryRouteStats({ distanceMeters: null, durationSeconds: null, instructions: null });
       });
@@ -799,9 +790,10 @@ const AgentDashboard = () => {
   }, [
     agentLocation?.[0],
     agentLocation?.[1],
-    nearestRouteCoordinates?.[0],
-    nearestRouteCoordinates?.[1],
+    currentDestinationCoordinates?.[0],
+    currentDestinationCoordinates?.[1],
   ]);
+
 
   useEffect(() => {
     if (activeSection !== ActiveNavLabel.MAP || secondaryRouteSegments.length === 0) {
@@ -845,47 +837,6 @@ const AgentDashboard = () => {
       window.clearTimeout(timeoutId);
     };
   }, [activeSection, secondaryRouteSegments]);
-
-  useEffect(() => {
-    if (activeSection !== ActiveNavLabel.MAP || !agentLocation || completedMapDeliveries.length === 0) {
-      setCompletedRoadRoutes([]);
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      Promise.all(
-        completedMapDeliveries.map(async (delivery) => {
-          const roadRoute = await fetchRoadRoute(agentLocation, delivery.coordinates, controller.signal);
-          return {
-            id: `completed-${delivery.id}`,
-            points:
-              Array.isArray(roadRoute?.points) && roadRoute.points.length >= 2
-                ? roadRoute.points
-                : [agentLocation, delivery.coordinates].filter(Boolean),
-          };
-        })
-      )
-        .then((segments) => {
-          setCompletedRoadRoutes(Array.isArray(segments) ? segments : []);
-        })
-        .catch((err) => {
-          if (err?.name === "AbortError") return;
-          console.error("Completed road route fetch failed:", err);
-          setCompletedRoadRoutes(
-            completedMapDeliveries.map((delivery) => ({
-              id: `completed-${delivery.id}`,
-              points: [agentLocation, delivery.coordinates].filter(Boolean),
-            }))
-          );
-        });
-    }, 250);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timeoutId);
-    };
-  }, [activeSection, agentLocation?.[0], agentLocation?.[1], completedMapDeliveries]);
 
   useEffect(() => {
     if (activeSection !== ActiveNavLabel.MAP || !agentLocation || !dairyCoordinates) {
@@ -960,9 +911,9 @@ const AgentDashboard = () => {
     }
 
     const primaryInstruction = primaryRouteStats.instructions?.primary;
-    if (!nearestRouteDelivery?.id || !primaryInstruction?.text) return;
+    if (!currentDestinationBuilding?.buildingName || !primaryInstruction?.text) return;
 
-    const routeKey = `${nearestRouteDelivery.id}:${primaryInstruction.text}`;
+    const routeKey = `${currentDestinationBuilding.buildingName}:${primaryInstruction.text}`;
     const distanceMeters = primaryInstruction.distanceMeters;
     const thresholds = [1500, 500, 150];
     const matchedThreshold =
@@ -991,7 +942,7 @@ const AgentDashboard = () => {
       key: routeKey,
       threshold: matchedThreshold,
     };
-  }, [isDeliveryRunActive, isSpeechMuted, nearestRouteDelivery?.id, primaryRouteStats.instructions]);
+  }, [isDeliveryRunActive, isSpeechMuted, currentDestinationBuilding?.buildingName, primaryRouteStats.instructions]);
 
   const handleMarkOutForDelivery = useCallback(async () => {
     if (!startableDelivery?.id) {
@@ -1042,22 +993,22 @@ const AgentDashboard = () => {
     setActiveSection(ActiveNavLabel.HOME);
   }, []);
 
-  const handleOpenDeliveryTask = useCallback(
-    (delivery) => {
-      if (!delivery?.id) return;
-      const buildingName = String(delivery.buildingName || delivery.building_name || "").trim();
-      if (!buildingName) return;
-
-      navigate(`/agent/working/building/${encodeURIComponent(buildingName)}`, {
-        state: { selectedDeliveryId: String(delivery.id) },
-      });
+  const handleOpenBuildingTask = useCallback(
+    (buildingName) => {
+      const target = buildingName || currentDestinationBuilding?.buildingName;
+      if (!target) return;
+      navigate(`/agent/working/building/${encodeURIComponent(target)}`);
     },
-    [navigate]
+    [currentDestinationBuilding?.buildingName, navigate]
   );
 
   const handleOpenGoogleMapsRoute = useCallback(
-    (delivery) => {
-      const destination = delivery?.coordinates || getDeliveryCoordinates(delivery);
+    (target) => {
+      const destination =
+        target?.coordinates ||
+        (Array.isArray(target) ? target : null) ||
+        getDeliveryCoordinates(target) ||
+        currentDestinationCoordinates;
       if (!destination) return;
 
       const [destinationLat, destinationLng] = destination;
@@ -1076,23 +1027,15 @@ const AgentDashboard = () => {
 
       window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
     },
-    [agentLocation]
+    [agentLocation, currentDestinationCoordinates]
   );
 
   const handleOpenGoogleMapsAllCustomers = useCallback(() => {
-    const customerCoordinates = (visibleMapDeliveries || [])
-      .map((delivery) => delivery?.coordinates || getDeliveryCoordinates(delivery))
-      .filter((coordinates) => Array.isArray(coordinates))
-      .filter(
-        (coordinates, index, items) =>
-          items.findIndex(
-            (item) =>
-              Number(item?.[0]).toFixed(6) === Number(coordinates?.[0]).toFixed(6) &&
-              Number(item?.[1]).toFixed(6) === Number(coordinates?.[1]).toFixed(6)
-          ) === index
-      );
+    const buildingCoordinates = (activeBuildings || [])
+      .map((b) => b?.coordinates)
+      .filter((coordinates) => Array.isArray(coordinates));
 
-    if (customerCoordinates.length === 0) return;
+    if (buildingCoordinates.length === 0) return;
 
     const hasAgentLocation =
       Array.isArray(agentLocation) &&
@@ -1100,16 +1043,16 @@ const AgentDashboard = () => {
       Number.isFinite(Number(agentLocation[1]));
     const toCoordinateParam = (coordinates) => `${coordinates[0]},${coordinates[1]}`;
 
-    if (customerCoordinates.length === 1) {
+    if (buildingCoordinates.length === 1) {
       const singleDestinationUrl =
-        `https://www.google.com/maps/dir/?api=1&destination=${toCoordinateParam(customerCoordinates[0])}` +
+        `https://www.google.com/maps/dir/?api=1&destination=${toCoordinateParam(buildingCoordinates[0])}` +
         `${hasAgentLocation ? `&origin=${toCoordinateParam(agentLocation)}` : ""}&travelmode=driving`;
       window.open(singleDestinationUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
     const maxStops = 10;
-    const selectedStops = customerCoordinates.slice(0, maxStops);
+    const selectedStops = buildingCoordinates.slice(0, maxStops);
     const destination = selectedStops[selectedStops.length - 1];
     const waypoints = selectedStops.slice(0, -1);
     const waypointsParam =
@@ -1122,7 +1065,7 @@ const AgentDashboard = () => {
       `${waypointsParam}&travelmode=driving`;
 
     window.open(allCustomersUrl, "_blank", "noopener,noreferrer");
-  }, [agentLocation, visibleMapDeliveries]);
+  }, [activeBuildings, agentLocation]);
 
   useEffect(() => {
     if (location.state?.section === ActiveNavLabel.MAP) {
@@ -1148,20 +1091,22 @@ const AgentDashboard = () => {
         <div className="flex items-center gap-2">
           <MapIcon size={16} className="text-[#B8641A]" />
           <div>
-            <p className="text-[10px] font-black uppercase text-[#A88763]">Live Route Map</p>
+            <p className="text-[10px] font-black uppercase text-[#A88763]">Delivery Navigation</p>
             <p className="text-xs font-medium text-[#6B5B3E]">
-              {isDeliveryRunActive
-                ? "Solid line shows the nearest customer. Dotted lines show the remaining."
-                : "The map highlights the nearest customer and previews the rest of the route."}
+              {currentDestinationBuilding
+                ? `Active building: ${currentDestinationBuilding.buildingName}`
+                : "All today's deliveries completed."}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              setMapView(agentLocation);
-              setZoomLevel(15);
-              setRecenterTrigger((prev) => prev + 1);
+              if (agentLocation) {
+                setMapView(agentLocation);
+                setZoomLevel(16);
+                setRecenterTrigger((prev) => prev + 1);
+              }
             }}
             className="inline-flex items-center gap-1 rounded-full border border-[#E7DAC6] bg-[#FFF8EF] px-3 py-1.5 text-[10px] font-black uppercase text-[#B8641A] transition hover:bg-[#FFF1E4]"
           >
@@ -1173,34 +1118,51 @@ const AgentDashboard = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-[22px] border border-[#E7DAC6]">
         <div
-          className={`relative z-0 flex w-full items-center justify-center bg-[#F8F1E7] ${activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[360px]"
-            }`}
+          className={`relative z-0 flex w-full items-center justify-center bg-[#F8F1E7] ${
+            activeSection === ActiveNavLabel.MAP ? "h-full min-h-0" : "h-[360px]"
+          }`}
         >
-          {isDeliveryRunActive && primaryRouteStats.instructions?.primary ? (
-            <div className="pointer-events-none absolute left-[58px] top-3 z-[500] w-[255px] max-w-[255px] rounded-[16px] border border-white/75 bg-white/90 px-3 py-1 shadow-[0_10px_24px_rgba(44,26,14,0.12)] backdrop-blur-sm">
-              <div className="flex items-start gap-1.5">
-                <div className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]">
-                  <NextDirectionIcon size={14} strokeWidth={2.4} />
-                </div>
-                <div className="min-w-0 space-y-0">
-                  <p className="m-0 text-[9px] font-black uppercase leading-none text-[#A88763]">
-                    {nextDirectionLabel ? `Next ${nextDirectionLabel}` : "Next Turn"}
-                  </p>
-                  <p className="m-0 text-[11px] font-black leading-[1.15] text-[#2C1A0E]">
-                    {primaryRouteStats.instructions?.primary?.distanceLabel
-                      ? `After ${primaryRouteStats.instructions.primary.distanceLabel}, ${primaryRouteStats.instructions.primary.text}`
-                      : "Follow the highlighted route"}
-                  </p>
-                  {primaryRouteStats.instructions?.secondary ? (
-                    <p className="m-0 text-[10px] font-semibold leading-[1.15] text-[#8B7355]">
-                      Then after {primaryRouteStats.instructions.secondary.distanceLabel},{" "}
-                      {primaryRouteStats.instructions.secondary.text.toLowerCase()}
+          {/* FLOATING TOP DESTINATION / ARRIVAL BANNER */}
+          {currentDestinationBuilding ? (
+            <div className="pointer-events-auto absolute left-3 right-3 top-3 z-[500] max-w-md mx-auto rounded-[20px] border border-white/80 bg-white/95 px-3.5 py-2.5 shadow-[0_12px_28px_rgba(44,26,14,0.14)] backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]">
+                    <Building2 size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-[#2C1A0E]">
+                      {currentDestinationBuilding.buildingName}
                     </p>
-                  ) : null}
+                    <p className="text-[10px] font-bold text-[#8B7355]">
+                      {formatDistanceLabel(distanceToDestination)} • {formatDurationLabel(primaryRouteStats.durationSeconds)} • {currentDestinationBuilding.pendingCount} drops
+                    </p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenBuildingTask(currentDestinationBuilding.buildingName)}
+                  className="shrink-0 rounded-[14px] bg-[#B8641A] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-md transition hover:bg-[#9E5415]"
+                >
+                  {isArrivedAtDestination ? "Arrived - Open" : "Open Task"}
+                </button>
               </div>
+              {isArrivedAtDestination && (
+                <div className="mt-2 rounded-[12px] bg-[#EEF5E7] px-2.5 py-1 text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#4A7C2F]">
+                  ✓ You've arrived at {currentDestinationBuilding.buildingName}
+                </div>
+              )}
+              {primaryRouteStats.instructions?.primary && (
+                <div className="mt-1.5 border-t border-[#F0E6D8] pt-1 text-[10px] font-medium text-[#6B5B3E]">
+                  {nextDirectionLabel}: {primaryRouteStats.instructions.primary.text}
+                </div>
+              )}
             </div>
-          ) : null}
+          ) : (
+            <div className="pointer-events-auto absolute left-3 right-3 top-3 z-[500] max-w-md mx-auto rounded-[18px] border border-white/80 bg-white/95 px-3 py-2 shadow-md text-center text-xs font-bold text-[#4A7C2F]">
+              ✓ All deliveries completed for today!
+            </div>
+          )}
 
           {agentLocation ? (
             <div className="relative h-full w-full">
@@ -1213,6 +1175,8 @@ const AgentDashboard = () => {
                 />
 
                 <MapController center={mapView} zoom={zoomLevel} trigger={recenterTrigger} />
+                
+                {/* Agent location circle */}
                 <CircleMarker
                   center={agentLocation}
                   radius={10}
@@ -1226,6 +1190,7 @@ const AgentDashboard = () => {
                   <Popup className="font-bold text-xs">Your Location</Popup>
                 </CircleMarker>
 
+                {/* Dairy marker */}
                 {dairyCoordinates ? (
                   <Marker
                     position={dairyCoordinates}
@@ -1246,74 +1211,115 @@ const AgentDashboard = () => {
                   </Marker>
                 ) : null}
 
-                {visibleMapDeliveries.map((delivery) => {
-                  const coordinates = delivery.coordinates || getDeliveryCoordinates(delivery);
-                  if (!coordinates) return null;
+                {/* Primary Destination Building Marker */}
+                {currentDestinationBuilding && currentDestinationCoordinates && (
+                  <Marker
+                    position={currentDestinationCoordinates}
+                    icon={L.divIcon({
+                      className: "custom-div-icon",
+                      html: `<div style="background-color: #B8641A; width: 22px; height: 22px; border-radius: 999px; border: 3px solid #ffffff; box-shadow: 0 0 0 3px #B8641A, 0 6px 16px rgba(44,26,14,0.3); display: flex; align-items: center; justify-content: center;"><div style="width: 6px; height: 6px; border-radius: 999px; background: white;"></div></div>`,
+                      iconSize: [22, 22],
+                      iconAnchor: [11, 11],
+                    })}
+                  >
+                    <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
+                      <div className="space-y-1.5 text-left leading-tight">
+                        <p className="m-0 text-xs font-black text-[#2C1A0E]">
+                          {currentDestinationBuilding.buildingName}
+                        </p>
+                        <p className="text-[10px] font-bold text-[#B8641A]">
+                          ● Current Active Destination
+                        </p>
+                        <p className="text-[10px] font-semibold text-[#6B5B3E]">
+                          {currentDestinationBuilding.pendingCount} {currentDestinationBuilding.pendingCount === 1 ? "delivery" : "deliveries"} remaining
+                        </p>
+                        <p className="text-[10px] font-semibold text-[#8B7355]">
+                          {formatDistanceLabel(distanceToDestination)} • {formatDurationLabel(primaryRouteStats.durationSeconds)}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBuildingTask(currentDestinationBuilding.buildingName)}
+                            className="inline-flex items-center justify-center rounded-[10px] bg-[#B8641A] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-white transition hover:bg-[#9E5415]"
+                          >
+                            Open Building Task
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenGoogleMapsRoute(currentDestinationCoordinates)}
+                            className="inline-flex items-center justify-center rounded-[10px] border border-[#D9E7C8] bg-[#EEF5E7] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#4A7C2F] transition hover:bg-[#E6F2DB]"
+                          >
+                            Google Maps
+                          </button>
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
 
-                  const isCompleted = String(delivery?.status || "").toUpperCase() === "COMPLETED";
-                  const isFailed = String(delivery?.status || "").toUpperCase() === "FAILED";
-                  const isNearestDestination = String(delivery.id) === String(nearestRouteDelivery?.id);
-                  const isNextDestination = String(delivery.id) === String(nextTask?.id);
-                  const markerColor =
-                    isCompleted || isFailed
-                      ? "#9CA3AF"
-                      : isNearestDestination
-                        ? "#6BB071"
-                        : "#6BB071";
-
+                {/* Secondary Active Buildings */}
+                {orderedActiveBuildings.slice(1).map((building) => {
+                  if (!building.coordinates) return null;
                   return (
                     <Marker
-                      key={delivery.id}
-                      position={coordinates}
+                      key={`building-${building.buildingName}`}
+                      position={building.coordinates}
                       icon={L.divIcon({
                         className: "custom-div-icon",
-                        html: `<div style="background-color: ${markerColor}; width: ${isNearestDestination ? 18 : 14
-                          }px; height: ${isNearestDestination ? 18 : 14}px; border-radius: 999px; box-shadow: 0 4px 10px rgba(44,26,14,0.16);"></div>`,
-                        iconSize: [isNearestDestination ? 18 : 14, isNearestDestination ? 18 : 14],
-                        iconAnchor: [isNearestDestination ? 9 : 7, isNearestDestination ? 9 : 7],
+                        html: `<div style="background-color: #4A7C2F; width: 14px; height: 14px; border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 4px 10px rgba(44,26,14,0.16);"></div>`,
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7],
                       })}
                     >
                       <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
                         <div className="space-y-1.5 text-left leading-tight">
-                          <p className="m-0 text-[11px] font-bold text-[#2C1A0E]">{delivery.customerName}</p>
-                          <p className="text-[10px] text-[#6B5B3E]">{delivery.address}</p>
-                          <p className="text-[10px] font-semibold text-[#5F4426]">{getProductLabel(delivery)}</p>
-                          <p className={`text-[10px] font-semibold ${isCompleted || isFailed ? "text-[#6B7280]" : "text-[#6BB071]"}`}>
-                            {isCompleted
-                              ? "Delivered customer"
-                              : isFailed
-                                ? "Failed delivery"
-                                : isNearestDestination
-                                  ? "Nearest customer on your route"
-                                  : isNextDestination
-                                    ? "Next scheduled delivery"
-                                    : "Customer delivery pin"}
-                          </p>
-                          <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#8B7355]">
-                            Quick actions
-                          </p>
-                          <div className="flex flex-wrap gap-1.5 pt-0.5">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDeliveryTask(delivery)}
-                              className="inline-flex items-center justify-center rounded-[10px] border border-[#E7DAC6] bg-[#FFF8EF] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#8B5E34] transition hover:bg-[#FFF1E4]"
-                            >
-                              Open Task
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenGoogleMapsRoute(delivery)}
-                              className="inline-flex items-center justify-center rounded-[10px] border border-[#D9E7C8] bg-[#EEF5E7] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#4A7C2F] transition hover:bg-[#E6F2DB]"
-                            >
-                              Open in Google Maps
-                            </button>
-                          </div>
+                          <p className="m-0 text-xs font-black text-[#2C1A0E]">{building.buildingName}</p>
+                          <p className="text-[10px] font-semibold text-[#4A7C2F]">{building.pendingCount} pending deliveries</p>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBuildingTask(building.buildingName)}
+                            className="inline-flex items-center justify-center rounded-[10px] border border-[#E7DAC6] bg-[#FFF8EF] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#8B5E34] transition hover:bg-[#FFF1E4]"
+                          >
+                            Open Building Task
+                          </button>
                         </div>
                       </Popup>
                     </Marker>
                   );
                 })}
 
+                {/* Completed Buildings (Greyed) */}
+                {completedBuildings.map((building) => {
+                  if (!building.coordinates) return null;
+                  return (
+                    <Marker
+                      key={`completed-bld-${building.buildingName}`}
+                      position={building.coordinates}
+                      icon={L.divIcon({
+                        className: "custom-div-icon",
+                        html: `<div style="background-color: #9CA3AF; width: 12px; height: 12px; border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.15);"></div>`,
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6],
+                      })}
+                    >
+                      <Popup className="[&_.leaflet-popup-content]:mb-1.5 [&_.leaflet-popup-content]:mt-0.5 [&_.leaflet-popup-content]:mx-2">
+                        <div className="space-y-1 text-left leading-tight">
+                          <p className="m-0 text-xs font-bold text-[#6B7280]">{building.buildingName}</p>
+                          <p className="text-[10px] font-semibold text-[#6B7280]">✓ All deliveries completed</p>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBuildingTask(building.buildingName)}
+                            className="inline-flex items-center justify-center rounded-[10px] border border-[#EDE8DF] bg-[#F9F7F3] px-2 py-0.5 text-[9px] font-bold text-[#8B7355]"
+                          >
+                            View Details
+                          </button>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
+                {/* Route polyline to current destination */}
                 {routeCoordinates.length >= 2 && (
                   <Polyline
                     positions={routeCoordinates}
@@ -1321,6 +1327,7 @@ const AgentDashboard = () => {
                   />
                 )}
 
+                {/* Dairy route path */}
                 {showDairyPath && dairyRoadRoute.length >= 2 && (
                   <Polyline
                     positions={dairyRoadRoute}
@@ -1333,38 +1340,25 @@ const AgentDashboard = () => {
                   />
                 )}
 
-                {showDeliveredPath &&
-                  completedRoadRoutes.map((segment, index) => (
-                    <Polyline
-                      key={segment.id || `completed-route-${index}`}
-                      positions={segment.points}
-                      pathOptions={{
-                        color: "#9CA3AF",
-                        weight: 3,
-                        opacity: 0.85,
-                        dashArray: "7 9",
-                      }}
-                    />
-                  ))}
-
-                {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map(
-                  (segment, index) => (
-                    <Polyline
-                      key={segment.id || `secondary-route-${index}`}
-                      positions={segment.points}
-                      pathOptions={{
-                        color: "#191970",
-                        weight: 3,
-                        opacity: 0.8,
-                        dashArray: "8 10",
-                      }}
-                    />
-                  )
-                )}
+                {/* Secondary route connecting active buildings */}
+                {(secondaryRoadRoutes.length > 0 ? secondaryRoadRoutes : secondaryRouteSegments).map((segment, index) => (
+                  <Polyline
+                    key={segment.id || `secondary-route-${index}`}
+                    positions={segment.points}
+                    pathOptions={{
+                      color: "#191970",
+                      weight: 3,
+                      opacity: 0.7,
+                      dashArray: "8 10",
+                    }}
+                  />
+                ))}
               </MapContainer>
-          <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
-            DairyVision Maps
-          </div>
+
+              <div className="absolute bottom-[18px] right-[55px] z-[1000] bg-white/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-[#8B7355] pointer-events-none select-none rounded border border-[#EDE8DF]/40">
+                DairyVision Maps
+              </div>
+
               <button
                 type="button"
                 onClick={() => setIsSpeechMuted((value) => !value)}
@@ -1374,6 +1368,7 @@ const AgentDashboard = () => {
               >
                 {isSpeechMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </button>
+
               <button
                 type="button"
                 onClick={() => setShowMapSettings((value) => !value)}
@@ -1383,6 +1378,7 @@ const AgentDashboard = () => {
               >
                 <Settings2 size={16} />
               </button>
+
               {showMapSettings ? (
                 <div className="absolute left-[46px] top-[114px] z-[610] w-[200px] rounded-[12px] border border-[#E7DAC6] bg-white/95 p-3 shadow-[0_10px_24px_rgba(44,26,14,0.16)] backdrop-blur-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8B7355]">Path Settings</p>
@@ -1406,13 +1402,14 @@ const AgentDashboard = () => {
                   </label>
                 </div>
               ) : null}
+
               <button
                 type="button"
                 onClick={handleOpenGoogleMapsAllCustomers}
-                disabled={visibleMapDeliveries.length === 0}
+                disabled={activeBuildingsWithCoords.length === 0}
                 className="absolute left-[10px] top-[150px] z-[600] flex h-[30px] w-[30px] items-center justify-center rounded-[4px] border border-[#D9E7C8] bg-[#EEF5E7] text-[#3D6F25] shadow-[0_4px_10px_rgba(44,26,14,0.16)] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
-                title="Open all customers in Google Maps"
-                aria-label="Open all customers in Google Maps"
+                title="Open all buildings in Google Maps"
+                aria-label="Open all buildings in Google Maps"
               >
                 <GoogleMapsBadgeIcon size={18} />
               </button>
@@ -1427,18 +1424,19 @@ const AgentDashboard = () => {
           )}
         </div>
       </div>
-
     </section>
   );
 
   return (
     <div
-      className={`bg-[#FFFDF7] px-4 text-[#2C1A0E] ${activeSection === ActiveNavLabel.MAP ? "h-screen overflow-hidden pb-24" : "min-h-screen pb-32"
-        }`}
+      className={`agent-safe-top bg-[#FFFDF7] px-4 text-[#2C1A0E] ${
+        activeSection === ActiveNavLabel.MAP ? "h-screen overflow-hidden pb-24" : "min-h-screen pb-32"
+      }`}
     >
       <div
-        className={`mx-auto max-w-md ${activeSection === ActiveNavLabel.MAP ? "flex h-full flex-col gap-4 overflow-hidden" : "space-y-5"
-          }`}
+        className={`mx-auto max-w-md ${
+          activeSection === ActiveNavLabel.MAP ? "flex h-full flex-col gap-4 overflow-hidden" : "space-y-5"
+        }`}
       >
         {activeSection !== ActiveNavLabel.MAP ? (
           <section className="relative overflow-hidden rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#2C1A0E_0%,#4A3820_58%,#6B4F2A_100%)] px-5 py-3.5 text-white shadow-[0_22px_50px_rgba(92,61,30,0.22)]">
@@ -1454,40 +1452,14 @@ const AgentDashboard = () => {
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div
-                  className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${isOnline
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${
+                    isOnline
                       ? "border-[#D9E7C8] bg-[#EEF5E7] text-[#4A7C2F]"
                       : "border-white/10 bg-white/10 text-white/70"
-                    }`}
+                  }`}
                 >
                   {isOnline ? "Online" : "Offline"}
                 </div>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white transition hover:bg-white/15"
-                >
-                  <LogOut size={12} />
-                  Logout
-                </button>
-                {isDeliveryRunActive ? (
-                  <div className="rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
-                    Delivering
-                  </div>
-                ) : startableDelivery?.id ? (
-                  <button
-                    type="button"
-                    onClick={handleMarkOutForDelivery}
-                    disabled={startingDelivery || !agentLocation}
-                    className="inline-flex items-center gap-1 rounded-full border border-[#F0D9B9] bg-[#FFF4E2] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A] transition hover:bg-[#FFF1E4] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Truck size={12} />
-                    {startingDelivery ? "Starting..." : "Out for Delivery"}
-                  </button>
-                ) : (
-                  <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
-                    No Delivery
-                  </div>
-                )}
               </div>
             </div>
             <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
@@ -1511,6 +1483,130 @@ const AgentDashboard = () => {
 
         {activeSection === ActiveNavLabel.HOME ? (
           <>
+            {/* DEDICATED DELIVERY RUN SECTION */}
+            <section className="overflow-hidden rounded-[26px] border border-[#E7DAC6] bg-white p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Truck size={18} className="text-[#B8641A]" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">
+                    Delivery Run
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${
+                    todayDeliveries.length > 0 && todayOpenDeliveries.length === 0
+                      ? "border-[#DDE8D1] bg-[#EEF5E7] text-[#4A7C2F]"
+                      : isDeliveryRunActive
+                      ? "border-[#F0D9B9] bg-[#FFF4E2] text-[#B8641A]"
+                      : "border-[#E7DAC6] bg-[#FAF8F5] text-[#8B7355]"
+                  }`}
+                >
+                  {todayDeliveries.length > 0 && todayOpenDeliveries.length === 0
+                    ? "Completed"
+                    : isDeliveryRunActive
+                    ? "Active • Delivering"
+                    : "Not Started"}
+                </span>
+              </div>
+
+              {todayDeliveries.length > 0 && todayOpenDeliveries.length === 0 ? (
+                <div className="mt-3 text-left">
+                  <h3 className="text-lg font-black text-[#2C1A0E]" style={headingFont}>
+                    All Deliveries Completed
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold text-[#6B5B3E]">
+                    Great work! All {stats.totalAssigned} assigned deliveries for today have been completed.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/agent/working")}
+                    className="mt-3.5 inline-flex items-center gap-2 rounded-[18px] border border-[#E7DAC6] bg-[#FFF8EF] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#B8641A] transition hover:bg-[#FFF1E4]"
+                  >
+                    <List size={14} />
+                    View Building Tasks
+                  </button>
+                </div>
+              ) : isDeliveryRunActive ? (
+                <div className="mt-3 text-left">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A88763]">
+                    Next Destination
+                  </p>
+                  <div className="mt-1 flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-xl font-black text-[#2C1A0E]" style={headingFont}>
+                        {currentDestinationBuilding?.buildingName || "Calculating next building..."}
+                      </h3>
+                      <p className="mt-0.5 text-xs font-semibold text-[#6B5B3E]">
+                        {currentDestinationBuilding?.pendingCount || 0}{" "}
+                        {currentDestinationBuilding?.pendingCount === 1 ? "delivery" : "deliveries"} remaining in this building
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#B8641A]">
+                        {formatDistanceLabel(distanceToDestination)} • {formatDurationLabel(primaryRouteStats.durationSeconds)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isArrivedAtDestination && (
+                    <div className="mt-3 rounded-[16px] border border-[#DDE8D1] bg-[#EEF5E7] p-2.5 text-center text-xs font-black uppercase tracking-[0.12em] text-[#4A7C2F]">
+                      ✓ You have arrived at {currentDestinationBuilding?.buildingName}!
+                    </div>
+                  )}
+
+                  <div className="mt-3.5 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentDestinationCoordinates) {
+                          handleOpenMapSection();
+                          setMapView(currentDestinationCoordinates);
+                          setZoomLevel(17);
+                          setRecenterTrigger((prev) => prev + 1);
+                        }
+                      }}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-[#B8641A] py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-md shadow-[#F2D9B8] transition hover:bg-[#9E5415]"
+                    >
+                      <Navigation size={14} />
+                      Navigate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBuildingTask(currentDestinationBuilding?.buildingName)}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-[16px] border border-[#E7DAC6] bg-[#FFF8EF] py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#B8641A] transition hover:bg-[#FFF1E4]"
+                    >
+                      <Building2 size={14} />
+                      Open Task
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 text-left">
+                  <h3 className="text-lg font-black text-[#2C1A0E]" style={headingFont}>
+                    Ready to Deliver
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold text-[#6B5B3E]">
+                    {todayOpenDeliveries.length} {todayOpenDeliveries.length === 1 ? "delivery" : "deliveries"} assigned for today across {activeBuildings.length} {activeBuildings.length === 1 ? "building" : "buildings"}.
+                  </p>
+                  <div className="mt-3.5">
+                    <button
+                      type="button"
+                      onClick={handleMarkOutForDelivery}
+                      disabled={startingDelivery || !agentLocation || todayOpenDeliveries.length === 0}
+                      className="flex w-full items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-lg shadow-[#F2D9B8] transition hover:bg-[#9E5415] disabled:cursor-not-allowed disabled:bg-[#D4C3B2]"
+                    >
+                      <Truck size={16} />
+                      {startingDelivery
+                        ? "Starting Run..."
+                        : !agentLocation
+                        ? "Waiting for GPS..."
+                        : todayOpenDeliveries.length === 0
+                        ? "No Deliveries Pending"
+                        : "Start Delivery Run"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+
             <div className="grid grid-cols-2 gap-3">
               <StatCard
                 icon={<Package />}
@@ -1560,146 +1656,150 @@ const AgentDashboard = () => {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-[#E7DAC6] bg-white p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <section className="rounded-[22px] border border-[#E7DAC6] bg-white p-3.5 shadow-[0_10px_28px_rgba(92,61,30,0.05)]">
+              {/* Header */}
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[#F0E6D8]">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A88763]">Today's Delivery Quantity</p>
                   <p className="text-xs font-bold text-[#6B5B3E] mt-0.5">Aggregated items to carry today</p>
                 </div>
                 {carrySummary.totalItemsToCarry > 0 ? (
-                  <span className="rounded-full border border-[#DDE8D1] bg-[#EEF5E7] px-3 py-1 text-xs font-black text-[#4A7C2F] shadow-sm">
-                    {carrySummary.totalItemsToCarry} Total Packets / Units
+                  <span className="rounded-full border border-[#DDE8D1] bg-[#EEF5E7] px-2.5 py-1 text-[11px] font-black text-[#4A7C2F] shadow-sm">
+                    {carrySummary.totalItemsToCarry} {carrySummary.totalItemsToCarry === 1 ? "Packet / Unit" : "Packets / Units"}
                   </span>
                 ) : null}
               </div>
 
-              <div className="mt-3.5 space-y-3">
-                {/* Subscription Delivery Milk */}
-                <div className="rounded-[20px] border border-[#EDE8DF] bg-[#FFF8EF] p-3.5">
-                  <div className="flex items-center justify-between border-b border-[#F0E6D8] pb-2">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
-                      Subscription Delivery Milk
-                    </p>
-                    {carrySummary.totalMilkLiters > 0 ? (
-                      <span className="text-xs font-extrabold text-[#8B5E34]">
-                        {formatQuantity(carrySummary.totalMilkLiters)} L ({carrySummary.totalMilkPackets} Packets)
-                      </span>
-                    ) : null}
-                  </div>
+              {/* Subscription Delivery Milk */}
+              <div className="pt-2.5">
+                <div className="flex items-center justify-between pb-1 px-0.5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
+                    Subscription Delivery Milk
+                  </p>
+                  {carrySummary.totalMilkLiters > 0 ? (
+                    <span className="text-xs font-black text-[#8B5E34]">
+                      {formatQuantity(carrySummary.totalMilkLiters)} L • {carrySummary.totalMilkPackets} {carrySummary.totalMilkPackets === 1 ? "packet" : "packets"}
+                    </span>
+                  ) : null}
+                </div>
 
-                  {carrySummary.milkTypes.length > 0 ? (
-                    <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      {carrySummary.milkTypes.map((item) => (
+                {milkCarryRows.length > 0 ? (
+                  <div className="rounded-[14px] border border-[#E7DAC6] bg-white overflow-hidden shadow-xs">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-[42%_22%_36%] bg-[#FAF6F0] px-3.5 py-2 border-b border-[#EAE2D5] text-[10.5px] font-black uppercase tracking-[0.1em] text-[#9E7B54]">
+                      <span>Product</span>
+                      <span>Size</span>
+                      <span className="text-right">Packets to Carry</span>
+                    </div>
+
+                    {/* Table Rows: Each packet size has its own separate row */}
+                    <div className="divide-y divide-[#F4EDE2]">
+                      {milkCarryRows.map((row, idx) => (
                         <div
-                          key={item.name}
-                          className="rounded-[16px] border border-[#E7DAC6] bg-white p-3 shadow-sm"
+                          key={`${row.productName}-${row.size}-${idx}`}
+                          className="grid grid-cols-[42%_22%_36%] items-center px-3.5 py-2.5 hover:bg-[#FFFDF9] transition-colors"
                         >
-                          <p className="text-sm font-black text-[#2C1A0E]">{item.name}</p>
-                          <div className="mt-2 space-y-1">
-                            {item.breakdown.map((b, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5 text-xs font-bold text-[#5F4426]">
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#B8641A] shrink-0" />
-                                <span>{b.label}</span>
-                              </div>
-                            ))}
+                          {/* Product Column */}
+                          <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#B8641A] shrink-0" />
+                            <span className="text-[13.5px] font-bold text-[#2C1A0E] leading-snug break-words">
+                              {row.productName}
+                            </span>
                           </div>
-                          <div className="mt-2.5 border-t border-[#F5EFE6] pt-2">
-                            <p className="text-xs font-black text-[#B8641A]">{item.formattedTotal}</p>
+
+                          {/* Size Column */}
+                          <div className="text-[13px] font-bold text-[#6B5B3E] pr-1">
+                            {formatSizeLabel(row.size)}
+                          </div>
+
+                          {/* Packets to Carry Column */}
+                          <div className="text-right pr-0.5">
+                            <span className="text-[14px] font-black text-[#7A4515]">
+                              {row.packets} {row.packets === 1 ? "packet" : "packets"}
+                            </span>
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="mt-2 text-xs font-semibold text-[#8B7355]">No milk items scheduled for today</p>
-                  )}
-                </div>
 
-                {/* Extra Products */}
-                <div className="rounded-[20px] border border-[#EDE8DF] bg-[#FFF8EF] p-3.5">
-                  <div className="border-b border-[#F0E6D8] pb-2 flex items-center justify-between">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
+                    {/* Table Footer / Summary */}
+                    <div className="flex items-center justify-between bg-[#FAF6F0] px-3.5 py-2.5 border-t border-[#EAE2D5]">
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8B5E34]">
+                        Total to Carry
+                      </span>
+                      <span className="text-[13.5px] font-black text-[#2C1A0E]">
+                        {carrySummary.totalMilkPackets} {carrySummary.totalMilkPackets === 1 ? "PACKET" : "PACKETS"}
+                        {carrySummary.totalMilkLiters > 0 ? ` • ${formatQuantity(carrySummary.totalMilkLiters)} L` : ""}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="py-2 text-xs font-semibold text-[#8B7355]">No milk items scheduled for today</p>
+                )}
+              </div>
+
+              {/* Extra Products (if any) */}
+              {carrySummary.extraProducts.length > 0 && (
+                <div className="pt-3">
+                  <div className="flex items-center justify-between pb-1.5 px-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#B8641A]">
                       Extra Products
                     </p>
-                    {carrySummary.totalExtraPackets > 0 ? (
-                      <span className="text-xs font-extrabold text-[#8B5E34]">
-                        {carrySummary.totalExtraPackets} Unit{carrySummary.totalExtraPackets === 1 ? "" : "s"}
-                      </span>
-                    ) : null}
+                    <span className="text-xs font-black text-[#8B5E34]">
+                      {carrySummary.totalExtraPackets} {carrySummary.totalExtraPackets === 1 ? "Unit" : "Units"}
+                    </span>
                   </div>
-                  {carrySummary.extraProducts.length > 0 ? (
-                    <div className="mt-2.5 flex flex-wrap gap-2">
+
+                  <div className="rounded-[14px] border border-[#E7DAC6] bg-white overflow-hidden shadow-xs">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-[42%_22%_36%] bg-[#FAF6F0] px-3.5 py-2 border-b border-[#EAE2D5] text-[10.5px] font-black uppercase tracking-[0.1em] text-[#9E7B54]">
+                      <span>Product</span>
+                      <span>Size</span>
+                      <span className="text-right">Packets to Carry</span>
+                    </div>
+
+                    {/* Table Rows */}
+                    <div className="divide-y divide-[#F4EDE2]">
                       {carrySummary.extraProducts.map((item, idx) => (
                         <div
                           key={idx}
-                          className="rounded-full border border-[#E7DAC6] bg-white px-3 py-1.5 text-xs font-extrabold text-[#2C1A0E] shadow-sm"
+                          className="grid grid-cols-[42%_22%_36%] items-center px-3.5 py-2.5 hover:bg-[#FFFDF9] transition-colors"
                         >
-                          {item.label}
+                          <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#B8641A] shrink-0" />
+                            <span className="text-[13.5px] font-bold text-[#2C1A0E] leading-snug break-words">
+                              {item.name}
+                            </span>
+                          </div>
+                          <div className="text-[13px] font-bold text-[#6B5B3E] pr-1 truncate">
+                            {formatSizeLabel(item.sizeLabel)}
+                          </div>
+                          <div className="text-right pr-0.5">
+                            <span className="text-[14px] font-black text-[#7A4515]">
+                              {item.packets} {item.packets === 1 ? "unit" : "units"}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="mt-2 text-xs font-semibold text-[#8B7355]">No extra products scheduled for today</p>
-                  )}
-                </div>
-              </div>
-            </section>
 
+                    {/* Table Footer / Summary */}
+                    <div className="flex items-center justify-between bg-[#FAF6F0] px-3.5 py-2.5 border-t border-[#EAE2D5]">
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8B5E34]">
+                        Total Extra to Carry
+                      </span>
+                      <span className="text-[13.5px] font-black text-[#2C1A0E]">
+                        {carrySummary.totalExtraPackets} {carrySummary.totalExtraPackets === 1 ? "UNIT" : "UNITS"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
           </>
         ) : null}
 
         {activeSection === ActiveNavLabel.MAP ? mapContent : null}
-
-        {activeSection === ActiveNavLabel.HOME ? (
-          <section className="rounded-[28px] border border-[#E7DAC6] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFF1E4_100%)] p-4 shadow-[0_14px_35px_rgba(92,61,30,0.07)]">
-            <p className="text-[10px] font-black uppercase text-[#A88763]">Next Delivery</p>
-            <div className="mt-2.5 flex items-start justify-between gap-2.5">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[24px] font-black leading-tight text-[#2C1A0E]" style={headingFont}>
-                  {nextDisplayTask?.customerName || "No active tasks"}
-                </h2>
-                <p className="mt-1.5 text-sm font-semibold text-[#6B5B3E]">
-                  {nextDisplayTask?.address || "Wait for your next assignment"}
-                </p>
-                {nextDisplayTask ? (
-                  <p className="mt-1 text-xs font-semibold text-[#5F4426]">
-                    {getProductLabel(nextDisplayTask)}
-                  </p>
-                ) : null}
-                {nextDisplayTaskSchedule?.helperText ? (
-                  <p className="mt-1.5 text-xs font-semibold text-[#8B7355]">
-                    {nextDisplayTaskSchedule.helperText}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-3.5 flex gap-2.5">
-              <button
-                onClick={() => {
-                  if (nextDisplayTaskCoordinates) {
-                    handleOpenMapSection();
-                    setMapView(nextDisplayTaskCoordinates);
-                    setZoomLevel(17);
-                    setRecenterTrigger((prev) => prev + 1);
-                  }
-                }}
-                disabled={!nextDisplayTaskCoordinates}
-                className="flex flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#B8641A] py-3 text-[11px] font-black uppercase text-white shadow-xl shadow-[#F2D9B8] transition hover:bg-[#9E5415] active:scale-[0.99] disabled:bg-[#CDB8A0]"
-              >
-                <Navigation size={18} fill="currentColor" />
-                {nextDisplayTaskCoordinates ? "Open Map" : "No Customer Pin"}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenGoogleMapsRoute(nextDisplayTask)}
-                disabled={!nextDisplayTaskCoordinates}
-                className="flex items-center justify-center gap-2 rounded-[18px] border border-[#D9E7C8] bg-[#EEF5E7] px-3 py-3 text-[11px] font-black uppercase text-[#4A7C2F] transition hover:bg-[#E6F2DB] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Open in Google Maps
-              </button>
-            </div>
-          </section>
-        ) : null}
 
         <div className="fixed bottom-6 left-1/2 z-50 flex w-[94%] max-w-md -translate-x-1/2 items-center justify-around rounded-full border border-[#E7DAC6] bg-[#FFFDF7]/95 p-2 shadow-[0_18px_40px_rgba(92,61,30,0.14)] backdrop-blur-md">
           <NavTab
