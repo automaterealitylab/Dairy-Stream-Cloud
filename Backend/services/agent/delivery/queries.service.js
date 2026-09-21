@@ -74,6 +74,7 @@ export const fetchDeliveryRows = async ({
   dairyId = null,
   date = null,
   beforeDate = null,
+  maxDate = null,
   limit = 500,
 } = {}) => {
   let query = supabase
@@ -89,7 +90,8 @@ export const fetchDeliveryRows = async ({
 
   if (dairyId) query = query.eq("dairy_id", dairyId);
   if (date) query = query.eq("delivery_date", date);
-  if (beforeDate) query = query.lt("delivery_date", beforeDate);
+  if (maxDate) query = query.lte("delivery_date", maxDate);
+  else if (beforeDate) query = query.lte("delivery_date", beforeDate);
 
   const { data, error } = await query;
   if (error) throw error;

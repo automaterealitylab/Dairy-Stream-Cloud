@@ -364,7 +364,7 @@ export const getAgentDeliveryHistory = async ({ agentDbId, dairyId = null } = {}
   const rows = await fetchDeliveryRows({
     agentDbId,
     dairyId,
-    beforeDate: today,
+    maxDate: today,
     limit: 2000,
   });
 
@@ -377,7 +377,9 @@ export const getAgentDeliveryHistory = async ({ agentDbId, dairyId = null } = {}
     const dateKey = normalizeDate(row.delivery_date || row.created_at) || today;
     if (!grouped.has(dateKey)) grouped.set(dateKey, []);
 
-    const completedAtValue = mapped.completedAt ? new Date(mapped.completedAt) : null;
+    const status = normalizeStatusForHistory(mapped.status);
+    const isCompleted = status === "completed";
+    const completedAtValue = isCompleted && mapped.completedAt ? new Date(mapped.completedAt) : null;
     const completedAt = completedAtValue && !Number.isNaN(completedAtValue.getTime())
       ? completedAtValue.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
       : "-";
@@ -388,7 +390,7 @@ export const getAgentDeliveryHistory = async ({ agentDbId, dairyId = null } = {}
       milkQuantity: mapped.quantity,
       address: mapped.address,
       phone: mapped.phoneNumber,
-      status: normalizeStatusForHistory(mapped.status),
+      status,
       completedAt,
       dairyName: mapped.dairyFarmName,
       failedReason: mapped.failedReason,
@@ -398,7 +400,13 @@ export const getAgentDeliveryHistory = async ({ agentDbId, dairyId = null } = {}
 
   return [...grouped.entries()]
     .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
-    .map(([date, deliveries]) => ({ date, deliveries }));
+    .map(([date, deliveries]) => ({
+      date,
+      deliveries: deliveries.sort((a, b) => {
+        const priority = (s) => (s === "completed" ? 0 : s === "failed" ? 1 : 2);
+        return priority(a.status) - priority(b.status);
+      }),
+    }));
 };
 
 export const getAgentProfile = async ({ agentDbId, dairyId = null } = {}) => {
