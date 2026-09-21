@@ -16,9 +16,9 @@ export const fetchAssignedAgentDeliveries = async ({ today = false } = {}) => {
   return fetchAssignedAgentDeliveriesWithOffline({ today });
 };
 
-export const fetchAgentDeliveryHistory = async () => {
-  const { data } = await client.get("/agent/deliveries/history");
-  return data?.history || [];
+export const fetchAgentDeliveryHistory = async (params = {}) => {
+  const { data } = await client.get("/agent/deliveries/history", { params });
+  return data;
 };
 
 export const createAssignedDeliveryOnlineOrder = async (deliveryId) => {
