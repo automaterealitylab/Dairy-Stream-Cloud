@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import publicRoutes from './public.routes.js';
 import adminRoutes from './admin.routes.js';
 import authRoutes from './auth.routes.js';
@@ -6,7 +6,6 @@ import customerRoutes from './customer.routes.js';
 import agentRoutes from './agent.routes.js';
 import locationRoutes from './location.js';
 import superAdminRoutes from './superAdmin.routes.js';
-import { authRateLimit } from '../middleware/security.middleware.js';
 import { verifyToken } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -27,7 +26,8 @@ router.use('/location', verifyToken, locationRoutes);
 router.use('/super-admin', superAdminRoutes);
 
 // 5. Auth Routes (Base: /api/auth)
-router.use('/auth', authRateLimit, authRoutes);
+// Rate limiting is applied per-route inside auth.routes.js to exempt /csrf
+router.use('/auth', authRoutes);
 
 
 

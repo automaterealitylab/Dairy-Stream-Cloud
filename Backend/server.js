@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import { createServer } from "http";
 import cors from "cors";
 import { Server as SocketIOServer } from "socket.io";
@@ -16,6 +16,7 @@ import {
   botProtection,
   csrfProtection,
   isAllowedCorsOrigin,
+  issueCsrfToken,
   requestFingerprinting,
   secureHeaders,
   securityAuditMiddleware,
@@ -182,8 +183,11 @@ app.get("/readyz", async (req, res) => {
 // ======================
 // 🚦 API Routes (The Hub)
 // ======================
-// This mounts all your routes at /api
-// e.g., /api/admin/addagent, /api/auth/login
+// /api/auth/csrf is a safe, idempotent GET that just issues a CSRF cookie.
+// It must be registered BEFORE apiRateLimit so it is never rate-limited.
+app.get('/api/auth/csrf', issueCsrfToken);
+
+// All other API routes go through the global rate limiter
 app.use('/api', apiRateLimit, routes);
 app.use(notFoundHandler);
 app.use(globalErrorHandler);

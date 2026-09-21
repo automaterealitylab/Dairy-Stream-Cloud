@@ -322,6 +322,82 @@ function createBotProtection() {
   };
 }
 
+/**
+ * createIdentityRateLimiter — rate-limits per user identity (email/phone/agentId),
+ * NOT per IP. This means different users on the same network each get their own bucket.
+ * Falls back to IP if no identifier can be extracted from the request body.
+ */
+export const createIdentityRateLimiter = ({
+  windowMs = 60_000,
+  max = 10,
+  keyPrefix = "identity",
+  identifierFields = ["identifier", "email", "phone", "agentId", "mobile"],
+} = {}) => {
+  const buckets = new Map();
+
+  const extractIdentity = (req) => {
+    const body = req.body || {};
+    for (const field of identifierFields) {
+      const value = String(body[field] || "").trim().toLowerCase();
+      if (value) return value;
+    }
+    // fallback to IP so the limiter still applies even without an identifier
+    return getIp(req);
+  };
+
+  return async (req, res, next) => {
+    const now = Date.now();
+    const identity = extractIdentity(req);
+    const key = `${keyPrefix}:${identity}`;
+    const redis = getRedisConnection();
+
+    if (redis) {
+      try {
+        const redisKey = `rate:${key}`;
+        const count = await redis.incr(redisKey);
+        if (count === 1) await redis.pexpire(redisKey, windowMs);
+        const ttlMs = await redis.pttl(redisKey);
+
+        res.setHeader("X-RateLimit-Limit", String(max));
+        res.setHeader("X-RateLimit-Remaining", String(Math.max(0, max - count)));
+        if (ttlMs > 0) res.setHeader("X-RateLimit-Reset", String(Math.ceil(ttlMs / 1000)));
+
+        if (count > max) {
+          logRateLimitExceeded(req, { keyPrefix, limit: max, windowMs, count });
+          res.setHeader("Retry-After", String(Math.max(1, Math.ceil(ttlMs / 1000))));
+          return res.status(429).json({
+            success: false,
+            error: "Too many requests. Please retry shortly.",
+          });
+        }
+        return next();
+      } catch (err) {
+        logger.warn("redis_identity_rate_limit_failed_using_memory_fallback", {
+          keyPrefix,
+          error: err.message,
+        });
+      }
+    }
+
+    // In-memory fallback
+    const current = buckets.get(key);
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    current.count += 1;
+    if (current.count > max) {
+      logRateLimitExceeded(req, { keyPrefix, limit: max, windowMs, count: current.count });
+      res.setHeader("Retry-After", Math.ceil((current.resetAt - now) / 1000));
+      return res.status(429).json({
+        success: false,
+        error: "Too many requests. Please retry shortly.",
+      });
+    }
+    return next();
+  };
+};
+
 export const createRateLimiter = ({
   windowMs = 60_000,
   max = 120,
@@ -415,16 +491,20 @@ export const authRateLimit = createRateLimiter({
   settingKey: "AUTH_RATE_LIMIT_PER_MINUTE",
 });
 
-export const loginRateLimit = createRateLimiter({
+// Per-identity (email/agentId/phone) login rate limiter — different users are NOT affected by each other
+export const loginRateLimit = createIdentityRateLimiter({
   windowMs: 60_000,
-  max: Number(process.env.LOGIN_RATE_LIMIT_PER_MINUTE || 5),
+  max: Number(process.env.LOGIN_RATE_LIMIT_PER_MINUTE || 10),
   keyPrefix: "auth-login",
+  identifierFields: ["identifier", "email", "agentId", "phone", "mobile"],
 });
 
-export const otpRateLimit = createRateLimiter({
+// Per-identity OTP rate limiter
+export const otpRateLimit = createIdentityRateLimiter({
   windowMs: 60_000,
   max: Number(process.env.OTP_RATE_LIMIT_PER_MINUTE || 5),
   keyPrefix: "auth-otp",
+  identifierFields: ["phone", "mobile", "identifier", "email"],
 });
 
 export const passwordResetRateLimit = createRateLimiter({

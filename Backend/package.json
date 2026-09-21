@@ -24,7 +24,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon",
-    "start": "node server.js",
+    "start": "nodemon server.js",
     "lint": "eslint .",
     "test": "node --test tests/**/*.test.js",
     "reconcile:marketplace": "node scripts/reconcile-marketplace.js",
