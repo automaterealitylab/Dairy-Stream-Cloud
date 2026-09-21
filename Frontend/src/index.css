@@ -662,3 +662,9 @@ body {
 :root:not(.dark) .ds-portal .to-white {
   --tw-gradient-to: var(--ds-surface) var(--tw-gradient-to-position) !important;
 }
+
+/* Agent Portal Safe Area Top Spacing */
+.agent-safe-top {
+  padding-top: max(1.25rem, env(safe-area-inset-top, 1.25rem));
+}
+

@@ -272,13 +272,15 @@ export const getAutoZoomLevel = (distanceInMeters) => {
   return 14;
 };
 
-export const _formatDistanceLabel = (distanceInMeters) => {
+export const formatDistanceLabel = (distanceInMeters) => {
   if (!Number.isFinite(distanceInMeters)) return "Distance unavailable";
   if (distanceInMeters < 1000) return `${Math.round(distanceInMeters)} m`;
   return `${(distanceInMeters / 1000).toFixed(distanceInMeters >= 10000 ? 0 : 1)} km`;
 };
 
-export const _formatDurationLabel = (durationSeconds) => {
+export const _formatDistanceLabel = formatDistanceLabel;
+
+export const formatDurationLabel = (durationSeconds) => {
   if (!Number.isFinite(durationSeconds)) return "ETA unavailable";
   const totalMinutes = Math.max(1, Math.round(durationSeconds / 60));
   if (totalMinutes < 60) return `${totalMinutes} min`;
@@ -286,3 +288,6 @@ export const _formatDurationLabel = (durationSeconds) => {
   const minutes = totalMinutes % 60;
   return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
 };
+
+export const _formatDurationLabel = formatDurationLabel;
+
