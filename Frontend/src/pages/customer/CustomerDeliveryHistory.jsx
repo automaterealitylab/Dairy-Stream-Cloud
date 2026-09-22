@@ -438,9 +438,9 @@ export default function Deliveries() {
 
   return (
     <CustomerLayout>
-      <div className="space-y-5 sm:space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div className="w-full min-w-0 space-y-5 sm:space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {/* Header Overview Card */}
-        <div className="rounded-[24px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F7F1E8_0%,#FDF9F3_100%)] p-4 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px] sm:p-7 xl:p-8">
+        <div className="w-full min-w-0 rounded-[24px] border border-[#EDE8DF] bg-[linear-gradient(180deg,#F7F1E8_0%,#FDF9F3_100%)] p-3.5 sm:p-7 xl:p-8 shadow-[0_20px_60px_rgba(84,52,16,0.08)] sm:rounded-[30px]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C4A882]">
@@ -495,26 +495,26 @@ export default function Deliveries() {
 
           {/* Insights Summary Cards */}
           {!loading && (
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="mt-4 grid grid-cols-3 gap-1.5 sm:gap-4 w-full min-w-0">
               {insightCards.map((card) => {
                 const InsightIcon = card.Icon;
                 return (
                   <div
                     key={card.label}
-                    className="relative flex flex-col overflow-hidden rounded-[18px] border border-[#EDE8DF] bg-white p-3 transition-transform hover:-translate-y-0.5 sm:rounded-[20px] sm:p-4"
+                    className="relative flex flex-col min-w-0 w-full overflow-hidden rounded-[16px] border border-[#EDE8DF] bg-white p-2 sm:rounded-[20px] sm:p-4 transition-transform hover:-translate-y-0.5"
                   >
-                    <div className="pr-9 sm:pr-10">
-                      <p className="mb-1 text-[8px] font-bold uppercase leading-3 tracking-[0.14em] text-[#C4A882] sm:text-[10px] sm:tracking-[0.18em]">
+                    <div className="pr-6 sm:pr-10 min-w-0">
+                      <p className="mb-1 text-[7px] sm:text-[10px] font-bold uppercase leading-tight tracking-wider text-[#C4A882] sm:tracking-[0.18em] truncate">
                         {card.label}
                       </p>
-                      <p className={`text-[22px] font-extrabold leading-none tracking-tight sm:text-3xl ${card.color}`}>
+                      <p className={`text-xl font-extrabold leading-none tracking-tight sm:text-3xl ${card.color}`}>
                         {card.value}
                       </p>
                     </div>
                     <div
-                      className={`absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-lg sm:right-4 sm:top-4 sm:h-9 sm:w-9 sm:rounded-xl ${card.iconBg}`}
+                      className={`absolute right-1.5 top-1.5 sm:right-4 sm:top-4 flex h-6 w-6 sm:h-9 sm:w-9 items-center justify-center rounded-md sm:rounded-xl ${card.iconBg}`}
                     >
-                      <InsightIcon size={14} className="sm:h-4 sm:w-4" />
+                      <InsightIcon size={12} className="sm:h-4 sm:w-4" />
                     </div>
                   </div>
                 );
@@ -524,8 +524,8 @@ export default function Deliveries() {
         </div>
 
         {/* Calendar Control & Legend Bar */}
-        <div className="rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-xs space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full min-w-0 rounded-[22px] border border-[#EDE8DF] bg-[#FFFDF7] p-3 sm:p-4 shadow-xs space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full min-w-0">
             {/* Month Navigator */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1 rounded-xl border border-[#EDE8DF] bg-white p-1">
@@ -552,20 +552,20 @@ export default function Deliveries() {
             </div>
 
             {/* Visual Status Legend */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1 whitespace-nowrap sm:gap-2">
-              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0 w-full sm:w-auto py-0.5">
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold text-emerald-700 border border-emerald-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Delivered
               </span>
-              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 border border-amber-200">
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold text-amber-700 border border-amber-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                 Pending
               </span>
-              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-600 border border-stone-200">
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold text-stone-600 border border-stone-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-stone-400" />
                 Skipped / Paused
               </span>
-              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 border border-rose-200">
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold text-rose-700 border border-rose-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                 Failed / Missed
               </span>
@@ -573,9 +573,9 @@ export default function Deliveries() {
           </div>
 
           {/* 7-Day Monthly Calendar Grid */}
-          <div className="overflow-hidden">
+          <div className="overflow-hidden w-full min-w-0">
             {/* Weekday Header */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2.5 mb-2 text-center">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2.5 mb-2 text-center w-full min-w-0">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
                 <div
                   key={dayName}
@@ -590,13 +590,13 @@ export default function Deliveries() {
 
             {/* Grid Cells */}
             {loading ? (
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 animate-pulse">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2.5 w-full min-w-0 animate-pulse">
                 {Array.from({ length: 35 }).map((_, i) => (
                   <div key={i} className="h-20 sm:h-24 rounded-xl border border-[#EDE8DF] bg-[#FAF7F2]" />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2.5 w-full min-w-0">
                 {calendarGridDays.map((cell, idx) => {
                   const { dateStr, dayNumber, isCurrentMonth, isToday, items } = cell;
 
@@ -638,7 +638,7 @@ export default function Deliveries() {
                       type="button"
                       onClick={() => isCurrentMonth && setSelectedDayCell(cell)}
                       disabled={!isCurrentMonth}
-                      className={`relative flex flex-col items-center justify-between p-1.5 sm:p-2.5 min-h-[72px] sm:min-h-[96px] text-center sm:text-left rounded-xl sm:rounded-2xl border transition-all duration-150 ${
+                      className={`relative flex flex-col items-center justify-between min-w-0 w-full p-1 sm:p-2.5 min-h-[68px] sm:min-h-[96px] text-center sm:text-left rounded-xl sm:rounded-2xl border transition-all duration-150 ${
                         !isCurrentMonth
                           ? "bg-[#FAF8F5]/50 border-[#EDE8DF]/40 opacity-30 text-stone-400 cursor-default pointer-events-none"
                           : isToday

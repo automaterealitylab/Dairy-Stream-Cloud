@@ -250,7 +250,7 @@ const CustomerLayout = ({ children }) => {
         </div>
       </aside>
 
-      <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+88px)] md:ml-[260px] md:pb-0">
+      <main className="flex-1 min-w-0 max-w-full w-full pb-[calc(env(safe-area-inset-bottom)+88px)] md:ml-[260px] md:pb-0">
         <header className="sticky top-0 z-20 border-b border-[#F0EBE1] bg-[rgba(253,251,247,0.96)] px-4 py-3 backdrop-blur md:hidden">
           <div className="flex items-center justify-between">
             <div>
@@ -269,7 +269,7 @@ const CustomerLayout = ({ children }) => {
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-[1480px] px-2 pb-5 pt-2 sm:px-5 sm:pb-5 sm:pt-3 md:px-6 md:py-6 lg:px-8 lg:py-8 xl:max-w-none xl:px-[10px] xl:pb-10 xl:pt-0">
+        <div className="mx-auto w-full min-w-0 max-w-[1480px] px-2 pb-5 pt-2 sm:px-5 sm:pb-5 sm:pt-3 md:px-6 md:py-6 lg:px-8 lg:py-8 xl:max-w-none xl:px-[10px] xl:pb-10 xl:pt-0">
           {children}
         </div>
       </main>

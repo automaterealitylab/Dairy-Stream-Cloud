@@ -285,16 +285,18 @@ export const cancelCustomerOneTimeOrder = async (payload) => {
   return data;
 };
 
-export const fetchCustomerPayments = async ({ force = false } = {}) =>
-  loadCustomerReadResource({
+export const fetchCustomerPayments = async ({ force = false } = {}) => {
+  const data = await loadCustomerReadResource({
     resourceName: "payments",
     ttlMs: CUSTOMER_PAYMENTS_CACHE_TTL_MS,
     force,
     loader: async () => {
-      const { data } = await client.get("/customer/payments");
-      return data;
+      const { data: responseData } = await client.get("/customer/payments");
+      return responseData;
     },
   });
+  return data;
+};
 
 export const getCachedCustomerPayments = () =>
   getCachedCustomerReadResource("payments", CUSTOMER_PAYMENTS_CACHE_TTL_MS);

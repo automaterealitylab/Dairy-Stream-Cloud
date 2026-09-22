@@ -290,9 +290,6 @@ const Subscribe = () => {
 
   const loadRazorpay = () => loadRazorpayCheckout();
 
-  useEffect(() => {
-    loadRazorpay().catch(() => false);
-  }, []);
 
   // -----------------------------------------
   // 2. Update Plan Logic
@@ -679,8 +676,9 @@ const Subscribe = () => {
                       type="button"
                       disabled={saving}
                       onClick={() => setShowCancelModal(true)}
-                      className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline transition px-2 py-1.5 disabled:opacity-50 sm:ml-1"
+                      className="flex min-h-[46px] items-center justify-center gap-2 rounded-[14px] border border-rose-200 bg-rose-50 px-5 py-2 text-sm font-bold text-rose-600 shadow-sm transition hover:border-rose-400 hover:bg-rose-100 hover:text-rose-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+                      <CircleX size={16} />
                       {isApprovedSubscription ? 'Close Subscription' : 'Cancel Subscription'}
                     </button>
                   </div>

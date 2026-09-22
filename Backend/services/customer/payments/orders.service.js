@@ -990,7 +990,7 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
   const [payableTillDateData, walletBalance, paymentRows] = await Promise.all([
     getCurrentMonthSuccessfulSubscriptionDue(customerId, resolvedDairyId),
     getCustomerWalletBalance(customerId),
-    fetchPaymentsRows(customerId, dairyId),
+    fetchPaymentsRows(customerId, resolvedDairyId || dairyId),
   ]);
   const [beneficiary, deliveryStatusById] = await Promise.all([
     getDairyPayoutDetails(resolvedDairyId),
@@ -1002,10 +1002,11 @@ export const getCustomerPaymentsData = async (customerId, dairyId = null) => {
     .filter((row) => isVisibleCustomerPaymentRow(row, deliveryStatusById))
     .map(mapPaymentRow);
   const pendingCandidates = paymentRows
+    .filter((row) => !resolvedDairyId || !row.dairy_id || String(row.dairy_id) === String(resolvedDairyId))
     .filter((row) => isOutstandingCustomerPaymentRow(row, deliveryStatusById))
     .map(mapPaymentRow)
     .filter(
-    (item) => item.status === "PENDING" || item.status === "OVERDUE"
+      (item) => item.status === "PENDING" || item.status === "OVERDUE"
     );
   const overdueCandidates = pendingCandidates.filter((item) => item.status === "OVERDUE");
   const totalPendingAndOverdue = pendingCandidates.reduce(

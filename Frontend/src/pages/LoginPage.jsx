@@ -155,6 +155,7 @@ const LoginPage = () => {
   // ================= IDENTIFIER SUBMIT =================
   const handleIdentifierSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError("");
     const normalizedIdentifier = normalizeIdentifier(identifier);
 

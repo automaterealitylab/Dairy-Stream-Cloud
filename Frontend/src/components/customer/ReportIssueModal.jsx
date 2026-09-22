@@ -53,7 +53,7 @@ export function ReportIssueModal({ issueText, saving, onClose, onChange, onSubmi
             value={issueText}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Example: I received only 1 packet instead of 2, and one packet was leaking."
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-red-300 focus:bg-white"
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-base sm:text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-red-300 focus:bg-white"
           />
           <p className="mt-2 text-xs text-gray-400">Minimum 5 characters.</p>
         </div>

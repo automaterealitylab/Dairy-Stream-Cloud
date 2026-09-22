@@ -34,6 +34,13 @@ export const useCustomerPayments = () => {
       if (!getAuthToken()) throw new Error("Session expired. Please log in again.");
 
       const data = await fetchCustomerPayments({ force });
+      console.log("[PAYMENT SUMMARY RESPONSE]", {
+        monthlyDue: data?.summary?.monthlyDue,
+        billingSummaryAmount: data?.summary?.billingSummaryAmount,
+        payableTillDate: data?.summary?.payableTillDate,
+        walletBalance: data?.summary?.walletBalance,
+        rawSummary: data?.summary,
+      });
       applyPaymentsState(data);
     } catch (err) {
       setError(err?.message || "Failed to load payments.");

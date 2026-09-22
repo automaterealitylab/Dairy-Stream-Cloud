@@ -527,6 +527,19 @@ export default function Payments() {
 
   const showWalletPay = Number(summary.walletBalance || 0) >= selectedPaymentAmount && selectedPaymentAmount > 0;
 
+  if (paymentSelectorOpen && selectedPaymentTarget) {
+    console.log("[PAYMENT DEBUG]", {
+      paymentModalAmount: selectedPaymentTarget.payAll ? summary.monthlyDue : selectedPaymentTarget.payment?.amount,
+      sourceVariable: selectedPaymentTarget.payAll ? "summary.monthlyDue" : "selectedPaymentTarget.payment.amount",
+      monthlyDue: summary.monthlyDue,
+      billingSummaryAmount: summary.billingSummaryAmount,
+      payableTillDate: summary.payableTillDate,
+      walletBalance: summary.walletBalance,
+      selectedPaymentTarget,
+      dairyId: summary.beneficiary?.dairyId,
+    });
+  }
+
   return (
     <CustomerLayout>
       <div className="w-full px-0 py-4 sm:px-2 sm:py-6 md:px-4 lg:py-10" style={bodyFont}>

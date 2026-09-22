@@ -35,6 +35,7 @@ export const normalizeStatus = (status) => {
   if (value === "PENDING") return "PENDING";
   if (value === "OVERDUE") return "OVERDUE";
   if (value === "FAILED") return "FAILED";
+  if (value === "CANCELLED" || value === "CANCELED") return "CANCELLED";
   return "PENDING";
 };
 
@@ -210,6 +211,7 @@ export const isBillableCustomerPaymentRow = (row, deliveryStatusById) => {
 };
 
 export const isOutstandingCustomerPaymentRow = (row, deliveryStatusById) => {
+  if (isCancelledStatus(row?.status)) return false;
   if (isWalletTopupPaymentRow(row)) return false;
   if (isOneTimePaymentRow(row) && isCancelledOneTimePaymentRow(row, deliveryStatusById)) return false;
 
