@@ -1,6 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import { isValidDateString, getLocalTodayIso } from "../../utils/date.js";
 import { appendDeliveryBillingMeta } from "./monthlyBilling.service.js";
+import { calculateDeliveryAmount } from "../shared/deliveryCharge.service.js";
 
 const SUBSCRIPTION_DELIVERY_MARKER = "[SUBSCRIPTION_DAILY]";
 const ONE_TIME_ORDER_MARKER = "[ONE_TIME_ORDER]";
@@ -369,6 +370,10 @@ const ensureDailyDeliveryForSubscription = async ({
       delivery_date: targetDate,
       milk_type: subscription.milk_type || "Milk",
       quantity_liters: subscription.quantity_liters ?? null,
+      delivery_amount: calculateDeliveryAmount({
+        quantityLiters: subscription.quantity_liters,
+        unitPrice,
+      }),
       status: "PENDING",
       approval_status: "APPROVED",
       notes: deliveryNotes,

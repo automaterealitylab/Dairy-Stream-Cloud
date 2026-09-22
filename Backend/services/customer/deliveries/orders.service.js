@@ -51,6 +51,7 @@ import {
   releaseStockForCancelledOrder,
   reserveStockForOrder,
 } from "./stock.service.js";
+import { calculateDeliveryAmount } from "../../shared/deliveryCharge.service.js";
 
 export const getTodayDeliverySnapshot = async (customerId, { subscription } = {}) => {
   await autoFailOverduePendingSubscriptionDeliveriesForCustomer({ customerId });
@@ -287,6 +288,10 @@ export const createOneTimeDeliveryOrder = async (customerId, payload = {}) => {
           delivery_date: deliveryDate,
           milk_type: item.milkType,
           quantity_liters: item.quantity,
+          delivery_amount: calculateDeliveryAmount({
+            quantityLiters: item.quantity,
+            unitPrice: item.unitPrice,
+          }),
           status: "PENDING",
           approval_status: approvalStatus,
           notes: deliveryNotes,

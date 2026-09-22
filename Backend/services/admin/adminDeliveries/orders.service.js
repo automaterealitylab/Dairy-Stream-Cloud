@@ -4,6 +4,11 @@
 import { supabase } from "../../../config/supabase.js";
 import { isValidDateString } from "../../../utils/date.js";
 import { isMissingColumnError } from "../../../utils/dbErrors.js";
+import { appendDeliveryBillingMeta } from "../../customer/monthlyBilling.service.js";
+import {
+  calculateDeliveryAmount,
+  getProductRateForDelivery,
+} from "../../shared/deliveryCharge.service.js";
 import { findBestAutoAssignAgentId, autoAssignDeliveryIfPossible } from "./assignment.service.js";
 import { mapDeliveries } from "./mapping.service.js";
 import { sendScheduledDeliveryAlert } from "./notifications.service.js";
@@ -350,6 +355,14 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     throw makeError("Delivery already scheduled for this customer on selected date", 409);
   }
 
+  const unitPrice = await getProductRateForDelivery({
+    dairyId: resolvedDairyId,
+    milkType: activeSubscription.milk_type || "Milk",
+  });
+  const deliveryNotes = appendDeliveryBillingMeta(notes ? String(notes).slice(0, 500) : "", {
+    unitPrice,
+  });
+
   const insertPayload = {
     customer_id: parsedCustomerId,
     dairy_id: resolvedDairyId,
@@ -357,9 +370,13 @@ export const scheduleDeliveryForSubscribedCustomer = async ({
     delivery_date: deliveryDate,
     milk_type: activeSubscription.milk_type || "Milk",
     quantity_liters: activeSubscription.quantity_liters ?? null,
+    delivery_amount: calculateDeliveryAmount({
+      quantityLiters: activeSubscription.quantity_liters,
+      unitPrice,
+    }),
     status: "PENDING",
     approval_status: "APPROVED",
-    notes: notes ? String(notes).slice(0, 500) : null,
+    notes: deliveryNotes ? deliveryNotes.slice(0, 500) : null,
   };
 
   const { data: createdDelivery, error: createError } = await supabase
@@ -520,6 +537,7 @@ export const scheduleBulkDeliveriesForDate = async ({
 
   const insertRows = [];
   let skippedNoDairyCount = 0;
+  const rateCache = new Map();
 
   for (const [customerId, sub] of filteredCandidates) {
     if (existingCustomerIds.has(customerId)) continue;
@@ -540,6 +558,17 @@ export const scheduleBulkDeliveriesForDate = async ({
           subscription: sub,
         });
 
+    const unitPrice = await getProductRateForDelivery(
+      {
+        dairyId: resolvedDairyId,
+        milkType: sub?.milk_type || "Milk",
+      },
+      rateCache
+    );
+    const deliveryNotes = appendDeliveryBillingMeta(notes ? String(notes).slice(0, 500) : "", {
+      unitPrice,
+    });
+
     insertRows.push({
       customer_id: customerId,
       dairy_id: resolvedDairyId,
@@ -547,9 +576,13 @@ export const scheduleBulkDeliveriesForDate = async ({
       delivery_date: deliveryDate,
       milk_type: sub?.milk_type || "Milk",
       quantity_liters: sub?.quantity_liters ?? null,
+      delivery_amount: calculateDeliveryAmount({
+        quantityLiters: sub?.quantity_liters,
+        unitPrice,
+      }),
       status: "PENDING",
       approval_status: "APPROVED",
-      notes: notes ? String(notes).slice(0, 500) : null,
+      notes: deliveryNotes ? deliveryNotes.slice(0, 500) : null,
     });
   }
 
@@ -849,15 +882,28 @@ export const addAdminCustomerExtraDelivery = async ({
     .eq("dairy_id", dairyId)
     .maybeSingle();
 
+  const normalizedStatus = String(status || "PENDING").toUpperCase();
+  const unitPrice = await getProductRateForDelivery({
+    dairyId,
+    milkType: milkType || "Extra Order",
+  });
+  const deliveryNotes = appendDeliveryBillingMeta(
+    notes ? `[EXTRA ORDER] ${notes}` : "[EXTRA ORDER] Requested via phone call",
+    { unitPrice }
+  );
   const insertPayload = {
     dairy_id: dairyId,
     customer_id: Number(customerId),
     delivery_date: deliveryDate,
     milk_type: milkType || "Extra Order",
     quantity_liters: Number(quantityLiters || 1),
-    status: status.toUpperCase(),
+    delivery_amount: calculateDeliveryAmount({
+      quantityLiters: quantityLiters || 1,
+      unitPrice,
+    }),
+    status: normalizedStatus,
     assigned_agent_id: sub?.assigned_agent_id || null,
-    notes: notes ? `[EXTRA ORDER] ${notes}` : "[EXTRA ORDER] Requested via phone call",
+    notes: deliveryNotes,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

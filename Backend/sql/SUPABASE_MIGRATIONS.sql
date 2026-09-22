@@ -523,6 +523,7 @@ CREATE TABLE IF NOT EXISTS public.deliveries (
   customer_issue_admin_action TEXT,
   customer_issue_resolved_at TIMESTAMP WITH TIME ZONE,
   delivered_at TIMESTAMP WITH TIME ZONE,
+  delivery_amount NUMERIC(12, 2),
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -557,6 +558,8 @@ ALTER TABLE public.deliveries
 ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.deliveries
+  ADD COLUMN IF NOT EXISTS delivery_amount NUMERIC(12, 2);
+ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.deliveries
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
@@ -576,8 +579,22 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_agent_date_status
   ON public.deliveries(agent_id, delivery_date, status);
 CREATE INDEX IF NOT EXISTS idx_deliveries_customer_date
   ON public.deliveries(customer_id, delivery_date DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chk_deliveries_delivery_amount_nonnegative'
+  ) THEN
+    ALTER TABLE public.deliveries
+      ADD CONSTRAINT chk_deliveries_delivery_amount_nonnegative
+      CHECK (delivery_amount IS NULL OR delivery_amount >= 0);
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_subscriptions_customer_status
-  ON public.subscriptions(customer_id, subscription_status);
+  ON public.subscriptions(customer_id, status);
 CREATE INDEX IF NOT EXISTS idx_payments_customer_created
   ON public.payments(customer_id, created_at DESC);
 

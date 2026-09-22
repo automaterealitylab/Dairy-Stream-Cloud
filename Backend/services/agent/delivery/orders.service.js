@@ -12,6 +12,7 @@ import {
   ensureBuyOnceInvoiceForDeliveredOrder,
   syncCustomerMonthlyBills,
 } from "../../customer/monthlyBilling.service.js";
+import { resolveDeliveryAmountForPersistence } from "../../shared/deliveryCharge.service.js";
 import { mapAssignedDelivery } from "./mapping.service.js";
 import {
   deriveAgentAvailability,
@@ -658,7 +659,7 @@ export const updateAgentDeliveryStatus = async ({
 
   let existingQuery = supabase
     .from("deliveries")
-    .select("id, customer_id, agent_id, dairy_id, delivery_date, milk_type, quantity_liters, status, notes")
+    .select("id, customer_id, agent_id, dairy_id, delivery_date, milk_type, quantity_liters, delivery_amount, status, notes")
     .eq("id", parsedId)
     .eq("agent_id", agentDbId)
     .limit(1);
@@ -728,13 +729,30 @@ export const updateAgentDeliveryStatus = async ({
     }
   }
 
+  const updatePayload = {
+    status: dbStatus,
+    notes,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (nextStatus === "COMPLETED") {
+    const existingAmount = Number(existing?.delivery_amount);
+    const deliveryAmount = Number.isFinite(existingAmount) && existingAmount >= 0
+      ? Number(existingAmount.toFixed(2))
+      : await resolveDeliveryAmountForPersistence({
+          ...existing,
+          status: dbStatus,
+          notes,
+        });
+
+    if (deliveryAmount !== null) {
+      updatePayload.delivery_amount = deliveryAmount;
+    }
+  }
+
   const { data: updated, error: updateError } = await supabase
     .from("deliveries")
-    .update({
-      status: dbStatus,
-      notes,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", parsedId)
     .eq("agent_id", agentDbId)
     .select("id, status, notes, updated_at")
