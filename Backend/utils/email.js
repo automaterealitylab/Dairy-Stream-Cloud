@@ -13,10 +13,19 @@ const withTimeoutSignal = (timeoutMs) => {
   };
 };
 
-const sendViaResend = async ({ to, subject, html, from }) => {
+const sendViaResend = async ({ to, subject, html, text, from }) => {
   const apiKey = String(process.env.RESEND_API_KEY || "").trim();
   if (!apiKey) return null;
 
+  const plainText =
+    text ||
+    String(html || "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const replyTo = process.env.EMAIL_REPLY_TO;
   const { signal, clear } = withTimeoutSignal(EMAIL_HTTP_TIMEOUT_MS);
 
   try {
@@ -31,6 +40,8 @@ const sendViaResend = async ({ to, subject, html, from }) => {
         to: Array.isArray(to) ? to : [to],
         subject,
         html,
+        ...(plainText ? { text: plainText } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
       }),
       signal,
     });
@@ -61,13 +72,22 @@ const sendViaResend = async ({ to, subject, html, from }) => {
   }
 };
 
-const sendViaBrevo = async ({ to, subject, html, from }) => {
+const sendViaBrevo = async ({ to, subject, html, text, from }) => {
   const apiKey = String(process.env.BREVO_API_KEY || "").trim();
   if (!apiKey) return null;
 
   const fromEmailMatch = String(from || "").match(/<([^>]+)>/);
   const fromEmail = fromEmailMatch?.[1] || String(process.env.EMAIL_USER || "").trim();
   const fromName = String(from || "").replace(/<[^>]+>/, "").replace(/"/g, "").trim() || "Dairy Automation System";
+  const replyToEmail = process.env.EMAIL_REPLY_TO || fromEmail;
+
+  const plainText =
+    text ||
+    String(html || "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   const { signal, clear } = withTimeoutSignal(EMAIL_HTTP_TIMEOUT_MS);
 
@@ -83,9 +103,14 @@ const sendViaBrevo = async ({ to, subject, html, from }) => {
           name: fromName,
           email: fromEmail,
         },
+        replyTo: {
+          name: fromName,
+          email: replyToEmail,
+        },
         to: (Array.isArray(to) ? to : [to]).map((email) => ({ email })),
         subject,
         htmlContent: html,
+        ...(plainText ? { textContent: plainText } : {}),
       }),
       signal,
     });
@@ -116,7 +141,7 @@ const sendViaBrevo = async ({ to, subject, html, from }) => {
   }
 };
 
-const sendViaSendGrid = async ({ to, subject, html, from }) => {
+const sendViaSendGrid = async ({ to, subject, html, text, from }) => {
   const apiKey = String(process.env.SENDGRID_API_KEY || "").trim();
   if (!apiKey) return null;
 
@@ -125,6 +150,23 @@ const sendViaSendGrid = async ({ to, subject, html, from }) => {
   const fromName =
     String(from || "").replace(/<[^>]+>/, "").replace(/"/g, "").trim() ||
     "Dairy Automation System";
+  const replyToEmail = process.env.EMAIL_REPLY_TO || fromEmail;
+
+  const plainText =
+    text ||
+    String(html || "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const content = [];
+  if (plainText) {
+    content.push({ type: "text/plain", value: plainText });
+  }
+  if (html) {
+    content.push({ type: "text/html", value: html });
+  }
 
   const { signal, clear } = withTimeoutSignal(EMAIL_HTTP_TIMEOUT_MS);
 
@@ -146,12 +188,11 @@ const sendViaSendGrid = async ({ to, subject, html, from }) => {
           email: fromEmail,
           name: fromName,
         },
-        content: [
-          {
-            type: "text/html",
-            value: html,
-          },
-        ],
+        reply_to: {
+          email: replyToEmail,
+          name: fromName,
+        },
+        content,
       }),
       signal,
     });
@@ -182,7 +223,7 @@ const sendViaSendGrid = async ({ to, subject, html, from }) => {
   }
 };
 
-const sendViaSmtp = async ({ to, subject, html, from }) => {
+const sendViaSmtp = async ({ to, subject, html, text, from }) => {
   const emailUser = process.env.EMAIL_USER;
   const emailPassword = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
   const emailService = String(process.env.EMAIL_SERVICE || "").trim();
@@ -249,12 +290,44 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
     }
   }
 
+  const plainText =
+    text ||
+    String(html || "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   let lastError = null;
   for (const config of smtpConfigs) {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const transporter = getTransporter(config);
-        const info = await transporter.sendMail({ from, to, subject, html });
+        const replyTo = process.env.EMAIL_REPLY_TO || from;
+        const info = await transporter.sendMail({
+          from,
+          to,
+          replyTo,
+          subject,
+          text: plainText,
+          html,
+        });
+
+        const hasOtp = /\b\d{6}\b/.test(plainText || "") || /\b\d{6}\b/.test(html || "");
+
+        console.log("[SMTP DEBUG]", {
+          host: config.host || emailService,
+          port: config.port || (config.secure ? 465 : 587),
+          secure: Boolean(config.secure),
+          from,
+          to,
+          subject,
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response,
+          messageId: info.messageId,
+          otpPresentInOutgoingMessage: hasOtp,
+        });
 
         console.log(
           `[EMAIL SENT] provider=smtp to=${to} subject="${subject}" host=${config.host || emailService} port=${config.port || ""} secure=${config.secure || ""} messageId=${info.messageId}`
@@ -282,7 +355,7 @@ const sendViaSmtp = async ({ to, subject, html, from }) => {
   throw new Error(`Email delivery failed via SMTP: ${errorCode} - ${errorMessage}`);
 };
 
-export const sendEmail = async ({ to, subject, html }) => {
+export const sendEmail = async ({ to, subject, html, text }) => {
   const emailUser = String(process.env.EMAIL_USER || "").trim();
   const emailFrom = process.env.EMAIL_FROM || `"Dairy Automation System" <${emailUser}>`;
   const forceSmtp = String(process.env.EMAIL_ONLY_SMTP || "false").toLowerCase() === "true";
@@ -297,21 +370,21 @@ export const sendEmail = async ({ to, subject, html }) => {
     if (hasResend) {
       providerAttempts.push({
         name: "resend",
-        send: () => sendViaResend({ to, subject, html, from: emailFrom }),
+        send: () => sendViaResend({ to, subject, html, text, from: emailFrom }),
       });
     }
 
     if (hasBrevo) {
       providerAttempts.push({
         name: "brevo",
-        send: () => sendViaBrevo({ to, subject, html, from: emailFrom }),
+        send: () => sendViaBrevo({ to, subject, html, text, from: emailFrom }),
       });
     }
 
     if (hasSendGrid) {
       providerAttempts.push({
         name: "sendgrid",
-        send: () => sendViaSendGrid({ to, subject, html, from: emailFrom }),
+        send: () => sendViaSendGrid({ to, subject, html, text, from: emailFrom }),
       });
     }
   }
@@ -319,7 +392,7 @@ export const sendEmail = async ({ to, subject, html }) => {
   if (hasSmtp) {
     providerAttempts.push({
       name: "smtp",
-      send: () => sendViaSmtp({ to, subject, html, from: emailFrom }),
+      send: () => sendViaSmtp({ to, subject, html, text, from: emailFrom }),
     });
   }
 

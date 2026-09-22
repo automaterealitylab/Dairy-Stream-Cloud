@@ -145,9 +145,12 @@ export const requestAdminResetOtpService = async ({ identifier }) => {
     expiresAt: Date.now() + settings.otpExpiryMs,
   });
 
+  const text = `Your OTP for DairyStream admin password reset is: ${otp}\n\nThis OTP is valid for 10 minutes.\nIf you did not request this, please ignore this email.`;
+
   await sendEmail({
     to: admin.email,
     subject: "DairyStream Admin Password Reset OTP",
+    text,
     html: `
       <p>Your OTP for admin password reset is:</p>
       <h2>${otp}</h2>

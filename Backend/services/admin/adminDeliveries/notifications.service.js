@@ -4,7 +4,10 @@ import { sendEmail } from "../../../utils/email.js";
 import { normalizeDate } from "./normalizers.js";
 
 export const hasEmailConfig = () =>
-  Boolean(process.env.EMAIL_USER) && Boolean(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD);
+  Boolean(process.env.BREVO_API_KEY) ||
+  Boolean(process.env.RESEND_API_KEY) ||
+  Boolean(process.env.SENDGRID_API_KEY) ||
+  (Boolean(process.env.EMAIL_USER) && Boolean(process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD));
 
 export const sendScheduledDeliveryAlert = async ({
   email,

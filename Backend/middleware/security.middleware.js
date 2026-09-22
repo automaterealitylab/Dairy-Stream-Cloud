@@ -90,10 +90,16 @@ export const secureHeaders = (req, res, next) => {
   next();
 };
 
-const getIp = (req) =>
-  req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
-  req.socket?.remoteAddress ||
-  "unknown";
+const getIp = (req) => {
+  const rawIp =
+    req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    "unknown";
+  if (rawIp.startsWith("::ffff:")) {
+    return rawIp.replace("::ffff:", "");
+  }
+  return rawIp;
+};
 
 const logRateLimitExceeded = (req, { keyPrefix, limit, windowMs, count }) => {
   logger.warn("rate_limit_exceeded", {
@@ -295,10 +301,27 @@ function createBotProtection() {
     if (redis) {
       try {
         const redisKey = `bot:${key}`;
-        const count = await redis.incr(redisKey);
-        if (count === 1) await redis.pexpire(redisKey, 60_000);
+        const results = await redis
+          .multi()
+          .incr(redisKey)
+          .pexpire(redisKey, 60_000, "NX")
+          .pttl(redisKey)
+          .exec();
+
+        if (!results || results.length < 3 || results[0][0]) {
+          throw results?.[0]?.[0] || new Error("Redis bot protection failed");
+        }
+
+        const count = Number(results[0][1]);
+        let ttlMs = Number(results[2][1]);
+        if (ttlMs <= 0) {
+          await redis.pexpire(redisKey, 60_000);
+          ttlMs = 60_000;
+        }
+
         if (count > limit) {
           logRateLimitExceeded(req, { keyPrefix: "bot", limit, windowMs: 60_000, count });
+          res.setHeader("Retry-After", String(Math.max(1, Math.ceil(ttlMs / 1000))));
           return res.status(429).json({ success: false, error: "Request volume is temporarily restricted" });
         }
         return next();
@@ -354,9 +377,23 @@ export const createIdentityRateLimiter = ({
     if (redis) {
       try {
         const redisKey = `rate:${key}`;
-        const count = await redis.incr(redisKey);
-        if (count === 1) await redis.pexpire(redisKey, windowMs);
-        const ttlMs = await redis.pttl(redisKey);
+        const results = await redis
+          .multi()
+          .incr(redisKey)
+          .pexpire(redisKey, windowMs, "NX")
+          .pttl(redisKey)
+          .exec();
+
+        if (!results || results.length < 3 || results[0][0]) {
+          throw results?.[0]?.[0] || new Error("Redis identity rate limiter failed");
+        }
+
+        const count = Number(results[0][1]);
+        let ttlMs = Number(results[2][1]);
+        if (ttlMs <= 0) {
+          await redis.pexpire(redisKey, windowMs);
+          ttlMs = windowMs;
+        }
 
         res.setHeader("X-RateLimit-Limit", String(max));
         res.setHeader("X-RateLimit-Remaining", String(Math.max(0, max - count)));
@@ -431,9 +468,23 @@ export const createRateLimiter = ({
     if (redis) {
       try {
         const redisKey = `rate:${key}`;
-        const count = await redis.incr(redisKey);
-        if (count === 1) await redis.pexpire(redisKey, windowMs);
-        const ttlMs = await redis.pttl(redisKey);
+        const results = await redis
+          .multi()
+          .incr(redisKey)
+          .pexpire(redisKey, windowMs, "NX")
+          .pttl(redisKey)
+          .exec();
+
+        if (!results || results.length < 3 || results[0][0]) {
+          throw results?.[0]?.[0] || new Error("Redis rate limiter failed");
+        }
+
+        const count = Number(results[0][1]);
+        let ttlMs = Number(results[2][1]);
+        if (ttlMs <= 0) {
+          await redis.pexpire(redisKey, windowMs);
+          ttlMs = windowMs;
+        }
 
         res.setHeader("X-RateLimit-Limit", String(cachedMax));
         res.setHeader("X-RateLimit-Remaining", String(Math.max(0, cachedMax - count)));

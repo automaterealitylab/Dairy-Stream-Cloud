@@ -173,9 +173,12 @@ export const requestAgentResetOtp = async (req, res) => {
       expiresAt: Date.now() + settings.otpExpiryMs,
     });
 
+    const text = `Your OTP for DairyStream agent password reset is: ${otp}\n\nThis OTP is valid for 10 minutes.\nIf you did not request this, please ignore this email.`;
+
     await sendEmail({
       to: agent.email,
       subject: "DairyStream Agent Password Reset OTP",
+      text,
       html: `
         <p>Your OTP for agent password reset is:</p>
         <h2>${otp}</h2>

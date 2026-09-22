@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { getRedisConnection } from "../config/redis.js";
 import { supabase } from "../config/supabase.js";
+import { logger } from "./logger.js";
 
 const DEFAULT_ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
 const DEFAULT_REFRESH_TOKEN_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 30);
