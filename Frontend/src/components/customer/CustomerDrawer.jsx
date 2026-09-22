@@ -11,6 +11,7 @@ import { adminHeadingFont, adminShellFont, useTheme } from "../admin/adminTheme"
 import PauseSubscriptionModal from "./PauseSubscriptionModal";
 import CancelSubscriptionModal from "./CancelSubscriptionModal";
 import AddExtraDeliveryModal from "./AddExtraDeliveryModal";
+import PropertyHierarchySelector from "../common/PropertyHierarchySelector.jsx";
 
 const DetailItem = ({ label, value }) => (
   <div className="space-y-1">
@@ -70,6 +71,16 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
     building_name: "",
     wing: "",
     room_no: "",
+    property_id: null,
+    property_name: "",
+    building_id: null,
+    has_wing: false,
+    wing_id: null,
+    floor_id: null,
+    floor_name: "",
+    unit_id: null,
+    unit_type: "Flat",
+    unit_number: "",
   });
 
   useEffect(() => {
@@ -85,6 +96,16 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
         building_name: c.building_name || "",
         wing: c.wing || "",
         room_no: c.room_no || "",
+        property_id: c.property_id || null,
+        property_name: c.property_name || "",
+        building_id: c.building_id || null,
+        has_wing: Boolean(c.has_wing ?? c.wing_id ?? c.wing),
+        wing_id: c.wing_id || null,
+        floor_id: c.floor_id || null,
+        floor_name: c.floor_name || "",
+        unit_id: c.unit_id || null,
+        unit_type: c.unit_type || "Flat",
+        unit_number: c.unit_number || c.room_no || "",
       });
       setIsEditing(false);
     });
@@ -200,26 +221,71 @@ export default function CustomerDrawer({ customerId, onClose, onChanged }) {
                   </div>
 
                   {isEditing ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <label className="space-y-2 sm:col-span-2">
-                        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763]">Full Name</span>
-                        <input name="customer_name" value={form.customer_name} onChange={onInput} className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-3 font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white" />
-                      </label>
-                      <label className="space-y-2">
-                        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763]">Phone</span>
-                        <input name="phone_number" value={form.phone_number} onChange={onInput} className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-3 font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white" />
-                      </label>
-                      <label className="space-y-2">
-                        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763]">Email</span>
-                        <input name="email" value={form.email} onChange={onInput} className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-3 font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white" />
-                      </label>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <label className="space-y-2 sm:col-span-2">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">Full Name</span>
+                          <input name="customer_name" value={form.customer_name} onChange={onInput} className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-3 font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-white" />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">Phone</span>
+                          <input name="phone_number" value={form.phone_number} onChange={onInput} className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-3 font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-white" />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88763] dark:text-[#C4A882]">Email</span>
+                          <input name="email" value={form.email} onChange={onInput} className="w-full rounded-[16px] border border-[#EDE8DF] bg-[#FAF7F1] px-4 py-3 font-semibold text-[#2C1A0E] outline-none transition focus:border-[#B8641A] focus:bg-white dark:border-[#222B40] dark:bg-[#0B0F19] dark:text-white" />
+                        </label>
+                      </div>
+
+                      <PropertyHierarchySelector
+                        value={form}
+                        isDark={isDark}
+                        onChange={(hierarchy) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            ...hierarchy,
+                            property_id: hierarchy.property_id,
+                            property_name: hierarchy.property_name,
+                            building_id: hierarchy.building_id,
+                            building_name: hierarchy.building_name,
+                            has_wing: hierarchy.has_wing,
+                            wing_id: hierarchy.wing_id,
+                            wing: hierarchy.wing,
+                            floor_id: hierarchy.floor_id,
+                            floor_name: hierarchy.floor_name,
+                            unit_id: hierarchy.unit_id,
+                            unit_type: hierarchy.unit_type,
+                            unit_number: hierarchy.unit_number,
+                            room_no: hierarchy.unit_number,
+                          }));
+                        }}
+                      />
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <DetailItem label="Phone" value={customer.phone_number} />
                       <DetailItem label="Email" value={customer.email} />
-                      <DetailItem label="Building" value={customer.building_name} />
-                      <DetailItem label="Wing / Room" value={[customer.wing, customer.room_no].filter(Boolean).join(" / ")} />
+                      <DetailItem label="Society / Property" value={customer.property_name || "-"} />
+                      <DetailItem label="Building" value={customer.building_name || "-"} />
+                      <DetailItem
+                        label="Wing / Floor"
+                        value={
+                          [
+                            customer.wing ? `Wing ${customer.wing}` : null,
+                            customer.floor_name || (customer.floor_id ? `Floor #${customer.floor_id}` : null),
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "-"
+                        }
+                      />
+                      <DetailItem
+                        label="Unit / Room"
+                        value={
+                          customer.unit_number || customer.room_no
+                            ? `${customer.unit_type || "Unit"} ${customer.unit_number || customer.room_no}`
+                            : "-"
+                        }
+                      />
                     </div>
                   )}
                 </section>

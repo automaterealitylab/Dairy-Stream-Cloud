@@ -11,11 +11,76 @@ import {
 import { buildCustomerAddress } from "../../utils/customerAddress.js";
 import toast from "react-hot-toast";
 import { useGeolocationAutoRetry } from "../../hooks/useGeolocationAutoRetry.js";
+import { useMap, useMapEvents } from "react-leaflet";
 
 const LazyCustomerProfileMap = lazy(() => import("../../components/customer/LazyCustomerProfileMap.jsx"));
+import PropertyHierarchySelector from "../../components/common/PropertyHierarchySelector.jsx";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DEFAULT_MAP_CENTER = [18.5204, 73.8567];
+
+/**
+ * Formats the structured address hierarchy into display lines.
+ * Only includes levels that have actual data — never infers or fabricates any level.
+ * Deduplicates: free-text lines (addressLine1/2) are skipped when their content
+ * is already covered by the structured lines above (e.g. "Flat No 201" after "Flat 201").
+ * Returns an array of line strings for rendering.
+ */
+const formatStructuredAddress = (p) => {
+  const lines = [];
+
+  // Line 1: Society / Property
+  const property = String(p.propertyName || "").trim();
+  if (property) lines.push(property);
+
+  // Line 2: Building [• Wing] [• Floor]
+  const building = String(p.buildingName || "").trim();
+  const wing = String(p.wing || "").trim();
+  const floor = String(p.floorName || "").trim();
+  if (building || wing || floor) {
+    const midParts = [building, wing, floor].filter(Boolean);
+    lines.push(midParts.join(" \u2022 "));
+  }
+
+  // Line 3: Unit Type + Unit Number
+  const unitType = String(p.unitType || "").trim();
+  const unitNumber = String(p.unitNumber || p.roomNo || "").trim();
+  if (unitNumber) {
+    const label = unitType && unitType.toLowerCase() !== "flat" ? unitType : "Flat";
+    lines.push(`${label} ${unitNumber}`);
+  }
+
+  // Helper: normalise a string to comparable tokens (letters + digits only)
+  const tokens = (s) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((w) => w.length > 1);
+
+  // Built lines as token sets for dedup check
+  const builtTokenSets = lines.map(tokens);
+
+  // Returns true if every meaningful token in `candidate` already appears
+  // in at least one previously-built line — meaning it adds no new info.
+  const isRedundant = (candidate) => {
+    const cTokens = tokens(candidate);
+    if (!cTokens.length) return true;
+    return builtTokenSets.some((bt) => cTokens.every((t) => bt.includes(t)));
+  };
+
+  // Line 4: Street / Area (addressLine1) — only when it adds new information
+  const line1 = String(p.addressLine1 || "").trim();
+  if (line1 && !isRedundant(line1)) lines.push(line1);
+
+  // Line 5: Landmark / Gate Notes (addressLine2) — only when it adds new information
+  const line2 = String(p.addressLine2 || "").trim();
+  if (line2 && !isRedundant(line2)) lines.push(line2);
+
+  return lines;
+};
 
 const formatMemberSince = (value) => {
   if (!value) return "Member since recently";
@@ -104,8 +169,18 @@ const EMPTY_PROFILE = {
   farm: "",
   addressLine1: "",
   addressLine2: "",
+  propertyId: null,
+  propertyName: "",
+  buildingId: null,
   buildingName: "",
+  hasWing: false,
+  wingId: null,
   wing: "",
+  floorId: null,
+  floorName: "",
+  unitId: null,
+  unitType: "Flat",
+  unitNumber: "",
   roomNo: "",
   address: "",
   latitude: null,
@@ -125,9 +200,19 @@ const mapApiProfileToUi = (apiProfile = {}, dairyFallback = "") => {
     farm: apiProfile.member_of_dairy || dairyFallback || "Not Assigned",
     addressLine1: apiProfile.address_line_1 || apiProfile.addressLine1 || "",
     addressLine2: apiProfile.address_line_2 || apiProfile.addressLine2 || "",
+    propertyId: apiProfile.property_id || null,
+    propertyName: apiProfile.property_name || "",
+    buildingId: apiProfile.building_id || null,
     buildingName: apiProfile.building_name || apiProfile.buildingName || "",
+    hasWing: Boolean(apiProfile.has_wing ?? apiProfile.wing_id ?? apiProfile.wing),
+    wingId: apiProfile.wing_id || null,
     wing: apiProfile.wing || "",
-    roomNo: apiProfile.room_no || apiProfile.roomNo || "",
+    floorId: apiProfile.floor_id || null,
+    floorName: apiProfile.floor_name || "",
+    unitId: apiProfile.unit_id || null,
+    unitType: apiProfile.unit_type || "Flat",
+    unitNumber: apiProfile.unit_number || apiProfile.room_no || apiProfile.roomNo || "",
+    roomNo: apiProfile.unit_number || apiProfile.room_no || apiProfile.roomNo || "",
     address: buildCustomerAddress(apiProfile) || "Address not set",
     latitude: coordinates?.[0] ?? null,
     longitude: coordinates?.[1] ?? null,
@@ -342,6 +427,18 @@ const CustomerProfile = () => {
         room_no: formData.roomNo,
         latitude: getCoordinateValue(formData.latitude),
         longitude: getCoordinateValue(formData.longitude),
+        // Relational hierarchy fields
+        property_id: formData.propertyId || formData.property_id || null,
+        property_name: formData.propertyName || formData.property_name || "",
+        building_id: formData.buildingId || formData.building_id || null,
+        has_wing: formData.hasWing ?? formData.has_wing ?? Boolean(formData.wing),
+        wing_id: formData.wingId || formData.wing_id || null,
+        wing_name: formData.wing || formData.wingName || formData.wing_name || "",
+        floor_id: formData.floorId || formData.floor_id || null,
+        floor_name: formData.floorName || formData.floor_name || "",
+        unit_id: formData.unitId || formData.unit_id || null,
+        unit_type: formData.unitType || formData.unit_type || "Flat",
+        unit_number: formData.unitNumber || formData.unit_number || formData.roomNo || "",
       };
 
       if (!isAddressOnlyEditor) {
@@ -463,7 +560,7 @@ const CustomerProfile = () => {
             icon={<MapPin />}
             label="Delivery Address"
             value={profile.address || "Address not set"}
-            meta={profile.pinLabel}
+            addressLines={formatStructuredAddress(profile)}
             actionLabel="Edit Address"
             onAction={openAddressModal}
             full
@@ -589,28 +686,43 @@ const CustomerProfile = () => {
                   )}
 
                   <Input
-                    label="Flat / Unit / House No."
+                    label="Street / Colony Road / Area (Line 1)"
                     name="addressLine1"
                     value={formData.addressLine1}
                     onChange={handleFormChange}
-                    placeholder="e.g. Flat 402, Wing B"
+                    placeholder="e.g. MG Road, Near City Park"
                     autoFocus={isAddressOnlyEditor}
                   />
 
                   <Input
-                    label="Building / Society Name"
-                    name="buildingName"
-                    value={formData.buildingName}
-                    onChange={handleFormChange}
-                    placeholder="e.g. Green Meadows Apartments"
-                  />
-
-                  <Input
-                    label="Landmark / Area / Street"
+                    label="Delivery Landmark / Gate Notes (Line 2 - Opt)"
                     name="addressLine2"
                     value={formData.addressLine2}
                     onChange={handleFormChange}
-                    placeholder="e.g. Near City Park, MG Road"
+                    placeholder="e.g. Gate 2, near security booth"
+                  />
+
+                  <PropertyHierarchySelector
+                    value={formData}
+                    onChange={(hierarchy) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        ...hierarchy,
+                        propertyId: hierarchy.property_id,
+                        propertyName: hierarchy.property_name,
+                        buildingId: hierarchy.building_id,
+                        buildingName: hierarchy.building_name,
+                        hasWing: hierarchy.has_wing,
+                        wingId: hierarchy.wing_id,
+                        wing: hierarchy.wing,
+                        floorId: hierarchy.floor_id,
+                        floorName: hierarchy.floor_name,
+                        unitId: hierarchy.unit_id,
+                        unitType: hierarchy.unit_type,
+                        unitNumber: hierarchy.unit_number,
+                        roomNo: hierarchy.unit_number,
+                      }));
+                    }}
                   />
                 </div>
 
@@ -691,12 +803,12 @@ const CustomerProfile = () => {
   );
 };
 
-const InfoCard = ({ icon, label, value, meta, actionLabel, onAction, full }) => (
+const InfoCard = ({ icon, label, value, addressLines, meta, actionLabel, onAction, full }) => (
   <div
     className={`group relative overflow-hidden rounded-[20px] border border-[#EDE8DF] bg-[#FFFDF7] p-4 shadow-[0_12px_28px_rgba(100,72,35,0.06)] transition hover:-translate-y-0.5 hover:border-[#D4B896] hover:shadow-[0_18px_34px_rgba(100,72,35,0.1)] sm:rounded-[22px] sm:p-5 ${full ? "md:col-span-2" : ""}`}
   >
     <div className="absolute inset-x-0 top-0 h-1 bg-[#B8641A]/70 opacity-70 transition group-hover:opacity-100" />
-    <div className="flex items-center gap-3 sm:gap-4">
+    <div className="flex items-start gap-3 sm:gap-4">
       <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#FFF4E2] text-[#B8641A] transition group-hover:bg-[#B8641A] group-hover:text-white sm:h-12 sm:w-12 sm:rounded-[14px]">
         {icon}
       </div>
@@ -707,15 +819,34 @@ const InfoCard = ({ icon, label, value, meta, actionLabel, onAction, full }) => 
             <button
               type="button"
               onClick={onAction}
-              className="inline-flex items-center gap-1 rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-2.5 py-1 text-[11px] font-bold text-[#B8641A] transition hover:border-[#D4B896] hover:bg-[#FDE9C9]"
+              className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-[#EFD7B3] bg-[#FFF4E2] px-3 py-1 text-[11px] font-bold text-[#B8641A] transition hover:border-[#D4B896] hover:bg-[#FDE9C9]"
             >
               <Edit size={12} />
               {actionLabel}
             </button>
           ) : null}
         </div>
-        <p className="mt-1 break-words text-[15px] font-bold text-[#2C1A0E] sm:text-[16px]">{value}</p>
-        {meta ? <p className="mt-1 text-xs font-medium text-[#8B7355]">{meta}</p> : null}
+        {addressLines && addressLines.length > 0 ? (
+          <div className="mt-1.5 space-y-0.5">
+            {addressLines.map((line, i) => (
+              <p
+                key={i}
+                className={`break-words leading-snug text-[#2C1A0E] ${
+                  i === 0
+                    ? "text-[15px] font-bold sm:text-[16px]"
+                    : i === addressLines.length - 1
+                    ? "text-[13px] font-medium text-[#6E5232]"
+                    : "text-[13px] font-semibold"
+                }`}
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-1 break-words text-[15px] font-bold text-[#2C1A0E] sm:text-[16px]">{value}</p>
+        )}
+        {meta ? <p className="mt-1.5 text-xs font-medium text-[#8B7355]">{meta}</p> : null}
       </div>
     </div>
   </div>

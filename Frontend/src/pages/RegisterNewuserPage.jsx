@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import dairyImage from "../assets/dairyproduct.jpg";
 import { useGeolocationAutoRetry } from "../hooks/useGeolocationAutoRetry.js";
+import PropertyHierarchySelector from "../components/common/PropertyHierarchySelector.jsx";
 
 const headingFont = { fontFamily: "'Lora', serif" };
 const DEFAULT_MAP_CENTER = [18.5204, 73.8567];
@@ -71,8 +72,18 @@ const CustomerRegister = () => {
     phoneNumber: "",
     addressLine1: "",
     addressLine2: "",
+    propertyId: null,
+    propertyName: "",
+    buildingId: null,
     buildingName: "",
+    hasWing: false,
+    wingId: null,
     wing: "",
+    floorId: null,
+    floorName: "",
+    unitId: null,
+    unitType: "Flat",
+    unitNumber: "",
     roomNo: "",
     latitude: null,
     longitude: null,
@@ -106,8 +117,10 @@ const CustomerRegister = () => {
   };
 
   const validateStep2 = () => {
-    if (!formData.addressLine1.trim()) return "Please enter Address Line 1";
-    if (!formData.roomNo.trim()) return "Room No is required";
+    if (!formData.addressLine1.trim()) return "Please enter Address Line 1 / Street";
+    if (!formData.floorName?.trim()) return "Please select or enter your Floor";
+    const effectiveRoom = formData.unitNumber?.trim() || formData.roomNo?.trim();
+    if (!effectiveRoom) return "Unit / Flat / Room number is required";
     return null;
   };
 
@@ -572,69 +585,53 @@ const CustomerRegister = () => {
             {currentStep === 2 && (
               <div className="animate-in fade-in slide-in-from-right-4 space-y-4">
                 <div>
-                  <label className={labelClassName}>Address Line 1</label>
+                  <label className={labelClassName}>Street / Area / Landmark (Line 1)</label>
                   <input
                     type="text"
                     name="addressLine1"
                     value={formData.addressLine1}
                     onChange={handleChange}
-                    placeholder="Flat / house / street"
+                    placeholder="Street name, colony road, nearby landmark"
                     className={inputClassName}
                     autoFocus
                   />
                 </div>
 
                 <div>
-                  <label className={labelClassName}>Address Line 2 (Opt)</label>
+                  <label className={labelClassName}>Additional Directions (Line 2 - Opt)</label>
                   <input
                     type="text"
                     name="addressLine2"
                     value={formData.addressLine2}
                     onChange={handleChange}
-                    placeholder="Area / landmark"
+                    placeholder="Gate number, specific delivery note"
                     className={inputClassName}
                   />
                 </div>
 
-                <div>
-                  <label className={labelClassName}>Building Name</label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-3.5 text-[#A88763]" size={18} />
-                    <input
-                      type="text"
-                      name="buildingName"
-                      value={formData.buildingName}
-                      onChange={handleChange}
-                      placeholder="Galaxy Apartments"
-                      className={`pl-10 ${inputClassName}`}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className={labelClassName}>Wing (Opt)</label>
-                    <input
-                      type="text"
-                      name="wing"
-                      value={formData.wing}
-                      onChange={handleChange}
-                      placeholder="A"
-                      className={inputClassName}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClassName}>Room No</label>
-                    <input
-                      type="text"
-                      name="roomNo"
-                      value={formData.roomNo}
-                      onChange={handleChange}
-                      placeholder="101"
-                      className={inputClassName}
-                    />
-                  </div>
-                </div>
+                {/* Explicit Property -> Building -> Wing -> Floor -> Unit Hierarchy */}
+                <PropertyHierarchySelector
+                  value={formData}
+                  onChange={(hierarchy) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      ...hierarchy,
+                      propertyId: hierarchy.property_id,
+                      propertyName: hierarchy.property_name,
+                      buildingId: hierarchy.building_id,
+                      buildingName: hierarchy.building_name,
+                      hasWing: hierarchy.has_wing,
+                      wingId: hierarchy.wing_id,
+                      wing: hierarchy.wing,
+                      floorId: hierarchy.floor_id,
+                      floorName: hierarchy.floor_name,
+                      unitId: hierarchy.unit_id,
+                      unitType: hierarchy.unit_type,
+                      unitNumber: hierarchy.unit_number,
+                      roomNo: hierarchy.unit_number,
+                    }));
+                  }}
+                />
 
                 <div className="mt-6 flex gap-3">
                   <button

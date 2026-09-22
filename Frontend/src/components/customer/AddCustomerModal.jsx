@@ -11,13 +11,25 @@ import {
   X,
 } from "lucide-react";
 import { useTheme } from "../admin/adminTheme";
+import PropertyHierarchySelector from "../common/PropertyHierarchySelector.jsx";
 
 const initialFormData = {
   customerName: "",
   email: "",
   phoneNumber: "",
+  addressLine1: "",
+  propertyId: null,
+  propertyName: "",
+  buildingId: null,
   buildingName: "",
+  hasWing: false,
+  wingId: null,
   wing: "",
+  floorId: null,
+  floorName: "",
+  unitId: null,
+  unitType: "Flat",
+  unitNumber: "",
   roomNo: "",
   defaultMilkQuantityLiters: 1.0,
   billingCycle: "Monthly",
@@ -203,46 +215,29 @@ export default function AddCustomerModal({ open, onClose, onCreated }) {
 
             {currentStep === 2 && (
               <div className="space-y-4">
-                <div>
-                  <label className={labelClass}>Building Name</label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" size={18} />
-                    <input
-                      type="text"
-                      name="buildingName"
-                      value={formData.buildingName}
-                      onChange={handleChange}
-                      placeholder="Galaxy Apartments"
-                      className={iconFieldClass}
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelClass}>Wing (Opt)</label>
-                    <input
-                      type="text"
-                      name="wing"
-                      value={formData.wing}
-                      onChange={handleChange}
-                      placeholder="A"
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Room No</label>
-                    <input
-                      type="text"
-                      name="roomNo"
-                      value={formData.roomNo}
-                      onChange={handleChange}
-                      placeholder="101"
-                      className={fieldClass}
-                    />
-                  </div>
-                </div>
+                <PropertyHierarchySelector
+                  value={formData}
+                  isDark={isDark}
+                  onChange={(hierarchy) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      ...hierarchy,
+                      propertyId: hierarchy.property_id,
+                      propertyName: hierarchy.property_name,
+                      buildingId: hierarchy.building_id,
+                      buildingName: hierarchy.building_name,
+                      hasWing: hierarchy.has_wing,
+                      wingId: hierarchy.wing_id,
+                      wing: hierarchy.wing,
+                      floorId: hierarchy.floor_id,
+                      floorName: hierarchy.floor_name,
+                      unitId: hierarchy.unit_id,
+                      unitType: hierarchy.unit_type,
+                      unitNumber: hierarchy.unit_number,
+                      roomNo: hierarchy.unit_number,
+                    }));
+                  }}
+                />
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
