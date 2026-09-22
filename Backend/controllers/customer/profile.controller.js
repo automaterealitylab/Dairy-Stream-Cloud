@@ -5,6 +5,7 @@ import {
 import cloudinary from "../../config/cloudinary.js";
 import { supabase } from "../../config/supabase.js";
 import streamifier from "streamifier";
+import { resolveOrCreateCustomerHierarchy } from "../../services/propertyHierarchy/propertyHierarchy.service.js";
 
 const uploadFromBuffer = (fileBuffer) =>
   new Promise((resolve, reject) => {
@@ -123,17 +124,71 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ message: "Password updates not allowed here" });
     }
 
+    // Resolve hierarchy if any hierarchy fields provided
+    let hierarchy = null;
+    const hasHierarchyInput = Boolean(
+      req.body.property_id || req.body.propertyId ||
+      req.body.property_name || req.body.propertyName ||
+      req.body.building_id || req.body.buildingId ||
+      req.body.building_name || req.body.buildingName ||
+      req.body.floor_id || req.body.floorId ||
+      req.body.floor_name || req.body.floorName ||
+      req.body.unit_id || req.body.unitId ||
+      req.body.unit_number || req.body.unitNumber
+    );
+
+    if (hasHierarchyInput) {
+      try {
+        hierarchy = await resolveOrCreateCustomerHierarchy({
+          propertyId: req.body.property_id || req.body.propertyId || null,
+          propertyName: req.body.property_name || req.body.propertyName || "",
+          buildingId: req.body.building_id || req.body.buildingId || null,
+          buildingName: req.body.building_name || req.body.buildingName || req.body.building || "",
+          hasWing: Boolean(
+            (req.body.has_wing ?? req.body.hasWing) ??
+            (req.body.wing || req.body.wing_name || req.body.wingName)
+          ),
+          wingId: req.body.wing_id || req.body.wingId || null,
+          wingName: req.body.wing_name || req.body.wingName || req.body.wing || "",
+          floorId: req.body.floor_id || req.body.floorId || null,
+          floorName: req.body.floor_name || req.body.floorName || "",
+          unitId: req.body.unit_id || req.body.unitId || null,
+          unitType: req.body.unit_type || req.body.unitType || "Flat",
+          unitNumber: req.body.unit_number || req.body.unitNumber || req.body.room_no || req.body.roomNo || "",
+          address: [req.body.address_line_1 || req.body.addressLine1, req.body.address_line_2 || req.body.addressLine2].filter(Boolean).join(", "),
+          latitude: parseCoordinate(req.body.latitude),
+          longitude: parseCoordinate(req.body.longitude),
+        });
+      } catch (hErr) {
+        console.warn("Property hierarchy resolution in profile update fallback:", hErr?.message || hErr);
+      }
+    }
+
+    const resolvedBuildingName = hierarchy?.buildingName || (req.body.building_name ?? req.body.buildingName);
+    const resolvedWing = hierarchy ? hierarchy.wingName : req.body.wing;
+    const resolvedRoomNo = hierarchy?.unitNumber || ((req.body.room_no ?? req.body.roomNo) || (req.body.unit_number ?? req.body.unitNumber));
+
     const allowedPayload = {
       customer_name: req.body.customer_name ?? req.body.name,
       email: req.body.email,
       phone_number: req.body.phone_number ?? req.body.phone,
       address_line_1: req.body.address_line_1 ?? req.body.addressLine1,
       address_line_2: req.body.address_line_2 ?? req.body.addressLine2,
-      building_name: req.body.building_name ?? req.body.buildingName,
-      wing: req.body.wing,
-      room_no: req.body.room_no ?? req.body.roomNo,
+      building_name: resolvedBuildingName,
+      wing: resolvedWing,
+      room_no: resolvedRoomNo,
       latitude: parseCoordinate(req.body.latitude),
       longitude: parseCoordinate(req.body.longitude),
+      // Hierarchy relational fields
+      property_id: hierarchy ? hierarchy.propertyId : (req.body.property_id ?? req.body.propertyId),
+      building_id: hierarchy ? hierarchy.buildingId : (req.body.building_id ?? req.body.buildingId),
+      wing_id: hierarchy ? hierarchy.wingId : (req.body.wing_id ?? req.body.wingId),
+      floor_id: hierarchy ? hierarchy.floorId : (req.body.floor_id ?? req.body.floorId),
+      unit_id: hierarchy ? hierarchy.unitId : (req.body.unit_id ?? req.body.unitId),
+      property_name: hierarchy ? hierarchy.propertyName : (req.body.property_name ?? req.body.propertyName),
+      floor_name: hierarchy ? hierarchy.floorName : (req.body.floor_name ?? req.body.floorName),
+      unit_type: hierarchy ? hierarchy.unitType : (req.body.unit_type ?? req.body.unitType),
+      unit_number: hierarchy ? hierarchy.unitNumber : (req.body.unit_number ?? req.body.unitNumber),
     };
 
     let profilePhotoUrl = null;
@@ -149,7 +204,7 @@ export const updateProfile = async (req, res) => {
 
     const payload = {};
     Object.entries(allowedPayload).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
+      if (value !== undefined) {
         payload[key] = value;
       }
     });
@@ -158,7 +213,23 @@ export const updateProfile = async (req, res) => {
       payload.profile_photo_url = profilePhotoUrl;
     }
 
-    const { data, error } = await updateCustomer(customerId, payload);
+    let { data, error } = await updateCustomer(customerId, payload);
+
+    // If update fails due to schema cache miss on new hierarchy columns, retry with legacy fields only
+    if (error && (String(error.message).includes("column") || String(error.message).includes("does not exist"))) {
+      console.warn("Retrying customer update without new hierarchy columns due to schema error:", error.message);
+      const legacyPayload = {};
+      const legacyAllowedKeys = [
+        "customer_name", "email", "phone_number", "address_line_1", "address_line_2",
+        "building_name", "wing", "room_no", "latitude", "longitude", "profile_photo_url"
+      ];
+      legacyAllowedKeys.forEach((key) => {
+        if (payload[key] !== undefined) legacyPayload[key] = payload[key];
+      });
+      const retry = await updateCustomer(customerId, legacyPayload);
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.error("Profile update Supabase error:", error);

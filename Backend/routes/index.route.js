@@ -8,6 +8,8 @@ import locationRoutes from './location.js';
 import superAdminRoutes from './superAdmin.routes.js';
 import { verifyToken } from '../middleware/auth.middleware.js';
 
+import propertyHierarchyRoutes from './propertyHierarchy.routes.js';
+
 const router = express.Router();
 
 // 1. Public Routes (Base: /api/public)
@@ -28,6 +30,9 @@ router.use('/super-admin', superAdminRoutes);
 // 5. Auth Routes (Base: /api/auth)
 // Rate limiting is applied per-route inside auth.routes.js to exempt /csrf
 router.use('/auth', authRoutes);
+
+// 6. Property Hierarchy Routes (Base: /api/property-hierarchy)
+router.use('/property-hierarchy', propertyHierarchyRoutes);
 
 
 

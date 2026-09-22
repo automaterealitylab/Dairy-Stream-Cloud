@@ -7,6 +7,8 @@ import { ensureIdentityIsUnique } from "./identityUniqueness.service.js"; // Reu
 import verifyEmail from "../../utils/verifyEmail.js";
 import { sendEmail } from "../../utils/email.js";
 import { encryptDeterministic, decryptDeterministic } from "../../utils/crypto.js";
+import { resolveOrCreateCustomerHierarchy } from "../propertyHierarchy/propertyHierarchy.service.js";
+import { logger } from "../../utils/logger.js";
 
 const normalizeIdentifier = (value) => String(value ?? "").trim();
 const normalizeEmail = (value) => (value || "").trim().toLowerCase();
@@ -144,29 +146,90 @@ export const registerCustomerService = async (payload) => {
   // 1. Check Uniqueness (Email and Phone must be unique)
   await ensureIdentityIsUnique({ email: normalizedEmail, phone: phoneNumber });
 
-  // 2. Insert into DB 
-  // We remove 'password' and 'profile_photo_url' from the insert object
-  const { data, error } = await supabase
+  // 2. Resolve or create property hierarchy if provided
+  let hierarchy = null;
+  try {
+    hierarchy = await resolveOrCreateCustomerHierarchy({
+      propertyId: payload.propertyId || payload.property_id || null,
+      propertyName: payload.propertyName || payload.property_name || "",
+      buildingId: payload.buildingId || payload.building_id || null,
+      buildingName: payload.buildingName || payload.building_name || buildingName || "",
+      hasWing: Boolean(
+        (payload.hasWing ?? payload.has_wing) ??
+        (payload.wing || payload.wingName || payload.wing_name)
+      ),
+      wingId: payload.wingId || payload.wing_id || null,
+      wingName: payload.wingName || payload.wing_name || payload.wing || wing || "",
+      floorId: payload.floorId || payload.floor_id || null,
+      floorName: payload.floorName || payload.floor_name || "",
+      unitId: payload.unitId || payload.unit_id || null,
+      unitType: payload.unitType || payload.unit_type || "Flat",
+      unitNumber: payload.unitNumber || payload.unit_number || roomNo || "",
+      address: [addressLine1, addressLine2].filter(Boolean).join(", "),
+      latitude,
+      longitude,
+    });
+  } catch (hErr) {
+    console.warn("Property hierarchy resolution in registration fallback:", hErr?.message || hErr);
+  }
+
+  // 3. Build insert object with dual-write (both new relational fields and legacy columns)
+  const resolvedRoomNo = hierarchy?.unitNumber || payload.unitNumber || payload.unit_number || roomNo;
+  const resolvedBuildingName = hierarchy?.buildingName || buildingName || null;
+  const resolvedWing = hierarchy?.wingName || wing || null;
+
+  const fullInsertPayload = {
+    customer_name: customerName,
+    email: encryptDeterministic(normalizedEmail),
+    phone_number: encryptDeterministic(phoneNumber),
+    address_line_1: String(addressLine1 || "").trim() || null,
+    address_line_2: String(addressLine2 || "").trim() || null,
+    building_name: resolvedBuildingName,
+    wing: resolvedWing,
+    room_no: resolvedRoomNo,
+    latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+    longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
+    default_milk_quantity_liters: defaultMilkQuantityLiters || 1,
+    billing_cycle: billingCycle || "Monthly",
+    // New relational hierarchy columns
+    property_id: hierarchy?.propertyId || null,
+    building_id: hierarchy?.buildingId || null,
+    wing_id: hierarchy?.wingId || null,
+    floor_id: hierarchy?.floorId || null,
+    unit_id: hierarchy?.unitId || null,
+    property_name: hierarchy?.propertyName || payload.propertyName || payload.property_name || null,
+    floor_name: hierarchy?.floorName || payload.floorName || payload.floor_name || null,
+    unit_type: hierarchy?.unitType || payload.unitType || payload.unit_type || "Flat",
+    unit_number: resolvedRoomNo || null,
+  };
+
+  let { data, error } = await supabase
     .from("customers")
-    .insert([
-      {
-        customer_name: customerName,
-        email: encryptDeterministic(normalizedEmail),
-        phone_number: encryptDeterministic(phoneNumber),
-        address_line_1: String(addressLine1 || "").trim() || null,
-        address_line_2: String(addressLine2 || "").trim() || null,
-        building_name: buildingName || null,
-        wing: wing || null,
-        room_no: roomNo,
-        latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
-        longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
-        // ✅ Password and Photo are omitted so they stay NULL in DB
-        default_milk_quantity_liters: defaultMilkQuantityLiters || 1,
-        billing_cycle: billingCycle || "Monthly",
-      },
-    ])
+    .insert([fullInsertPayload])
     .select()
     .single();
+
+  // If insert fails because new columns do not exist in DB yet, fallback gracefully to legacy columns only
+  if (error && isMissingRelationOrColumnError(error)) {
+    console.warn("Retrying customer insert without new hierarchy columns due to schema cache miss:", error.message);
+    const legacyPayload = {
+      customer_name: customerName,
+      email: encryptDeterministic(normalizedEmail),
+      phone_number: encryptDeterministic(phoneNumber),
+      address_line_1: String(addressLine1 || "").trim() || null,
+      address_line_2: String(addressLine2 || "").trim() || null,
+      building_name: resolvedBuildingName,
+      wing: resolvedWing,
+      room_no: resolvedRoomNo,
+      latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+      longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
+      default_milk_quantity_liters: defaultMilkQuantityLiters || 1,
+      billing_cycle: billingCycle || "Monthly",
+    };
+    const retry = await supabase.from("customers").insert([legacyPayload]).select().single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error("Supabase Error:", error.message);
@@ -241,17 +304,25 @@ export const loginWithPasswordService = async (emailOrPhone, password) => {
 // ==========================================
 
 const sendCustomerOtpEmail = async ({ customer, otp }) => {
+  const text = `Your DairyStream customer login OTP is: ${otp}\n\nThis OTP is valid for 5 minutes.\nIf you did not request this OTP, please ignore this email.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+      <h2 style="color: #2C1A0E; margin-top: 0;">DairyStream Verification</h2>
+      <p style="color: #555; font-size: 16px;">Your one-time password (OTP) for customer login is:</p>
+      <div style="background-color: #f8f4f0; padding: 12px 20px; border-radius: 6px; font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #B8641A; text-align: center; margin: 20px 0;">
+        ${otp}
+      </div>
+      <p style="color: #666; font-size: 14px;">This OTP is valid for <strong>5 minutes</strong>.</p>
+      <p style="color: #999; font-size: 12px; margin-top: 30px;">If you did not request this OTP, please ignore this email.</p>
+    </div>
+  `;
+
   await sendEmail({
     to: customer.email,
     subject: "DairyStream Customer Login OTP",
-    html: `
-      <p>Your OTP for customer login is:</p>
-      <h2>${otp}</h2>
-      <p>This OTP is valid for 5 minutes.</p>
-      <p>If you did not request this, please ignore this email.</p>
-    `,
+    text,
+    html,
   });
-
 };
 
 const setCustomerOtpRecord = async ({ identifier, dairyId, otp, expiresAt }) => {
@@ -333,6 +404,10 @@ export const generateCustomerOtp = async ({
     otp,
     expiresAt,
   });
+
+  if (String(process.env.NODE_ENV || "development").toLowerCase() !== "production") {
+    console.log(`[DEV OTP] Customer OTP for ${customer?.email || normalizedIdentifier}: ${otp}`);
+  }
 
   if (awaitDelivery) {
     await sendCustomerOtpEmail({ customer, otp });

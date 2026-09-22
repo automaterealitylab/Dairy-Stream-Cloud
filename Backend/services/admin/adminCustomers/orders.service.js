@@ -21,6 +21,7 @@ import {
 } from "./normalizers.js";
 import { fetchRowsByCandidateCustomerColumns, getCustomerDetails } from "./queries.service.js";
 import { assertCustomerBelongsToDairy } from "./validation.service.js";
+import { resolveOrCreateCustomerHierarchy } from "../../propertyHierarchy/propertyHierarchy.service.js";
 
 export const getAdminCustomers = async ({
   page = 1,
@@ -327,6 +328,46 @@ export const getCustomerBillDetails = async ({ customerId, dairyId = null }) => 
 
 export const updateCustomerById = async (customerId, updates, { dairyId = null } = {}) => {
   await assertCustomerBelongsToDairy(customerId, dairyId);
+
+  // If hierarchy fields are provided, resolve or create hierarchy nodes
+  let hierarchy = null;
+  const hasHierarchyInput = Boolean(
+    updates.property_id || updates.propertyId ||
+    updates.property_name || updates.propertyName ||
+    updates.building_id || updates.buildingId ||
+    updates.building_name || updates.buildingName ||
+    updates.floor_id || updates.floorId ||
+    updates.floor_name || updates.floorName ||
+    updates.unit_id || updates.unitId ||
+    updates.unit_number || updates.unitNumber
+  );
+
+  if (hasHierarchyInput) {
+    try {
+      hierarchy = await resolveOrCreateCustomerHierarchy({
+        propertyId: updates.property_id || updates.propertyId || null,
+        propertyName: updates.property_name || updates.propertyName || "",
+        buildingId: updates.building_id || updates.buildingId || null,
+        buildingName: updates.building_name || updates.buildingName || "",
+        hasWing: Boolean(
+          (updates.has_wing ?? updates.hasWing) ??
+          (updates.wing || updates.wing_name || updates.wingName)
+        ),
+        wingId: updates.wing_id || updates.wingId || null,
+        wingName: updates.wing_name || updates.wingName || updates.wing || "",
+        floorId: updates.floor_id || updates.floorId || null,
+        floorName: updates.floor_name || updates.floorName || "",
+        unitId: updates.unit_id || updates.unitId || null,
+        unitType: updates.unit_type || updates.unitType || "Flat",
+        unitNumber: updates.unit_number || updates.unitNumber || updates.room_no || updates.roomNo || "",
+        address: [updates.address_line_1, updates.address_line_2].filter(Boolean).join(", "),
+        dairyId,
+      });
+    } catch (hErr) {
+      console.warn("Property hierarchy resolution in admin update fallback:", hErr?.message || hErr);
+    }
+  }
+
   const allowed = [
     "customer_name",
     "phone_number",
@@ -334,6 +375,19 @@ export const updateCustomerById = async (customerId, updates, { dairyId = null }
     "building_name",
     "wing",
     "room_no",
+    "address_line_1",
+    "address_line_2",
+    "latitude",
+    "longitude",
+    "property_id",
+    "building_id",
+    "wing_id",
+    "floor_id",
+    "unit_id",
+    "property_name",
+    "floor_name",
+    "unit_type",
+    "unit_number",
   ];
 
   const payload = {};
@@ -347,12 +401,45 @@ export const updateCustomerById = async (customerId, updates, { dairyId = null }
     }
   }
 
-  const { data, error } = await supabase
+  // Dual-write hierarchy resolved attributes if resolved
+  if (hierarchy) {
+    if (hierarchy.propertyId) payload.property_id = hierarchy.propertyId;
+    if (hierarchy.propertyName) payload.property_name = hierarchy.propertyName;
+    if (hierarchy.buildingId) payload.building_id = hierarchy.buildingId;
+    if (hierarchy.buildingName) {
+      payload.building_name = hierarchy.buildingName;
+    }
+    payload.wing_id = hierarchy.wingId || null;
+    payload.wing = hierarchy.wingName || null;
+    if (hierarchy.floorId) payload.floor_id = hierarchy.floorId;
+    if (hierarchy.floorName) payload.floor_name = hierarchy.floorName;
+    if (hierarchy.unitId) payload.unit_id = hierarchy.unitId;
+    if (hierarchy.unitType) payload.unit_type = hierarchy.unitType;
+    if (hierarchy.unitNumber) {
+      payload.unit_number = hierarchy.unitNumber;
+      payload.room_no = hierarchy.unitNumber;
+    }
+  }
+
+  let { data, error } = await supabase
     .from("customers")
     .update(payload)
     .eq("id", customerId)
     .select("*")
     .single();
+
+  // Graceful fallback if new hierarchy columns are missing in database
+  if (error && (String(error.message).includes("column") || String(error.message).includes("does not exist"))) {
+    console.warn("Retrying admin customer update without new hierarchy columns:", error.message);
+    const legacyPayload = {};
+    const legacyKeys = ["customer_name", "phone_number", "email", "building_name", "wing", "room_no", "address_line_1", "address_line_2", "latitude", "longitude"];
+    legacyKeys.forEach((k) => {
+      if (payload[k] !== undefined) legacyPayload[k] = payload[k];
+    });
+    const retry = await supabase.from("customers").update(legacyPayload).eq("id", customerId).select("*").single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw error;
   if (data) {

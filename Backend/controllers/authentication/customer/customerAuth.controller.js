@@ -17,14 +17,15 @@ import { decryptDeterministic } from "../../../utils/crypto.js";
 export const addCustomerAuth = async (req, res) => {
   try {
     // 1. Extract Data from req.body (JSON)
-    const { customerName, email, phoneNumber, buildingName, roomNo } = req.body;
+    const { customerName, email, phoneNumber, buildingName, roomNo, unitNumber, unit_number } = req.body;
 
     // 2. Validate Required Fields
     // (Ensure these match what your frontend is sending)
-    if (!customerName || !phoneNumber || !roomNo) {
+    const effectiveRoomNo = roomNo || unitNumber || unit_number;
+    if (!customerName || !phoneNumber || !effectiveRoomNo) {
       return res.status(400).json({
         success: false,
-        message: "Customer Name, Phone Number, and Room No are required",
+        message: "Customer Name, Phone Number, and Room/Unit No are required",
       });
     }
 

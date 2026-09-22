@@ -309,9 +309,7 @@ export const buildLookupMaps = async (rows) => {
     customerIds.length
       ? supabase
           .from("customers")
-          .select(
-            "id, customer_name, phone_number, address_line_1, address_line_2, building_name, wing, room_no, latitude, longitude"
-          )
+          .select("*")
           .in("id", customerIds)
       : Promise.resolve({ data: [], error: null }),
     dairyIds.length
