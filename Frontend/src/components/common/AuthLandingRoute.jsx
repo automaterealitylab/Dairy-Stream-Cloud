@@ -1,7 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth.jsx";
 import LoadingIndicator from "./LoadingIndicator.jsx";
+
+import LoginPage from "../../pages/LoginPage.jsx";
+
+const RouteReadyNotifier = ({ onReady }) => {
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
+  return null;
+};
 
 const getRoleHomePath = (role) => {
   const normalizedRole = String(role || "").toUpperCase();
@@ -12,25 +21,31 @@ const getRoleHomePath = (role) => {
   return null;
 };
 
-const AuthLandingRoute = () => {
+const AuthLandingRoute = ({ onReady }) => {
   const { user, loading } = useAuth();
+
+  const role = user?.role || localStorage.getItem("userRole");
+  const homePath = getRoleHomePath(role);
+
+  useEffect(() => {
+    if (!loading && homePath) {
+      onReady?.();
+    }
+  }, [loading, homePath, onReady]);
 
   if (loading) {
     return <LoadingIndicator fullScreen message="Restoring session..." />;
   }
 
-  const role = user?.role || localStorage.getItem("userRole");
-  const homePath = getRoleHomePath(role);
-
   if (homePath) {
     return <Navigate to={homePath} replace />;
   }
 
-  const LoginPage = React.lazy(() => import("../../pages/LoginPage.jsx"));
   return (
-    <React.Suspense fallback={<LoadingIndicator fullScreen message="Loading..." />}>
+    <>
       <LoginPage />
-    </React.Suspense>
+      <RouteReadyNotifier onReady={onReady} />
+    </>
   );
 };
 

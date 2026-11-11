@@ -5,7 +5,7 @@ const AppSplash = () => {
   return (
     <motion.div
       initial={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.4, ease: "easeInOut" } }}
+      exit={{ opacity: 0, transition: { duration: 0.1, ease: "easeOut" } }}
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFDF8] via-[#FAF6EE] to-[#F3EDE2] dark:from-[#121212] dark:via-[#171717] dark:to-[#0F0F0F] text-[#2C1A0E] dark:text-[#F3EDE2]"
     >
       <div className="relative flex flex-col items-center justify-center">
@@ -31,7 +31,7 @@ const AppSplash = () => {
           className="relative flex h-32 w-32 items-center justify-center rounded-[32px] border border-[#EDE8DF] dark:border-white/10 bg-white dark:bg-[#1E1E1E] p-4 shadow-[0_22px_45px_rgba(92,61,30,0.08)] dark:shadow-[0_22px_45px_rgba(0,0,0,0.4)]"
         >
           <motion.img
-            src="/favicon.png"
+            src="/favicon.svg"
             alt="DairyVision Logo"
             className="h-full w-full object-contain"
             animate={{

@@ -7,15 +7,80 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      includeAssets: ["favicon.svg", "favicon-32x32.png", "apple-touch-icon.png"],
       workbox: {
-        // Avoid precaching every route chunk on first load.
-        // The previous default Workbox behavior was pulling most built JS files
-        // in the background, which is why the login page showed requests for
-        // admin/customer/agent bundles in the network tab.
+        // Avoid precaching heavy assets on first load:
+        // Product images and screenshots are excluded from precache and moved to runtime caching.
         globPatterns: ["**/*.{html,css,ico,png,svg,webmanifest}"],
-        globIgnores: ["**/assets/dairyproduct-*.png"],
+        globIgnores: [
+          "**/screenshots/**",
+          "**/images/products/**",
+          "**/assets/dairyproduct-*.png",
+          "**/*.bak",
+        ],
         cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            // Runtime cache for product catalog images (e.g. /images/products/milk.png)
+            urlPattern: /\/images\/products\/.*\.(?:png|jpg|jpeg|svg|webp)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "product-images-cache",
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            // Runtime cache for dashboard screenshots (on-demand PWA preview)
+            urlPattern: /\/screenshots\/.*\.(?:png|jpg|jpeg|webp)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "screenshots-cache",
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            // Runtime cache for Google Fonts stylesheets and webfonts
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-cache",
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            // Runtime cache for route JS chunks visited by users (enables offline agent navigation)
+            urlPattern: /\/assets\/.*\.js$/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "app-js-chunks-cache",
+              expiration: {
+                maxEntries: 60,
+                maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
       },
       manifest: {
         name: "DairyVision",

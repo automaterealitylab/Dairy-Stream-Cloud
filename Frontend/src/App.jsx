@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect, useCallback } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
@@ -10,7 +10,7 @@ import NetworkErrorScreen, { useNetworkStatus } from "./components/common/Networ
 import RouteErrorBoundary from "./components/common/RouteErrorBoundary.jsx";
 import AuthLandingRoute from "./components/common/AuthLandingRoute.jsx";
 import useBackButtonHandler from "./hooks/useBackButtonHandler.js";
-const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
+import { useAuth } from "./hooks/useAuth.jsx";
 const RegisterNewuserPage = lazy(() => import("./pages/RegisterNewuserPage.jsx"));
 const RegisterDairyPage = lazy(() => import("./pages/RegisterDairyPage.jsx"));
 const ExploreDairiesPage = lazy(() => import("./pages/public/ExploreDairiesPage.jsx"));
@@ -62,7 +62,8 @@ const isAgentOfflineCapablePath = (pathname) =>
   /^\/agent\/(dashboard|working)(\/|$)/.test(pathname);
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
+  const { loading: authLoading } = useAuth();
+  const [isAppReady, setIsAppReady] = useState(false);
   const { isOnline, verifyConnection } = useNetworkStatus();
   const location = useLocation();
   const canRenderOffline = isAgentOfflineCapablePath(location.pathname);
@@ -70,12 +71,16 @@ function App() {
   // Initialize custom back button behavior
   useBackButtonHandler();
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+  const handleRouteReady = useCallback(() => {
+    setIsAppReady(true);
   }, []);
+
+  useEffect(() => {
+    // For non-root routes (e.g. /explore, /customer/dashboard), release splash once auth check completes
+    if (!authLoading && location.pathname !== "/") {
+      setIsAppReady(true);
+    }
+  }, [authLoading, location.pathname]);
 
   if (!isOnline && !canRenderOffline) {
     return <NetworkErrorScreen onRetry={verifyConnection} />;
@@ -84,13 +89,13 @@ function App() {
   return (
     <>
       <AnimatePresence mode="wait">
-        {isLoading && <AppSplash />}
+        {!isAppReady && <AppSplash />}
       </AnimatePresence>
 
       <RouteErrorBoundary resetKey={`${location.pathname}:${isOnline ? "online" : "offline"}`} fallback={<NetworkErrorScreen onRetry={verifyConnection} />}>
         <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<AuthLandingRoute />} />
+          <Route path="/" element={<AuthLandingRoute onReady={handleRouteReady} />} />
           <Route path="/explore" element={<ExploreDairiesPage />} />
           <Route path="/join/:id" element={<DairyDetailsPage />} />
           <Route path="/buy-once/:id" element={<BuyOncePage />} />

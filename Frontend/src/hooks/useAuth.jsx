@@ -24,7 +24,11 @@ const isTokenExpired = (token) => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === "undefined") return false;
+    // If no session exists in localStorage, start with loading=false to avoid blocking public login rendering
+    return Boolean(localStorage.getItem("user"));
+  });
 
   useEffect(() => {
     const isValidatedSession = (response) => {

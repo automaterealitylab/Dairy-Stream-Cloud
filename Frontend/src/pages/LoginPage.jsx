@@ -7,7 +7,7 @@ import {
   Loader2, User, AlertCircle, ArrowRight
 } from "lucide-react";
 
-import dairyImage from "../assets/dairyproduct.jpg";
+import dairyImage from "../assets/dairyproduct-badge.jpg";
 
 // 🔗 BACKEND API
 import {
@@ -494,8 +494,8 @@ const LoginPage = () => {
             <img
               src={dairyImage}
               alt="Dairy"
-              width="1600"
-              height="1080"
+              width="300"
+              height="202"
               fetchPriority="high"
               decoding="async"
               className="h-16 w-auto mx-auto mb-4 object-contain"
