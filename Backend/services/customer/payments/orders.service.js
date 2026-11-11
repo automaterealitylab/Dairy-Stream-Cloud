@@ -27,6 +27,7 @@ import {
   getEffectivePaymentAmount,
   getPaymentMonthKey,
   isDirectCheckoutCustomerPaymentRow,
+  isMonthlyBillPaymentRow,
   isValidUpiId,
   isOutstandingCustomerPaymentRow,
   isVisibleCustomerPaymentRow,
@@ -1069,18 +1070,25 @@ export const payCustomerBillWithWallet = async ({
   payAll = false,
   includeRunningDue = true,
   dairyId = null,
+  idempotencyKey = null,
 }) => {
   const resolvedDairyId = await resolveCustomerDairyId(customerId, dairyId);
   let amountInRupees = 0;
   let paymentsToPay = [];
+  let isRunningDuePay = false;
+  let runningDueAmount = 0;
+  const currentMonthKey = getCurrentMonthKey();
 
   const { payments: pendingPayments, customerColumn } = await getEligiblePendingPaymentsForCustomer(
     customerId,
     resolvedDairyId
   );
 
+  const hasCurrentMonthPendingBill = pendingPayments.some(
+    (row) => getPaymentMonthKey(row) === currentMonthKey
+  );
+
   if (payAll) {
-    const currentMonthKey = getCurrentMonthKey();
     const historicalPendingAmount = pendingPayments.reduce((sum, row) => {
       return getPaymentMonthKey(row) === currentMonthKey
         ? sum
@@ -1095,14 +1103,18 @@ export const payCustomerBillWithWallet = async ({
     const runningDueData = includeRunningDue
       ? await getCurrentMonthSuccessfulSubscriptionDue(customerId, effectiveDairyId)
       : null;
-    const runningDueAmount = includeRunningDue
+    runningDueAmount = includeRunningDue
       ? Number(runningDueData?.payableTillDate || 0)
       : 0;
 
-    amountInRupees = historicalPendingAmount + Math.max(currentMonthPendingAmount, runningDueAmount);
+    amountInRupees = Number((historicalPendingAmount + Math.max(currentMonthPendingAmount, runningDueAmount)).toFixed(2));
 
     if (!pendingPayments.length && runningDueAmount <= 0) {
       throw new Error("No pending payment found");
+    }
+
+    if (runningDueAmount > 0 && !hasCurrentMonthPendingBill) {
+      isRunningDuePay = true;
     }
 
     paymentsToPay = pendingPayments;
@@ -1123,21 +1135,246 @@ export const payCustomerBillWithWallet = async ({
     throw new Error("Insufficient wallet balance");
   }
 
+  // 1. If settling running due via payAll without prior pending bills: Execute PostgreSQL Atomic RPC
+  if (isRunningDuePay && !paymentsToPay.length) {
+    const fallbackKey = `wallet_pay_${customerId}_${resolvedDairyId}_${currentMonthKey}_${crypto.randomUUID()}`;
+    const effectiveIdempotencyKey = String(idempotencyKey || fallbackKey).slice(0, 160);
+    const description = buildCurrentMonthBillDescription(currentMonthKey);
+
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      "execute_customer_wallet_payment",
+      {
+        p_customer_id: customerId,
+        p_dairy_id: resolvedDairyId,
+        p_amount: amountInRupees,
+        p_month_key: currentMonthKey,
+        p_idempotency_key: effectiveIdempotencyKey,
+        p_description: description,
+      }
+    );
+
+    if (rpcError) {
+      throw new Error(rpcError.message || "Wallet payment transaction failed");
+    }
+
+    try {
+      await syncCustomerMonthlyBills(customerId);
+    } catch (syncErr) {
+      console.error("[POST-WALLET SYNC WARNING]", syncErr.message);
+    }
+
+    return {
+      success: true,
+      alreadyProcessed: Boolean(rpcResult?.already_processed),
+      amount: amountInRupees,
+      previousWalletBalance: rpcResult?.previous_wallet_balance,
+      walletBalance: rpcResult?.wallet_balance,
+    };
+  }
+
+  // 1b. If settling a single existing [MONTHLY_BILL] payment row (historical overdue or
+  //     current-month pending): also use the atomic RPC, but derive p_month_key and
+  //     description from the ACTUAL payment row's billing month — not currentMonthKey.
+  //
+  //     Example: June 2026 bill (payment ID 177, billing_month=2026-06) paid in September 2026.
+  //     → p_month_key = '2026-06'  (derived from the payment row)
+  //     → NOT '2026-09'            (current calendar month)
+  //
+  //     This keeps the settlement atomic AND correctly associates it with the bill's
+  //     own billing period for syncCustomerMonthlyBills recognition.
+  const isSingleMonthlyBillPay =
+    !payAll &&
+    paymentsToPay.length === 1 &&
+    isMonthlyBillPaymentRow(paymentsToPay[0]);
+
+  if (isSingleMonthlyBillPay) {
+    const singlePayment = paymentsToPay[0];
+    // Derive billing month from the payment row itself — covers both historical and current-month bills.
+    const billMonthKey = getPaymentMonthKey(singlePayment) || currentMonthKey;
+    const fallbackKey = `wallet_pay_${customerId}_${resolvedDairyId}_${billMonthKey}_${crypto.randomUUID()}`;
+    const effectiveIdempotencyKey = String(idempotencyKey || fallbackKey).slice(0, 160);
+    // Build description referencing the bill's own month so syncCustomerMonthlyBills
+    // identifies it as a PAID settlement for the correct billing period.
+    const description = buildCurrentMonthBillDescription(billMonthKey);
+
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      "execute_customer_wallet_payment",
+      {
+        p_customer_id: customerId,
+        p_dairy_id: resolvedDairyId,
+        p_amount: amountInRupees,
+        p_month_key: billMonthKey,
+        p_idempotency_key: effectiveIdempotencyKey,
+        p_description: description,
+      }
+    );
+
+    if (rpcError) {
+      throw new Error(rpcError.message || "Wallet payment transaction failed");
+    }
+
+    // Mark the existing payment row as PAID (status update only — wallet already debited atomically).
+    if (customerColumn) {
+      const paidAtIso = new Date().toISOString();
+      const payloadVariants = buildPaidUpdatePayloadVariants({
+        paymentMethod: "WALLET",
+        paidAtIso,
+        razorpayOrderId: null,
+        razorpayPaymentId: null,
+        razorpaySignature: null,
+      });
+      const { totalAmount } = getEffectivePaymentAmount(singlePayment);
+      await updatePaymentsWithFallbacks({
+        customerColumn,
+        customerId,
+        dairyId: resolvedDairyId,
+        paymentId: singlePayment.id,
+        payloadVariants: payloadVariants.map((p) => ({ ...p, amount: totalAmount })),
+      });
+    }
+
+    try {
+      await syncCustomerMonthlyBills(customerId);
+    } catch (syncErr) {
+      console.error("[POST-WALLET SYNC WARNING]", syncErr.message);
+    }
+
+    return {
+      success: true,
+      alreadyProcessed: Boolean(rpcResult?.already_processed),
+      amount: amountInRupees,
+      previousWalletBalance: rpcResult?.previous_wallet_balance,
+      walletBalance: rpcResult?.wallet_balance,
+    };
+  }
+
+  // 2. For non-monthly-bill payments (one-time orders, mixed payAll, etc.)
   const walletUpdate = await debitCustomerWalletBalance({ customerId, amount: amountInRupees });
 
-  const paidAtIso = new Date().toISOString();
-  const payloadVariants = buildPaidUpdatePayloadVariants({
-    paymentMethod: "WALLET",
-    paidAtIso,
-    razorpayOrderId: null,
-    razorpayPaymentId: null,
-    razorpaySignature: null,
-  });
+  try {
+    const paidAtIso = new Date().toISOString();
+    const payloadVariants = buildPaidUpdatePayloadVariants({
+      paymentMethod: "WALLET",
+      paidAtIso,
+      razorpayOrderId: null,
+      razorpayPaymentId: null,
+      razorpaySignature: null,
+    });
 
-  if (payAll) {
-    if (paymentsToPay.length && customerColumn) {
-      for (const row of paymentsToPay) {
-        const { totalAmount } = getEffectivePaymentAmount(row);
+    if (payAll) {
+      if (paymentsToPay.length && customerColumn) {
+        for (const row of paymentsToPay) {
+          const { totalAmount } = getEffectivePaymentAmount(row);
+          const payloadVariantsWithAmount = payloadVariants.map((payload) => ({
+            ...payload,
+            amount: totalAmount,
+          }));
+          await updatePaymentsWithFallbacks({
+            customerColumn,
+            customerId,
+            dairyId: resolvedDairyId,
+            paymentId: row.id,
+            payloadVariants: payloadVariantsWithAmount,
+          });
+
+          await writeSettlementLedgerEntry({
+            paymentId: row.id,
+            dairyId: resolvedDairyId,
+            amount: totalAmount,
+            status: "PENDING",
+            metadata: { paid_via: "WALLET", pay_all: true },
+          });
+
+          const deliveryIds = parseDeliveryIdsFromDescription(row.description);
+          if (deliveryIds.length > 0) {
+            await supabase
+              .from("deliveries")
+              .update({ approval_status: "PENDING" })
+              .in("id", deliveryIds)
+              .eq("approval_status", "PENDING_PAYMENT");
+          }
+        }
+      }
+
+      if (isRunningDuePay && runningDueAmount > 0) {
+        const description = buildCurrentMonthBillDescription(currentMonthKey);
+        const paidRowPayload = {
+          customer_id: customerId,
+          dairy_id: resolvedDairyId,
+          amount: Number(runningDueAmount.toFixed(2)),
+          status: "PAID",
+          method: "WALLET",
+          description,
+          billing_month: currentMonthKey,
+          due_date: getLocalTodayIso(),
+          paid_at: paidAtIso,
+          idempotency_key: idempotencyKey ? String(idempotencyKey).slice(0, 160) : null,
+        };
+
+        const payloadVariantsForInsert = [
+          paidRowPayload,
+          {
+            ...paidRowPayload,
+            method: undefined,
+            payment_method: "WALLET",
+            paid_at: undefined,
+            payment_date: paidAtIso,
+          },
+          {
+            customer_id: customerId,
+            dairy_id: resolvedDairyId,
+            amount: Number(runningDueAmount.toFixed(2)),
+            status: "PAID",
+            description,
+            billing_month: currentMonthKey,
+            due_date: getLocalTodayIso(),
+          },
+        ];
+
+        let lastMissingColumnError = null;
+        let insertedPayment = null;
+        for (const variant of payloadVariantsForInsert) {
+          const cleanPayload = Object.fromEntries(
+            Object.entries(variant).filter(([, value]) => value !== undefined)
+          );
+          const { data, error } = await supabase
+            .from("payments")
+            .insert(cleanPayload)
+            .select("id")
+            .maybeSingle();
+          if (!error) {
+            insertedPayment = data;
+            break;
+          }
+          if (isMissingColumnError(error)) {
+            lastMissingColumnError = error;
+            continue;
+          }
+          throw error;
+        }
+
+        if (!insertedPayment && lastMissingColumnError) {
+          throw lastMissingColumnError;
+        }
+
+        await writeSettlementLedgerEntry({
+          paymentId: insertedPayment?.id || null,
+          dairyId: resolvedDairyId,
+          amount: Number(runningDueAmount.toFixed(2)),
+          status: "PENDING",
+          metadata: { paid_via: "WALLET", pay_all: true, is_running_due: true },
+        });
+      }
+
+      try {
+        await syncCustomerMonthlyBills(customerId);
+      } catch (syncErr) {
+        console.error("[POST-WALLET SYNC WARNING]", syncErr.message);
+      }
+    } else {
+      const singlePayment = paymentsToPay[0];
+      if (singlePayment && customerColumn) {
+        const { totalAmount } = getEffectivePaymentAmount(singlePayment);
         const payloadVariantsWithAmount = payloadVariants.map((payload) => ({
           ...payload,
           amount: totalAmount,
@@ -1146,58 +1383,52 @@ export const payCustomerBillWithWallet = async ({
           customerColumn,
           customerId,
           dairyId: resolvedDairyId,
-          paymentId: row.id,
+          paymentId: singlePayment.id,
           payloadVariants: payloadVariantsWithAmount,
         });
 
         await writeSettlementLedgerEntry({
-          paymentId: row.id,
+          paymentId: singlePayment.id,
           dairyId: resolvedDairyId,
           amount: totalAmount,
           status: "PENDING",
-          metadata: { paid_via: "WALLET", pay_all: true },
+          metadata: { paid_via: "WALLET" },
         });
+
+        const deliveryIds = parseDeliveryIdsFromDescription(singlePayment.description);
+        if (deliveryIds.length > 0) {
+          await supabase
+            .from("deliveries")
+            .update({ approval_status: "PENDING" })
+            .in("id", deliveryIds)
+            .eq("approval_status", "PENDING_PAYMENT");
+        }
+
+        try {
+          await syncCustomerMonthlyBills(customerId);
+        } catch (syncErr) {
+          console.error("[POST-WALLET SYNC WARNING]", syncErr.message);
+        }
       }
     }
-  } else {
-    const singlePayment = paymentsToPay[0];
-    if (singlePayment && customerColumn) {
-      const { totalAmount } = getEffectivePaymentAmount(singlePayment);
-      const payloadVariantsWithAmount = payloadVariants.map((payload) => ({
-        ...payload,
-        amount: totalAmount,
-      }));
-      await updatePaymentsWithFallbacks({
-        customerColumn,
-        customerId,
-        dairyId: resolvedDairyId,
-        paymentId: singlePayment.id,
-        payloadVariants: payloadVariantsWithAmount,
-      });
 
-      await writeSettlementLedgerEntry({
-        paymentId: singlePayment.id,
-        dairyId: resolvedDairyId,
-        amount: totalAmount,
-        status: "PENDING",
-        metadata: { paid_via: "WALLET" },
-      });
-    }
+    await createWalletLedgerEntry({
+      customerId,
+      dairyId: resolvedDairyId,
+      amount: amountInRupees,
+      method: "WALLET",
+      description: `[WALLET_DEBIT_CUSTOMER] paid bills with wallet; amount=${amountInRupees}`,
+      paidAtIso,
+    });
+
+    return {
+      success: true,
+      amount: amountInRupees,
+      previousWalletBalance: walletUpdate.previousWalletBalance,
+      walletBalance: walletUpdate.walletBalance,
+    };
+  } catch (error) {
+    console.error("[WALLET SETTLEMENT ERROR]", error);
+    throw error;
   }
-
-  await createWalletLedgerEntry({
-    customerId,
-    dairyId: resolvedDairyId,
-    amount: amountInRupees,
-    method: "WALLET",
-    description: `[WALLET_DEBIT_CUSTOMER] paid bills with wallet; amount=${amountInRupees}`,
-    paidAtIso,
-  });
-
-  return {
-    success: true,
-    amount: amountInRupees,
-    previousWalletBalance: walletUpdate.previousWalletBalance,
-    walletBalance: walletUpdate.walletBalance,
-  };
 };

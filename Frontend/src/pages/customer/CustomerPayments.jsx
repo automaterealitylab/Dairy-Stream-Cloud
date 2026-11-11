@@ -141,7 +141,16 @@ export default function Payments() {
       return;
     }
 
-    const target = { payment, payAll };
+    if (
+      typeof crypto === "undefined" ||
+      typeof crypto.randomUUID !== "function"
+    ) {
+      throw new Error("Secure payment idempotency key generation is unavailable");
+    }
+
+    const idempotencyKey = `wallet_pay_${crypto.randomUUID()}`;
+
+    const target = { payment, payAll, idempotencyKey };
     const paymentAmount = payAll ? totalPayableAmount : Number(payment?.amount || 0);
     const hasSufficientWallet = Number(summary.walletBalance || 0) >= paymentAmount && paymentAmount > 0;
 
@@ -291,9 +300,11 @@ export default function Payments() {
     setError(null);
 
     try {
-      await payCustomerBillWithWallet(
-        payAll ? { payAll: true, includeRunningDue: false } : { paymentId: payment.id }
-      );
+      const payload = payAll || !payment?.id || String(payment.id).startsWith("payment-")
+        ? { payAll: true, includeRunningDue: true, idempotencyKey: target.idempotencyKey }
+        : { paymentId: payment.id, includeRunningDue: true, idempotencyKey: target.idempotencyKey };
+
+      await payCustomerBillWithWallet(payload);
       await loadPayments({ force: true });
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Wallet payment failed.");
@@ -522,15 +533,15 @@ export default function Payments() {
 
   const selectedTargetPayment = selectedPaymentTarget?.payment || {};
   const selectedPaymentAmount = selectedPaymentTarget?.payAll
-    ? Number(summary.monthlyDue || 0)
+    ? totalPayableNow
     : Number(selectedTargetPayment.amount || 0);
 
   const showWalletPay = Number(summary.walletBalance || 0) >= selectedPaymentAmount && selectedPaymentAmount > 0;
 
   if (paymentSelectorOpen && selectedPaymentTarget) {
     console.log("[PAYMENT DEBUG]", {
-      paymentModalAmount: selectedPaymentTarget.payAll ? summary.monthlyDue : selectedPaymentTarget.payment?.amount,
-      sourceVariable: selectedPaymentTarget.payAll ? "summary.monthlyDue" : "selectedPaymentTarget.payment.amount",
+      paymentModalAmount: selectedPaymentTarget.payAll ? totalPayableNow : selectedPaymentTarget.payment?.amount,
+      sourceVariable: selectedPaymentTarget.payAll ? "totalPayableNow" : "selectedPaymentTarget.payment.amount",
       monthlyDue: summary.monthlyDue,
       billingSummaryAmount: summary.billingSummaryAmount,
       payableTillDate: summary.payableTillDate,
@@ -627,6 +638,19 @@ export default function Payments() {
                 </div>
               </div>
             </section>
+
+            {/* Monthly Billing Explanatory Note */}
+            <div className="flex items-start gap-3 rounded-[16px] border border-[#EBE3D7] bg-[#FFFDF9] px-4 py-3.5 sm:px-5">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#FDF4E7] text-[#B8641A]">
+                <Info size={15} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-[#1E1008]">Current Month's Bill</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-[#7A6248]">
+                  This amount is part of your current monthly milk bill. You can pay it now, or wait until the new month when the bill is finalized.
+                </p>
+              </div>
+            </div>
 
             <section className="grid grid-cols-2 gap-3 [grid-auto-rows:1fr] sm:grid-cols-2 xl:grid-cols-4">
               <div className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#EDE8DF] bg-white p-3 sm:p-5">
@@ -1051,7 +1075,7 @@ export default function Payments() {
                   Select Payment Option
                 </p>
                 <h3 className="mt-1 text-2xl font-semibold text-[#1E1008]" style={headingFont}>
-                  Pay {fmt(selectedPaymentTarget.payAll ? summary.monthlyDue : selectedPaymentTarget.payment?.amount)}
+                  Pay {fmt(selectedPaymentTarget.payAll ? totalPayableNow : selectedPaymentTarget.payment?.amount)}
                 </h3>
                 <p className="mt-1 text-xs text-[#8B7355]">
                   Choose how you'd like to pay your dairy bill.

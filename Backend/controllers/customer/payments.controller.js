@@ -229,13 +229,14 @@ export const verifyWalletTopup = async (req, res) => {
 
 export const payBillWithWallet = async (req, res) => {
   try {
-    const { paymentId, payAll, includeRunningDue } = req.body || {};
+    const { paymentId, payAll, includeRunningDue, idempotencyKey } = req.body || {};
     const data = await payCustomerBillWithWallet({
       customerId: req.customer.id,
       paymentId,
       payAll: Boolean(payAll),
       includeRunningDue: includeRunningDue === undefined ? true : Boolean(includeRunningDue),
       dairyId: req.customer?.dairyId ?? null,
+      idempotencyKey: idempotencyKey ? String(idempotencyKey).trim() : null,
     });
     res.json(data);
   } catch (err) {
