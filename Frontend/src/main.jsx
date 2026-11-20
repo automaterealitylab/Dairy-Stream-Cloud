@@ -15,6 +15,14 @@ if (fallbackEl) {
   fallbackEl.remove();
 }
 
+// Automatically recover when deployment invalidates older dynamic chunks
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (event) => {
+    console.warn("Vite dynamic chunk preload failed. Reloading to fetch latest assets...", event);
+    window.location.reload();
+  });
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>

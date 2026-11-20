@@ -2,6 +2,7 @@ import axios from "axios";
 
 const RENDER_BACKEND_URL = "https://dairy-stream-cloud-backend.onrender.com";
 let csrfTokenPromise = null;
+let inMemoryCsrfToken = null;
 
 const getCsrfTokenFromCookie = () => {
   if (typeof document === "undefined") return null;
@@ -9,14 +10,27 @@ const getCsrfTokenFromCookie = () => {
   return match ? decodeURIComponent(match[1]) : null;
 };
 
-const fetchCsrfToken = async () => {
+export const clearCsrfTokenCache = () => {
+  inMemoryCsrfToken = null;
+};
+
+export const fetchCsrfToken = async (forceRefresh = false) => {
   if (typeof window === "undefined") return null;
+  if (!forceRefresh && inMemoryCsrfToken) return inMemoryCsrfToken;
+
   const existing = getCsrfTokenFromCookie();
-  if (existing) return existing;
+  if (!forceRefresh && existing) {
+    inMemoryCsrfToken = existing;
+    return existing;
+  }
   if (csrfTokenPromise) return csrfTokenPromise;
 
   csrfTokenPromise = axios.get(`${API_BASE_URL}/auth/csrf`, { withCredentials: true })
-    .then((response) => response?.data?.csrfToken || getCsrfTokenFromCookie())
+    .then((response) => {
+      const token = response?.data?.csrfToken || getCsrfTokenFromCookie();
+      if (token) inMemoryCsrfToken = token;
+      return token;
+    })
     .finally(() => {
       csrfTokenPromise = null;
     });
@@ -219,6 +233,30 @@ client.interceptors.response.use(
         window.location.href = "/";
       }
     }
+
+    // Auto-retry on invalid/expired CSRF token (403 with CSRF message or EBADCSRFTOKEN code)
+    const isCsrfError =
+      status === 403 &&
+      !error.config?.__csrfRetry &&
+      (String(error.response?.data?.message || "").toLowerCase().includes("csrf") ||
+        error.response?.data?.code === "EBADCSRFTOKEN");
+
+    if (isCsrfError && error.config) {
+      clearCsrfTokenCache();
+      const freshCsrfToken = await fetchCsrfToken(true);
+      if (freshCsrfToken) {
+        const retryConfig = {
+          ...error.config,
+          __csrfRetry: true,
+          headers: {
+            ...(error.config.headers || {}),
+            "X-CSRF-Token": freshCsrfToken,
+          },
+        };
+        return client(retryConfig);
+      }
+    }
+
     return Promise.reject(error);
   }
 );
