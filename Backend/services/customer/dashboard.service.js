@@ -354,6 +354,8 @@ export const getCustomerDashboard = async (customerId, { dairyId } = {}) => {
           address: subscription.address || "-",
           paymentMethod: subscription.payment_method || "-",
           status: subscription.status || "ACTIVE",
+          pausedFrom: subscription.paused_from || null,
+          pausedUntil: subscription.paused_until || null,
         }
       : null,
     todayDelivery,
