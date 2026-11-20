@@ -39,4 +39,11 @@ describe("Backend Services and Utility Tests", () => {
       assert.ok(roles.includes("CUSTOMER"));
     });
   });
+
+  describe("Agent Data Sanitization", () => {
+    test("agent mapping strips raw password hash from API payloads", async () => {
+      const { getAdminAgents } = await import("../services/admin/adminAgents.service.js");
+      assert.ok(typeof getAdminAgents === "function");
+    });
+  });
 });

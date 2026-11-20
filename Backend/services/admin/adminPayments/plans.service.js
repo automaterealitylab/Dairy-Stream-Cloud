@@ -56,6 +56,47 @@ export const updateFarmPlan = async (dairyId, newPlan) => {
     .single();
 
   if (error) throw error;
+
+  // Sync active platform subscription for this dairy
+  const now = new Date();
+  const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  try {
+    const { data: existingSub } = await supabase
+      .from("platform_subscriptions")
+      .select("id")
+      .eq("dairy_id", dairyId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingSub?.id) {
+      await supabase
+        .from("platform_subscriptions")
+        .update({
+          plan_key: planDetails.plan_key || sanitizedPlan,
+          status: "ACTIVE",
+          end_date: endDate.toISOString(),
+          updated_at: now.toISOString(),
+        })
+        .eq("id", existingSub.id);
+    } else {
+      await supabase
+        .from("platform_subscriptions")
+        .insert({
+          dairy_id: dairyId,
+          plan_key: planDetails.plan_key || sanitizedPlan,
+          status: "ACTIVE",
+          start_date: now.toISOString(),
+          end_date: endDate.toISOString(),
+          billing_cycle: "monthly",
+          amount: planDetails.monthly_price || 0,
+          payable_amount: planDetails.monthly_price || 0,
+        });
+    }
+  } catch (subErr) {
+    console.warn("⚠️ Error syncing platform_subscriptions in updateFarmPlan:", subErr.message);
+  }
+
   return data;
 };
 

@@ -41,8 +41,9 @@ const deriveAgentAvailability = (agent = {}) => {
 
 const mapAgentForAdmin = (agent = {}) => {
   const availability = deriveAgentAvailability(agent);
+  const { password, ...safeAgent } = agent;
   return {
-    ...agent,
+    ...safeAgent,
     email: decryptDeterministic(agent.email),
     phone_number: decryptDeterministic(agent.phone_number),
     full_name: agent.agent_name,

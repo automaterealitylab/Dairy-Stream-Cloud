@@ -6,6 +6,17 @@ let lastFetchTime = 0;
 const CACHE_TTL_MS = 60 * 1000; // 1 minute TTL
 
 /**
+ * Normalize plan key across UI conventions and DB schemas (e.g. PREMIUM <-> PRIME)
+ * @param {string} planKey
+ * @returns {string}
+ */
+export const normalizePlatformPlanKey = (planKey) => {
+  const normalized = String(planKey || "").toUpperCase().trim();
+  if (normalized === "PREMIUM") return "PRIME";
+  return normalized;
+};
+
+/**
  * Fetch all active platform plans from DB with caching
  */
 export const getAllActivePlatformPlans = async (forceRefresh = false) => {
@@ -48,9 +59,14 @@ export const getAllActivePlatformPlans = async (forceRefresh = false) => {
  */
 export const getPlatformPlan = async (planKey) => {
   if (!planKey) return null;
-  const normalizedKey = String(planKey).toUpperCase().trim();
+  const rawKey = String(planKey).toUpperCase().trim();
+  const normalizedKey = normalizePlatformPlanKey(rawKey);
   const plans = await getAllActivePlatformPlans();
-  return plans.find((p) => p.plan_key === normalizedKey) || null;
+  return (
+    plans.find((p) => p.plan_key === normalizedKey || p.plan_key === rawKey) ||
+    (normalizedKey === "PRIME" ? plans.find((p) => p.plan_key === "PREMIUM") : null) ||
+    null
+  );
 };
 
 /**

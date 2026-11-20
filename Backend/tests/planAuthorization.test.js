@@ -45,5 +45,27 @@ describe("Plan Authorization Tests", () => {
       const { getPlanFeatures } = await import("../middleware/adminPlan.middleware.js");
       assert.ok(typeof getPlanFeatures === "function");
     });
+
+    test("normalizes PREMIUM plan key to PRIME alias", async () => {
+      const { normalizePlatformPlanKey, getPlatformPlan } = await import("../services/common/platformPlan.service.js");
+      assert.equal(normalizePlatformPlanKey("PREMIUM"), "PRIME");
+      assert.equal(normalizePlatformPlanKey("premium"), "PRIME");
+      assert.equal(normalizePlatformPlanKey("GROWTH"), "GROWTH");
+      assert.equal(normalizePlatformPlanKey("STARTER"), "STARTER");
+
+      const premiumPlan = await getPlatformPlan("PREMIUM");
+      assert.ok(premiumPlan, "PREMIUM plan should resolve");
+      assert.ok(premiumPlan.features.includes("procurement"), "PREMIUM plan must include procurement");
+      assert.ok(premiumPlan.features.includes("suppliers"), "PREMIUM plan must include suppliers");
+    });
+
+    test("getPlanFeatures resolves features for PREMIUM tier", async () => {
+      const { getPlanFeatures } = await import("../middleware/adminPlan.middleware.js");
+      const features = await getPlanFeatures("PREMIUM");
+      assert.ok(Array.isArray(features));
+      assert.ok(features.includes("procurement"));
+      assert.ok(features.includes("suppliers"));
+      assert.ok(features.includes("performance"));
+    });
   });
 });

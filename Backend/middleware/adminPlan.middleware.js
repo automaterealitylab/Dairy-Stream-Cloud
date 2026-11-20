@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase.js";
+import { normalizePlatformPlanKey } from "../services/common/platformPlan.service.js";
 
 /**
  * Middleware to verify admin's subscription plan has access to a required feature
@@ -37,7 +38,7 @@ const getDairyActivePlanFeatures = async (dairyId) => {
     return null;
   }
 
-  // Get active subscription for this dairy
+  // 1. Try to get active platform subscription for this dairy
   const { data: subscription, error: subError } = await supabase
     .from("platform_subscriptions")
     .select("plan_key, status, trial_end_date, end_date")
@@ -49,40 +50,56 @@ const getDairyActivePlanFeatures = async (dairyId) => {
 
   if (subError) {
     console.error("❌ Error fetching platform subscription:", subError.message);
-    throw subError;
   }
 
-  if (!subscription) {
+  let activePlanKey = null;
+
+  if (subscription) {
+    const now = new Date();
+    const trialEnd = subscription.trial_end_date ? new Date(subscription.trial_end_date) : null;
+    const endDate = subscription.end_date ? new Date(subscription.end_date) : null;
+    const isTrialValid = !trialEnd || trialEnd >= now;
+    const isEndValid = !endDate || endDate >= now;
+
+    if (isTrialValid && isEndValid) {
+      activePlanKey = subscription.plan_key;
+    }
+  }
+
+  // 2. Fallback to dairies.selected_plan if subscription record not found or expired
+  if (!activePlanKey) {
+    const { data: dairy, error: dairyError } = await supabase
+      .from("dairies")
+      .select("selected_plan, status")
+      .eq("id", dairyId)
+      .maybeSingle();
+
+    if (dairyError) {
+      console.error("❌ Error fetching dairy selected_plan fallback:", dairyError.message);
+    }
+
+    if (dairy?.selected_plan && dairy.status === "ACTIVE") {
+      activePlanKey = dairy.selected_plan;
+    }
+  }
+
+  if (!activePlanKey) {
     return null;
   }
 
-  // Check if subscription is still valid (not expired trial/end date)
-  const now = new Date();
-  const trialEnd = subscription.trial_end_date ? new Date(subscription.trial_end_date) : null;
-  const endDate = subscription.end_date ? new Date(subscription.end_date) : null;
-
-  if (trialEnd && trialEnd < now) {
-    // Trial expired
-    return null;
-  }
-  if (endDate && endDate < now) {
-    // Subscription expired
-    return null;
-  }
-
-  const planKey = subscription.plan_key;
+  const normalizedPlanKey = normalizePlatformPlanKey(activePlanKey);
 
   // Check cache first
-  const cachedFeatures = getCachedPlanFeatures(planKey);
+  const cachedFeatures = getCachedPlanFeatures(normalizedPlanKey);
   if (cachedFeatures !== null) {
-    return { planKey, features: cachedFeatures };
+    return { planKey: activePlanKey, features: cachedFeatures };
   }
 
   // Fetch plan features from platform_plans
   const { data: plan, error: planError } = await supabase
     .from("platform_plans")
     .select("plan_key, features")
-    .eq("plan_key", planKey)
+    .or(`plan_key.eq.${normalizedPlanKey},plan_key.eq.${activePlanKey}`)
     .eq("status", "ACTIVE")
     .maybeSingle();
 
@@ -96,9 +113,9 @@ const getDairyActivePlanFeatures = async (dairyId) => {
   }
 
   const features = Array.isArray(plan.features) ? plan.features : [];
-  setCachedPlanFeatures(planKey, features);
+  setCachedPlanFeatures(normalizedPlanKey, features);
 
-  return { planKey, features };
+  return { planKey: activePlanKey, features };
 };
 
 /**
@@ -251,13 +268,15 @@ export const clearPlanFeaturesCache = () => {
  * Get plan features for a specific plan key (for testing/admin use)
  */
 export const getPlanFeatures = async (planKey) => {
-  const cached = getCachedPlanFeatures(planKey);
+  const rawKey = String(planKey || "").toUpperCase().trim();
+  const normalizedKey = normalizePlatformPlanKey(rawKey);
+  const cached = getCachedPlanFeatures(normalizedKey);
   if (cached !== null) return cached;
 
   const { data: plan, error } = await supabase
     .from("platform_plans")
     .select("plan_key, features")
-    .eq("plan_key", planKey)
+    .or(`plan_key.eq.${normalizedKey},plan_key.eq.${rawKey}`)
     .eq("status", "ACTIVE")
     .maybeSingle();
 
@@ -265,6 +284,6 @@ export const getPlanFeatures = async (planKey) => {
   if (!plan) return null;
 
   const features = Array.isArray(plan.features) ? plan.features : [];
-  setCachedPlanFeatures(planKey, features);
+  setCachedPlanFeatures(normalizedKey, features);
   return features;
 };
